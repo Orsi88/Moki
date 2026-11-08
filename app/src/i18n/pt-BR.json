@@ -1578,5 +1578,7 @@
   "The project’s fixed folders keep their names.": "As pastas fixas do projeto mantêm o nome.",
   "The activity uses these names to continue and to check what it delivered.": "A atividade usa esses nomes para continuar e conferir o que entregou.",
   "Moki finds this file by its name.": "O Moki encontra este arquivo pelo nome.",
-  "This is your own folder: rename it on your computer.": "Esta é a sua pasta: renomeie no seu computador."
+  "This is your own folder: rename it on your computer.": "Esta é a sua pasta: renomeie no seu computador.",
+  "Comment on it": "Comentar",
+  "Selection": "Seleção"
 }

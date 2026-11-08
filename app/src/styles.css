@@ -1874,7 +1874,23 @@ span.mcp-row-main { cursor: default; }
 .md-card > .pdf-colors { margin-top: 6px; }
 .pdf-composer > .pdf-colors { margin: 6px 0; }
 .md-marker { background: var(--accent); }
-.md-comment-hint { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 6px 12px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+/* The Comment button of a selection (components/MarkdownComments.tsx): it floats above the selected
+   text (below it at the very top), over the page, so nothing moves. */
+.md-select-bubble {
+  position: absolute; z-index: 6; transform: translateY(-100%);
+  display: flex; flex-direction: column; align-items: flex-start; max-width: 260px; padding: 4px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+}
+.md-select-bubble.below { transform: none; }
+.md-select-bubble button {
+  display: flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer;
+}
+.md-select-bubble button:hover:not(:disabled), .md-select-bubble button:focus-visible { background: var(--accent-soft); outline: none; }
+.md-select-bubble button svg { color: var(--accent); }
+.md-select-bubble button:disabled { color: var(--faint); cursor: default; }
+.md-select-bubble button:disabled svg { color: var(--faint); }
+.md-select-why { padding: 0 10px 5px; color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
 
 /* Settings › Activities (components/ActivitiesPage.tsx): the star sits in the corner of each card; the form and the request text. */
 /* A list card with a favorite star in its corner (Activities, Agents, Operations, Templates, Skills). */

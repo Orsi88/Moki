@@ -1,15 +1,16 @@
-// A Markdown file read with its comments: select text in it to comment right there; each
+// A Markdown file read with its comments: select text in it and a small Comment button floats by the
+// selection (nothing else moves, the focus stays, Ctrl+C still copies); each
 // comment sits in a column beside the text, at the height of what it comments, joined to it
 // by a thin line (as in a PDF), with reply, edit and delete. With the column hidden (the bar's
 // comments button), a mark on the text's right edge shows each one and opens it. The comments live in the file
 // itself (app/src/md-comments.ts), so each change is the file's new text, saved at once.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { api } from '../api';
 import { t } from '../i18n';
 import { addComment, colorComment, editComment, findInSource, readComments, removeComment, replyComment, SWATCH, type CommentColor } from '../md-comments';
 import { stackCards } from '../pdf-quads';
-import { IconX } from './Icons';
+import { IconChat } from './Icons';
 import { CommentColors } from './CommentColors';
 import { mountDiagrams } from './Diagrams';
 import { replaceDiagram } from '../diagram-source';
@@ -34,7 +35,8 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
   const [active, setActive] = useState('');
   const [color, setColor] = useState<CommentColor>('yellow');
   const [colorPicker, setColorPicker] = useState<string | null>(null);
-  const [hint, setHint] = useState('');
+  // The floating Comment button of a selection: the place found in the file, or why it cannot be commented.
+  const [bubble, setBubble] = useState<{ x: number; y: number; below: number; range: [number, number] | null; why: string } | null>(null);
   const [placed, setPlaced] = useState<{ items: { id: string; ax: number; ay: number; edge: number; top: number }[]; rail: number; railTop: number; height: number }>({ items: [], rail: 0, railTop: 0, height: 0 });
   const stage = useRef<HTMLDivElement>(null);
   const doc = useRef<HTMLDivElement>(null);
@@ -88,7 +90,9 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
     });
   });
 
-  // A selection inside one paragraph opens the box beside it; it is found in the file by its occurrence.
+  // A selection shows the Comment button above it (below it at the very top). Selecting is often only
+  // reading or copying, so the comment box opens on the button, never by itself. A selection that
+  // cannot be commented (several paragraphs, formatting inside) gets the button disabled, with the reason.
   const onMouseUp = () => {
     const box = stage.current;
     const body = doc.current;
@@ -97,7 +101,10 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
     const range = sel.getRangeAt(0);
     const picked = sel.toString();
     if (!picked.trim()) return;
-    if (/\n/.test(picked.trim())) { setHint(t('Select text inside one paragraph to comment on it.')); return; }
+    const r = range.getBoundingClientRect();
+    const origin = box.getBoundingClientRect();
+    const place = { x: Math.max(8, r.left - origin.left), y: r.top - origin.top, below: r.bottom - origin.top };
+    if (/\n/.test(picked.trim())) { setBubble({ ...place, range: null, why: t('Select text inside one paragraph to comment on it.') }); return; }
     const before = document.createRange();
     before.setStart(body, 0);
     before.setEnd(range.startContainer, range.startOffset);
@@ -105,12 +112,26 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
     let nth = 0;
     for (let i = prefix.indexOf(picked); i >= 0; i = prefix.indexOf(picked, i + picked.length)) nth++;
     const found = findInSource(text, picked, nth);
-    if (!found) { setHint(t('This text has formatting inside: comment a shorter piece, or comment it in Edit.')); return; }
-    const r = range.getBoundingClientRect();
-    const origin = box.getBoundingClientRect();
-    setHint('');
-    setComposer({ range: found, x: Math.max(8, r.left - origin.left), y: r.bottom - origin.top + 8, text: '' });
+    setBubble({ ...place, range: found, why: found ? '' : t('This text has formatting inside: comment a shorter piece, or comment it in Edit.') });
   };
+  const openComposer = () => {
+    if (!bubble?.range) return;
+    setComposer({ range: bubble.range, x: bubble.x, y: bubble.below + 8, text: '' });
+    setBubble(null);
+  };
+  // The button goes with its selection: cleared, moved elsewhere, Esc.
+  useEffect(() => {
+    if (!bubble) return undefined;
+    const body = doc.current;
+    const gone = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount || !body?.contains(sel.getRangeAt(0).commonAncestorContainer)) setBubble(null);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setBubble(null); };
+    document.addEventListener('selectionchange', gone);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('selectionchange', gone); document.removeEventListener('keydown', esc); };
+  }, [bubble]);
 
   const now = () => new Date().toISOString();
   const add = () => {
@@ -126,13 +147,15 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
   };
   const remove = (id: string) => { if (window.confirm(t('Delete this comment?'))) onCommit(removeComment(text, id)); };
 
+  // The same object while the text is the same: React 19 compares the object, and a new one rewrites the
+  // whole document on every render (hovering a card, measuring), which clears a selection and makes it flicker.
+  const inner = useMemo(() => ({ __html: html }), [html]);
   const where = new Map(placed.items.map((p) => [p.id, p]));
   const shown = !hidden && (comments.length > 0 || composer);
 
   return (
     <div className={`md-commented${shown ? ' with-rail' : ''}`} ref={stage}>
-      {hint && <p className="md-comment-hint muted small" role="status">{hint} <button type="button" className="icon-btn" onClick={() => setHint('')} aria-label={t('Close')}><IconX size={12} /></button></p>}
-      <div ref={doc} className="markdown" onClick={onClick} onMouseUp={onMouseUp} dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={doc} className="markdown" onClick={onClick} onMouseUp={onMouseUp} dangerouslySetInnerHTML={inner} />
       {shown && (
         <>
           <svg className="md-links" width="100%" height={placed.height} aria-hidden="true">
@@ -191,6 +214,16 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
             onClick={() => { onShow?.(); setActive(p.id); }} />
         );
       })}
+      {bubble && (
+        // mousedown would clear the selection before the click: the text stays selected under the button.
+        <div className={`md-select-bubble${bubble.y < 44 ? ' below' : ''}`} role="toolbar" aria-label={t('Selection')}
+          style={{ left: bubble.x, top: bubble.y < 44 ? bubble.below + 6 : bubble.y - 6 }} onMouseDown={(e) => e.preventDefault()}>
+          <button type="button" disabled={!bubble.range} aria-describedby={bubble.why ? 'md-select-why' : undefined} onClick={openComposer}>
+            <IconChat size={15} /> {t('Comment on it')}
+          </button>
+          {bubble.why && <span id="md-select-why" className="md-select-why">{bubble.why}</span>}
+        </div>
+      )}
       {composer && (
         <div className="pdf-composer" style={{ left: composer.x, top: composer.y }} role="dialog" aria-label={t('Comment')}
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setComposer(null); } }}>

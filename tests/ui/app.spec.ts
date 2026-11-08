@@ -1460,6 +1460,11 @@ test.describe.serial('Moki PDF comments', () => {
       sel?.removeAllRanges(); sel?.addRange(range);
       p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     });
+    // Selecting only shows the Comment button; the box opens from it.
+    const selection = pdfPage.getByRole('toolbar', { name: 'Seleção' });
+    await expect(selection).toBeVisible();
+    await expect(pdfPage.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
+    await selection.getByRole('button', { name: 'Comentar' }).click();
     const box = pdfPage.getByRole('dialog', { name: 'Comentário' });
     await box.getByRole('radiogroup', { name: 'Cor do comentário' }).getByRole('radio', { name: 'Verde' }).click();
     await box.getByRole('textbox').fill('E quando expira?');
@@ -2255,3 +2260,80 @@ test.describe.serial('Moki start screen rename', () => {
   });
 });
 
+test.describe.serial('Moki Markdown selection', () => {
+  let selApp: ElectronApplication;
+  let sp: Page;
+  const dirs: string[] = [];
+  // Drags the mouse over the text, as a person selects it.
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await sp.mouse.move(from.x, from.y);
+    await sp.mouse.down();
+    await sp.mouse.move(to.x, to.y, { steps: 8 });
+    await sp.mouse.up();
+  };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'doc.md'), '# Título do documento\n\nPrimeiro parágrafo com **negrito** no meio.\n\nSegundo parágrafo simples.\n');
+    ({ app: selApp, page: sp } = await openApp(root, userData));
+    if (!(await sp.locator('.tree-row[title="inbox/doc.md"]').isVisible())) await sp.locator('.tree-row[title="inbox"]').click();
+    await sp.locator('.tree-row[title="inbox/doc.md"]').click();
+    await expect(sp.locator('.md-commented .markdown h1')).toBeVisible();
+  });
+
+  test.afterAll(async () => {
+    await selApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('selecting from the start moves nothing: the Comment button floats, disabled, with the reason', async () => {
+    const h1 = sp.locator('.md-commented .markdown h1');
+    const title = await h1.boundingBox();
+    const para = await sp.locator('.md-commented .markdown p').first().boundingBox();
+    await drag({ x: title!.x + 1, y: title!.y + title!.height / 2 }, { x: para!.x + 120, y: para!.y + para!.height / 2 });
+    const bubble = sp.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble).toBeVisible();
+    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeDisabled();
+    await expect(bubble).toContainText('Selecione um trecho dentro de um mesmo parágrafo para comentar.');
+    expect((await h1.boundingBox())!.y).toBe(title!.y); // the document did not move
+    await expect(sp.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
+    await sp.keyboard.press('Escape');
+    await expect(bubble).toBeHidden();
+  });
+
+  test('a selection inside one paragraph is still copied with Ctrl+C; the box opens only from the button', async () => {
+    await sp.evaluate(() => window.getSelection()?.removeAllRanges()); // a drag that starts on selected text moves it instead of selecting
+    const h1 = sp.locator('.md-commented .markdown h1');
+    const title = await h1.boundingBox();
+    await drag({ x: title!.x + 1, y: title!.y + title!.height / 2 }, { x: title!.x + 90, y: title!.y + title!.height / 2 });
+    const bubble = sp.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeEnabled();
+    await expect(sp.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
+    const picked = await sp.evaluate(() => window.getSelection()?.toString() ?? '');
+    expect(picked.length).toBeGreaterThan(2);
+    await sp.keyboard.press('Control+c');
+    await expect.poll(() => selApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(picked);
+    // The button keeps the selection and opens the comment box under it.
+    await bubble.getByRole('button', { name: 'Comentar' }).click();
+    const box = sp.getByRole('dialog', { name: 'Comentário' });
+    await expect(box).toBeVisible();
+    await expect(box.getByRole('textbox')).toBeFocused();
+    await expect(bubble).toBeHidden();
+    await box.getByRole('textbox').press('Escape');
+    await expect(box).toBeHidden();
+  });
+
+  test('the button goes away when the selection does', async () => {
+    await sp.evaluate(() => window.getSelection()?.removeAllRanges());
+    const h1 = sp.locator('.md-commented .markdown h1');
+    const title = await h1.boundingBox();
+    await drag({ x: title!.x + 1, y: title!.y + title!.height / 2 }, { x: title!.x + 90, y: title!.y + title!.height / 2 });
+    const bubble = sp.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble).toBeVisible();
+    const para = await sp.locator('.md-commented .markdown p').last().boundingBox();
+    await sp.mouse.click(para!.x + para!.width + 40, para!.y + para!.height + 60); // a click on the page, away from the text
+    await expect(bubble).toBeHidden();
+  });
+});
