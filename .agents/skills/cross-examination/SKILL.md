@@ -71,7 +71,8 @@ Step ids are used in `state.json`.
 - **Severity** is about the consequence for the reader, not the size of the error: *critical* (a conclusion is wrong or unsupported and the reader would act on it), *major* (a conclusion is weaker than stated, or an important gap), *minor* (a local flaw that does not change conclusions). Notes on style or wording only when they cause misunderstanding.
 - **Rank, do not flood.** Critical and major findings first; group repetitive minor issues into one finding.
 - **Steelman first.** Before objecting to a conclusion, state its strongest reading; criticize that, not a weaker version.
-- **Your own uncertainty is labeled.** A finding can be *confirmed* (the evidence shows it) or *suspected* (worth checking; say what would confirm it).
+- **Your own uncertainty is labeled.** A finding can be *confirmed* (the evidence shows it) or *suspected* (worth checking; say what would confirm it). A source you could not open is *not checkable* — a limit of the review, not a flaw of the work.
+- **No findings is a valid result.** If the deliverable holds up, say so; never manufacture objections to fill the critique.
 - **No project data on the web**: counter-evidence queries use generic terms only, unless `project.json` has `externalDataSharingAllowed: true` and the user authorizes it ([isolation](references/core/isolation-policy.md)).
 - **Critique the work, not the author.** Neutral, precise, useful wording.
 - Apply [execution principles](references/core/execution-principles.md), [approval](references/core/approval-policy.md) and [traceability](references/core/traceability.md).
@@ -81,7 +82,8 @@ Step ids are used in `state.json`.
 - Every finding has a severity, a lens, a location in the deliverable, the problem, its grounds and a suggested direction for the fix.
 - Every support check names the claim, the source and locator, and one of the five classifications; *not checkable* is never reported as *supports*.
 - Every counter-source was opened in this run and is cited with link and date.
-- The verdict is consistent with the findings (no *solid* verdict with an open critical finding).
+- The verdict follows the [verdict rules](references/critique-template.md#verdict-rules): it judges the examined version, decided only by *confirmed* findings; any main conclusion whose support could not be checked makes it *provisional* (listed), and most of them unchecked makes it *Inconclusive*.
+- *Not checkable* is never reported as a flaw; a sound deliverable can receive *Solid* with no findings.
 - The critique contains a "What holds up" section and does not modify the deliverable.
 
 ## Output format
@@ -103,7 +105,7 @@ Chat-only tools: present the critique in the conversation and tell the user wher
 - Deliverable missing or unreadable → ask for it; status `awaiting-input`.
 - No citations at all in a deliverable that makes factual claims → that is a finding (support lens); check the most important claims yourself as far as possible.
 - No web access → see [Tools](#tools); the verdict says which checks were not performed.
-- Source behind a paywall → *not checkable*, with the reason; do not guess what it says.
+- Source behind a paywall, login or a dead link → *not checkable*, with the reason; do not guess what it says and do not report it as unsupported (a missing link or locator in the deliverable itself is a support finding, an unreachable page is not).
 - The deliverable is very long → *quick* depth by default; say what was not examined.
 - The same page failing 3 times → *not checkable*, move on.
 
