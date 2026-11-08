@@ -1774,6 +1774,21 @@ export function createService(root: string, deps: Deps) {
       return trashed;
     },
 
+    // The deliverables of the runs each terminal created (state.json terminal + artifacts), as paths relative to the
+    // project, existing files only: the app opens them in that terminal's group. Never every file the AI touched.
+    terminalDeliverables: (project: string) => {
+      const dir = projectDir(project);
+      const out: Record<string, string[]> = {};
+      for (const run of listRuns(project, root)) {
+        const terminal = (run as { terminal?: unknown }).terminal;
+        if (typeof terminal !== 'string' || !/^t[\w-]{1,40}$/.test(terminal)) continue;
+        const files = (Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''))
+          .filter((rel) => !rel.startsWith('/') && !/^[a-z]:/i.test(rel) && !rel.split('/').includes('..') && existsSync(join(dir, rel)) && statSync(join(dir, rel)).isFile());
+        if (files.length) out[terminal] = [...new Set([...(out[terminal] ?? []), ...files])];
+      }
+      return out;
+    },
+
     // Files in a run's outputs/ that are not among its deliverables (state.json artifacts): leftovers to clean.
     // A run that lists no deliverables has none to compare with, so nothing is called a leftover.
     runLeftovers: (project: string, runId: unknown) => leftoversOf(project, runId),

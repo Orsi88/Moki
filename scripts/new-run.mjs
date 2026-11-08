@@ -42,6 +42,8 @@ const state = {
   project: args.project,
   [kind]: name,
   ...(args.activity ? { activity: args.activity } : {}),
+  // The Moki terminal the AI runs in (QA_TERMINAL), so the app opens this run's deliverables in that terminal's group.
+  ...(/^t[\w-]{1,40}$/.test(process.env.QA_TERMINAL ?? '') ? { terminal: process.env.QA_TERMINAL } : {}),
   createdAt: now,
   updatedAt: now,
   status: 'in-progress',

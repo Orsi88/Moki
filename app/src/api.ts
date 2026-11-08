@@ -365,6 +365,7 @@ export const api = {
   exportNote: (project: string, path: string, format: 'pdf' | 'md' | 'txt') => call<string | null>('exportNote', project, path, format),
   run: (project: string, runId: string) => call<RunState>('run', project, runId),
   runLeftovers: (project: string, runId: string) => call<string[]>('runLeftovers', project, runId),
+  terminalDeliverables: (project: string) => call<Record<string, string[]>>('terminalDeliverables', project),
   cleanRun: (project: string, runId: string, paths: string[]) => call<number>('cleanRun', project, runId, paths),
   inbox: (project: string) => call<InboxFile[]>('inbox', project),
   importFiles: (project: string, paths: string[], into?: string) => call<{ saved: string[]; skipped: string[] }>('importFiles', project, paths, into),

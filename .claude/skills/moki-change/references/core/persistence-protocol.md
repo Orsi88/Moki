@@ -31,6 +31,7 @@ Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `creat
 - `inputs`: every input actually used, with path and a short description. Never list a document you did not read.
 - `artifacts`: paths of the deliverables — the files the user asked for (and the evidence the skill keeps) — relative to the framework root (starting with `workspace/projects/<project-id>/`) or to a target repository (`<target-repo>/...`). Working files are never listed: they go to the run's `work/` folder and are deleted when the run is completed ([deliverables only](execution-principles.md#deliverables-only)).
 - `pending`: open questions and missing information, each with an id.
+- `terminal` (optional): the Moki desktop terminal the run was created in; `npm run new-run` records it by itself (from `QA_TERMINAL`). The app opens the run's deliverables next to that terminal. Never write it by hand.
 - `activity` (optional): the id of the Moki activity the request came from, when the request names one (the desktop app says it). It is how the app shows each run under its activity; a request that did not come from an activity has none.
 
 Update `state.json` at the end of every step and before every approval gate. Keep it small: store decisions and paths, not full document contents.

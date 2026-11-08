@@ -835,6 +835,15 @@ test('npm run new-run records --activity, and refuses an activity the project do
     const dir = readdirSync(join(ws, 'projects', 'loja', 'runs'))[0];
     assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).activity, 'tests');
     for (const sub of ['inputs', 'outputs', 'evidence', 'logs', 'work']) assert.ok(existsSync(join(ws, 'projects', 'loja', 'runs', dir, sub)), sub); // work/: helper files, never deliverables
+    assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).terminal, undefined, 'outside a Moki terminal: no terminal');
+    // Inside a Moki terminal, the run records which one (QA_TERMINAL); anything else is ignored.
+    const inTerminal = (value: string, slug: string) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', slug],
+      { cwd: ROOT, env: { ...process.env, QA_WORKSPACE: ws, QA_TERMINAL: value }, encoding: 'utf8' });
+    assert.equal(inTerminal('t1-7', 'de-um-terminal').status, 0);
+    assert.equal(inTerminal('../x', 'nome-ruim').status, 0);
+    const stateOf = (slug: string) => JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', readdirSync(join(ws, 'projects', 'loja', 'runs')).find((d) => d.endsWith(slug))!, 'state.json'), 'utf8'));
+    assert.equal(stateOf('de-um-terminal').terminal, 't1-7');
+    assert.equal(stateOf('nome-ruim').terminal, undefined);
     const bad = run('--activity', 'nao-existe');
     assert.notEqual(bad.status, 0);
     assert.match(bad.stderr, /Unknown activity "nao-existe"/);
@@ -2089,6 +2098,12 @@ test('leftovers: old scratch files and finished runs\' helper files go when the 
     assert.ok(existsSync(join(runs, done, 'outputs', 'Test cases.xlsx')), 'the deliverable stays');
     assert.deepEqual(service.runLeftovers('acme', done), []);
     assert.throws(() => service.runLeftovers('acme', 'nope'), /Unknown run/);
+    // Each terminal's deliverables: the artifacts of the runs it created that exist, never its leftovers or work files.
+    state(done, 'completed', [`workspace/projects/acme/runs/${done}/outputs/Test cases.xlsx`, `workspace/projects/acme/runs/${done}/outputs/gone.pdf`, '../outside.md']);
+    const withTerminal = JSON.parse(readFileSync(join(runs, done, 'state.json'), 'utf8'));
+    writeFileSync(join(runs, done, 'state.json'), JSON.stringify({ ...withTerminal, terminal: 't3-2' }));
+    writeFileSync(join(runs, going, 'state.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(runs, going, 'state.json'), 'utf8')), terminal: 'bad id' }));
+    assert.deepEqual(service.terminalDeliverables('acme'), { 't3-2': [`runs/${done}/outputs/Test cases.xlsx`] });
   } finally {
     for (const p of [join(runs, done), join(runs, going), join(dir, 'temporary', 'request-new.md')]) rmSync(p, { recursive: true, force: true });
   }

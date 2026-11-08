@@ -179,3 +179,17 @@ test('terminal flow control survives a process that cannot pause or resume', () 
   assert.doesNotThrow(() => f2.dispose());
   assert.equal(resumed, 1);
 });
+
+test('every terminal gets its own id as QA_TERMINAL, on top of the environment it was prepared with', () => {
+  const envs: NodeJS.ProcessEnv[] = [];
+  const terminals = createTerminals(() => {}, undefined, () => ({
+    spawn: (_file, _args, options) => { envs.push(options.env); return { pid: 1, onData: () => {}, onExit: () => {}, write: () => {}, resize: () => {}, kill: () => {}, pause: () => {}, resume: () => {} }; },
+  }));
+  const a = terminals.prepare({ file: 'fake', args: [], cwd: '.', title: 'A', env: { KEEP: '1' } });
+  const b = terminals.prepare({ file: 'fake', args: [], cwd: '.', title: 'B' });
+  terminals.start(a, 80, 24, 'acme');
+  terminals.start(b, 80, 24, 'acme');
+  assert.deepEqual([envs[0].QA_TERMINAL, envs[0].KEEP], [a, '1']);
+  assert.equal(envs[1].QA_TERMINAL, b);
+  assert.notEqual(a, b);
+});

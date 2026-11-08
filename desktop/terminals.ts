@@ -167,7 +167,8 @@ export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit',
       if (!spec || !p) return 'This terminal can no longer be started.';
       prepared.delete(id);
       try {
-        const proc = p.spawn(spec.file, spec.args, { name: 'xterm-256color', cols, rows, cwd: spec.cwd, env: spec.env ?? process.env });
+        // QA_TERMINAL: the tab's id. A run the AI creates from here records it (new-run.mjs), so the app can open its deliverables in this terminal's group.
+        const proc = p.spawn(spec.file, spec.args, { name: 'xterm-256color', cols, rows, cwd: spec.cwd, env: { ...(spec.env ?? process.env), QA_TERMINAL: id } });
         running.set(id, proc);
         projectOf.set(id, project);
         // The window confirms what it drew (ack): too much unconfirmed output pauses the process so the window's queue cannot grow without end.
