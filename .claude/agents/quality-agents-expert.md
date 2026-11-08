@@ -48,7 +48,7 @@ Not for running QA activities on a project — those go through the skills and t
 |---|---|---|
 | `qa-orchestrator` | draft | Entry point; classifies request; workflows in `references/workflows/*.md` as a ```` ```json workflow ```` block (`requirements-to-tests`, `failure-investigation`, `test-evidence`, `quality-lifecycle`) |
 | `project-context` | draft | Identify project, progressive onboarding interview, retrieval map in `references/context-files.md` (each skill needing context has a row) |
-| `requirements-review` | draft | 7 stages, gates G1–G3; xlsx matrix from `assets/review-matrix.layout.json`; final PDF report; never writes test cases |
+| `requirements-review` | draft | 7 stages, gates G1–G3; xlsx matrix from `assets/review-matrix.layout.json`; final PDF report; optional tracker source and publication through `dispatch` (stage 0 `source`, `publish-round` P1, answers from comments GC, `publish-report` P2); never writes test cases |
 | `test-design` | draft | Mapping → OK gate → detailing → export (`assets/test-cases.layout.json`) |
 | `failure-analysis` | draft | Validates 4 mandatory inputs; exact missing-info message; fixed-section pre-analysis (pt-BR/en) checked by `check-output` |
 | `evidence-collection`, `evidence-sheet`, `evidence-document` | draft | Test evidence: work item + Jam → approved `evidence.json` (gate) → xlsx (fills the user's model or `assets/evidence-sheet.layout.json`) and docx (`npm run docx`, user's model kept); workflow `test-evidence`, agent `evidence-builder` |

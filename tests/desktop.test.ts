@@ -44,7 +44,7 @@ function makeDocx(): Buffer {
 }
 
 before(() => {
-  for (const s of ['failure-analysis', 'automation', 'project-context', 'requirements-review']) {
+  for (const s of ['failure-analysis', 'automation', 'project-context', 'requirements-review', 'dispatch']) {
     cpSync(join(ROOT, 'skills', s), join(root, 'skills', s), { recursive: true });
   }
   cpSync(join(ROOT, 'templates'), join(root, 'templates'), { recursive: true });
