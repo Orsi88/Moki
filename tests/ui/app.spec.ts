@@ -236,6 +236,128 @@ test('Moki quick notes stay available over a project, collapsed sidebar and sett
   }
 });
 
+test('Moki themed confirmations wait for a decision, trap focus and preserve the file when cancelled', async () => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-dialog-profile-'));
+  const file = join(root, 'workspace', 'projects', 'acme', 'context', 'disposable.txt');
+  writeFileSync(file, 'Do not delete before confirming.');
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    const native: string[] = [];
+    view.on('dialog', (dialog) => { native.push(dialog.message()); void dialog.dismiss(); });
+    await view.locator('.tree-row[title="context"]').click();
+    const remove = async () => {
+      await view.locator('.tree-row[title="context/disposable.txt"]').click({ button: 'right' });
+      await view.getByRole('menuitem', { name: 'Excluir', exact: true }).click();
+    };
+    await remove();
+    const dialog = view.getByRole('alertdialog', { name: 'Confirmar ação' });
+    await expect(dialog).toContainText('disposable.txt');
+    await expect(dialog.getByRole('button', { name: 'Cancelar', exact: true })).toBeFocused();
+    expect(existsSync(file)).toBe(true);
+    for (let n = 0; n < 6; n++) {
+      await view.keyboard.press(n % 2 ? 'Shift+Tab' : 'Tab');
+      await expect.poll(() => dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await view.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    expect(existsSync(file)).toBe(true);
+    await remove();
+    await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(existsSync(file)).toBe(true);
+    await remove();
+    await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect.poll(() => existsSync(file)).toBe(false);
+    await expect(view.locator('.tree-row[title="context/disposable.txt"]')).toHaveCount(0);
+    // A catalog opened over a note owns the first Escape; the note and its contents stay underneath.
+    const add = view.locator('.ribbon').getByRole('button', { name: 'Nova nota', exact: true });
+    await add.click();
+    const note = view.locator('.modal-backdrop > .note-dialog');
+    await note.getByPlaceholder('ex.: Ideias de teste').fill('Sobreposta');
+    await note.locator('.note-destination select').selectOption('acme');
+    await note.getByTitle('Usar esta nota com a IA', { exact: true }).click();
+    const choose = note.getByRole('button', { name: 'Escolher atividade', exact: true });
+    await choose.click();
+    await expect(view.locator('.modal.catalog')).toBeVisible();
+    await view.keyboard.press('Escape');
+    await expect(view.locator('.modal.catalog')).toHaveCount(0);
+    await expect(note).toBeVisible();
+    await expect(note.getByPlaceholder('ex.: Ideias de teste')).toHaveValue('Sobreposta');
+    await expect(choose).toBeFocused();
+    await view.keyboard.press('Escape');
+    await expect(note).toHaveCount(0);
+    await expect(add).toBeFocused();
+    expect(native).toEqual([]);
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('Moki dialogs follow all palettes in both modes and update an already-open notebook', async ({}, info) => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-dialog-theme-profile-'));
+  const notes = join(root, 'workspace', 'projects', 'acme', 'notes');
+  mkdirSync(notes, { recursive: true });
+  writeFileSync(join(notes, 'theme.md'), '# Theme note\n\nKeep this window open.');
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    const bookOpened = running.waitForEvent('window');
+    await view.evaluate(() => window.qa?.openNoteWindow({ project: 'acme', path: 'notes/theme.md' }));
+    const book = await bookOpened;
+    await expect(book.locator('.note-dialog')).toBeVisible();
+    const notebookTab = book.locator('.notebook-tab-label').first();
+    await notebookTab.focus();
+    await expect(notebookTab).toBeFocused(); // a whole notebook window must not trap focus away from its own tabs
+    await view.locator('.ribbon').getByRole('button', { name: 'Todos os projetos', exact: true }).click();
+    const palettes = [
+      ['amber', '🧈 Moki clássico'], ['blue', '🌊 Azul oceano'], ['purple', '🔮 Roxo cósmico'],
+      ['green', '👽 Verde que te quero'], ['red', '👀 Vermelhor'],
+    ];
+    for (const mode of ['light', 'dark']) {
+      for (const [palette, label] of palettes) {
+        await view.locator('.ribbon').getByRole('button', { name: 'Configurações', exact: true }).click();
+        await view.getByRole('tab', { name: 'Temas', exact: true }).click();
+        await view.getByRole('radiogroup', { name: 'moki-mode', exact: true }).getByText(mode === 'light' ? 'Claro' : 'Escuro', { exact: true }).click();
+        await view.getByRole('button', { name: label, exact: true }).click();
+        // A dialog follows Moki even when document/CLI modes deliberately differ from it.
+        await view.getByRole('radiogroup', { name: 'document-theme', exact: true }).getByText(mode === 'light' ? 'Escuro' : 'Claro', { exact: true }).click();
+        await view.getByRole('radiogroup', { name: 'cli-theme', exact: true }).getByText(mode === 'light' ? 'Escuro' : 'Claro', { exact: true }).click();
+        await expect(book.locator('html')).toHaveAttribute('data-moki-palette', palette);
+        await expect(book.locator('html')).toHaveAttribute('data-theme', mode);
+        await view.locator('.ribbon').getByRole('button', { name: 'Configurações', exact: true }).click();
+        const create = view.getByRole('button', { name: 'Criar', exact: true });
+        await create.click();
+        const dialog = view.getByRole('dialog', { name: 'Criar um novo projeto', exact: true });
+        await expect(dialog).toBeVisible();
+        const colors = await dialog.evaluate((el) => ({
+          surface: getComputedStyle(el).backgroundColor,
+          app: getComputedStyle(document.documentElement).backgroundColor,
+        }));
+        expect(colors.surface).toBe(colors.app);
+        await expect(dialog.getByRole('textbox', { name: /Nome do projeto/ })).toBeFocused();
+        await dialog.screenshot({ path: info.outputPath(`${mode}-${palette}.png`) });
+        await view.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+        await expect(create).toBeFocused();
+      }
+    }
+    await book.close();
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
 test.describe.serial('Moki settings', () => {
   test.beforeAll(async () => {
     const root = fixture();
@@ -296,8 +418,8 @@ test.describe.serial('Moki settings', () => {
   });
 
   test('templates are a list: a new one tagged with a project applies only to it', async () => {
-    page.once('dialog', (d) => { void d.accept(); }); // the watermark typed above is discarded
     await page.getByRole('button', { name: 'Voltar para Templates' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click(); // discard the watermark typed above
     await page.getByRole('button', { name: 'Novo template' }).click();
     await page.locator('.ds-form').getByRole('textbox', { name: 'Nome' }).fill('Acme look');
     await page.locator('.ds-form .tag-field').getByRole('textbox', { name: 'Adicionar uma tag' }).fill('Acme');
@@ -712,9 +834,9 @@ test.describe.serial('Moki workspaces', () => {
 
   test('a hidden project is deleted for good only after typing delete', async () => {
     const row = wsPage.locator('.home-row', { hasText: 'Old Portal' });
-    wsPage.once('dialog', (d) => { void d.accept(); });
     await row.click({ button: 'right' }); // the row's actions are on the right click
     await wsPage.getByRole('menuitem', { name: 'Desvisualizar' }).click();
+    await wsPage.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
     await wsPage.getByText('Ocultos (1)').click();
     await wsPage.locator('.home-hidden .home-row', { hasText: 'Old Portal' }).click({ button: 'right' });
     await wsPage.getByRole('menuitem', { name: 'Excluir definitivamente' }).click();
@@ -986,7 +1108,7 @@ test.describe.serial('Moki project tree', () => {
 
   test('typing / in a note lists the formatting commands; a checklist continues on Enter', async () => {
     await treePage.locator('.tree-row[title="notes"]').click();
-    await treePage.getByRole('button', { name: 'Nova nota' }).click();
+    await treePage.locator('.sidebar').getByRole('button', { name: 'Nova nota' }).click();
     const note = treePage.locator('.note-dialog'); // its name follows the title typed below
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Compras');
     await note.getByRole('button', { name: 'Código Markdown' }).click();
@@ -1322,7 +1444,7 @@ test.describe.serial('Moki terminals outlive the project screen', () => {
   });
 
   test('leaving the project does not close its terminal; opening it again brings the tab back', async () => {
-    await termPage.getByTitle('Novo terminal').first().click();
+    await termPage.getByTitle('Num terminal novo').first().click();
     await termPage.getByRole('menuitem', { name: 'Terminal' }).click(); // the category, then its option
     await termPage.getByRole('menuitem', { name: /seu shell/ }).click();
     const pane = termPage.locator('.term-pane:not([hidden])');
@@ -1339,8 +1461,8 @@ test.describe.serial('Moki terminals outlive the project screen', () => {
     await expect(termPage.locator('.term-pane:not([hidden]) .xterm-rows')).toContainText('moki-segue-rodando');
 
     // Closing its tab is what stops it.
-    termPage.once('dialog', (d) => { void d.accept(); });
     await termPage.locator('.tab-close[title="Fechar o terminal"]').first().click();
+    await termPage.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
     await expect(termPage.locator('.term-pane')).toHaveCount(0);
   });
 
@@ -1368,7 +1490,7 @@ test.describe.serial('Moki terminals outlive the project screen', () => {
 
   // The download itself needs GitHub (main-process fetch is not faked here); the unit tests cover it.
   test('the + menu offers the ArtCraft apps: 16 apps, launcher first, and a Download button for each', async () => {
-    await termPage.getByTitle('Novo terminal').first().click();
+    await termPage.getByTitle('Num terminal novo').first().click();
     await termPage.getByRole('menuitem', { name: 'Apps ArtCraft' }).click();
     await termPage.getByRole('menuitem', { name: /Baixar apps ArtCraft/ }).click();
     const dialog = termPage.getByRole('dialog', { name: 'Baixar apps ArtCraft' });
@@ -1721,8 +1843,8 @@ test.describe.serial('Moki PDF comments', () => {
     await pdfPage.locator('.md-marker').click();
     await expect(pdfPage.locator('.md-card')).toContainText('E quando expira?');
 
-    pdfPage.once('dialog', (d) => { void d.accept(); });
     await pdfPage.locator('.md-card').getByRole('button', { name: 'Excluir' }).click();
+    await pdfPage.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
     await expect(pdfPage.locator('.md-card')).toHaveCount(0);
     await expect.poll(() => readFileSync(file, 'utf8')).toBe(REVIEW_MD.replace('A senha ', 'A senha alterada '));
   });
@@ -2567,7 +2689,6 @@ test.describe.serial('Moki comments in the editor', () => {
   let file = '';
   const dirs: string[] = [];
   // Only the delete confirmation the test asks for may show up; any other dialog fails the test.
-  let confirmNext = false;
   const unexpected: string[] = [];
   const START = 'A senha <!--c:k1-->expira<!--/c:k1--> em 30 dias.';
   const SOURCE = `# Revisão\n\n${START}\n\nSegundo parágrafo com **negrito** aqui.\n\nTerceiro parágrafo.\n\n<!-- moki-comments\n[\n{"id":"k1","author":"ana","at":"2026-11-01T10:00:00.000Z","text":"Quantos dias?","replies":[]}\n]\n-->\n`;
@@ -2591,7 +2712,6 @@ test.describe.serial('Moki comments in the editor', () => {
     writeFileSync(file, SOURCE);
     ({ app: edApp, page: ep } = await openApp(root, userData));
     ep.on('dialog', (d) => {
-      if (confirmNext && d.type() === 'confirm') { confirmNext = false; void d.accept(); return; }
       unexpected.push(`${d.type()}: ${d.message()}`);
       void d.dismiss();
     });
@@ -2653,8 +2773,8 @@ test.describe.serial('Moki comments in the editor', () => {
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"color":"blue"');
     await expect(body().locator('span[data-md-comment="k1"]')).toHaveCSS('--md-comment-color', '#4a8ff0');
 
-    confirmNext = true;
     await card.getByRole('button', { name: 'Excluir' }).click();
+    await ep.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
     await expect(card).toHaveCount(0);
     await expect(body().locator('span[data-md-comment="k1"]')).toHaveCount(0);
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('A senha expira em 30 dias.');

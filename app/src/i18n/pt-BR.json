@@ -213,6 +213,8 @@
   "e.g. Test ideas": "ex.: Ideias de teste",
   "Write your note (Markdown)": "Escreva sua nota (Markdown)",
   "Cancel": "Cancelar",
+  "Confirm action": "Confirmar ação",
+  "Notice": "Aviso",
   "Remove the skill \"{name}\" from": "Remover a skill \"{name}\" de",
   "Remove the agent \"{name}\" from": "Remover o agente \"{name}\" de",
   "the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).": "o repositório {folder}?\n\nIsto ALTERA o .claude dele (antes, o .claude atual é copiado para backups/ do projeto).",

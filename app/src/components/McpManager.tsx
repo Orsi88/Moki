@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type McpEntry, type McpServer, type ProjectSummary } from '../api';
 import { t } from '../i18n';
+import { alertDialog, confirmDialog } from '../dialogs';
 import { IconFolder, IconX } from './Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 
@@ -140,9 +141,9 @@ export function McpManager({ project, projects: summaries }: Props) {
     place(s, []);
   };
   const linkProjects = (s: McpEntry, chosen: string[]) => { if (chosen.length) place(s, chosen); };
-  const remove = (s: McpEntry) => {
+  const remove = async (s: McpEntry) => {
     const used = s.usedBy.length ? `\n\n${t('It is on in: {projects}', { projects: s.usedBy.map((id) => nameOf.get(id) ?? id).join(', ') })}` : '';
-    if (!window.confirm(`${t('Delete the MCP server {name}?', { name: s.name })}${used}`)) return;
+    if (!await confirmDialog(`${t('Delete the MCP server {name}?', { name: s.name })}${used}`, { danger: true })) return;
     void act(async () => { await api.removeMcpServer(s.id); setDraft(null); }, t('Deleted.'));
   };
   const test = (s: McpEntry) => act(async () => {
@@ -154,7 +155,7 @@ export function McpManager({ project, projects: summaries }: Props) {
     const r = await api.importMcpServers(text, where);
     setImporting(false); setPasted('');
     const notes = [...r.replaced.map((x) => t('Credential replaced by a variable: {what}', { what: x })), ...r.problems];
-    if (notes.length) window.alert(notes.join('\n'));
+    if (notes.length) await alertDialog(notes.join('\n'));
   }, t('Imported.'));
   const missingProjects = Boolean(draft && !draft.global && !draft.projects.length);
 

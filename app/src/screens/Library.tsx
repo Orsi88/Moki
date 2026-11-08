@@ -16,6 +16,7 @@ import { TagField, TagFilter, matchesTag, useTagCatalog } from '../components/Ta
 import { SkillsField } from '../components/SkillsField';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from '../components/ListPage';
 import { StarButton, useFavorites } from '../components/Favorites';
+import { confirmDialog } from '../dialogs';
 
 // The sections every agent's instructions keep (scripts/lib/agents.ts AGENT_SECTIONS).
 const AGENT_SECTIONS = ['Role', 'When to use', 'How to work', 'Boundaries'];
@@ -117,13 +118,13 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   const profileDirty = profile !== null && detail !== null && JSON.stringify(profile) !== JSON.stringify(fromDetail(detail));
   const dirty = (editing && detail !== null && draft !== detail.text) || profileDirty;
   const missing = profile ? AGENT_SECTIONS.filter((h) => !new RegExp(`^## ${h}\\s*$`, 'm').test(profile.body)) : [];
-  const back = () => {
+  const back = async () => {
     if (creating) { onBrowse?.(); return; }
-    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return;
+    if (dirty && !await confirmDialog(t('Discard unsaved changes?'), { danger: true })) return;
     setError(''); setSel(null);
   };
-  const choose = (next: Sel) => {
-    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return;
+  const choose = async (next: Sel) => {
+    if (dirty && !await confirmDialog(t('Discard unsaved changes?'), { danger: true })) return;
     setError('');
     setSel(next);
     if (creating) onBrowse?.();
@@ -157,7 +158,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   });
 
   const remove = () => run(async () => {
-    if (!detail || !window.confirm(t('Delete the agent "{name}"? This removes its file from your library.', { name: detail.name }))) return;
+    if (!detail || !await confirmDialog(t('Delete the agent "{name}"? This removes its file from your library.', { name: detail.name }), { danger: true })) return;
     await api.deleteAgent(detail.name);
     await load(agents.find((a) => a.name !== detail.name)?.name);
   });
@@ -173,7 +174,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   const shownGlobal = kind === 'all' || kind === 'global' ? globalAgents.filter((a) => !filter && !category && matchesQuery(query, a.name, a.description)) : [];
   const tagName = (id: string) => (id.startsWith('project:') ? `📁 ${catalog?.projects.find((p) => p.id === id)?.name ?? id.slice(8)}` : `# ${catalog?.tags.find((tg) => tg.id === id)?.name ?? id}`);
 
-  const leave = () => { if (!dirty || window.confirm(t('Discard unsaved changes?'))) onBack(); };
+  const leave = async () => { if (!dirty || await confirmDialog(t('Discard unsaved changes?'), { danger: true })) onBack(); };
 
   const scopeAgent = sel?.kind === 'project' ? projectAgents.find((a) => a.name === sel.name)
     : sel?.kind === 'global' ? globalAgents.find((a) => a.name === sel.name) : undefined;
@@ -184,10 +185,10 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
       const where = project.repository
         ? t("the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).", { folder: project.repository })
         : t('the project {name}?', { name: project.name });
-      if (!window.confirm(`${t('Remove the agent "{name}" from', { name: sel.name })} ${where} ${t('It goes to the trash.')}`)) return;
+      if (!await confirmDialog(`${t('Remove the agent "{name}" from', { name: sel.name })} ${where} ${t('It goes to the trash.')}`, { danger: true })) return;
       await api.removeProjectItem(project.id, 'agent', sel.name, Boolean(project.repository));
     } else {
-      if (!window.confirm(t('Remove the agent "{name}" from all projects? It goes to the trash.', { name: sel.name }))) return;
+      if (!await confirmDialog(t('Remove the agent "{name}" from all projects? It goes to the trash.', { name: sel.name }), { danger: true })) return;
       await api.removeGlobal('agent', sel.name);
     }
     setSel(null);

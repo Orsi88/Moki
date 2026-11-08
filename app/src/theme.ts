@@ -60,6 +60,7 @@ function read(): ThemeSettings {
 
 let settings = read();
 const listeners = new Set<() => void>();
+let installed = false;
 
 export function systemTheme(): Theme {
   try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
@@ -114,6 +115,13 @@ export const useThemeSettings = (): ThemeSettings => useSyncExternalStore(subscr
 // Call once, before the first render, so the window does not flash the wrong palette.
 export function installTheme(): void {
   applyAttributes();
+  if (installed) return;
+  installed = true;
+  window.addEventListener('storage', (event) => {
+    if (event.key !== KEY && event.key !== LEGACY_KEY && event.key !== null) return;
+    settings = read();
+    notify();
+  });
   try {
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
       if (settings.mokiMode === 'system') notify();

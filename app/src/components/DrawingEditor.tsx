@@ -6,6 +6,8 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { t } from '../i18n';
 import { IconCheck } from './Icons';
+import { useModalLayer } from '../modal-layer';
+import { currentTheme, useThemeSettings } from '../theme';
 
 function sceneOf(source: string) {
   const parsed = JSON.parse(source) as { type?: string; elements?: unknown[]; appState?: object; files?: never };
@@ -27,6 +29,9 @@ export async function exportDrawing(host: HTMLElement, source: string) {
 }
 
 export function DrawingEditor({ source, onSave, onClose }: { source: string; onSave: (body: string) => void; onClose: () => void }) {
+  useThemeSettings();
+  const host = useRef<HTMLDivElement>(null);
+  useModalLayer(host, onClose);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const [initial] = useState(() => {
     try {
@@ -42,13 +47,13 @@ export function DrawingEditor({ source, onSave, onClose }: { source: string; onS
     onSave(serializeAsJSON(ex.getSceneElements(), ex.getAppState(), ex.getFiles(), 'local'));
   };
   return (
-    <div className="drawing-editor" role="dialog" aria-label={t('Drawing')}>
+    <div ref={host} className="drawing-editor" role="dialog" aria-modal="true" aria-label={t('Drawing')} tabIndex={-1}>
       <div className="drawing-editor-bar">
         <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t('Cancel')}</button>
         <button type="button" className="btn btn-icon" onClick={save} title={t('Save drawing')} aria-label={t('Save drawing')}><IconCheck size={16} /></button>
       </div>
       <div className="drawing-editor-canvas">
-        <Excalidraw initialData={initial} excalidrawAPI={(next) => { api.current = next; }} />
+        <Excalidraw theme={currentTheme()} initialData={initial} excalidrawAPI={(next) => { api.current = next; }} />
       </div>
     </div>
   );

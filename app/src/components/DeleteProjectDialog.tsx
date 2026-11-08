@@ -1,10 +1,11 @@
 // Deleting a project for good: the button only works after the word "delete"
 // is typed, so it never happens by a stray click.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { api, type ProjectSummary } from '../api';
 import { t } from '../i18n';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 const WORD = 'delete';
 
@@ -15,12 +16,6 @@ export function DeleteProjectDialog({ project, onClose, onDeleted }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, busy]);
-
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (typed !== WORD) return;
@@ -29,8 +24,7 @@ export function DeleteProjectDialog({ project, onClose, onDeleted }: Props) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <form className="modal compact" role="dialog" aria-modal="true" aria-labelledby="delete-title" onSubmit={(e) => { void submit(e); }}>
+    <Modal as="form" size="compact" labelledBy="delete-title" onClose={onClose} busy={busy} onSubmit={(e) => { void submit(e); }}>
         <header className="modal-head">
           <h2 id="delete-title">{t('Delete {name}', { name: project.name })}</h2>
           <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
@@ -48,7 +42,6 @@ export function DeleteProjectDialog({ project, onClose, onDeleted }: Props) {
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('Cancel')}</button>
           <button type="submit" className="btn btn-danger" disabled={busy || typed !== WORD}>{busy ? t('Deleting…') : t('Delete for good')}</button>
         </footer>
-      </form>
-    </div>
+    </Modal>
   );
 }

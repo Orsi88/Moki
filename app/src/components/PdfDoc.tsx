@@ -10,6 +10,7 @@ import { useLoaded } from './useLoaded';
 import { NoteDialog } from './NoteDialog';
 import { COLORS, SWATCH as COLOR_SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
+import { confirmDialog } from '../dialogs';
 
 // pdf.js and its worker load when the first PDF tab is shown (lazy-module.ts).
 const pdfPages = lazyHeavy(() => import('./PdfPages'));
@@ -316,8 +317,8 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
     const change: PdfChange = editing.mode === 'reply' ? { op: 'reply', id: editing.id, text: editing.text } : { op: 'edit', id: editing.id, contents: editing.text };
     void apply(change).then((ok) => { if (ok) setEditing(null); });
   };
-  const remove = (c: PdfComment) => {
-    if (window.confirm(t('Delete this comment?'))) void apply({ op: 'delete', id: c.id });
+  const remove = async (c: PdfComment) => {
+    if (await confirmDialog(t('Delete this comment?'), { danger: true })) void apply({ op: 'delete', id: c.id });
   };
 
   const off = !available || busy || noteBusy;
@@ -383,7 +384,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
       <button type="button" className="icon-btn" disabled={off} title={t('Insert blank page after')} aria-label={t('Insert blank page after')} onClick={() => edit({ op: 'insert-blank', at: n + 1 })}><IconPlus size={15} /></button>
       <button type="button" className="icon-btn" disabled={noteBusy || busy} title={t('Add a note here')} aria-label={t('Add a note here')} onClick={() => { void newNote(n); }}><IconNotePlus size={16} /></button>
       <button type="button" className="icon-btn" disabled={off || total === 1} title={t('Delete page')} aria-label={t('Delete page')}
-        onClick={() => { if (window.confirm(t('Delete page {n}?', { n }))) edit({ op: 'delete-pages', pages: [n] }); }}><IconTrash size={15} /></button>
+        onClick={async () => { if (await confirmDialog(t('Delete page {n}?', { n }), { danger: true })) edit({ op: 'delete-pages', pages: [n] }); }}><IconTrash size={15} /></button>
     </div>
   );
 

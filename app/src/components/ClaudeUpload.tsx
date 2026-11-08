@@ -4,15 +4,17 @@
 // or every project (your user folder). Used by Settings › Skills › Add a skill (every project), by Set up project
 // and by the start screen (every project, no project open).
 
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { api, type ProjectSummary, type SkillScope, type UploadBlock, type UploadItem, type UploadPreview } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck } from './Icons';
 
 interface Props {
   project: ProjectSummary | null; // none: only every project can be chosen
   scopes: SkillScope[]; // the destinations offered; the first is the starting one
   onInstalled?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -38,11 +40,15 @@ const ignoredText = (reason: 'config' | 'symlink' | 'other'): string => ({
   other: t('Not part of a skill or an agent.'),
 })[reason];
 
-export function ClaudeUpload({ project, scopes, onInstalled }: Props) {
+export function ClaudeUpload({ project, scopes, onInstalled, onBusyChange }: Props) {
   const [scope, setScope] = useState<SkillScope>(scopes[0]);
   const [view, setView] = useState<UploadPreview | null>(null);
   const [marked, setMarked] = useState<string[]>([]);
   const [busy, setBusy] = useState('');
+  useLayoutEffect(() => {
+    onBusyChange?.(Boolean(busy));
+    return () => onBusyChange?.(false);
+  }, [busy, onBusyChange]);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ installed: { kind: string; name: string; folders: string[] }[]; backup?: string } | null>(null);
   const id = project?.id ?? '';
@@ -65,7 +71,7 @@ export function ClaudeUpload({ project, scopes, onInstalled }: Props) {
     const where = scope === 'global' ? t('all projects (your user folder)')
       : repo ? t("the repository {folder}. This CHANGES {folder}/.claude (the current .claude is backed up to the project's backups/ first)", { folder: repo })
       : t('the project {name}', { name: project?.name ?? '' });
-    if (!window.confirm(`${t('Install {n} item(s) for {where}?', { n: marked.length, where })}\n\n${t('A skill can instruct the AI to run commands — review what you upload before using it.')}`)) return;
+    if (!await confirmDialog(`${t('Install {n} item(s) for {where}?', { n: marked.length, where })}\n\n${t('A skill can instruct the AI to run commands — review what you upload before using it.')}`)) return;
     setBusy('apply'); setError('');
     try {
       setDone(await api.claudeUploadApply(id, scope, marked, Boolean(repo)));

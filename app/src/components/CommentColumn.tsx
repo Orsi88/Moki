@@ -10,6 +10,7 @@ import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
 import { IconChat } from './Icons';
 import { CommentColors } from './CommentColors';
+import { confirmDialog } from '../dialogs';
 
 export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number }[]; rail: number; railTop: number; height: number }
 export interface CommentActions {
@@ -82,7 +83,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
     if (editing.mode === 'reply') actions.reply(editing.id, editing.text.trim()); else actions.edit(editing.id, editing.text.trim());
     setEditing(null);
   };
-  const remove = (id: string) => { if (window.confirm(t('Delete this comment?'))) actions.remove(id); };
+  const remove = async (id: string) => { if (await confirmDialog(t('Delete this comment?'), { danger: true })) actions.remove(id); };
   return (
     <>
       {shown && (

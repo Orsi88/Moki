@@ -13,6 +13,7 @@ import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload } from './ClaudeUpload';
 import { IconLock, IconSearch, IconX } from './Icons';
 import { ChipPicker, type PickChip, type PickOption } from './ChipPicker';
+import { Modal } from './Modal';
 
 interface Props {
   project: ProjectSummary;
@@ -66,6 +67,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const [prepare, setPrepare] = useState<boolean | null>(null);
   const [finding, setFinding] = useState<string | null>(null); // Find skills query while open
   const [uploading, setUploading] = useState(false); // the upload of skills or a .claude folder is open on top
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -93,12 +95,6 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
     });
   }, [project.id]);
 
-  // While Find skills is open on top, Escape belongs to it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && finding === null && !uploading) onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [finding, uploading, onClose]);
 
   const flip = (list: string[], item: string) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
   const pending = Boolean(plan && !plan.approved);
@@ -206,8 +202,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   };
 
   return (<>
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal setup-modal" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+    <Modal className="setup-modal" labelledBy="setup-title" onClose={onClose} busy={busy}>
         <header className="modal-head">
           <div>
             <h2 id="setup-title">{pending ? t('Review the plan for {name}', { name: project.name }) : t('Settings of {name}', { name: project.name })}</h2>
@@ -215,7 +210,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
               ? t('The AI recommended what is checked below (the full plan is in proposed-updates.md). Keep what you want; nothing is created before you save.')
               : t('What the project is, what an AI opened in it starts with, and what it uses. You can change this later.')}</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
         </header>
 
         <div className="modal-body">
@@ -342,22 +337,19 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
         </div>
 
         <footer className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>{pending ? t('Later') : t('Cancel')}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>{pending ? t('Later') : t('Cancel')}</button>
           <button type="button" className="btn" disabled={busy || !name.trim()} onClick={() => { void save(); }}>{busy ? t('Saving…') : pending ? t('Approve plan') : t('Save')}</button>
         </footer>
-      </div>
-    </div>
+    </Modal>
     {uploading && (
-      <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) { setUploading(false); loadGlobal(); } }}>
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+      <Modal labelledBy="upload-title" onClose={() => { setUploading(false); loadGlobal(); }} busy={uploadBusy}>
           <header className="modal-head">
             <h2 id="upload-title">{t('Upload skills or a .claude folder')}</h2>
-            <button type="button" className="icon-btn" onClick={() => { setUploading(false); loadGlobal(); }} title={t('Close')}><IconX size={18} /></button>
+            <button type="button" className="icon-btn" disabled={uploadBusy} onClick={() => { setUploading(false); loadGlobal(); }} title={t('Close')}><IconX size={18} /></button>
           </header>
-          <div className="modal-body"><ClaudeUpload project={project} scopes={['project', 'global']} onInstalled={loadGlobal} /></div>
-          <footer className="modal-foot"><button type="button" className="btn btn-ghost" onClick={() => { setUploading(false); loadGlobal(); }}>{t('Close')}</button></footer>
-        </div>
-      </div>
+          <div className="modal-body"><ClaudeUpload project={project} scopes={['project', 'global']} onInstalled={loadGlobal} onBusyChange={setUploadBusy} /></div>
+          <footer className="modal-foot"><button type="button" className="btn btn-ghost" disabled={uploadBusy} onClick={() => { setUploading(false); loadGlobal(); }}>{t('Close')}</button></footer>
+      </Modal>
     )}
     {finding !== null && <SkillsDialog project={project} initialQuery={finding} onClose={() => { setFinding(null); loadGlobal(); }} />}
   </>);

@@ -52,6 +52,8 @@ Notes on a project are Markdown files under `notes/` and open in their own windo
 
 ## Projects
 
+**Dialogs and menus.** Pop-ups use Moki's current palette and light/dark mode, independently of document and CLI colors. A theme change also updates note and search windows already open. Confirmations appear inside Moki: no action runs until you choose to continue, and Cancel has initial focus. Tab stays in a modal and Escape closes only the top dialog (or its open menu); focus returns to the control that opened it when that control still exists. Busy dialogs do not close while their operation is running. File and folder open/save pickers remain native system dialogs.
+
 A project is one body of work. Its id is short and lowercase (`billing-portal`), and its folder is `workspace/projects/<id>/` — or `<workspace folder>/projects/<id>/` in another workspace.
 
 A quality project looks like this. A blank project has the same skeleton and gains `context/` only after you approve `plan.json`.

@@ -13,6 +13,7 @@ import { AgentPick } from './AgentCatalog';
 import { AiPick } from './ToolCatalog';
 import { InvokeCatalog } from './InvokeCatalog';
 import type { ActivityLaunchPhase } from '../activity-launches';
+import { Modal } from './Modal';
 
 interface Props {
   project: ProjectSummary;
@@ -89,11 +90,6 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
     load();
   }, [load, project.id]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const current = activities.find((a) => a.id === activity);
   const resume = activity === 'resume';
@@ -217,15 +213,14 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
   ];
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal wizard" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
+    <Modal className="wizard" labelledBy="wizard-title" onClose={onClose} busy={busy}>
         <header className="modal-head">
           <div>
             <p className="wizard-progress">{t('Open {project} in your AI tool · step {n} of {total}', { project: project.name, n: index + 1, total: steps.length })}</p>
             <h2 id="wizard-title">{q.title}</h2>
             <p className="muted small">{q.hint}</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
         </header>
         <div className="wizard-bar"><span style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div>
 
@@ -396,8 +391,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
             ? <button type="button" className="btn" onClick={onClose}>{t('Done')}</button>
             : <button type="button" className="btn" disabled={busy || (destination === 'new' ? !selectedTool : !preset?.terminal)} onClick={() => { void submit(); }}><IconPlay size={15} /> {busy ? t('Preparing…') : buttonLabel}</button>)}
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

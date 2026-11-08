@@ -1,0 +1,115 @@
+/* Shared Moki overlay tokens are resolved at the root, not from a document's independent palette. */
+:root {
+  --overlay-bg: var(--bg);
+  --overlay-raised: var(--bg-2);
+  --overlay-hover: var(--bg-3);
+  --overlay-text: var(--text);
+  --overlay-muted: var(--muted);
+  --overlay-border: var(--border);
+  --overlay-accent: var(--accent);
+  --overlay-accent-soft: var(--accent-soft);
+  --overlay-on-accent: var(--accent-text);
+  --overlay-backdrop: rgb(0 0 0 / .58);
+  --overlay-shadow: 0 24px 72px rgb(0 0 0 / .38);
+}
+:root[data-theme="light"] {
+  --overlay-backdrop: rgb(25 24 22 / .28);
+  --overlay-shadow: 0 20px 64px rgb(35 32 28 / .2);
+}
+:root[data-theme="light"][data-moki-palette="blue"],
+:root[data-theme="light"][data-moki-palette="purple"],
+:root[data-theme="light"][data-moki-palette="green"],
+:root[data-theme="light"][data-moki-palette="red"] { --overlay-on-accent: #fff; }
+
+.modal-backdrop {
+  z-index: var(--dialog-layer, 100);
+  padding: clamp(12px, 3vw, 32px);
+  background: var(--overlay-backdrop);
+  overscroll-behavior: contain;
+}
+.modal:not(.note-inline):not(.note-embedded), .modal.project-create-dialog {
+  color: var(--overlay-text);
+  background: var(--overlay-bg);
+  border: 1px solid color-mix(in srgb, var(--overlay-accent) 18%, var(--overlay-border));
+  border-radius: 16px;
+  box-shadow: var(--overlay-shadow);
+  max-height: min(100%, 920px);
+  outline: none;
+}
+.modal.compact, .modal.modal-compact { width: min(480px, 100%); }
+.modal.modal-medium { width: min(640px, 100%); }
+.modal.modal-wide { width: min(960px, 100%); }
+.modal .modal-head {
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid var(--overlay-border);
+}
+.modal .modal-head > div { min-width: 0; }
+.modal .modal-head h2 { font-size: 1.2rem; line-height: 1.35; overflow-wrap: anywhere; }
+.modal .modal-head p { margin-top: 6px; line-height: 1.5; }
+.modal .modal-head > .icon-btn:last-child { margin: -4px -5px 0 auto; flex-shrink: 0; }
+.modal .modal-body { padding: 20px 24px; gap: 16px; overscroll-behavior: contain; }
+.modal .modal-foot {
+  padding: 16px 24px;
+  gap: 10px;
+  border-top: 1px solid var(--overlay-border);
+  background: var(--overlay-raised);
+  flex-wrap: wrap;
+}
+.modal .modal-foot .btn { min-height: 40px; border-radius: 8px; padding: 8px 16px; }
+.modal .btn:not(.btn-ghost):not(.btn-danger) {
+  color: var(--overlay-on-accent);
+  background: color-mix(in srgb, var(--overlay-accent) 90%, #000);
+  border-color: color-mix(in srgb, var(--overlay-accent) 90%, #000);
+}
+.modal .btn:hover { filter: brightness(1.04); }
+.modal .btn-danger { background: color-mix(in srgb, var(--err) 75%, #000); border-color: transparent; color: #fff; }
+.modal .field { gap: 7px; }
+.modal .field :is(input:not([type="checkbox"]):not([type="radio"]), select) { min-height: 40px; border-radius: 8px; }
+.modal :is(input, select, textarea):focus-visible { outline: 2px solid var(--overlay-accent); outline-offset: 2px; }
+.modal .modal-body > :last-child { margin-bottom: 0; }
+.dialog-message { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 0; }
+.dialog-symbol {
+  display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px;
+  border-radius: 10px; color: var(--overlay-accent); background: var(--overlay-accent-soft);
+}
+.message-dialog .modal-head { align-items: center; border-bottom: 0; padding-bottom: 4px; }
+.message-dialog .modal-head h2 { flex: 1; }
+.message-danger .dialog-symbol { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
+.message-dialog .modal-body { padding-top: 16px; padding-bottom: 24px; }
+.modal.note-embedded, .modal.note-inline { box-shadow: none; }
+
+/* Menus remain anchored popovers, but share the same surfaces, contrast and corner language. */
+.menu-backdrop { z-index: 1000; }
+:where([role="menu"], [role="listbox"], [role="tooltip"]), .term-menu, .ws-menu, .note-mention, .info-tip-text, .image-bubble, .usage-pop, .pdf-composer, .pdf-drop .pdf-drop-body, .mcp-pick {
+  --bg: var(--overlay-bg); --bg-2: var(--overlay-raised); --bg-3: var(--overlay-hover);
+  --text: var(--overlay-text); --muted: var(--overlay-muted); --border: var(--overlay-border);
+  --accent: var(--overlay-accent); --accent-soft: var(--overlay-accent-soft);
+  color: var(--overlay-text);
+  background: var(--overlay-raised);
+  border-color: var(--overlay-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .22);
+}
+.term-menu button { color: var(--overlay-text); border-radius: 7px; min-height: 34px; }
+.term-menu button:hover:not(:disabled), .term-menu button:focus-visible { background: var(--overlay-accent-soft); }
+.term-menu button svg { color: var(--overlay-accent); }
+.note-mention, .image-bubble { z-index: 1100; }
+.info-tip-text { z-index: 1200; }
+.drawing-editor { z-index: var(--dialog-layer, 130); background: var(--overlay-bg); color: var(--overlay-text); }
+/* Inline note cards are part of a document, not dialog chrome. Keep their compact layout. */
+.modal.note-inline .modal-head { padding: 8px 12px; }
+.modal.note-inline.note-inline-minimized .modal-head { padding: 4px 10px; }
+.modal.note-inline .modal-body { padding: 8px 12px; }
+.modal.note-inline .modal-foot { padding: 5px 12px; }
+.notebook-page .modal.note-dialog { border: 0; border-radius: 0; box-shadow: none; max-height: none; }
+
+@media (max-width: 600px) {
+  .modal .modal-head { padding: 18px 18px 14px; }
+  .modal .modal-body { padding: 16px 18px; }
+  .modal .modal-foot { padding: 14px 18px; }
+  .modal .modal-foot .btn { flex: 1 1 auto; }
+  .modal.catalog { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .modal, .modal-backdrop { animation: none; transition: none; } }

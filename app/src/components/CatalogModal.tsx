@@ -2,9 +2,10 @@
 // header and Esc, the search field, and the match rule of that search. One place, so every
 // "choose one" list in the project panel looks and searches the same way.
 
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { t } from '../i18n';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 // A search matches when every typed word is somewhere in the given fields (no accents or case rules beyond lower case).
 export const matchesQuery = (query: string, ...fields: string[]): boolean => {
@@ -27,16 +28,8 @@ interface Props {
 }
 
 export function CatalogModal({ titleId, title, hint, onClose, search, children }: Props) {
-  // Esc closes only this catalog, even when it opened over another dialog (the activity wizard).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal catalog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <Modal className="catalog" labelledBy={titleId} onClose={onClose}>
         <header className="modal-head">
           <div>
             <h2 id={titleId}>{title}</h2>
@@ -48,7 +41,6 @@ export function CatalogModal({ titleId, title, hint, onClose, search, children }
           {search && <div className="catalog-search"><SearchField {...search} autoFocus /></div>}
           {children}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

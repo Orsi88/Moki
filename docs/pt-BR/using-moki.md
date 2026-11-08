@@ -52,6 +52,8 @@ Notas de um projeto são arquivos Markdown em `notes/` e abrem numa janela próp
 
 ## Projetos
 
+**Diálogos e menus.** Os pop-ups usam a paleta e o modo claro/escuro do Moki, independentemente das cores dos documentos e da CLI. Trocar o tema também atualiza as janelas de notas e busca que já estão abertas. As confirmações aparecem dentro do Moki: a ação só é executada após escolher continuar, e Cancelar recebe o foco inicial. Tab permanece dentro de um modal e Esc fecha somente o diálogo de cima (ou o menu aberto nele); o foco retorna ao controle de origem quando ele ainda existe. Diálogos ocupados não fecham durante a execução da operação. As janelas de abrir/salvar arquivos e pastas continuam nativas do sistema.
+
 Um projeto é um trabalho. O id é curto e em minúsculas (`billing-portal`), e a pasta é `workspace/projects/<id>/` — ou `<pasta do workspace>/projects/<id>/` em outro workspace.
 
 Um projeto de qualidade fica assim. Um projeto em branco tem o mesmo esqueleto e só ganha `context/` depois que você aprova o `plan.json`.
