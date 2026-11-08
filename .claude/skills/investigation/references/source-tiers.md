@@ -26,3 +26,14 @@ Scientific papers: note the venue (journal or conference, peer-reviewed or prepr
 ## Independent sources
 
 Two sources are independent when neither derives from the other and they do not share the same origin. A vendor blog quoting the vendor's documentation is one source. Two papers by the same group on the same data count as one.
+
+## Getting value from signals (social media, forums, comments)
+
+Tier 4 is not proof, but it often shows what no official source says: real failures, workarounds, complaints, first reports of an incident, how people actually use something. Use it critically:
+
+- **Find the original.** Trace a post, screenshot or quote to its first appearance (who posted it, when, where). Reposts and screenshots are not the original.
+- **Check the author.** Is the account real, how old is it, what else does it post, does it have a stake (a competitor, an affiliate, a vendor employee)? Look for coordinated or bot-like patterns.
+- **Check the content.** Is the date consistent? Do images or videos come from another event (reverse image search)? Is the quote complete or cut?
+- **Look for the pattern, not the anecdote.** One complaint is an anecdote; many independent reports of the same problem across places and times are a signal worth stating.
+- **Use it as a lead.** A credible signal points to what to verify in tiers 1–3 (an advisory, an official statement, a changelog, a study). Report the signal with what it led to.
+- **Report honestly.** In the dossier, a finding resting only on signals is *weak* and says so ("reported by several users on [forum] since [date], not confirmed by the vendor [S12][S13]").

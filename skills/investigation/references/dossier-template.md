@@ -18,7 +18,7 @@ A dossier is read top-down: the answer first, then the ground under it. Every se
 ```markdown
 # <Topic> — investigation dossier
 
-**Purpose:** <…> · **Date:** <YYYY-MM-DD> · **Run:** <run-id>
+**Purpose:** <…> · **Types:** <…> · **Frame:** <when · where> · **Date:** <YYYY-MM-DD> · **Run:** <run-id>
 **Confidence overall:** <high | medium | low> — <one-line reason> · **Stop:** <saturation | round limit> — <questions left open, if any>
 
 ## Summary
@@ -52,7 +52,7 @@ A dossier is read top-down: the answer first, then the ground under it. Every se
 
 ## Purpose sections
 
-Pick the set that matches the purpose; combine when the user asked for more than one use.
+Pick the set that matches the purpose; combine when the user asked for more than one use. Add the dossier sections of each investigation type (see investigation-types), for example the act's timeline and the text in force at the reference date for a legal question, or the figures table for market research.
 
 ### Understand
 - **How it works** — the mechanism, step by step, with a flow diagram.

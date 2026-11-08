@@ -6,7 +6,9 @@ Short: the user reads it in one minute and approves or adjusts. Labels in the de
 # Investigation plan — <topic>
 
 **Purpose:** <understand | map risks and tests | decide | support a position | other: …> — <what the user will do with it, one line>
-**Known context:** <versions, protocols, vendors, sector, country — only what was given; or "none given">
+**Types:** <legal | historical | market | tools | technology and security | science | business domain | organization> (see investigation-types)
+**Frame:** when <today | date | period> · where <country, jurisdiction, market> · context to reconstruct <actors, motives, circumstances>
+**Known context:** <versions, protocols, vendors, sector — only what was given; or "none given">
 
 ## Key questions
 1. <question the dossier must answer>
