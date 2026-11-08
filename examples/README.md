@@ -9,6 +9,7 @@ Synthetic material for exercising the skills. Everything here is fictional ("Acm
 | [test-design](test-design/README.md) | `test-design` | en |
 | [failure-analysis](failure-analysis/README.md) | `failure-analysis` | en |
 | [api-testing](api-testing/README.md) | `api-testing` | en |
+| [investigation](investigation/README.md) | `investigation` | en |
 | [evidence-collection](evidence-collection/README.md) | `evidence-collection` | en |
 | [evidence-sheet](evidence-sheet/README.md) | `evidence-sheet` | en (model in pt-BR) |
 | [evidence-document](evidence-document/README.md) | `evidence-document` | en |

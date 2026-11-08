@@ -1,0 +1,29 @@
+{
+  "id": "risk-catalog",
+  "fileName": {
+    "pt-BR": "Catálogo de Riscos.xlsx",
+    "en": "Risk Catalog.xlsx"
+  },
+  "enums": {},
+  "sheets": [
+    {
+      "key": "risks",
+      "title": {
+        "pt-BR": "Riscos",
+        "en": "Risks"
+      },
+      "columns": [
+        { "key": "id", "label": { "pt-BR": "Id", "en": "Id" }, "width": 8 },
+        { "key": "area", "label": { "pt-BR": "Área", "en": "Area" }, "width": 18 },
+        { "key": "risk", "label": { "pt-BR": "Risco", "en": "Risk" }, "width": 35 },
+        { "key": "how", "label": { "pt-BR": "Como acontece", "en": "How it happens" }, "width": 45 },
+        { "key": "impact", "label": { "pt-BR": "Impacto", "en": "Impact" }, "width": 30 },
+        { "key": "likelihood", "label": { "pt-BR": "Probabilidade", "en": "Likelihood" }, "width": 14 },
+        { "key": "reference", "label": { "pt-BR": "Referência", "en": "Reference" }, "width": 22 },
+        { "key": "confidence", "label": { "pt-BR": "Confiança", "en": "Confidence" }, "width": 14 },
+        { "key": "testIdeas", "label": { "pt-BR": "Ideias de teste", "en": "Test ideas" }, "width": 45 },
+        { "key": "sources", "label": { "pt-BR": "Fontes", "en": "Sources" }, "width": 14 }
+      ]
+    }
+  ]
+}
