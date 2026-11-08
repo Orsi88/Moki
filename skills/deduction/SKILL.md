@@ -64,8 +64,8 @@ Ask only for what is missing and needed to plan well, one short message, at most
 
 Step ids are used in `state.json`.
 
-1. **`briefing`** — Identify the project and create the run. Read the request and any attachment. Ask only the missing information ([Inputs](#inputs)). Identify the [investigation types](references/investigation-types.md) involved and the time and context frame. Restate topic, purpose, types and frame in two or three lines.
-2. **`plan`** — Write the investigation plan with the [plan template](references/plan-template.md): types and the time and context frame, key questions (including each type's "always cover" items that apply), scope and out of scope, source types by tier, search strings (sanitized, see [rules](#rules-and-constraints)), languages, the dossier sections chosen for the purpose, and the stop criterion (question coverage plus a round limit; default: 3 search rounds per key question). Save it, set `awaiting-approval` and **stop** with the [plan gate](#human-approval-points).
+1. **`briefing`** — Identify the project and create the run (a new or empty project needs no onboarding for this skill; facts the user states are offered to `project-context` at `handoff`). **Check that web search and page reading are available**; if not, say so now and follow the [fallback](#tools). Read the request and any attachment. Ask only the missing information ([Inputs](#inputs)). Identify the [investigation types](references/investigation-types.md) involved and the time and context frame. Assumptions you make instead of asking are written in the plan for the user to confirm at the gate. The restatement of topic, purpose, types and frame (two or three lines) opens the plan gate message; there is no separate gate for the briefing.
+2. **`plan`** — Write the investigation plan with the [plan template](references/plan-template.md): types and the time and context frame, key questions (including each type's "always cover" items that apply), scope and out of scope, **candidate** sources by tier (named from what is known before searching; each is verified, corrected or dropped during research and only opened sources reach the dossier), search strings (sanitized, see [rules](#rules-and-constraints)), languages, the dossier sections chosen for the purpose, and the stop criterion (question coverage plus a round limit; default: 3 search rounds per key question). Save it, set `awaiting-approval` and **stop** with the [plan gate](#human-approval-points).
 3. **`research`** — Follow [research method](references/research-method.md):
    - start from primary and reference sources ([source tiers](references/source-tiers.md)), then practice, then signals;
    - follow citations backwards to the origin and forwards to newer work that confirms, refines or contradicts it;
@@ -122,18 +122,19 @@ Deliverables (language: deliverable language; see `AGENTS.md`):
   - **Sources** — one row per source opened: id, title, author/organization, date, tier, link or identifier, accessed on, used or discarded and why;
   - **Evidence for key findings** — finding id, source id, locator (section, clause, page or paragraph), short excerpt in the original language (at most about 25 words);
   - **Search rounds** — round, key question, queries run, new relevant sources, outcome (answered, gap, continue).
-- Optional spreadsheet (only when asked or approved in the plan), for a large table such as a risk catalog: `npm run xlsx -- write --layout skills/deduction/assets/risk-catalog.layout.json --data <data.json> --lang <pt-BR|en> --out workspace/projects/<project-id>/runs/<run-id>/outputs/<file>.xlsx`; the data file goes to the run's work folder. Layout: [risk-catalog.layout.json](assets/risk-catalog.layout.json). Other tables: a Markdown table in the dossier.
+- Optional spreadsheet (decided in the plan: produced only when the approved plan says yes; if a large table appears that the plan did not foresee, offer it at `handoff`), for a large table such as a risk catalog: `npm run xlsx -- write --layout skills/deduction/assets/risk-catalog.layout.json --data <data.json> --lang <pt-BR|en> --out workspace/projects/<project-id>/runs/<run-id>/outputs/<file>.xlsx`; the data file goes to the run's work folder. Layout: [risk-catalog.layout.json](assets/risk-catalog.layout.json). Other tables: a Markdown table in the dossier.
 
 Chat-only tools: present the plan and the dossier in the conversation and tell the user where to save them.
 
 ## Human approval points
 
-| Gate | When | Message (deliverable language; pt-BR in brackets) |
+At each gate, before the closing question, give the summary the [approval policy](references/core/approval-policy.md) asks for: what was done, what happens next, what it depends on and what remains open.
+
+| Gate | When | Closing question (in the user's language; English and pt-BR shown) |
 |---|---|---|
 | Plan | End of `plan` | "Investigation plan ready. Approve it, or tell me what to change before I start searching." ["Plano de investigação pronto. Aprove, ou me diga o que ajustar antes de eu começar a pesquisar."] |
 | Plan change | During `research`, when the plan proves wrong | State what changed and why; wait for OK. |
 | External data | Before any query that would include project data (only when allowed by `project.json`) | Show the exact query; wait for OK. |
-| Spreadsheet | When the dossier has a large table and none was asked | Offer it in one line; produce only after OK. |
 
 ## Error handling
 

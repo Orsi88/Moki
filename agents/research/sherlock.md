@@ -5,7 +5,7 @@ category: research
 skills: deduction, project-context
 access: project-write
 inputs: Topic, Purpose of the research
-outputs: dossier-*.md, sources.md
+outputs: investigation-plan.md, dossier-*.md, sources.md
 metadata:
   version: "0.1.0"
   status: draft

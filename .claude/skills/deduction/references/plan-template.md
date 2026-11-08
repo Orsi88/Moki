@@ -8,7 +8,8 @@ Short: the user reads it in one minute and approves or adjusts. Labels in the de
 **Purpose:** <understand | map risks and tests | decide | support a position | other: …> — <what the user will do with it, one line>
 **Types:** <legal | historical | market | tools | technology and security | science | business domain | organization> (see investigation-types)
 **Frame:** when <today | date | period> · where <country, jurisdiction, market> · context to reconstruct <actors, motives, circumstances>
-**Known context:** <versions, protocols, vendors, sector — only what was given; or "none given">
+**Known context:** <versions, protocols, vendors, sector — only what was given; or "none given">. Internal identifiers (hosts, ids, credentials) are not copied here; say only that they exist and stay out of searches.
+**Assumptions to confirm:** <what was assumed instead of asking; or "none">
 
 ## Key questions
 1. <question the dossier must answer>
@@ -20,7 +21,7 @@ Short: the user reads it in one minute and approves or adjusts. Labels in the de
 - Out: <…>
 - Period and languages: <e.g. 2018–today; English and Portuguese>
 
-## Sources by tier
+## Candidate sources by tier (verified during research)
 - Primary: <e.g. RFC 6749, OASIS SAML 2.0 core and profiles, OpenID Connect Core>
 - Reference: <e.g. OWASP ASVS V2/V3, OWASP SAML and OAuth cheat sheets, NIST SP 800-63C>
 - Academic: <e.g. papers on SAML signature wrapping, OAuth mix-up attacks>

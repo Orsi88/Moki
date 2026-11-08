@@ -95,7 +95,9 @@ Chat-only tools: present the critique in the conversation and tell the user wher
 
 ## Human approval points
 
-| Gate | When | Message (deliverable language; pt-BR in brackets) |
+At each gate, before the closing question, give the summary the [approval policy](references/core/approval-policy.md) asks for: what was done, what happens next, what it depends on and what remains open.
+
+| Gate | When | Closing question (in the user's language; English and pt-BR shown) |
 |---|---|---|
 | Decision | End of `critique` | "Critique ready: verdict <verdict>, <n> critical, <n> major, <n> minor. Which findings should go back to the author to fix — all, only critical and major, or a list?" ["Crítica pronta: veredito <veredito>, <n> críticos, <n> maiores, <n> menores. Quais achados devem voltar para o autor corrigir — todos, só críticos e maiores, ou uma lista?"] |
 | External data | Before any query that would include project data (only when allowed by `project.json`) | Show the exact query; wait for OK. |

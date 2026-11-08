@@ -81,7 +81,9 @@ Step ids are used in `state.json` (when called by another skill, they are record
 
 ## Human approval points
 
-| Gate | When | Message (deliverable language; pt-BR in brackets) |
+At each gate, before the closing question, give the summary the [approval policy](references/core/approval-policy.md) asks for: what was done, what happens next, what it depends on and what remains open.
+
+| Gate | When | Closing question (in the user's language; English and pt-BR shown) |
 |---|---|---|
 | Outline | Step `outline`, only without a fixed structure and for a long or new kind of document | "Outline ready. Approve it or tell me what to change before I write." ["Estrutura pronta. Aprove ou me diga o que ajustar antes de eu escrever."] |
 
