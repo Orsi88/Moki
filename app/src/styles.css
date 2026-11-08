@@ -518,6 +518,11 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 /* A commented stretch in the editor: the comment's color when the column is there (CommentedEditor sets it), as in the reading view. */
 .tiptap-wrap .ProseMirror span[data-md-comment] { background: color-mix(in srgb, var(--md-comment-color, var(--accent)) 28%, transparent); border-bottom: 2px solid color-mix(in srgb, var(--md-comment-color, var(--accent)) 70%, transparent); border-radius: 2px; }
 .link-bubble { flex-direction: column; align-items: stretch; gap: 4px; }
+/* The table's bubble (TipTapEditor): rows, then columns, then the whole table. */
+.table-bubble .icon-btn { min-width: 28px; font-size: 0.85rem; font-weight: 600; letter-spacing: -0.02em; }
+.table-bubble .icon-btn:disabled { opacity: 0.4; cursor: default; }
+.image-bubble .sep { width: 1px; height: 18px; margin: 0 4px; background: var(--border); } /* the groups of a bubble (image, table) */
+.table-bubble-label { padding: 0 4px 0 6px; color: var(--muted); font-size: 0.75rem; }
 .link-bubble .link-row { display: flex; align-items: center; gap: 6px; }
 .link-bubble .link-row > span { flex: 0 0 auto; font-size: 0.75rem; color: var(--muted); }
 .link-bubble input {

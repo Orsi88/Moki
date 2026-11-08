@@ -1592,5 +1592,15 @@
   "When you change this file, the editor writes its formatting its own way (tables, list marks, emphasis). The words stay the same.": "Al cambiar este archivo, el editor escribe el formato a su manera (tablas, viñetas, énfasis). Las palabras siguen siendo las mismas.",
   "This file is large, so here it is for reading and comments. To edit it, open it in your program.": "Este archivo es grande, así que aquí queda para lectura y comentarios. Para editarlo, ábrelo en tu programa.",
   "The editor would lose parts of this file (HTML, for example), so here it is for reading and comments. To edit it, open it in your program.": "El editor perdería partes de este archivo (HTML, por ejemplo), así que aquí queda para lectura y comentarios. Para editarlo, ábrelo en tu programa.",
-  "Open in your program": "Abrir en tu programa"
+  "Open in your program": "Abrir en tu programa",
+  "Row": "Fila",
+  "Column": "Columna",
+  "Add a row above": "Añadir fila arriba",
+  "Add a row below": "Añadir fila abajo",
+  "Delete the row": "Eliminar la fila",
+  "Add a column to the left": "Añadir columna a la izquierda",
+  "Add a column to the right": "Añadir columna a la derecha",
+  "Delete the column": "Eliminar la columna",
+  "Delete the table": "Eliminar la tabla",
+  "the first row is the table's header": "la primera fila es el encabezado de la tabla"
 }

@@ -2576,3 +2576,96 @@ test.describe.serial('Moki one view for Markdown', () => {
     await expect.poll(() => op.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual(['https://example.com/pagina']);
   });
 });
+
+test.describe.serial('Moki tables in the editor', () => {
+  let tabApp: ElectronApplication;
+  let tp: Page;
+  let file = '';
+  const dirs: string[] = [];
+  const editor = () => tp.locator('.commented-editor .tiptap-body');
+  const bar = () => tp.getByRole('toolbar', { name: 'Tabela' });
+  // The table as saved: its lines, and the cells of its header.
+  const saved = () => readFileSync(file, 'utf8').split('\n').filter((line) => line.startsWith('|'));
+  const columns = () => (saved()[0] ?? '').split('|').length - 2;
+  // Clicks a cell and waits for the editor to take the caret there (it takes it a moment after the click; a person is slower).
+  const inCell = async (cell: Locator) => {
+    await cell.click();
+    await expect.poll(() => cell.evaluate((td) => {
+      const editor = (td.closest('.tiptap-body') as unknown as { editor: { view: { posAtDOM: (node: Node, offset: number) => number }; state: { selection: { from: number } } } }).editor;
+      const from = editor.state.selection.from;
+      return from >= editor.view.posAtDOM(td, 0) && from <= editor.view.posAtDOM(td, td.childNodes.length);
+    })).toBe(true);
+  };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    file = join(root, 'workspace', 'projects', 'acme', 'inbox', 'tabela.md');
+    // Written as the editor writes tables, so opening it changes nothing.
+    writeFileSync(file, '# Casos\n\n| ID    | Cenário      |\n| ----- | ------------ |\n| CT-01 | Login válido |\n');
+    ({ app: tabApp, page: tp } = await openApp(root, userData));
+    if (!(await tp.locator('.tree-row[title="inbox/tabela.md"]').isVisible())) await tp.locator('.tree-row[title="inbox"]').click();
+    await tp.locator('.tree-row[title="inbox/tabela.md"]').click();
+    await expect(editor().locator('table')).toBeVisible();
+  });
+
+  test.afterAll(async () => {
+    await tabApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('rows and columns are added and removed from the table\'s bubble, and saved', async () => {
+    await inCell(editor().locator('td', { hasText: 'CT-01' }));
+    await expect(bar()).toBeVisible();
+    await bar().getByRole('button', { name: 'Adicionar linha abaixo' }).click();
+    await expect(editor().locator('tr')).toHaveCount(3);
+    await expect.poll(() => saved().length).toBe(4); // header, its line, two rows
+
+    await bar().getByRole('button', { name: 'Adicionar coluna à direita' }).click();
+    await expect(editor().locator('tr').first().locator('th')).toHaveCount(3);
+    await expect.poll(columns).toBe(3);
+    // The new column is right of the caret's (between ID and Cenário); the caret stays where it was, so it is deleted from one of its own cells.
+    await expect(editor().locator('tr').nth(1).locator('td').nth(2)).toHaveText('Login válido');
+    await inCell(editor().locator('tr').first().locator('th').nth(1));
+    await bar().getByRole('button', { name: 'Excluir a coluna' }).click();
+    await expect(editor().locator('tr').first().locator('th')).toHaveCount(2);
+    await expect.poll(columns).toBe(2);
+
+    await inCell(editor().locator('td', { hasText: 'CT-01' }));
+    await bar().getByRole('button', { name: 'Adicionar coluna à esquerda' }).click();
+    await expect(editor().locator('tr').first().locator('th')).toHaveCount(3);
+    await expect(editor().locator('tr').nth(1).locator('td').nth(1)).toHaveText('CT-01'); // the new column is before it
+    await inCell(editor().locator('tr').first().locator('th').first());
+    await bar().getByRole('button', { name: 'Excluir a coluna' }).click();
+    await expect.poll(columns).toBe(2);
+    expect(readFileSync(file, 'utf8')).toContain('Login válido'); // the words stay
+  });
+
+  test('the header row cannot get a row above it nor be deleted: a Markdown table needs it', async () => {
+    await inCell(editor().locator('th', { hasText: 'Cenário' }));
+    await expect(bar().getByRole('button', { name: 'Adicionar linha acima' })).toBeDisabled();
+    await expect(bar().getByRole('button', { name: 'Excluir a linha' })).toBeDisabled();
+    await expect(bar().getByRole('button', { name: 'Adicionar linha abaixo' })).toBeEnabled();
+    await inCell(editor().locator('td', { hasText: 'CT-01' }));
+    await expect(bar().getByRole('button', { name: 'Adicionar linha acima' })).toBeEnabled();
+    await expect(bar().getByRole('button', { name: 'Excluir a linha' })).toBeEnabled();
+  });
+
+  test('Tab in the last cell adds a row; a row and then the table are deleted', async () => {
+    await inCell(editor().locator('tr').last().locator('td').last());
+    await tp.keyboard.press('Tab');
+    await expect(editor().locator('tr')).toHaveCount(4);
+    await expect.poll(() => saved().length).toBe(5);
+    await bar().getByRole('button', { name: 'Excluir a linha' }).click();
+    await expect(editor().locator('tr')).toHaveCount(3);
+    await expect.poll(() => saved().length).toBe(4);
+
+    await inCell(editor().locator('td', { hasText: 'CT-01' }));
+    await bar().getByRole('button', { name: 'Excluir a tabela' }).click();
+    await expect(editor().locator('table')).toHaveCount(0);
+    await expect(bar()).toBeHidden();
+    await expect.poll(() => saved().length).toBe(0);
+    expect(readFileSync(file, 'utf8')).toContain('# Casos');
+  });
+});

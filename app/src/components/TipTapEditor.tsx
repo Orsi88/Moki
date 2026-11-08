@@ -1,7 +1,7 @@
 // Formatted Markdown: TipTap reads and writes the same .md file. Images, lists and
 // typing belong to the editor. The reading view and the source editor stay as they are.
 
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
@@ -19,6 +19,7 @@ import { preserveSource, sourceOffsets, splitSource } from '../md-preserve';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { DiagramFence } from './DiagramFence';
 import { MokiCodeBlock } from './CodeBlockCard';
+import { IconTrash } from './Icons';
 
 const IMAGE_MAX = 1200;
 const TYPING_PAUSE = 150; // ms: the markdown is serialized and sent to the owner once typing pauses (a note can hold ~50 images as text)
@@ -171,6 +172,52 @@ const openLink = (href: string) => {
 
 // Shown on the link: the visible words, the address, and a button that opens it.
 // Ctrl+click on the link opens it (a plain click puts the caret in its words); these fields are how the words and the address change.
+// Shown with the caret in a table: rows and columns added or removed where the caret is, or the table deleted.
+// A Markdown table has one header row and no merged cells, so nothing here makes either: above the header and
+// the header itself are not offered. Tab in the last cell adds a row (the Table extension).
+function TableBubble({ editor }: { editor: Editor }) {
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const sync = () => redraw((n) => n + 1);
+    editor.on('selectionUpdate', sync);
+    editor.on('transaction', sync);
+    return () => { editor.off('selectionUpdate', sync); editor.off('transaction', sync); };
+  }, [editor]);
+  const header = editor.isActive('tableHeader');
+  const run = (go: (chain: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => { go(editor.chain().focus()).run(); };
+  const button = (label: string, glyph: ReactNode, act: (chain: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>, enabled: boolean, why = '') => (
+    <button type="button" className="icon-btn" title={enabled ? label : `${label}: ${why}`} aria-label={label} disabled={!enabled}
+      onMouseDown={(event) => event.preventDefault()} onClick={() => run(act)}>{glyph}</button>
+  );
+  const headerWhy = t('the first row is the table\'s header');
+  // Above the whole table, not above the caret: there it would cover the row above, whose cells could not be clicked.
+  const tableBox = () => {
+    const at = editor.view.domAtPos(editor.state.selection.from).node;
+    const table = (at instanceof Element ? at : at.parentElement)?.closest('table');
+    if (!table) return null;
+    const box = table.getBoundingClientRect();
+    return { getBoundingClientRect: () => box, getClientRects: () => [box] };
+  };
+  return (
+    <BubbleMenu editor={editor} pluginKey="tableMenu" shouldShow={() => editor.isActive('table') && !editor.isActive('link') && !editor.isActive('image')}
+      getReferencedVirtualElement={tableBox} options={{ placement: 'top-start', offset: 8 }}>
+      <div className="image-bubble table-bubble" role="toolbar" aria-label={t('Table')}>
+        <span className="table-bubble-label">{t('Row')}</span>
+        {button(t('Add a row above'), '+↑', (c) => c.addRowBefore(), !header && editor.can().addRowBefore(), headerWhy)}
+        {button(t('Add a row below'), '+↓', (c) => c.addRowAfter(), editor.can().addRowAfter())}
+        {button(t('Delete the row'), '×', (c) => c.deleteRow(), !header && editor.can().deleteRow(), headerWhy)}
+        <span className="sep" />
+        <span className="table-bubble-label">{t('Column')}</span>
+        {button(t('Add a column to the left'), '+←', (c) => c.addColumnBefore(), editor.can().addColumnBefore())}
+        {button(t('Add a column to the right'), '+→', (c) => c.addColumnAfter(), editor.can().addColumnAfter())}
+        {button(t('Delete the column'), '×', (c) => c.deleteColumn(), editor.can().deleteColumn())}
+        <span className="sep" />
+        {button(t('Delete the table'), <IconTrash size={14} />, (c) => c.deleteTable(), editor.can().deleteTable())}
+      </div>
+    </BubbleMenu>
+  );
+}
+
 function LinkBubble({ editor }: { editor: Editor }) {
   const [href, setHref] = useState('');
   const [url, setUrl] = useState('');
@@ -560,6 +607,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
         </div>
       </BubbleMenu>
       <LinkBubble editor={editor} />
+      <TableBubble editor={editor} />
       {slash && createPortal(
         <div className="note-mention note-mention-floating" role="listbox" aria-label={t('Commands')} style={{ position: 'fixed', top: slash.top, left: slash.left }}>
           {!slashMatches.length ? <p className="muted small">{t('No command matches "{q}".', { q: slash.query })}</p>
