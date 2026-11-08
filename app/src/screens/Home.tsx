@@ -67,8 +67,8 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   const [pins, setPins] = useState<string[]>(pinnedIds);
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
-  // A note opened here, inside the app ({ loose: null }: a new loose note). The icon beside it opens the notebook window.
-  const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null);
+  // A saved note opened here, inside the app. New loose notes are created from the fixed icon rail.
+  const [openNote, setOpenNote] = useState<NoteRef | null>(null);
   // The actions of a row (pin, hide, open in the notebook, delete…) show only on a right click.
   const [sections, setSections] = useState<HomeSectionLayout>(homeSectionLayout);
   const sectionsRef = useRef(sections);
@@ -362,7 +362,7 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
               </li>
             ))}
           </ul>
-        </>, <AddButton size="sm" title={t('New note')} onClick={() => setOpenNote({ loose: null })} />)}
+        </>)}
         {rowMenu && (
           <div className="menu-backdrop" onMouseDown={() => setRowMenu(null)} onContextMenu={(e) => { e.preventDefault(); setRowMenu(null); }}>
             <ul className="term-menu item-menu" role="menu" style={{ left: rowMenu.left, top: rowMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setRowMenu(null); }}>

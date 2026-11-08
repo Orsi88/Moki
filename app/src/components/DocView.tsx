@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { api, type FileContent, type OpenWithApps } from '../api';
 import { t } from '../i18n';
 import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, IconMore, IconRefresh, IconTag, IconX } from './Icons';
@@ -23,6 +23,8 @@ interface Props {
   content: FileContent;
   project?: string; // lets the preview of unsaved edits show the file's relative images
   mode: DocMode;
+  initialScrollTop?: number;
+  onScroll?: (scrollTop: number) => void;
   draft: string;
   dirty: boolean;
   saving: boolean;
@@ -154,7 +156,7 @@ const formatSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1
 
 const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-export function DocView({ content, project, mode, draft, dirty, saving, onDraft, onMode, why, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onRewrite, onQuiet, onSave, onOpenExternal, onReload, onLink, onPdfSaved, onCommit, openWith, tags }: Props) {
+export function DocView({ content, project, mode, initialScrollTop = 0, onScroll, draft, dirty, saving, onDraft, onMode, why, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onRewrite, onQuiet, onSave, onOpenExternal, onReload, onLink, onPdfSaved, onCommit, openWith, tags }: Props) {
   const editable = (content.kind === 'markdown' || content.kind === 'text') && content.editable;
   const crumbs = content.path.split('/');
   const savedHtml = content.kind === 'markdown' ? content.html : '';
@@ -162,11 +164,66 @@ export function DocView({ content, project, mode, draft, dirty, saving, onDraft,
   const [menu, setMenu] = useState<(OpenWithApps & { right: number; top: number }) | null>(null);
   const [keep, setKeep] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  const scrollCallback = useRef(onScroll);
+  scrollCallback.current = onScroll;
   const sourceMode = mode === 'source';
   // Where the source button goes back to: the editor, or the reading view of a file the editor does not edit.
   const home: DocMode = content.kind === 'markdown' && content.editable && why !== 'large' && why !== 'loss' ? 'edit' : 'preview';
   const [copied, setCopied] = useState(false);
   useEffect(() => { setTagsOpen(false); }, [content.path]);
+  useLayoutEffect(() => {
+    const host = body.current;
+    if (!host || !scrollCallback.current) return;
+    // Editors/PDF pages can arrive after the tab mounts. Wait for their layout, and
+    // stop restoring as soon as the reader starts interacting with the document.
+    const selector = mode === 'source' || content.kind === 'text' && content.editable
+      ? 'textarea.editor' : content.kind === 'xlsx' ? '.sheet-grid' : content.kind === 'pdf' ? '.pdf-scroll' : '';
+    const scroller = (): HTMLElement | null => selector ? host.querySelector<HTMLElement>(selector) : host;
+    let restoring = true;
+    let frame = 0;
+    let observed: Element | null = null;
+    const capture = () => {
+      const target = scroller();
+      if (!restoring && target) scrollCallback.current?.(target.scrollTop);
+    };
+    const restore = () => {
+      const target = scroller();
+      if (!target || !restoring) return;
+      target.scrollTop = initialScrollTop;
+      if (Math.abs(target.scrollTop - initialScrollTop) < 1) restoring = false;
+      const child = target.firstElementChild;
+      if (child !== observed) {
+        if (observed) size.unobserve(observed);
+        observed = child;
+        if (child) size.observe(child);
+      }
+    };
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(restore); };
+    const interact = () => { restoring = false; };
+    const size = new ResizeObserver(schedule);
+    size.observe(host);
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(host, { childList: true, subtree: true });
+    const scroll = (event: Event) => { if (event.target === scroller()) capture(); };
+    host.addEventListener('scroll', scroll, true);
+    host.addEventListener('load', schedule, true);
+    host.addEventListener('wheel', interact, { passive: true });
+    host.addEventListener('pointerdown', interact);
+    host.addEventListener('keydown', interact);
+    restore();
+    return () => {
+      capture();
+      cancelAnimationFrame(frame);
+      size.disconnect();
+      mutations.disconnect();
+      host.removeEventListener('scroll', scroll, true);
+      host.removeEventListener('load', schedule, true);
+      host.removeEventListener('wheel', interact);
+      host.removeEventListener('pointerdown', interact);
+      host.removeEventListener('keydown', interact);
+    };
+  }, [content.path, mode]); // scroll updates must never pull the reader back to the saved position
   // The comment column of a .md file, opened or closed from the bar (remembered), as for a PDF.
   const [commentsOff, setCommentsOffState] = useState(() => recall('qa-md-comments') === 'closed');
   const setCommentsOff = (off: boolean) => { setCommentsOffState(off); remember('qa-md-comments', off ? 'closed' : 'open'); };
@@ -265,7 +322,7 @@ export function DocView({ content, project, mode, draft, dirty, saving, onDraft,
         </div>
       )}
 
-      <div className="doc-body">
+      <div ref={body} className="doc-body">
         {content.kind === 'markdown' && mode === 'source' && !(content.editable && home === 'edit') && (
           <textarea className="editor md-source" readOnly spellCheck={false} value={draft} aria-label={t('Markdown source')} />
         )}

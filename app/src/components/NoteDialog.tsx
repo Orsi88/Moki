@@ -415,6 +415,8 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!active || (inline && !container.current?.contains(document.activeElement))) return; // a hidden tab or an unfocused inline note
+      const modal = document.querySelector('[aria-modal="true"]');
+      if (modal && container.current && !modal.contains(container.current)) return; // a quick note can cover another note
       if (e.key === 'Escape') { if (catalog || inline) return; close(); return; }
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();

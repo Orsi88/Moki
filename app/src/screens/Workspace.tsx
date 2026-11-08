@@ -31,7 +31,7 @@ import { CraftDownloads } from '../components/CraftDownloads';
 import { FileIcon } from '../icons';
 import { Ribbon } from '../components/Ribbon';
 import { Settings, type SettingsTab } from './Settings';
-import { flushEdits } from '../debounce';
+import { createDebouncer, flushEdits } from '../debounce';
 import { needsReread, stampOf, type Stamp } from '../tab-refresh';
 import { throttle } from '../throttle';
 import { parseActivityLaunches, type ActivityLaunch, type ActivityLaunchPhase } from '../activity-launches';
@@ -41,15 +41,16 @@ import {
   tabsOfGroup, tabsOfPane, termKey, type Board, type TabKey,
 } from '../tab-groups';
 import { GroupMenu, LayoutButton, PaneHead, TabMenu, groupStyle, type PaneTab } from '../components/TabGroups';
+import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
 
-interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
+interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
 // A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is read and copied;
 // it is shown for reading and comments ('preview') when it is large or the editor would lose parts of it (`why`, DocView).
 // `quiet`: the note about the formatting was closed. It saves on its own: `conflict` when the file changed outside Moki
 // meanwhile, `savedAt` for the bar.
-interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number }
+interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; scrollTop: number; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number }
 interface TermTab extends TerminalRef { running: boolean }
 
 // The picture above the project name when nothing is open.
@@ -86,7 +87,7 @@ export const linkedNotice = (r: ProjectSummary & { backup?: string }): string =>
   ? t('Linked {folder}. Its AI settings were backed up to {backup}', { folder: r.repository, backup: r.backup })
   : t('Linked {folder}. It has no AI settings (.claude, AGENTS.md…) to back up.', { folder: r.repository }));
 
-export function Workspace({ workspaceId, project, tools, onHome, settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged }: Props) {
+export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote, settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged }: Props) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -111,7 +112,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   useEffect(() => { if (search) setSidebarOpen(true); }, [search]);
   useEffect(() => { touchRecentProject(project.id); }, [project.id]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') setSidebarOpen(true); };
+    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') setSidebarOpen(true); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -201,6 +202,32 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const dragDepth = useRef(0);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const [viewReady, setViewReady] = useState(false);
+  const scrollPositions = useRef(new Map<string, number>());
+  const latestView = useRef({ tabs, active, ready: viewReady });
+  latestView.current = { tabs, active, ready: viewReady };
+  const persistView = useMemo(() => createDebouncer(() => {
+    const current = latestView.current;
+    if (!current.ready) return;
+    writeWorkspaceView(workspaceId, project.id, {
+      version: 1,
+      tabs: current.tabs.map(({ path, mode, scrollTop }) => ({
+        path, mode, scrollTop: scrollPositions.current.get(path) ?? scrollTop,
+      })),
+      active: current.active,
+    });
+  }, 180), [workspaceId, project.id]);
+  useEffect(() => {
+    const flush = () => persistView.flush();
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      persistView.flush();
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', flush);
+    };
+  }, [persistView]);
+  useEffect(() => { if (viewReady) persistView.call(); }, [active, tabs, viewReady, persistView]);
 
   // Tags: the catalog, and the tags of this project's files (the tree marks them, the open file can change them).
   const [catalog, setCatalog] = useState<Tag[]>([]);
@@ -226,7 +253,6 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
 
   // Live updates: the AI tool writes files while the app is open.
   useEffect(() => {
-    loadTree();
     void api.watch(project.id);
     const summary = throttle(onProjectChanged, 5000);
     const off = api.onChanged((changed) => {
@@ -254,6 +280,45 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     return () => { off(); summary.cancel(); void api.watch(null); };
   }, [project.id, loadTree, onProjectChanged]);
 
+  // The first tree and saved tabs load together. Nothing is persisted before restoration finishes.
+  useEffect(() => {
+    const saved = readWorkspaceView(workspaceId, project.id);
+    let cancelled = false;
+    void loadTree().then(async (nodes) => {
+      if (cancelled || nodes === null) return;
+      const restored = await Promise.all(saved.tabs.map(async (item): Promise<Tab | null> => {
+        const node = findFile(nodes, item.path);
+        if (!node) return null;
+        try {
+          const content = await api.readFile(project.id, item.path);
+          const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
+          const mode: DocMode = content.kind !== 'markdown' || !content.editable || large ? 'preview' : item.mode;
+          return {
+            path: item.path, content, draft: textOf(content), mode, saving: false,
+            scrollTop: item.scrollTop,
+            seen: stampOf(content, { size: node.size, mtime: node.mtime }),
+            ...(large && content.editable ? { why: 'large' as const } : {}),
+          };
+        } catch {
+          return null; // removed or no longer readable: restore the other tabs
+        }
+      }));
+      if (cancelled) return;
+      const valid = restored.filter((tab): tab is Tab => tab !== null);
+      setTabs((current) => {
+        const existing = new Set(current.map((tab) => tab.path));
+        const next = [...valid.filter((tab) => !existing.has(tab.path)), ...current];
+        tabsRef.current = next;
+        return next;
+      });
+      // The saved active file comes back in front, unless something is already there.
+      const front = valid.some((tab) => tab.path === saved.active) ? saved.active : valid[0]?.path ?? null;
+      if (front) apply((b) => (focusedKey(b) ? b : b.tabs[fileKey(front)] ? show(b, fileKey(front)) : boardOpen(b, fileKey(front))));
+      setViewReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [project.id, loadTree, workspaceId, apply]);
+
   const openPath = useCallback((path: string, mode: Tab['mode'] = 'preview') => {
     setError('');
     setOpView(null);
@@ -266,7 +331,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       touchRecentFile(project.id, path);
       const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
       const view: DocMode = content.kind !== 'markdown' ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
-      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
       apply((b) => boardOpen(b, fileKey(path)));
       // Reveal the file in the tree.
       setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
@@ -281,7 +346,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     api.readFile(project.id, path).then((content) => {
       const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
       const view: DocMode = content.kind !== 'markdown' || !content.editable || large ? 'preview' : 'edit';
-      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
       apply((b) => boardOpen(b, fileKey(path), { group, background: true }));
     }).catch(() => { /* not readable yet: the next change tries again */ });
   }, [project.id, apply]);
@@ -307,6 +372,18 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const update = (path: string, patch: Partial<Tab>) => {
     tabsRef.current = tabsRef.current.map((t) => (t.path === path ? { ...t, ...patch } : t));
     setTabs((all) => all.map((t) => (t.path === path ? { ...t, ...patch } : t)));
+  };
+  const rememberScroll = (path: string, top: number) => {
+    scrollPositions.current.set(path, top);
+    persistView.call();
+  };
+  const moveScroll = (from: string, to: string) => {
+    const next = new Map<string, number>();
+    for (const [path, top] of scrollPositions.current) {
+      const moved = path === from ? to : path.startsWith(from + '/') ? to + path.slice(from.length) : path;
+      next.set(moved, top);
+    }
+    scrollPositions.current = next;
   };
   const reloadFile = (path: string) => {
     flushEdits();
@@ -396,6 +473,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     const tab = tabsRef.current.find((t) => t.path === path);
     if (tab && isDirty(tab) && autosaves(tab) && !tab.conflict) save(path); // it saves on its own: closing saves now
     else if (tab && isDirty(tab) && !window.confirm(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }))) return;
+    scrollPositions.current.delete(path);
     setTabs((all) => all.filter((t) => t.path !== path));
     apply((b) => boardClose(b, fileKey(path)));
   }, [save, apply]);
@@ -416,7 +494,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
 
   // The board keeps only tabs that exist (a saved board, a terminal closed elsewhere) and knows every open one.
   useEffect(() => {
-    if (!termsReady) return;
+    if (!termsReady || !viewReady) return;
     const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : [])]);
     const known = Object.keys(board.tabs);
     if (known.length === alive.size && known.every((k) => alive.has(k))) return;
@@ -424,7 +502,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       const opened = boardOpen(acc, k, { background: true });
       return { ...opened, tabs: { ...opened.tabs, [k]: { ...opened.tabs[k], fresh: false } } };
     }, prune(b, alive)));
-  }, [tabs, terms, termsReady, board.tabs, apply]);
+  }, [tabs, terms, termsReady, viewReady, board.tabs, apply]);
 
   // Operations move on when a step's files are there: the next step starts in a terminal tab (or waits for approval).
   const advancing = useRef(false);
@@ -512,6 +590,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       flushEdits(); // the tab is renamed below: its pending text must reach it under the old path
       holdSaves(from);
       api.moveEntry(project.id, from, folder).then((path) => {
+        moveScroll(from, path);
         loadTree();
         setExpanded((s) => new Set(s).add(folder));
         setTabs((all) => all.map((tab) => (tab.path === from ? { ...tab, path, content: { ...tab.content, path } } : tab)));
@@ -580,6 +659,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       : t('Delete "{name}"? It goes to the trash.', { name });
     if (!window.confirm(ask)) return;
     api.deleteEntry(project.id, path).then(() => {
+      for (const file of scrollPositions.current.keys()) if (file === path || file.startsWith(path + '/')) scrollPositions.current.delete(file);
       loadTree();
       setTabs((all) => all.filter((tab) => tab.path !== path && !tab.path.startsWith(`${path}/`)));
       apply((b) => b.order.filter((k) => k === fileKey(path) || k.startsWith(`${fileKey(path)}/`)).reduce(boardClose, b));
@@ -610,6 +690,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     holdSaves(path);
     const to = await api.renameEntry(project.id, path, name);
     if (to === path) return;
+    moveScroll(path, to);
     const moved = (p: string) => (p === path ? to : p.startsWith(`${path}/`) ? to + p.slice(path.length) : p);
     flushEdits(); // the tabs are renamed below: text typed a moment ago must reach them under the old path
     setTabs((all) => all.map((tab) => { const p = moved(tab.path); return p === tab.path ? tab : { ...tab, path: p, content: { ...tab.content, path: p } }; }));
@@ -648,7 +729,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || !active || activeTerm || graphFocus || note || (document.activeElement as HTMLElement | null)?.closest('.note-inline')) return; // note editors own their shortcuts
+      if (!(e.ctrlKey || e.metaKey) || !active || activeTerm || graphFocus || note || document.querySelector('[aria-modal="true"]') || (document.activeElement as HTMLElement | null)?.closest('.note-inline')) return; // note editors own their shortcuts
       const key = e.key.toLowerCase();
       if (key === 's') { e.preventDefault(); save(active); }
       if (key === 'w') { e.preventDefault(); close(active); }
@@ -733,6 +814,8 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       tags={doc.path !== 'project.json' && doc.path !== 'tags.json' && !doc.path.startsWith('@folder') ? <TagPicker catalog={catalog} value={fileTags[doc.path] ?? []} onChange={(ids) => tagFile(doc.path, ids)} onCatalog={setCatalog} compact /> : undefined}
       project={project.id}
       mode={doc.mode}
+      initialScrollTop={scrollPositions.current.get(doc.path) ?? doc.scrollTop}
+      onScroll={(top) => rememberScroll(doc.path, top)}
       draft={doc.draft}
       dirty={isDirty(doc)}
       saving={doc.saving}
@@ -819,6 +902,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         project={project}
         settingsOn={settings !== null}
         onHome={goHome}
+        onNewNote={onNewLooseNote}
         onSettings={toggleSettings}
         onPlay={() => setLaunch({ activity: 'open' })}
         onTerminal={openTermMenu}

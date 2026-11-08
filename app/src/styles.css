@@ -26,6 +26,10 @@
   --qi-shade: #5e5850;
   --qi-accent: #f1d27c;
   --qi-file: #b3ab9e;
+  --cli-bg: #11100f;
+  --cli-text: #f2ede3;
+  --cli-accent: #f1d27c;
+  --cli-selection: rgb(241 210 124 / 0.26);
   color-scheme: dark;
   font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 14px;
@@ -58,6 +62,69 @@
     --qi-accent: #f1d27c;
     --qi-file: #6d665b;
   color-scheme: light;
+}
+
+/* Moki palette swatches. Each palette keeps the same semantic roles, so the
+   rest of the interface does not need a palette-specific branch. */
+:root[data-moki-palette="blue"] {
+  --bg: #151b26; --bg-2: #1d2634; --bg-3: #29364a; --ribbon: #10151d;
+  --text: #eef5ff; --muted: #aab8cc; --faint: #6e7e94; --border: #34455d;
+  --accent: #86b8ff; --accent-soft: rgb(134 184 255 / 0.15); --accent-text: #101923;
+}
+:root[data-moki-palette="purple"] {
+  --bg: #1c1825; --bg-2: #272033; --bg-3: #362b47; --ribbon: #15121c;
+  --text: #f4efff; --muted: #b7abc9; --faint: #7c6f8d; --border: #47395a;
+  --accent: #c8a5ff; --accent-soft: rgb(200 165 255 / 0.15); --accent-text: #1b1228;
+}
+:root[data-moki-palette="green"] {
+  --bg: #152019; --bg-2: #1e2b21; --bg-3: #2b3b2e; --ribbon: #101812;
+  --text: #eef8ef; --muted: #abc2ae; --faint: #708a75; --border: #38503c;
+  --accent: #9bd49b; --accent-soft: rgb(155 212 155 / 0.15); --accent-text: #102016;
+}
+:root[data-moki-palette="red"] {
+  --bg: #241718; --bg-2: #302020; --bg-3: #402a2a; --ribbon: #1b1112;
+  --text: #fff0ed; --muted: #c9aaa6; --faint: #8d706c; --border: #523533;
+  --accent: #ff9b91; --accent-soft: rgb(255 155 145 / 0.15); --accent-text: #2a1110;
+}
+:root[data-theme="light"][data-moki-palette="blue"] {
+  --bg: #f4f8ff; --bg-2: #eaf2ff; --bg-3: #dce9fb; --ribbon: #e8f0fc;
+  --text: #1b2533; --muted: #5c6d84; --faint: #8fa0b6; --border: #cbdaf0;
+  --accent: #3f72c4; --accent-soft: rgb(63 114 196 / 0.14); --accent-text: #17243a; color-scheme: light;
+}
+:root[data-theme="light"][data-moki-palette="purple"] {
+  --bg: #faf7ff; --bg-2: #f3edff; --bg-3: #e8defa; --ribbon: #f0e9fb;
+  --text: #241e2d; --muted: #6d607f; --faint: #a392b6; --border: #d8cbe9;
+  --accent: #7651b8; --accent-soft: rgb(118 81 184 / 0.14); --accent-text: #241735; color-scheme: light;
+}
+:root[data-theme="light"][data-moki-palette="green"] {
+  --bg: #f4fbf5; --bg-2: #eaf6ec; --bg-3: #dcefe0; --ribbon: #e7f3e9;
+  --text: #1d2920; --muted: #5c715f; --faint: #8fa494; --border: #cbe0cf;
+  --accent: #4b8c58; --accent-soft: rgb(75 140 88 / 0.14); --accent-text: #17241a; color-scheme: light;
+}
+:root[data-theme="light"][data-moki-palette="red"] {
+  --bg: #fff7f5; --bg-2: #ffebe7; --bg-3: #f8dcd8; --ribbon: #faece9;
+  --text: #2d201f; --muted: #775f5a; --faint: #ad918b; --border: #ead0ca;
+  --accent: #bd5149; --accent-soft: rgb(189 81 73 / 0.14); --accent-text: #321816; color-scheme: light;
+}
+
+/* CLI colors are independent from the Moki palette. */
+:root[data-cli-theme="light"] {
+  --cli-bg: #fbf8f1;
+  --cli-text: #1f1e1b;
+  --cli-accent: #7651b8;
+  --cli-selection: rgb(118 81 184 / 0.2);
+}
+
+/* Document views are Moki-rendered and can use a palette independent from the shell. */
+:root[data-doc-theme="light"] .doc {
+  --bg: #fbf8f1; --bg-2: #f4efe4; --bg-3: #ebe4d6; --text: #1f1e1b;
+  --muted: #6d665b; --faint: #a59d90; --border: #e3dbcc; color-scheme: light;
+  background: var(--bg); color: var(--text);
+}
+:root[data-doc-theme="dark"] .doc {
+  --bg: #1c1b19; --bg-2: #232220; --bg-3: #2d2b28; --text: #f2ede3;
+  --muted: #a8a196; --faint: #6c665d; --border: #353230; color-scheme: dark;
+  background: var(--bg); color: var(--text);
 }
 
 * { box-sizing: border-box; }
@@ -143,6 +210,35 @@ textarea { width: 100%; resize: vertical; }
 .settings-bar .settings-tabs { flex: 1; border-bottom: 0; }
 .settings-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .settings-body .library { flex: 1; height: auto; min-height: 0; }
+.settings-themes {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 18px 24px;
+  width: 100%; height: 100%; padding: 30px 40px 34px; overflow: hidden;
+}
+.settings-themes > h1, .settings-themes > p { grid-column: 1 / -1; }
+.settings-themes h1 { font-size: 1.6rem; margin: 0; }
+.settings-themes > p { margin: -12px 0 0; }
+.theme-section { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+.theme-section:first-of-type { grid-column: 1 / -1; }
+.theme-section h2 { font-size: 1.05rem; }
+.theme-section > .label { margin-top: 8px; }
+.theme-swatches { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.theme-swatch {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); color: var(--text);
+  font: inherit; text-align: left; white-space: nowrap; cursor: pointer;
+}
+.theme-swatch:hover, .theme-swatch.on { border-color: var(--accent); }
+.theme-swatch.on { background: var(--accent-soft); }
+.theme-swatch-colors { display: flex; width: 30px; height: 30px; overflow: hidden; border-radius: 7px; border: 1px solid var(--border); flex-shrink: 0; }
+.theme-swatch-colors i { flex: 1; background: var(--theme-dark); }
+.theme-swatch-colors i + i { background: var(--theme-light); }
+.settings-themes > .btn { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 900px) {
+  .settings-themes { display: flex; flex-direction: column; overflow: auto; padding: 24px; }
+  .settings-themes > p { margin: -8px 0 0; }
+  .theme-section:first-of-type { width: 100%; }
+  .theme-swatches { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
 .library-group-empty { padding: 4px 12px; }
 .skills-embedded { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .skills-embedded .list-page-head { flex: none; overflow: visible; padding-bottom: 14px; }
@@ -390,7 +486,7 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tab-close:hover { background: var(--bg-3); color: var(--text); }
 .tab-term > svg { flex-shrink: 0; }
 .tab-term.exited > svg, .tab-term.exited .tab-name { color: var(--faint); }
-.term-pane { flex: 1; min-height: 0; padding: 6px 0 0 10px; background: var(--bg); }
+.term-pane { flex: 1; min-height: 0; padding: 6px 0 0 10px; background: var(--cli-bg); color: var(--cli-text); }
 .term-pane[hidden] { display: none; }
 .menu-backdrop { position: fixed; inset: 0; z-index: 20; }
 .term-menu { position: fixed; min-width: 260px; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
@@ -2076,3 +2172,11 @@ span.mcp-row-main { cursor: default; }
 .group-menu-item:hover { background: var(--bg-3); }
 .group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--group, var(--muted)); flex-shrink: 0; }
 .term-menu .menu-head { padding: 4px 10px; color: var(--muted); font-size: 0.72rem; letter-spacing: .04em; text-transform: uppercase; }
+
+/* The ribbon's New note: same button as its neighbours, the icon in the accent color. */
+.ribbon .ribbon-note { color: var(--accent); }
+.ribbon .ribbon-note:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+:root[data-theme="light"] .ribbon .ribbon-note, :root[data-theme="light"] .ribbon .ribbon-note:hover:not(:disabled) { color: #b8860b; }
+
+/* A note over the screen (the quick note, a note opened from the start screen): resized from its bottom-right corner. */
+.modal-backdrop > .note-dialog:not(.note-embedded):not(.note-inline) { resize: both; min-width: min(420px, 100%); min-height: 320px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }

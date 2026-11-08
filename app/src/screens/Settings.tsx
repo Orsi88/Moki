@@ -19,8 +19,9 @@ import { Operations } from './Operations';
 import { McpManager } from '../components/McpManager';
 import { ActivitiesPage } from '../components/ActivitiesPage';
 import { AiToolsPage } from '../components/AiToolsPage';
+import { ThemesPage } from '../components/ThemesPage';
 
-export type SettingsTab = 'agents' | 'activities' | 'ai' | 'operations' | 'skills' | 'mcp' | 'documents';
+export type SettingsTab = 'agents' | 'activities' | 'ai' | 'operations' | 'skills' | 'mcp' | 'documents' | 'themes';
 
 interface Props {
   tab: SettingsTab;
@@ -73,10 +74,12 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
           <button type="button" role="tab" aria-selected={tab === 'skills'} className={`dialog-tab${tab === 'skills' ? ' on' : ''}`} onClick={() => onTab('skills')}>{t('Skills')}</button>
           <button type="button" role="tab" aria-selected={tab === 'mcp'} className={`dialog-tab${tab === 'mcp' ? ' on' : ''}`} onClick={() => onTab('mcp')}>{t('MCP servers')}</button>
           <button type="button" role="tab" aria-selected={tab === 'documents'} className={`dialog-tab${tab === 'documents' ? ' on' : ''}`} onClick={() => onTab('documents')}>{t('Templates')}</button>
+          <button type="button" role="tab" aria-selected={tab === 'themes'} className={`dialog-tab${tab === 'themes' ? ' on' : ''}`} onClick={() => onTab('themes')}>{t('Themes')}</button>
         </div>
       </div>
       <div className="settings-body">
-        {tab === 'documents' ? <DocumentStyleForm />
+        {tab === 'themes' ? <ThemesPage />
+          : tab === 'documents' ? <DocumentStyleForm />
           : tab === 'mcp' ? <McpManager key={target?.id ?? 'none'} project={target} projects={projects} />
           : tab === 'operations' ? <Operations tools={tools} />
           : tab === 'activities' ? <ActivitiesPage />
