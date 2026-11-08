@@ -1486,6 +1486,32 @@ test.describe.serial('Moki terminals outlive the project screen', () => {
     await expect(termPage.locator('.tree-row[title="inbox/casos.xlsx"]')).toBeVisible();
   });
 
+  test('the + menu stays inside the window when the + is at its right edge, on every level', async () => {
+    const plus = termPage.getByTitle('Novo: terminal, IA ou arquivo');
+    // Where the side panel is closed, the + sits against the window's right edge.
+    await plus.evaluate((el) => { Object.assign((el as HTMLElement).style, { position: 'fixed', right: '2px', top: '40px' }); });
+    const inside = async () => {
+      const box = (await termPage.getByRole('menu').boundingBox())!;
+      const size = await termPage.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.w);
+      expect(box.y + box.height).toBeLessThanOrEqual(size.h);
+    };
+    try {
+      await plus.click();
+      await expect(termPage.getByRole('menuitem', { name: 'Apps ArtCraft' })).toBeVisible();
+      await inside();
+      await termPage.getByRole('menuitem', { name: 'IA' }).click();
+      await expect(termPage.getByRole('menuitem', { name: 'Voltar' })).toBeVisible();
+      await inside();
+      await termPage.keyboard.press('Escape');
+      await termPage.keyboard.press('Escape');
+      await expect(termPage.getByRole('menu')).toHaveCount(0);
+    } finally {
+      await plus.evaluate((el) => { (el as HTMLElement).removeAttribute('style'); });
+    }
+  });
+
   // The download itself needs GitHub (main-process fetch is not faked here); the unit tests cover it.
   test('the + menu offers the ArtCraft apps: 16 apps, launcher first, and a Download button for each', async () => {
     await termPage.getByTitle('Num terminal novo').first().click();

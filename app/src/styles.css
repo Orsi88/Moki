@@ -496,7 +496,9 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .term-menu button svg { color: var(--accent); flex-shrink: 0; }
 .term-menu button:disabled svg { color: var(--faint); }
 .term-menu .small { margin-left: auto; }
-/* New (the + of the tabs): categories with a › that open in place, and a Back row. */
+/* New (the + of the tabs): categories with a › that open in place, and a Back row. Its own width
+   (not squeezed by the window edge), so NewMenu can measure it and keep it inside the window. */
+.new-menu { width: max-content; max-width: calc(100vw - 16px); }
 .new-menu .new-menu-more { display: grid; margin-left: auto; color: var(--faint); }
 .new-menu .new-menu-more svg { color: inherit; }
 .new-menu .new-menu-back { color: var(--muted); }
