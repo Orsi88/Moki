@@ -4,15 +4,17 @@
 
 **Dentro de um projeto.** A árvore do projeto: contexto, entrada (inbox), atividades, notas. Solte arquivos sobre a janela e eles são copiados para o inbox — até 40 arquivos, 200 MB cada. Pastas são ignoradas. Arraste um arquivo para outra pasta para movê-lo, ou solte um arquivo do computador sobre uma pasta para copiá-lo para ela. Arquivos de execuções ficam de fora das duas coisas. Markdown aparece formatado num editor TipTap, e um desenho ou diagrama ali continua um cartão que é desenhado; **Ctrl+E** troca para o código, **Ctrl+S** salva, **Ctrl+W** fecha. O botão de atualizar o arquivo lê de novo o que está no disco, então a versão que a IA acabou de gravar aparece sem fechar a aba. O menu ⋯ e o botão direito mandam um arquivo ou pasta para a lixeira; as pastas fixas (contexto, entrada, notas, temporários, arquivos de execuções) são esvaziadas e continuam, e o `project.json` não se apaga por aí. Excluir um projeto de vez fica na lista de projetos e não vai para a lixeira. O cartão do assistente também começa citando uma skill: o pedido abre na IA escolhida e nomeia essa skill. Arquivos Word viram texto para qualquer IA conseguir ler. Excel mostra os valores e PDF abre com texto selecionável; com o PdfCraft instalado dá para destacar e comentar, e editar as páginas (girar, mover, inserir, excluir), o título e o autor (um arquivo do inbox, e qualquer edição de página, vai para uma cópia `-edited.pdf`). O botão ao lado abre qualquer um no programa dele, e o "…" deixa escolher qual (Excel, Word e PDF). Os arquivos que a IA salva aparecem na árvore assim que chegam.
 
-**Abrir na sua ferramenta de IA** (o botão de play):
+**Chamar…**, no painel do projeto ou acima do terminal de IA, abre uma busca única de Atividades, Agentes, Skills e Operações. O atalho **Ctrl+Shift+K** (macOS: **Cmd+Shift+K**) abre a mesma lista.
 
-1. Escolha a atividade.
-2. Se quiser, escolha quais arquivos do inbox entram, qual contexto compartilhado manter (quando o projeto tem tags, veja [Tags](#tags)) e quem deve fazer (um agente).
-3. Acrescente uma observação e escolha a ferramenta. Ela já vem na sua IA padrão (**Configurações › Minhas IAs**); escolher outra aqui vale só para este pedido.
+1. Escolha o que chamar.
+2. Escolha arquivos da Entrada, contexto compartilhado e um agente opcional, quando aplicável.
+3. Acrescente uma observação opcional e escolha **Neste terminal** ou **Num terminal novo**.
 
-Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de terminal do app. Cursor e VS Code abrem a pasta com o pedido copiado. ChatGPT, claude.ai, Gemini web e *Só mostrar a solicitação* deixam o texto na tela, pronto para copiar. Se a abertura ainda estiver rodando depois de cerca de 20 segundos, o assistente avisa.
+**Neste terminal** cola no cursor, sem enviar nem apagar o que você escreveu. Acrescente contexto e pressione Enter quando quiser. Essa opção exige um terminal de IA em execução neste projeto. **Num terminal novo** permite escolher a ferramenta; a padrão vem de **Configurações › Minhas IAs**, e uma escolha diferente vale só para este pedido.
 
-Para conversar sobre uma ideia sem atividade, o **Chamar agente** do painel do projeto escolhe um dos agentes do projeto (e, se quiser, o assunto) e abre a sua IA como esse agente, numa conversa: nenhum run começa e nada é gravado sem você pedir.
+Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de terminal. Cursor e VS Code abrem a pasta com o pedido copiado. Chats web e *Só mostrar a solicitação* preparam texto para copiar. Uma operação sempre abre seu próprio formulário porque cada etapa usa um terminal próprio; a lista explica esse comportamento.
+
+Para conversar sobre uma ideia, escolha um agente em **Chamar…** e acrescente o assunto como observação opcional. Uma execução só começa quando o procedimento ou seu pedido exigir.
 
 Aí você conversa nessa ferramenta como de costume. O pedido cita o projeto, a pasta vinculada e as skills e os agentes instalados nele.
 
@@ -20,11 +22,11 @@ Aí você conversa nessa ferramenta como de costume. O pedido cita o projeto, a 
 
 | Aba | O que você faz ali |
 |---|---|
-| **Agentes** | Papéis que usam uma ou mais skills. Duplique um pronto, ou crie o seu; as tags dizem a quais projetos ele chega. |
-| **Atividades** | Os pedidos prontos que você escolhe em "Abrir na sua ferramenta de IA": os do Moki e os seus (o que pedir, a qual skill, agente, workflow ou operação, com quais arquivos). Veja [Atividades](activities.md). |
+| **Agentes** | Papéis com instruções e skills opcionais. Duplique um pronto, ou crie o seu; as tags dizem a quais projetos ele chega. |
+| **Atividades** | Os pedidos prontos que você escolhe em "Chamar…": os do Moki e os seus (o que pedir, a qual skill, agente, workflow ou operação, com quais arquivos). Veja [Atividades](activities.md). |
 | **Minhas IAs** | As IAs que o Moki abre (de terminal e editores), cada uma com a versão (o caminho aparece ao passar o mouse). O ícone do cartão faz a ação principal (instalar, ou instalar ou atualizar a extensão do Moki) e o menu **…** tem as outras, como **Tornar padrão**, que escolhe em qual as atividades começam (numa atividade você ainda pode escolher outra, só para ela). **Instalar** uma IA de terminal que falta: uma aba de terminal mostra o comando oficial e só o roda depois que você digita `y`; depois, **Verificar de novo**. No VS Code e no Cursor, **Instalar a extensão do Moki e abrir** instala a extensão da versão deste app (da release dele, conferida por SHA-256) e abre o editor na pasta ligada do projeto; um editor que falta tem **Baixar**. No Cursor a extensão aparece como *Não verificado*. Uma IA não encontrada, escolhida ao começar uma atividade, traz você para esta aba. |
 | **Operações** | Agentes ligados por setas numa operação multiagente. Veja [Agents and operations](../agents.md) (em inglês). |
-| **Skills** | O que já está instalado, o que vem com o Moki, os plugins do app (em roxo) e **Adicionar skill**: busque no registro público [SkillMD](https://skillmd.com), descreva uma para a sua ferramenta de IA redigir ou **Envie** skills e agentes de uma pasta `.claude` (ou de um `.zip`) do seu computador. O mesmo envio está em **Configurar projeto** (para o projeto ou para todos os projetos) e na tela inicial sem projeto aberto (para todos os projetos). Você escolhe os itens e confirma antes de qualquer instalação. Caveman e superpowers ficam desligados até você ligá-los na aba Skill do projeto; ligados, entram em toda sessão de IA aberta a partir desse projeto. |
+| **Skills** | O que já está instalado, o que vem com o Moki, os plugins do app (em roxo) e **Adicionar skill**: busque no registro público [SkillMD](https://skillmd.com), descreva uma para a sua ferramenta de IA redigir ou **Envie** skills e agentes de uma pasta `.claude` (ou de um `.zip`) do seu computador. O mesmo envio está em **Configurar projeto** (para o projeto ou para todos os projetos) e na tela inicial sem projeto aberto (para todos os projetos). Você escolhe os itens e confirma antes de qualquer instalação. Caveman e superpowers ficam desligados até você ligá-los na seção Plugins do painel do projeto; ligados, entram em toda sessão de IA aberta a partir desse projeto. |
 | **Servidores MCP** | As ferramentas que a IA recebe, globais ou para projetos escolhidos. Veja [MCP servers](../mcp-servers.md) (em inglês). |
 | **Templates** | Fonte, cores, cabeçalho, rodapé, logo e marca d'água dos PDF, Word e Excel que as atividades geram; as tags dizem quais projetos usam cada um. |
 
