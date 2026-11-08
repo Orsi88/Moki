@@ -15,7 +15,7 @@ import { EXCALIDRAW_STARTER, MERMAID_STARTER } from '../diagram-source';
 import { t } from '../i18n';
 import { encodeCommentMarks, readComments, restoreComments, type MdComment } from '../md-comments';
 import { MdCommentMark } from '../md-comment-mark';
-import { preserveSource, splitSource } from '../md-preserve';
+import { preserveSource, sourceOffsets, splitSource } from '../md-preserve';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { DiagramFence } from './DiagramFence';
 import { MokiCodeBlock } from './CodeBlockCard';
@@ -23,14 +23,32 @@ import { MokiCodeBlock } from './CodeBlockCard';
 const IMAGE_MAX = 1200;
 const TYPING_PAUSE = 150; // ms: the markdown is serialized and sent to the owner once typing pauses (a note can hold ~50 images as text)
 
-interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean }
+// onRewrite: told once, when the file opens, if what the editor draws cannot be mapped back onto the file's own text
+// (md-preserve.ts), so a first edit would rewrite the file: 'format' when every word is still there (tables, list
+// marks, emphasis written its own way), 'loss' when some would go (HTML, syntax the editor does not know).
+interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean; onRewrite?: (kind: 'format' | 'loss') => void }
+
+// The words and numbers of a Markdown text, in order: what a reader sees, whatever the syntax around them.
+const wordsOf = (markdown: string) => (markdown.normalize('NFC').match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
 
 export type TipTapCommand =
   | 'bold' | 'italic' | 'strike' | 'h1' | 'h2' | 'h3'
   | 'list' | 'numbered' | 'checklist' | 'quote' | 'code' | 'codeBlock'
   | 'divider' | 'link' | 'table' | 'diagram' | 'drawing' | 'slash' | 'mention';
 
-export interface TipTapHandle { addImages: (files: File[]) => void; codeBlock: () => void; command: (name: TipTapCommand) => void }
+// The selected text, for a comment: where it is in the document and on screen, or why it cannot be commented.
+export interface EditorSelection { from: number; to: number; rect: { left: number; top: number; bottom: number }; why: string }
+
+export interface TipTapHandle {
+  addImages: (files: File[]) => void; codeBlock: () => void; command: (name: TipTapCommand) => void;
+  // Comments (CommentedEditor). The comment list is the file's, not the document's: a change to it is a new
+  // file text the editor adopts as it is (adopt); a mark set or removed goes through the document.
+  fileText: () => string; // the file's text now, typing included
+  adopt: (text: string) => void; // this text has the same body as the document: only the comment list changed
+  selection: () => EditorSelection | null;
+  markComment: (from: number, to: number, id: string) => void;
+  unmarkComment: (id: string) => void;
+}
 
 // JPEG has no transparency: a clear pixel would be stored as black. Paint white first.
 const imageFile = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -152,7 +170,7 @@ const openLink = (href: string) => {
 };
 
 // Shown on the link: the visible words, the address, and a button that opens it.
-// A click on the link itself also opens it; these fields are how the words and the address change.
+// Ctrl+click on the link opens it (a plain click puts the caret in its words); these fields are how the words and the address change.
 function LinkBubble({ editor }: { editor: Editor }) {
   const [href, setHref] = useState('');
   const [url, setUrl] = useState('');
@@ -290,9 +308,11 @@ interface SlashMenu { from: number; query: string; index: number; top: number; l
 
 const matchesOf = (query: string) => SLASH.filter((c) => fold(`${t(c.label)} ${c.id} ${c.words}`).includes(fold(query)));
 
-export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true }, ref) {
+export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true, onRewrite }, ref) {
   const change = useRef(onChange);
   change.current = onChange;
+  const rewrite = useRef(onRewrite);
+  rewrite.current = onRewrite;
   // The comment list is not part of the editor document. Marks stay in the text;
   // this puts the list back on every change, and drops a comment whose words were deleted.
   const comments = useRef<MdComment[]>(readComments(text).comments);
@@ -386,7 +406,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
       attributes: { class: 'tiptap-body', spellcheck: 'true' },
       handleClick(view, pos, event) {
         const el = event.target instanceof Element ? event.target.closest('a') : null;
-        if (!el || !view.dom.contains(el)) return false;
+        if (!el || !view.dom.contains(el) || !(event.ctrlKey || event.metaKey)) return false; // a plain click edits the link's words
         event.preventDefault();
         editorRef.current?.commands.setTextSelection(pos);
         openLink(el.getAttribute('href') ?? '');
@@ -430,7 +450,12 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
         return false;
       },
     },
-    onCreate: ({ editor: current }) => { kept.current = { ...splitSource(text, readComments(text).body), before: drawn(current) }; seen.current = text; },
+    onCreate: ({ editor: current }) => {
+      kept.current = { ...splitSource(text, readComments(text).body), before: drawn(current) };
+      seen.current = text;
+      const k = kept.current;
+      if (rewrite.current && !sourceOffsets(k.before, k.core)) rewrite.current(wordsOf(k.before) === wordsOf(k.core) ? 'format' : 'loss');
+    },
     onSelectionUpdate: ({ editor: current }) => { syncRef.current(current); },
     onBlur: () => { typing.flush(); },
     onUpdate: ({ editor: current, transaction }) => {
@@ -448,7 +473,44 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
     addImages: (files) => { if (editorRef.current) void insertImages(editorRef.current, files.filter((f) => f.type.startsWith('image/'))); },
     codeBlock: () => { editorRef.current?.chain().focus().toggleCodeBlock().run(); },
     command: (name) => { if (editorRef.current) applyCommand(editorRef.current, name); },
-  }), []);
+    fileText: () => { typing.cancel(); sendRef.current(); return seen.current; },
+    adopt: (next) => {
+      const read = readComments(next);
+      comments.current = read.comments;
+      kept.current = { ...splitSource(next, read.body), before: kept.current.before };
+      seen.current = next;
+    },
+    selection: () => {
+      const current = editorRef.current;
+      if (!current || current.isDestroyed) return null;
+      const { from, to, empty, $from, $to } = current.state.selection;
+      if (empty || !current.state.doc.textBetween(from, to, ' ').trim()) return null;
+      const start = current.view.coordsAtPos(from);
+      const end = current.view.coordsAtPos(to);
+      const rect = { left: Math.min(start.left, end.left), top: start.top, bottom: end.bottom };
+      // One paragraph, list item or cell at a time, as in the reading view; code keeps no marks.
+      if ($from.parent !== $to.parent || !$from.parent.isTextblock) return { from, to, rect, why: t('Select text inside one paragraph to comment on it.') };
+      if ($from.parent.type.spec.code) return { from, to, rect, why: t('Code cannot be commented.') };
+      return { from, to, rect, why: '' };
+    },
+    markComment: (from, to, id) => {
+      const current = editorRef.current;
+      const type = current?.schema.marks.mdComment;
+      if (!current || !type) return;
+      current.view.dispatch(current.state.tr.addMark(from, to, type.create({ id })));
+    },
+    unmarkComment: (id) => {
+      const current = editorRef.current;
+      const type = current?.schema.marks.mdComment;
+      if (!current || !type) return;
+      const { tr } = current.state;
+      current.state.doc.descendants((node, pos) => {
+        const mark = node.marks.find((m) => m.type === type && m.attrs.id === id);
+        if (mark) tr.removeMark(pos, pos + node.nodeSize, mark);
+      });
+      if (tr.docChanged) current.view.dispatch(tr);
+    },
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A reload (or the AI writing the file) replaces the document. Typing already updated `seen`.
   useEffect(() => {

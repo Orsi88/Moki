@@ -2,7 +2,7 @@
 // the Templates screen scrolls and accepts a logo and a watermark, and
 // Create skill lives only under Add a skill.
 
-import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { test, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -625,26 +625,15 @@ test.describe.serial('Moki project tree', () => {
     const project = join(dirs[0], 'workspace', 'projects', 'acme');
     expect(existsSync(join(project, 'inbox', 'cenarios.md'))).toBe(true);
     await expect(treePage.locator('.tree-row[title="inbox/cenarios.md"]')).toBeVisible();
-    await treePage.getByRole('button', { name: 'Código Markdown' }).click();
-    await expect(treePage.locator('textarea')).toBeVisible();
-    // A .md file has the notes' / commands too.
-    const md = treePage.locator('textarea.editor');
-    await md.click();
-    await md.pressSequentially('/tab');
+    // It opens in the editor, where the / commands are.
+    const visual = treePage.locator('.commented-editor .tiptap-body');
+    await expect(visual).toHaveAttribute('contenteditable', 'true');
+    await visual.click();
+    await treePage.keyboard.type('/tab');
     await expect(treePage.getByRole('listbox', { name: 'Comandos' })).toContainText('Tabela');
-    // It opens at the caret, as in a note: just under the first line, not at the bottom of the editor.
-    const mdBox = await md.boundingBox();
-    const listBox = await treePage.getByRole('listbox', { name: 'Comandos' }).boundingBox();
-    expect(listBox!.y - mdBox!.y).toBeLessThan(80);
-    await md.press('Enter');
-    await expect(md).toHaveValue(/\| Coluna 1 \| Coluna 2 \| Coluna 3 \|/);
-    await treePage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
-    await expect.poll(() => readFileSync(join(dirs[0], 'workspace', 'projects', 'acme', 'inbox', 'cenarios.md'), 'utf8')).toContain('| Coluna 1 |');
-    await treePage.getByRole('button', { name: 'Editor visual', exact: true }).click();
-    // The formatted editor draws the table itself (it no longer falls back to the source), and nothing was rewritten.
-    await expect(treePage.locator('.tiptap-body table')).toBeVisible();
-    await expect(md).toBeHidden();
-    expect(readFileSync(join(dirs[0], 'workspace', 'projects', 'acme', 'inbox', 'cenarios.md'), 'utf8')).toContain('| Coluna 1 |');
+    await treePage.keyboard.press('Enter');
+    await expect(visual.locator('table')).toBeVisible();
+    await expect.poll(() => readFileSync(join(dirs[0], 'workspace', 'projects', 'acme', 'inbox', 'cenarios.md'), 'utf8')).toMatch(/\|\s*-{3,}\s*\|/); // saved on its own
 
     await treePage.getByRole('button', { name: 'Opções da pasta do projeto' }).click();
     await expect(treePage.getByRole('menuitem', { name: 'Copiar caminho' })).toBeVisible();
@@ -777,7 +766,7 @@ test.describe.serial('Moki project tree', () => {
     await linked.click();
     await treePage.locator('.tree-row[title="@folder/docs"]').click();
     await treePage.locator('.tree-row[title="@folder/docs/us-1.md"]').click();
-    await expect(treePage.locator('.markdown h1', { hasText: 'US-1 da pasta' })).toBeVisible();
+    await expect(treePage.locator('.tiptap-body h1', { hasText: 'US-1 da pasta' })).toBeVisible(); // its .md files open in the editor too
     await expect(treePage.locator('.file-tags-bar')).toHaveCount(0); // tags are for the project's own files
 
     // Changes in the folder show by themselves.
@@ -1267,6 +1256,28 @@ function smallPdf(lines: string[]): Buffer {
   return Buffer.from(out, 'latin1');
 }
 
+// Drags the mouse over `words` inside `block` (the reading view or the editor), as a person selects them.
+async function selectWords(page: Page, block: Locator, words: string): Promise<void> {
+  const box = await block.evaluate((el, w) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+      const at = n.data.indexOf(w);
+      if (at < 0) continue;
+      const range = document.createRange();
+      range.setStart(n, at); range.setEnd(n, at + w.length);
+      const r = range.getBoundingClientRect();
+      return { x: r.left, y: r.top + r.height / 2, width: r.width };
+    }
+    return null;
+  }, words);
+  if (!box) throw new Error(`"${words}" is not in the block`);
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await page.mouse.move(box.x + 1, box.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 1, box.y, { steps: 6 });
+  await page.mouse.up();
+}
+
 const REVIEW_MD = '# Revisão\n\nA senha expira em 30 dias.\n';
 const IRREGULAR_MD = '# Revisão\n\n## Pendências\n- Primeira <!--c:a1-->regra<!--/c:a1-->\n- Segunda regra\n\n<!-- moki-comments\n[{"id":"a1","author":"Ana","at":"2026-01-01","text":"Verificar","replies":[],"color":"blue"}]\n-->\n';
 
@@ -1445,22 +1456,16 @@ test.describe.serial('Moki PDF comments', () => {
     await expect(pdfPage.locator('.pdf-page-wrap').nth(1).locator('.pdf-inline-note .tiptap-body')).toContainText('Uma anotação entre páginas');
   });
 
-  test('a .md file is commented the same way; the comment is kept inside the file, invisible to other viewers', async () => {
+  test('a .md file opens in its editor and is commented there; the comment is kept inside the file, invisible to other viewers', async () => {
     const file = join(dirs[0], 'workspace', 'projects', 'acme', 'revisao.md');
     if (!await pdfPage.locator('.tree-row[title="revisao.md"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
     await pdfPage.locator('.tree-row[title="revisao.md"]').click();
-    const text = pdfPage.locator('.md-commented .markdown p', { hasText: 'A senha expira' });
-    await expect(text).toBeVisible();
-    await text.evaluate((p) => {
-      const node = p.firstChild as Text;
-      const start = node.data.indexOf('expira em 30 dias');
-      const range = document.createRange();
-      range.setStart(node, start); range.setEnd(node, start + 'expira em 30 dias'.length);
-      const sel = window.getSelection();
-      sel?.removeAllRanges(); sel?.addRange(range);
-      p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    });
-    // Selecting only shows the Comment button; the box opens from it.
+    const visual = pdfPage.locator('.commented-editor .tiptap-body');
+    await expect(visual).toHaveAttribute('contenteditable', 'true');
+    // One view: no switch between reading and editing.
+    await expect(pdfPage.getByRole('button', { name: 'Modo de leitura (Ctrl+E)' })).toHaveCount(0);
+    await expect(pdfPage.getByRole('button', { name: 'Editar (Ctrl+E)' })).toHaveCount(0);
+    await selectWords(pdfPage, visual.locator('p', { hasText: 'A senha expira' }), 'expira em 30 dias');
     const selection = pdfPage.getByRole('toolbar', { name: 'Seleção' });
     await expect(selection).toBeVisible();
     await expect(pdfPage.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
@@ -1472,11 +1477,11 @@ test.describe.serial('Moki PDF comments', () => {
 
     await expect(pdfPage.locator('.md-card')).toContainText('E quando expira?');
     const commentButton = pdfPage.locator('.doc-bar').getByRole('button', { name: 'Comentários (1)' });
-    const viewButtons = pdfPage.locator('.doc-bar .view-toggle');
-    await expect.poll(async () => Math.abs(((await commentButton.boundingBox())?.height ?? 0) - ((await viewButtons.boundingBox())?.height ?? 0))).toBeLessThan(1);
+    const sourceButton = pdfPage.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' });
+    await expect.poll(async () => Math.abs(((await commentButton.boundingBox())?.height ?? 0) - ((await sourceButton.boundingBox())?.height ?? 0))).toBeLessThan(10);
     await expect(pdfPage.locator('.md-card')).toHaveCSS('border-left-color', 'rgb(70, 196, 106)');
-    await expect(pdfPage.locator('mark.md-comment')).toHaveCSS('--md-comment-color', '#46c46a');
-    await expect(pdfPage.locator('mark.md-comment')).toHaveText('expira em 30 dias');
+    await expect(visual.locator('span[data-md-comment]')).toHaveCSS('--md-comment-color', '#46c46a');
+    await expect(visual.locator('span[data-md-comment]')).toHaveText('expira em 30 dias');
     await expect(pdfPage.locator('.md-links path')).toHaveCount(1);
     await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/A senha <!--c:[a-z0-9]+-->expira em 30 dias<!--\/c:[a-z0-9]+-->\./);
     expect(readFileSync(file, 'utf8')).toContain('<!-- moki-comments');
@@ -1487,12 +1492,8 @@ test.describe.serial('Moki PDF comments', () => {
     await pdfPage.locator('.tree-row[title="relatorio.pdf"]').click();
     await pdfPage.locator('.tree-row[title="revisao.md"]').click();
     await expect(pdfPage.locator('.md-card')).toHaveCSS('border-left-color', 'rgb(74, 143, 240)');
-    await pdfPage.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
-    const visual = pdfPage.locator('.tiptap-body');
-    await expect(visual).toHaveAttribute('contenteditable', 'true');
-    // The formatted editor keeps the comment as a highlighted span (one highlight for every comment, not the comment's own color).
-    await expect(visual.locator('span[data-md-comment]')).toHaveText('expira em 30 dias');
-    await expect(visual.locator('span[data-md-comment]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+
+    // Typing saves on its own: no Save button, the bar says when.
     await visual.locator('p').filter({ hasText: 'A senha expira' }).evaluate((p) => {
       const node = p.firstChild as Text;
       const range = document.createRange();
@@ -1501,17 +1502,15 @@ test.describe.serial('Moki PDF comments', () => {
       (p.closest('[contenteditable]') as HTMLElement).focus();
     });
     await pdfPage.keyboard.insertText('alterada ');
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
+    await expect(pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' })).toHaveCount(0);
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('A senha alterada <!--c:');
+    await expect(pdfPage.locator('.doc-bar .doc-saved')).toContainText('Salvo às');
     await expect(visual.locator('span[data-md-comment]')).toHaveText('expira em 30 dias'); // still there after the save
-    await pdfPage.getByRole('button', { name: 'Modo de leitura (Ctrl+E)' }).click();
-    await expect(pdfPage.locator('.md-card')).toContainText('E quando expira?');
-    await expect(pdfPage.locator('.md-card')).toHaveCSS('border-left-color', 'rgb(74, 143, 240)');
 
     // The bar's comments button hides the column (a mark on the text's edge stays) and the mark brings it back.
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Comentários (1)' }).click();
+    await commentButton.click();
     await expect(pdfPage.locator('.md-card')).toHaveCount(0);
-    await expect(pdfPage.locator('mark.md-comment')).toHaveText('expira em 30 dias');
+    await expect(visual.locator('span[data-md-comment]')).toHaveText('expira em 30 dias');
     await pdfPage.locator('.md-marker').click();
     await expect(pdfPage.locator('.md-card')).toContainText('E quando expira?');
 
@@ -1525,7 +1524,6 @@ test.describe.serial('Moki PDF comments', () => {
     const file = join(dirs[0], 'workspace', 'projects', 'acme', 'visual.md');
     if (!await pdfPage.locator('.tree-row[title="visual.md"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
     await pdfPage.locator('.tree-row[title="visual.md"]').click();
-    await pdfPage.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
     const editor = pdfPage.locator('.tiptap-body');
     await expect(editor).toHaveAttribute('contenteditable', 'true');
     await expect(editor.locator('h1')).toHaveText('Título');
@@ -1541,14 +1539,12 @@ test.describe.serial('Moki PDF comments', () => {
     await editor.locator('li').first().click();
     await pdfPage.keyboard.press('End');
     await pdfPage.keyboard.insertText(' revisada');
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('- Primeira regra revisada\r\n- Segunda regra');
     expect(readFileSync(file, 'utf8')).toContain('**Como cliente fiel** quero comprar.\r\n');
     await editor.locator('p').first().click();
     await pdfPage.keyboard.press('End');
     await pdfPage.keyboard.press('Enter');
     await pdfPage.keyboard.insertText('Outra informação.');
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('Outra informação.');
   });
 
@@ -1556,7 +1552,6 @@ test.describe.serial('Moki PDF comments', () => {
     const file = join(dirs[0], 'workspace', 'projects', 'acme', 'irregular.md');
     if (!await pdfPage.locator('.tree-row[title="irregular.md"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
     await pdfPage.locator('.tree-row[title="irregular.md"]').click();
-    await pdfPage.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
     const editor = pdfPage.locator('.tiptap-body');
     await expect(editor).toHaveAttribute('contenteditable', 'true');
     await expect(editor.locator('h2')).toHaveText('Pendências');
@@ -1565,30 +1560,26 @@ test.describe.serial('Moki PDF comments', () => {
     await editor.locator('li').nth(1).click();
     await pdfPage.keyboard.press('End');
     await pdfPage.keyboard.insertText(' revisada');
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
     const expected = IRREGULAR_MD.replace('- Segunda regra', '- Segunda regra revisada');
     await expect.poll(() => readFileSync(file, 'utf8')).toBe(expected);
     await pdfPage.getByRole('button', { name: 'Código Markdown' }).click();
     await expect(pdfPage.locator('textarea.editor')).toHaveValue(expected);
-    await pdfPage.getByRole('button', { name: 'Editor visual', exact: true }).click();
+    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' }).click(); // back to the editor
     await expect(editor).toHaveAttribute('contenteditable', 'true');
     await expect(editor.locator('span[data-md-comment]')).toHaveText('regra');
     await expect(editor.locator('span[data-md-comment]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-    await pdfPage.getByRole('button', { name: 'Modo de leitura (Ctrl+E)' }).click();
-    await expect(pdfPage.locator('.md-card')).toContainText('Verificar');
+    await expect(pdfPage.locator('.md-card')).toContainText('Verificar'); // the comments sit beside the editor
   });
 
   test('visual editing preserves adjacent headings and list with Windows line endings', async () => {
     const file = join(dirs[0], 'workspace', 'projects', 'acme', 'irregular-windows.md');
     if (!await pdfPage.locator('.tree-row[title="irregular-windows.md"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
     await pdfPage.locator('.tree-row[title="irregular-windows.md"]').click();
-    await pdfPage.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
     const editor = pdfPage.locator('.tiptap-body');
     await expect(editor).toHaveAttribute('contenteditable', 'true');
     await editor.locator('li').nth(1).click();
     await pdfPage.keyboard.press('End');
     await pdfPage.keyboard.insertText(' revisada');
-    await pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toBe('# Título\r\n## Regras\r\n- Primeira regra\r\n- Segunda regra revisada\r\n');
   });
 
@@ -2058,13 +2049,12 @@ test.describe.serial('Moki tree rename', () => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
   });
 
-  test('Rename types the name over the row, keeps the extension, and the open tab follows with its unsaved text', async () => {
+  test('Rename types the name over the row, keeps the extension, and the open tab follows with its text', async () => {
     await expand('inbox', 'inbox/rascunho.md');
     await row('inbox/rascunho.md').click();
-    await rp.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
-    await rp.getByRole('button', { name: 'Código Markdown' }).click();
-    await rp.locator('textarea.editor').fill('# rascunho editado');
-    await expect(rp.locator('.tab[title="inbox/rascunho.md"] .tab-dirty')).toBeVisible();
+    await rp.locator('.commented-editor .tiptap-body h1').click();
+    await rp.keyboard.press('End');
+    await rp.keyboard.type(' editado');
 
     const rowBox = await row('inbox/rascunho.md').boundingBox();
     const treeBox = await rp.locator('.sidebar-scroll .tree').boundingBox();
@@ -2086,16 +2076,14 @@ test.describe.serial('Moki tree rename', () => {
     await expect(field).toBeHidden();
     await expect(row('inbox/cenarios de login.md')).toBeFocused();
     expect(existsSync(join(project, 'inbox', 'rascunho.md'))).toBe(false);
-    expect(readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8')).toBe('# rascunho'); // the unsaved text is not written by renaming
 
-    // The tab follows the file and keeps the text typed before.
+    // The tab follows the file; what was typed (saved on its own, before or after the rename) is in the renamed file.
     const tab = rp.locator('.tab[title="inbox/cenarios de login.md"]');
     await expect(tab).toHaveAttribute('aria-selected', 'true');
-    await expect(tab.locator('.tab-dirty')).toBeVisible();
-    // The editor opens again for the new path (as after a move); what was typed is still the tab's text, saved under the new name.
-    await rp.keyboard.press('Control+s');
-    await expect(tab.locator('.tab-dirty')).toBeHidden();
     await expect.poll(() => readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8')).toBe('# rascunho editado');
+    await expect(tab.locator('.tab-dirty')).toBeHidden();
+    expect(existsSync(join(project, 'inbox', 'rascunho.md'))).toBe(false);
+    await expect(rp.locator('.error-bar:not(.info-bar)')).toHaveCount(0);
     expect(existsSync(join(project, 'inbox', 'rascunho.md'))).toBe(false);
   });
 
@@ -2169,7 +2157,7 @@ test.describe.serial('Moki tree rename', () => {
     // F2 on a fixed folder: the reason, not silence.
     await row('context').focus();
     await rp.keyboard.press('F2');
-    await expect(rp.getByRole('status')).toContainText('As pastas fixas do projeto mantêm o nome.');
+    await expect(rp.getByRole('status').filter({ hasText: 'As pastas fixas do projeto mantêm o nome.' })).toBeVisible();
     await expect(rp.locator('.rename-box')).toHaveCount(0);
     expect(existsSync(join(project, 'runs', 'op-demo', 'outputs', 'revisao.md'))).toBe(true);
   });
@@ -2276,7 +2264,8 @@ test.describe.serial('Moki Markdown selection', () => {
     const root = fixture();
     const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
     dirs.push(root, userData);
-    writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'doc.md'), '# Título do documento\n\nPrimeiro parágrafo com **negrito** no meio.\n\nSegundo parágrafo simples.\n');
+    // HTML the editor would drop: the file is shown in the reading view these tests are about.
+    writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'doc.md'), '# Título do documento\n\nPrimeiro parágrafo com **negrito** no meio.\n\nSegundo parágrafo simples.\n\n<details><summary>Mais</summary>\n\nOculto.\n\n</details>\n');
     ({ app: selApp, page: sp } = await openApp(root, userData));
     if (!(await sp.locator('.tree-row[title="inbox/doc.md"]').isVisible())) await sp.locator('.tree-row[title="inbox"]').click();
     await sp.locator('.tree-row[title="inbox/doc.md"]').click();
@@ -2335,5 +2324,255 @@ test.describe.serial('Moki Markdown selection', () => {
     const para = await sp.locator('.md-commented .markdown p').last().boundingBox();
     await sp.mouse.click(para!.x + para!.width + 40, para!.y + para!.height + 60); // a click on the page, away from the text
     await expect(bubble).toBeHidden();
+  });
+});
+
+test.describe.serial('Moki comments in the editor', () => {
+  let edApp: ElectronApplication;
+  let ep: Page;
+  let file = '';
+  const dirs: string[] = [];
+  // Only the delete confirmation the test asks for may show up; any other dialog fails the test.
+  let confirmNext = false;
+  const unexpected: string[] = [];
+  const START = 'A senha <!--c:k1-->expira<!--/c:k1--> em 30 dias.';
+  const SOURCE = `# Revisão\n\n${START}\n\nSegundo parágrafo com **negrito** aqui.\n\nTerceiro parágrafo.\n\n<!-- moki-comments\n[\n{"id":"k1","author":"ana","at":"2026-11-01T10:00:00.000Z","text":"Quantos dias?","replies":[]}\n]\n-->\n`;
+  const body = () => ep.locator('.commented-editor .tiptap-body');
+  // Drags the mouse over a stretch of a paragraph, as a person selects it.
+  const dragOver = async (paragraph: string, fromX: number, toX: number, toParagraph = paragraph) => {
+    const a = (await body().locator('p', { hasText: paragraph }).boundingBox())!;
+    const b = (await body().locator('p', { hasText: toParagraph }).boundingBox())!;
+    await ep.evaluate(() => window.getSelection()?.removeAllRanges());
+    await ep.mouse.move(a.x + fromX, a.y + a.height / 2);
+    await ep.mouse.down();
+    await ep.mouse.move(b.x + toX, b.y + b.height / 2, { steps: 8 });
+    await ep.mouse.up();
+  };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    file = join(root, 'workspace', 'projects', 'acme', 'inbox', 'revisao-editor.md');
+    writeFileSync(file, SOURCE);
+    ({ app: edApp, page: ep } = await openApp(root, userData));
+    ep.on('dialog', (d) => {
+      if (confirmNext && d.type() === 'confirm') { confirmNext = false; void d.accept(); return; }
+      unexpected.push(`${d.type()}: ${d.message()}`);
+      void d.dismiss();
+    });
+    if (!(await ep.locator('.tree-row[title="inbox/revisao-editor.md"]').isVisible())) await ep.locator('.tree-row[title="inbox"]').click();
+    await ep.locator('.tree-row[title="inbox/revisao-editor.md"]').click();
+    await expect(body()).toHaveAttribute('contenteditable', 'true');
+  });
+
+  test.afterEach(() => { expect(unexpected).toEqual([]); });
+
+  test.afterAll(async () => {
+    await edApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('the editor shows the comments beside the text, joined to their words', async () => {
+    await expect(ep.locator('.commented-editor .md-card')).toContainText('Quantos dias?');
+    await expect(body().locator('span[data-md-comment="k1"]')).toHaveText('expira');
+    await expect(ep.locator('.commented-editor .md-links path')).toHaveCount(1);
+    await expect(ep.locator('.doc-bar').getByRole('button', { name: 'Comentários (1)' })).toBeVisible();
+  });
+
+  test('text with formatting inside is commented from the editor, and saved at once', async () => {
+    await dragOver('Segundo parágrafo', 75, 260); // "parágrafo com negrito", bold inside
+    const bubble = ep.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeEnabled();
+    await bubble.getByRole('button', { name: 'Comentar' }).click();
+    const box = ep.getByRole('dialog', { name: 'Comentário' });
+    await box.getByRole('textbox').fill('Rever este trecho');
+    await box.getByRole('button', { name: 'Comentar' }).click();
+    await expect(box).toBeHidden();
+    await expect(ep.locator('.commented-editor .md-card')).toHaveCount(2);
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('Rever este trecho');
+    const saved = readFileSync(file, 'utf8');
+    expect(saved).toMatch(/Segundo [^<]*<!--c:([a-z0-9]+)-->[^<]*\*\*negrito\*\*[^<]*<!--\/c:\1-->/); // the bold word inside the comment
+    expect(saved).toContain(START); // the other comment's marks stay as they were
+    await expect(ep.locator('.commented-editor .md-links path')).toHaveCount(2);
+  });
+
+  test('a selection over two paragraphs, or in code, cannot be commented: the reason is in the button', async () => {
+    await dragOver('Segundo parágrafo', 10, 60, 'Terceiro parágrafo');
+    const bubble = ep.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeDisabled();
+    await expect(bubble).toContainText('Selecione um trecho dentro de um mesmo parágrafo para comentar.');
+    await ep.keyboard.press('Escape');
+    await expect(bubble).toBeHidden();
+  });
+
+  test('a comment is answered, recolored and deleted from the editor; the words stay', async () => {
+    const card = ep.locator('.commented-editor .md-card', { hasText: 'Quantos dias?' });
+    await card.getByRole('button', { name: 'Responder' }).click();
+    await card.getByRole('textbox').fill('Trinta, confirmado.');
+    await card.getByRole('button', { name: 'Salvar' }).click();
+    await expect(card).toContainText('Trinta, confirmado.');
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('Trinta, confirmado.');
+
+    await card.getByRole('button', { name: 'Alterar cor do comentário' }).click();
+    await card.getByRole('radio', { name: 'Azul' }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('"color":"blue"');
+    await expect(body().locator('span[data-md-comment="k1"]')).toHaveCSS('--md-comment-color', '#4a8ff0');
+
+    confirmNext = true;
+    await card.getByRole('button', { name: 'Excluir' }).click();
+    await expect(card).toHaveCount(0);
+    await expect(body().locator('span[data-md-comment="k1"]')).toHaveCount(0);
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('A senha expira em 30 dias.');
+    expect(readFileSync(file, 'utf8')).not.toContain('Quantos dias?');
+  });
+
+  test('a comment made while editing saves the edits typed before it', async () => {
+    await body().locator('p', { hasText: 'Terceiro parágrafo' }).click();
+    // The editor takes the caret from the click a moment after it gets the focus back (until then it still holds
+    // the last selection it had); a person never types that fast, so the test waits for it as well.
+    await expect.poll(() => ep.evaluate(() => {
+      const editor = (document.querySelector('.commented-editor .tiptap-body') as unknown as { editor?: { state: { selection: { empty: boolean; $from: { parent: { textContent: string } } } } } }).editor;
+      return Boolean(editor?.state.selection.empty && editor.state.selection.$from.parent.textContent.startsWith('Terceiro'));
+    })).toBe(true);
+    await ep.keyboard.press('End');
+    await ep.keyboard.type(' Com uma frase nova.');
+    await dragOver('Terceiro parágrafo', 2, 60);
+    await ep.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Comentar' }).click();
+    const box = ep.getByRole('dialog', { name: 'Comentário' });
+    await box.getByRole('textbox').fill('Ok');
+    await box.getByRole('button', { name: 'Comentar' }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('Com uma frase nova.');
+    expect(readFileSync(file, 'utf8')).toContain('"text":"Ok"');
+  });
+});
+
+test.describe.serial('Moki one view for Markdown', () => {
+  let oneApp: ElectronApplication;
+  let op: Page;
+  let inbox = '';
+  const dirs: string[] = [];
+  const open = async (name: string) => {
+    if (!(await op.locator(`.tree-row[title="inbox/${name}"]`).isVisible())) await op.locator('.tree-row[title="inbox"]').click();
+    await op.locator(`.tree-row[title="inbox/${name}"]`).click();
+  };
+  const editor = () => op.locator('.commented-editor .tiptap-body');
+  const reading = () => op.locator('.md-commented .markdown');
+  const note = (text: string) => op.getByRole('status').filter({ hasText: text });
+  // What the editor would do with Markdown as people and the AI write it (see the probe in TipTapEditor's onRewrite).
+  const SAMPLES: Record<string, { text: string; kind: 'none' | 'format' | 'loss' }> = {
+    'ai-table.md': { text: '# Casos\n\n| ID | Cenário | Resultado |\n|----|---------|-----------|\n| CT-01 | Login válido | OK |\n', kind: 'format' },
+    'padded-table.md': { text: '# Casos\n\n| ID    | Cenário      | Resultado |\n| ----- | ------------ | --------- |\n| CT-01 | Login válido | OK        |\n', kind: 'none' },
+    'dash-table.md': { text: '# Casos\n\n| ID | Cenário |\n| --- | --- |\n| 1 | a |\n', kind: 'format' },
+    'numbered.md': { text: '# Passos\n\n1. abrir\n2. clicar\n', kind: 'none' },
+    'emphasis.md': { text: '# T\n\nTexto _itálico_ e __forte__.\n', kind: 'format' },
+    'html.md': { text: '# T\n\n<details><summary>Mais</summary>\n\nOculto.\n\n</details>\n', kind: 'loss' },
+  };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    inbox = join(root, 'workspace', 'projects', 'acme', 'inbox');
+    writeFileSync(join(inbox, 'conflito.md'), '# Conflito\n\nTexto inicial.\n');
+    writeFileSync(join(inbox, 'grande.md'), `# Grande\n\n${'Uma linha comprida de texto. '.repeat(40000)}\n`);
+    writeFileSync(join(inbox, 'links.md'), '# Links\n\nVeja [o site](https://example.com/pagina) aqui.\n');
+    for (const [name, sample] of Object.entries(SAMPLES)) writeFileSync(join(inbox, name), sample.text);
+    ({ app: oneApp, page: op } = await openApp(root, userData));
+  });
+
+  test.afterAll(async () => {
+    await oneApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('Ctrl+E shows the Markdown source, to read and copy, not to edit', async () => {
+    await open('conflito.md');
+    await expect(editor()).toHaveAttribute('contenteditable', 'true');
+    await editor().click();
+    await op.keyboard.press('Control+e');
+    const source = op.locator('textarea.md-source');
+    await expect(source).toBeVisible();
+    await expect(source).toHaveJSProperty('readOnly', true);
+    await expect(source).toHaveValue('# Conflito\n\nTexto inicial.\n');
+    await expect(op.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' })).toHaveAttribute('aria-pressed', 'true');
+    // The bar's buttons line up: the copy icon is as tall as the source button beside it.
+    const copy = op.locator('.doc-bar').getByRole('button', { name: 'Copiar tudo' });
+    expect((await copy.boundingBox())?.height).toBe((await op.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' }).boundingBox())?.height);
+    await copy.click();
+    await expect(op.locator('.doc-bar').getByRole('button', { name: 'Copiado' })).toBeVisible();
+    await expect.poll(() => oneApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('# Conflito\n\nTexto inicial.\n');
+    await op.keyboard.press('Control+e');
+    await expect(editor()).toBeVisible();
+    await expect(op.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('a change made outside Moki while editing is never overwritten: keep mine, or see the new version', async () => {
+    const file = join(inbox, 'conflito.md');
+    // The AI writes the file while there are edits not saved yet.
+    await editor().locator('p').click();
+    await op.keyboard.press('End');
+    await op.keyboard.type(' Minha parte.');
+    writeFileSync(file, '# Conflito\n\nEscrito pela IA.\n');
+    const bar = op.getByRole('alert').filter({ hasText: 'mudou fora do Moki' });
+    await expect(bar).toBeVisible();
+    expect(readFileSync(file, 'utf8')).toBe('# Conflito\n\nEscrito pela IA.\n'); // nothing was overwritten
+    await bar.getByRole('button', { name: 'Manter a minha' }).click();
+    await expect(bar).toBeHidden();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('Texto inicial. Minha parte.');
+
+    await editor().locator('p').click();
+    await op.keyboard.press('End');
+    await op.keyboard.type(' De novo.');
+    writeFileSync(file, '# Conflito\n\nA IA de novo.\n');
+    await expect(bar).toBeVisible();
+    await bar.getByRole('button', { name: 'Ver a versão nova' }).click();
+    await expect(bar).toBeHidden();
+    await expect(editor()).toContainText('A IA de novo.');
+    await expect(editor()).not.toContainText('De novo.');
+    expect(readFileSync(file, 'utf8')).toBe('# Conflito\n\nA IA de novo.\n');
+  });
+
+  test('what the editor would do to a file is told apart: nothing, only its formatting, or losing parts of it', async () => {
+    for (const [name, sample] of Object.entries(SAMPLES)) {
+      await open(name);
+      if (sample.kind === 'loss') {
+        // Shown for reading and comments; to edit it, the user's own program.
+        await expect(note('perderia partes deste arquivo'), name).toBeVisible();
+        await expect(reading(), name).toBeVisible();
+        await expect(op.locator('.commented-editor'), name).toHaveCount(0);
+        await expect(note('perderia partes').getByRole('button', { name: 'Abrir no seu programa' }), name).toBeVisible();
+      } else {
+        await expect(editor(), name).toHaveAttribute('contenteditable', 'true');
+        if (sample.kind === 'format') await expect(note('escreve a formatação do jeito dele'), name).toBeVisible();
+        else await expect(note('escreve a formatação do jeito dele'), name).toHaveCount(0);
+      }
+      expect(readFileSync(join(inbox, name), 'utf8'), name).toBe(sample.text); // opening it changed nothing
+    }
+    // The note about the formatting closes, and stays closed for this tab.
+    await open('emphasis.md');
+    await note('escreve a formatação do jeito dele').getByRole('button', { name: 'Fechar' }).click();
+    await expect(note('escreve a formatação do jeito dele')).toHaveCount(0);
+    await open('numbered.md');
+    await open('emphasis.md');
+    await expect(note('escreve a formatação do jeito dele')).toHaveCount(0);
+  });
+
+  test('a large file is for reading and comments', async () => {
+    await open('grande.md');
+    await expect(note('grande')).toBeVisible();
+    await expect(op.locator('.md-commented .markdown h1')).toHaveText('Grande');
+    await expect(op.locator('.commented-editor')).toHaveCount(0);
+  });
+
+  test('a click in a link puts the caret there; Ctrl+click opens it', async () => {
+    await open('links.md');
+    await op.evaluate(() => { (window as unknown as { opened: string[] }).opened = []; window.open = (url?: string | URL) => { (window as unknown as { opened: string[] }).opened.push(String(url)); return null; }; });
+    const link = editor().locator('a', { hasText: 'o site' });
+    await link.click();
+    await expect(op.getByRole('toolbar', { name: 'Link' })).toBeVisible();
+    expect(await op.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([]);
+    await link.click({ modifiers: ['Control'] });
+    await expect.poll(() => op.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual(['https://example.com/pagina']);
   });
 });

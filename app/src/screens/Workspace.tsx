@@ -3,10 +3,10 @@
 // the activity or project details.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
-import { api, type FileContent, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
+import { api, CHANGED_OUTSIDE, type FileContent, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, recall, remember } from '../prefs';
-import { DocView } from '../components/DocView';
+import { DocView, type DocMode, type MdWhy } from '../components/DocView';
 import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { NewMenu } from '../components/NewMenu';
 import { LaunchDialog } from '../components/LaunchDialog';
@@ -37,7 +37,11 @@ import { parseActivityLaunches, type ActivityLaunch, type ActivityLaunchPhase } 
 interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
-interface Tab { path: string; content: FileContent; draft: string; mode: 'preview' | 'edit'; saving: boolean; seen?: Stamp }
+// A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is read and copied;
+// it is shown for reading and comments ('preview') when it is large or the editor would lose parts of it (`why`, DocView).
+// `quiet`: the note about the formatting was closed. It saves on its own: `conflict` when the file changed outside Moki
+// meanwhile, `savedAt` for the bar.
+interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number }
 interface TermTab extends TerminalRef { running: boolean }
 
 // The picture above the project name when nothing is open.
@@ -52,6 +56,10 @@ const findFile = (nodes: TreeNode[], path: string): TreeNode | null => {
   }
   return null;
 };
+// Above this a .md file opens for reading: the formatted editor is much heavier than the rendered page.
+const LARGE_MD = 1024 * 1024;
+const AUTOSAVE_MS = 700;
+const autosaves = (t: Tab): boolean => t.content.kind === 'markdown' && t.content.editable;
 const isDirty = (t: Tab): boolean => (t.content.kind === 'markdown' || t.content.kind === 'text') && t.content.editable && t.draft !== t.content.text;
 const sidebarWidthWithinBounds = (width: number) => Math.max(180, Math.min(720, Math.round(width)));
 
@@ -224,7 +232,9 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
     api.readFile(project.id, path).then((content) => {
       touchRecentFile(project.id, path);
-      setTabs((all) => [...all, { path, content, draft: textOf(content), mode: content.kind === 'markdown' ? mode : 'preview', saving: false, seen: stampOf(content, treeStamp) }]);
+      const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
+      const view: DocMode = content.kind !== 'markdown' ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
+      setTabs((all) => [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]);
       setActive(path);
       // Reveal the file in the tree.
       setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
@@ -264,35 +274,73 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     });
   };
 
+  // Writes a tab's text. A .md tab writes from the text it started from: if the file changed outside Moki meanwhile
+  // (the AI writing it), nothing is overwritten and the tab shows the conflict. What was typed after this save started stays.
+  const write = useCallback((path: string, text: string, base?: string) => {
+    update(path, { saving: true });
+    api.writeFile(project.id, path, text, base)
+      .then((content) => {
+        const now = tabsRef.current.find((t) => t.path === path);
+        update(path, { content, draft: now && now.draft !== text ? now.draft : textOf(content), saving: false, conflict: false, savedAt: Date.now() });
+      })
+      .catch((e: Error) => {
+        if (e.message === CHANGED_OUTSIDE) { update(path, { saving: false, conflict: true }); return; }
+        update(path, { saving: false });
+        setError(t(e.message));
+      });
+  }, [project.id]);
   const save = useCallback((path: string) => {
     flushEdits();
     const tab = tabsRef.current.find((t) => t.path === path);
-    if (!tab || !isDirty(tab)) return;
-    update(path, { saving: true });
-    api.writeFile(project.id, path, tab.draft)
-      .then((content) => update(path, { content, draft: textOf(content), saving: false }))
-      .catch((e: Error) => { update(path, { saving: false }); setError(e.message); });
-  }, [project.id]);
+    if (!tab || !isDirty(tab) || tab.saving || tab.conflict) return;
+    write(path, tab.draft, autosaves(tab) && 'text' in tab.content ? tab.content.text : undefined);
+  }, [write]);
 
   // A change made by Moki itself (a comment in a .md): the new text is saved at once, edits not saved yet included.
   const commit = useCallback((path: string, text: string) => {
-    update(path, { draft: text, saving: true });
-    api.writeFile(project.id, path, text)
-      .then((content) => update(path, { content, draft: textOf(content), saving: false }))
-      .catch((e: Error) => { update(path, { saving: false }); setError(e.message); });
-  }, [project.id]);
+    const tab = tabsRef.current.find((t) => t.path === path);
+    update(path, { draft: text });
+    if (tab?.conflict) return; // saved once the conflict is settled
+    write(path, text, tab && 'text' in tab.content ? tab.content.text : undefined);
+  }, [write]);
+
+  // The .md tabs save on their own once the typing pauses (Ctrl+S still saves at once).
+  const autosaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = autosaveTimers.current;
+    for (const tab of tabs) {
+      if (!autosaves(tab) || !isDirty(tab) || tab.saving || tab.conflict) continue;
+      clearTimeout(timers.get(tab.path));
+      timers.set(tab.path, setTimeout(() => { timers.delete(tab.path); save(tab.path); }, AUTOSAVE_MS));
+    }
+  }, [tabs, save]);
+  useEffect(() => () => { for (const timer of autosaveTimers.current.values()) clearTimeout(timer); }, []);
+  // A file about to move or get a new name: its automatic save waits, then goes to the new path (the tabs follow it).
+  const holdSaves = (path: string) => {
+    for (const [file, timer] of autosaveTimers.current) if (file === path || file.startsWith(`${path}/`)) { clearTimeout(timer); autosaveTimers.current.delete(file); }
+  };
+  // The file changed outside Moki while a .md tab had edits: see the new version (the edits go), or keep mine (written over it).
+  const takeTheirs = (path: string) => {
+    api.readFile(project.id, path).then((content) => update(path, { content, draft: textOf(content), conflict: false })).catch((e: Error) => setError(e.message));
+  };
+  const keepMine = (path: string) => {
+    flushEdits();
+    const tab = tabsRef.current.find((t) => t.path === path);
+    if (tab) write(path, tab.draft);
+  };
 
   const close = useCallback((path: string) => {
     flushEdits();
     const tab = tabsRef.current.find((t) => t.path === path);
-    if (tab && isDirty(tab) && !window.confirm(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }))) return;
+    if (tab && isDirty(tab) && autosaves(tab) && !tab.conflict) save(path); // it saves on its own: closing saves now
+    else if (tab && isDirty(tab) && !window.confirm(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }))) return;
     setTabs((all) => {
       const i = all.findIndex((t) => t.path === path);
       const next = all.filter((t) => t.path !== path);
       setActive((cur) => (cur === path ? next[Math.min(i, next.length - 1)]?.path ?? null : cur));
       return next;
     });
-  }, []);
+  }, [save]);
 
   const addTerminal = useCallback((t: TerminalRef) => { setTerms((all) => (all.some((x) => x.id === t.id) ? all : [...all, { ...t, running: true }])); setGraphFocus(false); setActiveTerm(t.id); }, []);
 
@@ -387,6 +435,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     const from = e.dataTransfer.getData('application/x-moki-move');
     if (from) {
       flushEdits(); // the tab is renamed below: its pending text must reach it under the old path
+      holdSaves(from);
       api.moveEntry(project.id, from, folder).then((path) => {
         loadTree();
         setExpanded((s) => new Set(s).add(folder));
@@ -483,6 +532,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       window.qa?.notesChanged();
       return;
     }
+    holdSaves(path);
     const to = await api.renameEntry(project.id, path, name);
     if (to === path) return;
     const moved = (p: string) => (p === path ? to : p.startsWith(`${path}/`) ? to + p.slice(path.length) : p);
@@ -505,7 +555,11 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   };
 
   // Leaving the workspace keeps its terminals running (they come back with it); only unsaved changes ask first.
-  const canLeave = () => { flushEdits(); return !(tabsRef.current.some(isDirty) && !window.confirm(t('There are unsaved changes. Leave anyway?'))); };
+  const canLeave = () => {
+    flushEdits();
+    for (const tab of tabsRef.current) if (isDirty(tab) && autosaves(tab) && !tab.conflict) save(tab.path);
+    return !(tabsRef.current.some((tab) => isDirty(tab) && (!autosaves(tab) || tab.conflict)) && !window.confirm(t('There are unsaved changes. Leave anyway?')));
+  };
 
   const goHome = () => { if (canLeave()) onHome(); };
   const hideThis = () => {
@@ -525,7 +579,9 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       if (key === 'w') { e.preventDefault(); close(active); }
       if (key === 'e') {
         e.preventDefault();
-        setTabs((all) => all.map((t) => (t.path === active && t.content.kind === 'markdown' ? { ...t, mode: t.mode === 'edit' ? 'preview' : 'edit' } : t)));
+        setTabs((all) => all.map((t) => (t.path === active && t.content.kind === 'markdown'
+          ? { ...t, mode: t.mode !== 'source' ? 'source' : t.content.editable && t.why !== 'large' && t.why !== 'loss' ? 'edit' : 'preview' }
+          : t)));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -722,6 +778,14 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
             saving={tab.saving}
             onDraft={(draft) => update(tab.path, { draft })}
             onMode={(mode) => update(tab.path, { mode })}
+            onQuiet={() => update(tab.path, { why: undefined, quiet: true })}
+            why={tab.why}
+            autosave={autosaves(tab)}
+            savedAt={tab.savedAt}
+            conflict={tab.conflict}
+            onTakeTheirs={() => takeTheirs(tab.path)}
+            onKeepMine={() => keepMine(tab.path)}
+            onRewrite={tab.quiet ? undefined : (kind) => update(tab.path, kind === 'loss' ? { mode: 'preview', why: 'loss' } : { why: 'format' })}
             onSave={() => save(tab.path)}
             onCommit={(text) => commit(tab.path, text)}
             onOpenExternal={() => openExternal(tab.path)}

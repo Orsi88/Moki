@@ -1580,5 +1580,17 @@
   "Moki finds this file by its name.": "O Moki encontra este arquivo pelo nome.",
   "This is your own folder: rename it on your computer.": "Esta é a sua pasta: renomeie no seu computador.",
   "Comment on it": "Comentar",
-  "Selection": "Seleção"
+  "Selection": "Seleção",
+  "Code cannot be commented.": "Código não pode ser comentado.",
+  "This file changed outside Moki (by the AI, for example) while you were editing it. Nothing was overwritten.": "Este arquivo mudou fora do Moki (pela IA, por exemplo) enquanto você editava. Nada foi sobrescrito.",
+  "See the new version": "Ver a versão nova",
+  "Keep mine": "Manter a minha",
+  "This file changed outside Moki.": "Este arquivo mudou fora do Moki.",
+  "Back to the document (Ctrl+E)": "Voltar ao documento (Ctrl+E)",
+  "Markdown source, to read and copy (Ctrl+E)": "Código Markdown, para ler e copiar (Ctrl+E)",
+  "Copy all": "Copiar tudo",
+  "When you change this file, the editor writes its formatting its own way (tables, list marks, emphasis). The words stay the same.": "Ao alterar este arquivo, o editor escreve a formatação do jeito dele (tabelas, marcadores de lista, ênfases). As palavras continuam as mesmas.",
+  "This file is large, so here it is for reading and comments. To edit it, open it in your program.": "Este arquivo é grande, então aqui ele fica para leitura e comentários. Para editar, abra no seu programa.",
+  "The editor would lose parts of this file (HTML, for example), so here it is for reading and comments. To edit it, open it in your program.": "O editor perderia partes deste arquivo (HTML, por exemplo), então aqui ele fica para leitura e comentários. Para editar, abra no seu programa.",
+  "Open in your program": "Abrir no seu programa"
 }

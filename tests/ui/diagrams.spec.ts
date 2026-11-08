@@ -80,7 +80,6 @@ test('typing / in a Markdown file lists commands, including the diagrams', async
   if (await close.isVisible()) await close.click();
   await page.locator('.tree-row[title="inbox"]').click();
   await page.locator('.tree-row[title="inbox/plain.md"]').click();
-  await page.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
   const visual = page.locator('.tiptap-body');
   await visual.click();
   await page.keyboard.press('Control+End');
@@ -100,8 +99,7 @@ test('typing / in a Markdown file lists commands, including the diagrams', async
   await page.keyboard.type('linha');
   await expect(visual.locator('.node-diagramFence ~ p').nth(1)).toContainText('linha');
 
-  // Saved, the file keeps the fence as Markdown; an unsaved tab would also keep the window from closing (beforeunload).
-  await page.locator('.doc-bar').getByRole('button', { name: 'Salvar' }).click();
+  // Saved on its own, the file keeps the fence as Markdown.
   const saved = join(root, 'workspace', 'projects', 'acme', 'inbox', 'plain.md');
   await expect.poll(() => readFileSync(saved, 'utf8')).toMatch(/```mermaid\n[\s\S]+\n```[\s\S]*depois[\s\S]*linha/);
 });

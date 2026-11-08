@@ -45,6 +45,8 @@ import { probeServer, type ProbeResult } from './mcp-probe.ts';
 import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
+// writeFile with a base the file no longer holds (the app offers to see the new version or keep its own).
+export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
 
 export interface Deps {
   // plugins: the project's own (project.json); extra: more arguments for the tool (Claude Code's --mcp-config)
@@ -978,11 +980,14 @@ export function createService(root: string, deps: Deps) {
 
     readFile: (project: string, rel: string) => readFile(project, rel),
 
-    writeFile: (project: string, rel: string, text: unknown) => {
+    // `base`: the text the editor started from. When given, the file is written only if it still holds that text, so a
+    // change made meanwhile by someone else (the AI writing the file) is never overwritten by an automatic save.
+    writeFile: (project: string, rel: string, text: unknown, base?: unknown) => {
       const file = projectPath(project, rel);
       if (!isEditable(file)) throw new ServiceError('Only Markdown and text files can be edited here.');
       if (!existsSync(file)) throw new ServiceError('File not found.');
       if (typeof text !== 'string' || text.length > TEXT_LIMIT) throw new ServiceError('Invalid content.');
+      if (typeof base === 'string' && readFileSync(file, 'utf8') !== base) throw new ServiceError(CHANGED_OUTSIDE);
       writeFileSync(file, text, 'utf8');
       return readFile(project, rel);
     },
@@ -1617,6 +1622,13 @@ export function createService(root: string, deps: Deps) {
       const path = projectPath(project, rel);
       if (!existsSync(path)) throw new ServiceError('File not found.');
       if (deps.reveal) deps.reveal(path); else deps.openFolder(statSync(path).isDirectory() ? path : dirname(path));
+      return true;
+    },
+    // A text the user copies (the Markdown source's Copy all), through the system clipboard: it works whether or not the window has the focus.
+    copyText: (text: unknown) => {
+      if (typeof text !== 'string' || text.length > TEXT_LIMIT) throw new ServiceError('Invalid content.');
+      if (!deps.copy) throw new ServiceError('Copying is not available here.');
+      deps.copy(text);
       return true;
     },
     copyPath: (project: string, rel: unknown) => {

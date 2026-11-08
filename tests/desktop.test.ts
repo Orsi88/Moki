@@ -6,7 +6,7 @@ import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
 import { spawnSync } from 'node:child_process';
-import { callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
+import { CHANGED_OUTSIDE, callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
 import { PathError, resolveInside, isEditable, isOpenable } from '../desktop/fs-guard.ts';
 import { launchInTerminal, pluginArgs, scriptFor, windowsStartArgs, type LaunchResult } from '../desktop/launcher.ts';
 import type { TermSpec } from '../desktop/terminals.ts';
@@ -172,6 +172,20 @@ test('editing is limited to existing Markdown/text files', () => {
   assert.throws(() => service.writeFile('acme', 'project.json', '{}'), /Only Markdown and text/);
   assert.throws(() => service.writeFile('acme', 'context/new.md', 'x'), /not found/);
   assert.throws(() => service.writeFile('acme', '../../../secret.txt', 'x'), ServiceError);
+});
+
+test('a save from the text it started from never overwrites a change made meanwhile (the AI writing the file)', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'context', 'glossary.md');
+  const opened = readFileSync(file, 'utf8');
+  // Still the text it started from: saved.
+  assert.match((service.writeFile('acme', 'context/glossary.md', `${opened}\nmine`, opened) as Extract<FileContent, { kind: 'markdown' }>).text, /mine$/);
+  // Someone else wrote the file meanwhile: refused, and their text stays.
+  writeFileSync(file, '# Glossary\n\nwritten by the AI\n');
+  assert.throws(() => service.writeFile('acme', 'context/glossary.md', 'my old view', `${opened}\nmine`), (e: unknown) => e instanceof ServiceError && e.message === CHANGED_OUTSIDE);
+  assert.equal(readFileSync(file, 'utf8'), '# Glossary\n\nwritten by the AI\n');
+  // Without a base (Keep mine), it is written.
+  service.writeFile('acme', 'context/glossary.md', opened);
+  assert.equal(readFileSync(file, 'utf8'), opened);
 });
 
 test('notes: the section is always listed and new notes get unique names', () => {

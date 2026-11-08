@@ -21,6 +21,12 @@ export const LazyTipTap = forwardRef<TipTapHandle, ComponentPropsWithoutRef<type
       addImages: (files) => run((h) => h.addImages(files)),
       codeBlock: () => run((h) => h.codeBlock()),
       command: (name) => run((h) => h.command(name)),
+      // Comments act on what is on screen, so the editor is there; before it loads there is nothing to read or mark.
+      fileText: () => inner.current?.fileText() ?? '',
+      adopt: (text) => inner.current?.adopt(text),
+      selection: () => inner.current?.selection() ?? null,
+      markComment: (from, to, id) => inner.current?.markComment(from, to, id),
+      unmarkComment: (id) => inner.current?.unmarkComment(id),
     };
   }, []);
   useEffect(() => {

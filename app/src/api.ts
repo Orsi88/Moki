@@ -264,6 +264,9 @@ declare global { interface Window { qa?: Bridge } }
 export const hasBridge = (): boolean => Boolean(window.qa);
 export const pageParams = (): URLSearchParams => new URLSearchParams(window.qa?.query ?? window.location.search);
 
+// writeFile refused: the file no longer holds the text the tab started from (the same text as CHANGED_OUTSIDE in desktop/service.ts).
+export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
+
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   if (!window.qa) throw new Error(t('Moki must be opened with the qa command.'));
   const res = await window.qa.call(method, ...args);
@@ -316,7 +319,8 @@ export const api = {
   installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
   tree: (project: string) => call<TreeNode[]>('tree', project),
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
-  writeFile: (project: string, path: string, text: string) => call<FileContent>('writeFile', project, path, text),
+  // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.
+  writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
   templates: () => call<DocumentTemplate[]>('templates'),
@@ -345,6 +349,7 @@ export const api = {
   deleteEntry: (project: string, path: string) => call<boolean>('deleteEntry', project, path),
   revealPath: (project: string, path: string) => call<boolean>('revealPath', project, path),
   copyPath: (project: string, path: string) => call<string>('copyPath', project, path),
+  copyText: (text: string) => call<boolean>('copyText', text),
   openWithApps: (project: string, path: string) => call<OpenWithApps>('openWithApps', project, path),
   openWith: (project: string, path: string, app: string) => call<boolean>('openWith', project, path, app),
   pdfcraftStatus: () => call<{ available: boolean; platform: string }>('pdfcraftStatus'),
