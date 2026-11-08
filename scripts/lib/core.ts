@@ -445,6 +445,15 @@ export function setFileTags(project: string, path: string, ids: unknown, root = 
   return tags;
 }
 
+// A file or folder moved or renamed inside the project: its tags (and, for a folder, the tags of
+// everything in it) follow the new path. Nothing tagged under the old path: nothing is written.
+export function moveFileTags(project: string, from: string, to: string, root = ROOT): void {
+  const files = fileTags(project, root);
+  const moved = (path: string) => (path === from ? to : path.startsWith(`${from}/`) ? to + path.slice(from.length) : null);
+  if (!Object.keys(files).some((path) => moved(path) !== null)) return;
+  writeJson(fileTagsFile(project, root), { files: Object.fromEntries(Object.entries(files).map(([path, ids]) => [moved(path) ?? path, ids])) });
+}
+
 const contextFilesOf = (project: string, root: string): string[] => {
   const dir = join(projectsDir(root), project, 'context');
   const walk = (d: string): string[] => (existsSync(d) ? readdirSync(d).sort().flatMap((n) => {

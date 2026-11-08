@@ -7,7 +7,7 @@ import { api, type FileContent, type ProjectSummary, type Tag, type TerminalRef,
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, recall, remember } from '../prefs';
 import { DocView } from '../components/DocView';
-import { FileTree, OTHER_FILES, friendlyName, groupTree } from '../components/FileTree';
+import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { NewMenu } from '../components/NewMenu';
 import { LaunchDialog } from '../components/LaunchDialog';
 import { NoteDialog } from '../components/NoteDialog';
@@ -21,9 +21,9 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconCode, IconCopy, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
-import { favoriteNotes, hideProject, isFavorite, setFavorite, touchRecentFile } from '../side-menu';
+import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile } from '../side-menu';
 import { AddButton } from '../components/AddButton';
 import { CraftDownloads } from '../components/CraftDownloads';
 import { FileIcon } from '../icons';
@@ -153,6 +153,8 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const [craftOpen, setCraftOpen] = useState(false); // download of the ArtCraft apps
   // The tree item menu (right click or ⋯); path '' is the project folder. canCreate: a folder outside runs/.
   const [itemMenu, setItemMenu] = useState<{ path: string; canCreate: boolean; left: number; top: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null); // the tree item whose name is being typed over
+  const [focusPath, setFocusPath] = useState<string | null>(null); // a renamed item: its row takes the focus when the tree shows it
   const [creating, setCreating] = useState<{ parent: string; kind: 'file' | 'folder'; ext?: string } | null>(null); // ext: from New › File, which also lets the folder be chosen
   const [dropping, setDropping] = useState(false);
   const dragDepth = useRef(0);
@@ -365,7 +367,8 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const openItemMenu = (node: TreeNode | null, at: { left: number; top: number }) => {
     const path = node?.path ?? '';
     const canCreate = (!node || node.type === 'dir') && path !== 'runs' && !path.startsWith('runs/');
-    setItemMenu({ path, canCreate, left: Math.min(at.left, window.innerWidth - 220), top: Math.min(at.top, window.innerHeight - (canCreate ? 160 : 90)) });
+    const rename = canRename(path) ? 36 : renameBlock(path) ? 64 : 0; // a disabled Rename has its reason under it
+    setItemMenu({ path, canCreate, left: Math.min(at.left, window.innerWidth - 220), top: Math.min(at.top, window.innerHeight - (canCreate ? 160 : 90) - rename) });
   };
   // Favorite notes of this project (the star in a note, or the note's menu here). Note windows tell when it changes.
   const [favTick, setFavTick] = useState(0);
@@ -417,6 +420,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const treeProps = {
     tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openPath, expanded,
     onNewNote: () => setNote({ path: null }), onMenu: openItemMenu, favorites, onIde: openIde, noteTitles, onReceive: dropOnFolder,
+    renaming, onRenameStart: startRename, onRename: renameItem, onRenameEnd: () => setRenaming(null), focusPath, onFocused: () => setFocusPath(null),
     onToggle: (p: string) => setExpanded((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
   };
   // Where New › File may save: the project's own folders (not the activities), then its root.
@@ -464,6 +468,33 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     setExpanded((s) => { const n = new Set(s); if (kind === 'file' && !path.includes('/')) n.add(OTHER_FILES); path.split('/').slice(0, kind === 'folder' ? undefined : -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
     if (kind === 'file') openPath(path, /\.(md|txt)$/i.test(path) ? 'edit' : 'preview'); // a new spreadsheet or Word file is shown, not edited here
   };
+  // Rename in place. A note gets a new title (its file, and the links to it, stay); a file or folder
+  // gets a new name on disk, and what points at it here follows: tabs, the open folders, the recent files.
+  // F2 on an item that keeps its name says why, instead of doing nothing.
+  function startRename(path: string): void {
+    const reason = renameBlock(path);
+    if (reason) setNotice(reason); else if (canRename(path)) setRenaming(path);
+  }
+  async function renameItem(path: string, name: string): Promise<void> {
+    if (isNote(path)) {
+      await api.setNoteTitle(project.id, path, name);
+      setNoteTitles((all) => ({ ...all, [path]: name }));
+      retitleNote({ project: project.id, path }, name);
+      window.qa?.notesChanged();
+      return;
+    }
+    const to = await api.renameEntry(project.id, path, name);
+    if (to === path) return;
+    const moved = (p: string) => (p === path ? to : p.startsWith(`${path}/`) ? to + p.slice(path.length) : p);
+    flushEdits(); // the tabs are renamed below: text typed a moment ago must reach them under the old path
+    setTabs((all) => all.map((tab) => { const p = moved(tab.path); return p === tab.path ? tab : { ...tab, path: p, content: { ...tab.content, path: p } }; }));
+    setActive((cur) => (cur ? moved(cur) : cur));
+    setExpanded((all) => new Set([...all].map(moved)));
+    renameRecentFile(project.id, path, to);
+    // The row comes back under its new name, with the focus, so F2 or the arrows go on from it.
+    setFocusPath(to);
+    loadTree();
+  }
   const revealItem = (path: string) => {
     setItemMenu(null);
     api.revealPath(project.id, path).catch((e: Error) => setError(e.message));
@@ -771,7 +802,18 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
               </button></li>
               <li className="ws-menu-sep" />
             </>}
-            <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path)} onClick={() => revealItem(itemMenu.path)}><IconFolder size={15} /> {t('Show in folder')}</button></li>
+            {canRename(itemMenu.path) && (
+              <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path)} onClick={() => { const path = itemMenu.path; setItemMenu(null); setRenaming(path); }}>
+                <IconEdit size={15} /> {t('Rename')}<kbd className="menu-key">F2</kbd>
+              </button></li>
+            )}
+            {renameBlock(itemMenu.path) && (
+              <li className="menu-blocked">
+                <button type="button" role="menuitem" disabled aria-describedby="rename-blocked-why"><IconEdit size={15} /> {t('Rename')}</button>
+                <span id="rename-blocked-why" className="menu-why">{renameBlock(itemMenu.path)}</span>
+              </li>
+            )}
+            <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path) && !canRename(itemMenu.path)} onClick={() => revealItem(itemMenu.path)}><IconFolder size={15} /> {t('Show in folder')}</button></li>
             <li><button type="button" role="menuitem" onClick={() => copyItemPath(itemMenu.path)}><IconCopy size={15} /> {t('Copy path')}</button></li>
             {itemMenu.path !== 'project.json' && itemMenu.path !== '@folder' && !itemMenu.path.startsWith('.') && (
               <li><button type="button" role="menuitem" className="danger" onClick={() => removeItem(itemMenu.path)}><IconTrash size={15} /> {t('Delete')}</button></li>

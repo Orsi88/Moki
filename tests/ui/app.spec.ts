@@ -2027,3 +2027,231 @@ test.describe('Moki run details panel', () => {
     }
   });
 });
+
+test.describe.serial('Moki tree rename', () => {
+  let renameApp: ElectronApplication;
+  let rp: Page;
+  let project = '';
+  const dirs: string[] = [];
+  const row = (path: string) => rp.locator(`.tree-row[title="${path}"]`);
+  const expand = async (folder: string, child: string) => { if (!(await row(child).isVisible())) await row(folder).click(); await expect(row(child)).toBeVisible(); };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    project = join(root, 'workspace', 'projects', 'acme');
+    writeFileSync(join(project, 'inbox', 'rascunho.md'), '# rascunho');
+    writeFileSync(join(project, 'inbox', 'outro.md'), 'outro');
+    mkdirSync(join(project, 'notes'), { recursive: true });
+    writeFileSync(join(project, 'notes', 'ideia.md'), '# ideia');
+    ({ app: renameApp, page: rp } = await openApp(root, userData));
+  });
+
+  test.afterAll(async () => {
+    await renameApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('Rename types the name over the row, keeps the extension, and the open tab follows with its unsaved text', async () => {
+    await expand('inbox', 'inbox/rascunho.md');
+    await row('inbox/rascunho.md').click();
+    await rp.getByRole('button', { name: 'Editar (Ctrl+E)' }).click();
+    await rp.getByRole('button', { name: 'Código Markdown' }).click();
+    await rp.locator('textarea.editor').fill('# rascunho editado');
+    await expect(rp.locator('.tab[title="inbox/rascunho.md"] .tab-dirty')).toBeVisible();
+
+    const rowBox = await row('inbox/rascunho.md').boundingBox();
+    const treeBox = await rp.locator('.sidebar-scroll .tree').boundingBox();
+    await row('inbox/rascunho.md').click({ button: 'right' });
+    await expect(rp.getByRole('menuitem', { name: /^Renomear/ })).toContainText('F2');
+    await rp.getByRole('menuitem', { name: /^Renomear/ }).click();
+
+    const field = rp.getByRole('textbox', { name: 'Novo nome de rascunho.md' });
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue('rascunho');
+    expect(await field.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, 8]); // the name, not the extension
+    await expect(rp.locator('.rename-suffix')).toHaveText('.md');
+    // Same row, same height: nothing in the tree moves while the name is typed.
+    expect((await rp.locator('.tree-row.renaming').boundingBox())?.height).toBe(rowBox?.height);
+    expect((await rp.locator('.sidebar-scroll .tree').boundingBox())?.height).toBe(treeBox?.height);
+
+    await field.fill('cenarios de login');
+    await field.press('Enter');
+    await expect(field).toBeHidden();
+    await expect(row('inbox/cenarios de login.md')).toBeFocused();
+    expect(existsSync(join(project, 'inbox', 'rascunho.md'))).toBe(false);
+    expect(readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8')).toBe('# rascunho'); // the unsaved text is not written by renaming
+
+    // The tab follows the file and keeps the text typed before.
+    const tab = rp.locator('.tab[title="inbox/cenarios de login.md"]');
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    await expect(tab.locator('.tab-dirty')).toBeVisible();
+    // The editor opens again for the new path (as after a move); what was typed is still the tab's text, saved under the new name.
+    await rp.keyboard.press('Control+s');
+    await expect(tab.locator('.tab-dirty')).toBeHidden();
+    await expect.poll(() => readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8')).toBe('# rascunho editado');
+    expect(existsSync(join(project, 'inbox', 'rascunho.md'))).toBe(false);
+  });
+
+  test('F2 starts renaming and Esc goes back; a refused name is explained under the row and the field stays open', async () => {
+    await row('inbox/outro.md').focus();
+    await rp.keyboard.press('F2');
+    const field = rp.getByRole('textbox', { name: 'Novo nome de outro.md' });
+    await expect(field).toBeFocused();
+    await field.fill('qualquer');
+    await field.press('Escape');
+    await expect(field).toBeHidden();
+    await expect(row('inbox/outro.md')).toBeFocused();
+    expect(existsSync(join(project, 'inbox', 'outro.md'))).toBe(true);
+
+    await rp.keyboard.press('F2');
+    await field.fill('cenarios de login');
+    await field.press('Enter');
+    await expect(rp.getByRole('alert')).toHaveText('Já existe um arquivo ou pasta com esse nome aqui.');
+    await expect(field).toBeVisible();
+    await expect(field).toHaveValue('cenarios de login');
+    await expect(field).toHaveAttribute('aria-invalid', 'true');
+
+    // A forbidden character is flagged as it is typed, and Enter does nothing.
+    await field.fill('a/b');
+    await expect(rp.getByRole('alert')).toContainText('Use um nome sem');
+    await field.press('Enter');
+    await expect(field).toBeVisible();
+    await field.press('Escape');
+    await expect(field).toBeHidden();
+    expect(readFileSync(join(project, 'inbox', 'outro.md'), 'utf8')).toBe('outro');
+  });
+
+  test('a note is renamed by its title: its file, and the links to it, stay', async () => {
+    await expand('notes', 'notes/ideia.md');
+    await row('notes/ideia.md').click({ button: 'right' });
+    await rp.getByRole('menuitem', { name: /^Renomear/ }).click();
+    const field = rp.getByRole('textbox', { name: 'Novo nome de ideia' });
+    await expect(field).toHaveValue('ideia');
+    await expect(rp.locator('.rename-suffix')).toHaveCount(0);
+    await field.fill('Ideia principal');
+    await field.press('Enter');
+    await expect(row('notes/ideia.md')).toContainText('Ideia principal');
+    expect(existsSync(join(project, 'notes', 'ideia.md'))).toBe(true);
+    expect(readFileSync(join(project, '.moki-note-titles.json'), 'utf8')).toContain('Ideia principal');
+  });
+
+  test('what keeps its name shows Rename disabled, with the reason under it; F2 there says why', async () => {
+    mkdirSync(join(project, 'runs', 'op-demo', 'outputs'), { recursive: true });
+    writeFileSync(join(project, 'runs', 'op-demo', 'outputs', 'revisao.md'), '# revisao');
+    await rp.getByRole('button', { name: 'Atualizar' }).first().click();
+    const cases: [string, string][] = [
+      ['context', 'As pastas fixas do projeto mantêm o nome.'],
+      ['runs', 'As pastas fixas do projeto mantêm o nome.'],
+    ];
+    for (const [path, why] of cases) {
+      await row(path).click({ button: 'right' });
+      const item = rp.getByRole('menuitem', { name: /^Renomear/ });
+      await expect(item).toBeDisabled();
+      await expect(rp.locator('.menu-why')).toHaveText(why);
+      await rp.getByRole('menuitem', { name: 'Mostrar na pasta' }).press('Escape');
+      await expect(rp.getByRole('menu')).toBeHidden();
+    }
+    // A file of an activity: its name is how the activity finds it.
+    await expand('runs', 'runs/op-demo');
+    await expand('runs/op-demo', 'runs/op-demo/outputs');
+    await expand('runs/op-demo/outputs', 'runs/op-demo/outputs/revisao.md');
+    await row('runs/op-demo/outputs/revisao.md').click({ button: 'right' });
+    await expect(rp.getByRole('menuitem', { name: /^Renomear/ })).toBeDisabled();
+    await expect(rp.locator('.menu-why')).toHaveText('A atividade usa esses nomes para continuar e conferir o que entregou.');
+    await rp.getByRole('menuitem', { name: 'Mostrar na pasta' }).press('Escape');
+    // F2 on a fixed folder: the reason, not silence.
+    await row('context').focus();
+    await rp.keyboard.press('F2');
+    await expect(rp.getByRole('status')).toContainText('As pastas fixas do projeto mantêm o nome.');
+    await expect(rp.locator('.rename-box')).toHaveCount(0);
+    expect(existsSync(join(project, 'runs', 'op-demo', 'outputs', 'revisao.md'))).toBe(true);
+  });
+});
+
+test.describe.serial('Moki start screen rename', () => {
+  let homeApp: ElectronApplication;
+  let hp: Page;
+  let project = '';
+  const dirs: string[] = [];
+  const LOOSE_ID = '11111111-1111-4111-8111-111111111111';
+  const rowOf = (text: string) => hp.locator('.home-row', { hasText: text });
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    project = join(root, 'workspace', 'projects', 'acme');
+    mkdirSync(join(project, 'notes'), { recursive: true });
+    writeFileSync(join(project, 'notes', 'ideia.md'), '# ideia');
+    ({ app: homeApp, page: hp } = await openApp(root, userData, null));
+    await hp.getByRole('button', { name: /^Workspace/ }).click(); // the workspace picker comes first
+    await expect(hp.locator('.home-project', { hasText: 'Acme Library' }).first()).toBeVisible();
+    // A loose note and a recent project note, as the start screen keeps them on this computer.
+    await hp.evaluate(({ id }) => {
+      const now = Date.now();
+      localStorage.setItem('qa-loose-notes', JSON.stringify([{ id, title: 'rascunho solto', text: 'texto', at: now - 1000 }]));
+      localStorage.setItem('qa-recent-notes', JSON.stringify([{ project: 'acme', path: 'notes/ideia.md', title: 'ideia', at: now }]));
+    }, { id: LOOSE_ID });
+    const reloaded = hp.waitForEvent('load');
+    await homeApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.reload(); });
+    await reloaded;
+    await hp.getByRole('button', { name: /^Workspace/ }).click();
+    await expect(rowOf('rascunho solto')).toBeVisible();
+  });
+
+  test.afterAll(async () => {
+    await homeApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('a loose note is renamed from its right-click menu, in place, without moving in the list', async () => {
+    const before = await rowOf('rascunho solto').boundingBox();
+    await rowOf('rascunho solto').click({ button: 'right' });
+    await expect(hp.getByRole('menuitem', { name: /^Renomear/ })).toContainText('F2');
+    await hp.getByRole('menuitem', { name: /^Renomear/ }).click();
+    const field = hp.getByRole('textbox', { name: 'Novo nome de rascunho solto' });
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue('rascunho solto');
+    expect((await hp.locator('.home-row:has(.rename-box)').boundingBox())?.height).toBe(before?.height); // the row keeps its height
+    await field.fill('plano de testes');
+    await field.press('Enter');
+    await expect(field).toBeHidden();
+    await expect(hp.locator(`[data-rename-key="note:${LOOSE_ID}"]`)).toBeFocused();
+    await expect(hp.locator(`[data-rename-key="note:${LOOSE_ID}"]`)).toContainText('plano de testes');
+    const notes = await hp.locator('.home-block', { hasText: 'Notas avulsas' }).locator('.home-project-name').allTextContents();
+    expect(notes).toEqual(['ideia', 'plano de testes']); // same order: renaming is not opening
+    const stored = await hp.evaluate(() => JSON.parse(localStorage.getItem('qa-loose-notes') ?? '[]') as { title: string; text: string }[]);
+    expect(stored[0]).toMatchObject({ title: 'plano de testes', text: 'texto' });
+  });
+
+  test('a project note is renamed by its title (F2), and its file stays', async () => {
+    await rowOf('ideia').locator('.home-project').focus();
+    await hp.keyboard.press('F2');
+    const field = hp.getByRole('textbox', { name: 'Novo nome de ideia' });
+    await expect(field).toBeFocused();
+    await field.fill('qualquer coisa');
+    await field.press('Escape');
+    await expect(rowOf('ideia')).toBeVisible();
+    await hp.keyboard.press('F2');
+    await field.fill('Ideia principal');
+    await field.press('Enter');
+    await expect(rowOf('Ideia principal')).toBeVisible();
+    expect(existsSync(join(project, 'notes', 'ideia.md'))).toBe(true);
+    expect(readFileSync(join(project, '.moki-note-titles.json'), 'utf8')).toContain('Ideia principal');
+  });
+
+  test('a project gets a new name; its folder and id stay', async () => {
+    await rowOf('Acme Library').first().click({ button: 'right' });
+    await hp.getByRole('menuitem', { name: /^Renomear/ }).click();
+    const field = hp.getByRole('textbox', { name: 'Novo nome de Acme Library' });
+    await expect(field).toHaveValue('Acme Library');
+    await field.fill('Loja Acme');
+    await field.press('Enter');
+    await expect(hp.locator('[data-rename-key="project:acme"]')).toContainText('Loja Acme');
+    await expect(hp.locator('[data-rename-key="project:acme"]')).toBeFocused();
+    expect(JSON.parse(readFileSync(join(project, 'project.json'), 'utf8'))).toMatchObject({ project: 'acme', name: 'Loja Acme' });
+  });
+});
+

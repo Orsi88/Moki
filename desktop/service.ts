@@ -9,7 +9,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  CRAFT_APPS, LANGUAGES, TOOLS, agentFiles, contextChoice, fileTags, listTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
+  CRAFT_APPS, LANGUAGES, TOOLS, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
   listRuns, listSkills, openRuns, projectAgentsDir, projectRepository, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
@@ -38,7 +38,7 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
+import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { MOKI_SERVER, McpError, appliesTo, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, type ProbeResult } from './mcp-probe.ts';
@@ -148,6 +148,17 @@ export const servedFile = (content: unknown): string | undefined => (typeof cont
 const SKIP_LINKED = new Set(['node_modules', '.git', '.moki-backup', 'dist', 'build', '__pycache__']); // not listed from a linked folder
 const TOP_ORDER = ['context', 'inbox', 'runs', 'notes', PROPOSALS, 'proposed-updates.md', 'activity-log.md', 'project.json', 'README.md', 'temporary'];
 const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);
+// Root files Moki itself keeps up to date or reads by name: they keep their name.
+const KEPT_NAMES = new Set(['project.json', 'tags.json', 'README.md', 'activity-log.md', 'proposed-updates.md']);
+// A file or folder name a project may hold on any system (Windows is the strictest).
+function validName(value: unknown): string {
+  const entry = String(value ?? '').trim();
+  if (!entry || entry.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/.test(entry) || entry.startsWith('.') || /[. ]$/.test(entry)
+    || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(entry)) {
+    throw new ServiceError('Use a name without / \\ : * ? " < > |, not starting or ending with a dot.');
+  }
+  return entry;
+}
 
 const posix = (p: string): string => p.split(sep).join('/');
 const isWithin = (dir: string, p: string): boolean => { const r = relative(dir, p); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
@@ -1519,13 +1530,33 @@ export function createService(root: string, deps: Deps) {
       const folder = projectPath(project, dest);
       if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
       const destRel = uniqueName(folder, dest, basename(source));
-      const tags = fileTags(project, root)[source];
       renameSync(fromPath, projectPath(project, destRel));
-      if (tags?.length) {
-        setFileTags(project, destRel, tags, root);
-        setFileTags(project, source, [], root);
-      }
+      moveFileTags(project, source, destRel, root);
+      failing(() => movePdfNotes(projectDir(project), source, destRel));
       return destRel;
+    },
+
+    // A file or folder renamed where it is (the tree's Rename). A file keeps its extension: the name
+    // given is the new stem. Notes keep their file (their title is renamed instead, so links to them
+    // stay valid); the fixed folders, the activities (their state and checks use these names), the
+    // linked folder itself and Moki's own files keep theirs. What is inside the linked folder can be renamed.
+    renameEntry: (project: string, rel: unknown, name: unknown) => {
+      const source = String(rel ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+      if (!source || KEPT_NAMES.has(source) || FIXED_FOLDERS.has(source) || runsFolder(source) || source === LINKED || source.startsWith('.')
+        || /^notes\/[^/]+\.md$/.test(source)) throw new ServiceError('This item keeps its name.');
+      const fromPath = projectPath(project, source);
+      if (!existsSync(fromPath)) throw new ServiceError('File not found.');
+      const entry = validName(name) + (statSync(fromPath).isFile() ? extname(source) : '');
+      const parent = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : '';
+      const target = parent ? `${parent}/${entry}` : entry;
+      if (target === source) return source;
+      // Only the letter case changes: on Windows and macOS the "existing" file is this very one.
+      const caseOnly = target.toLowerCase() === source.toLowerCase();
+      if (!caseOnly && existsSync(projectPath(project, target))) throw new ServiceError('A file or folder with this name already exists here.');
+      renameSync(fromPath, projectPath(project, target));
+      moveFileTags(project, source, target, root);
+      failing(() => movePdfNotes(projectDir(project), source, target));
+      return target;
     },
 
     openRuns: (project: string) => {
@@ -1554,11 +1585,7 @@ export function createService(root: string, deps: Deps) {
       if (rel === 'notes') mkdirSync(inside(dir, 'notes'), { recursive: true }); // listed before the first note exists
       const folder = projectPath(project, rel);
       if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
-      let entry = String(name ?? '').trim();
-      if (!entry || entry.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/.test(entry) || entry.startsWith('.') || /[. ]$/.test(entry)
-        || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(entry)) {
-        throw new ServiceError('Use a name without / \\ : * ? " < > |, not starting or ending with a dot.');
-      }
+      let entry = validName(name);
       if (kind === 'file') {
         if (!extname(entry)) entry += '.md';
         if (!isEditable(entry) && !BLANK_FILES[extname(entry).toLowerCase()]) throw new ServiceError('Only Markdown (.md), text (.txt), spreadsheet (.xlsx) and Word (.docx) files can be created here.');

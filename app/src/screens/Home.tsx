@@ -8,9 +8,10 @@ import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
 import { SearchPanel } from '../components/SearchPanel';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
-import { IconCheck, IconChevron, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPin, IconStar, IconTrash, IconX } from '../components/Icons';
+import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPin, IconStar, IconTrash, IconX } from '../components/Icons';
 import { NoteDialog } from '../components/NoteDialog';
-import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, setFavorite, showProject, togglePin } from '../side-menu';
+import { RenameField } from '../components/RenameField';
+import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, retitleNote, setFavorite, showProject, togglePin } from '../side-menu';
 import { Settings, type SettingsTab } from './Settings';
 import { featuredWorkspaces, homeSectionLayout, recordWorkspaceUse, saveHomeSectionLayout } from '../prefs';
 import { resizedWeights, type HomeSectionId, type HomeSectionLayout } from '../home-sections';
@@ -33,6 +34,7 @@ interface Props {
   onSearch?: () => void;
   onFound?: (project: string, path?: string) => void;
   onDeleted?: () => void; // a project was deleted for good: reload the list
+  onRenamed?: () => void; // a project got a new name: reload the list
   onToolsChanged: () => void; // Settings › My AIs: read the AI tools again
 }
 
@@ -40,9 +42,9 @@ const onboarding = (status: string): string => ({
   'not-started': t('Context not started'), partial: t('Context in progress'), complete: t('Context complete'),
 } as Record<string, string>)[status] ?? status;
 
-interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean }
+interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean; shortcut?: string }
 
-export function Home({ projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onToolsChanged }: Props) {
+export function Home({ projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
   const [switching, setSwitching] = useState<WorkspaceInfo[] | null>(null); // the workspace menu, open
   const switcherRef = useRef<HTMLDivElement>(null);
   const [switcherBox, setSwitcherBox] = useState<{ left: number; width: number; bottom: number } | null>(null);
@@ -86,6 +88,44 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
     },
   });
   const [noteTick, setNoteTick] = useState(0);
+  // Rename in place (the menu's Rename, or F2 on a row). A row is "project:<id>", "note:<loose id | project/path>"
+  // or, in Favorites, "fav:note:…" (the same note can be listed twice).
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null); // the row that takes the focus back once renamed or cancelled
+  useEffect(() => {
+    if (!focusKey) return;
+    document.querySelector<HTMLElement>(`[data-rename-key="${CSS.escape(focusKey)}"]`)?.focus();
+    setFocusKey(null);
+  });
+  const noteKey = (ref: NoteRef) => ('loose' in ref ? `note:${ref.loose}` : `note:${ref.project}/${ref.path}`);
+  // The row keeps the height it had: the field must not move the list (a name cut with … is a little taller than a plain one).
+  const rowHeight = useRef(0);
+  const startRename = (key: string) => {
+    rowHeight.current = document.querySelector(`[data-rename-key="${CSS.escape(key)}"]`)?.getBoundingClientRect().height ?? 0;
+    setRenaming(key);
+  };
+  const renameItem = (key: string): MenuItem => ({ label: t('Rename'), icon: <IconEdit size={15} />, shortcut: 'F2', run: () => startRename(key) });
+  const onF2 = (key: string) => (e: ReactKeyboardEvent) => { if (e.key === 'F2') { e.preventDefault(); startRename(key); } };
+  const endRename = (key: string) => { setRenaming(null); setFocusKey(key); };
+  // A note gets a new title where it is listed; a project note's file stays, so links to it keep working.
+  const renameNote = async (ref: NoteRef, title: string) => {
+    if (!('loose' in ref)) await api.setNoteTitle(ref.project, ref.path, title);
+    retitleNote(ref, title);
+    if (!('loose' in ref)) window.qa?.notesChanged();
+    setNoteTick((n) => n + 1);
+  };
+  // A project's name is only what is shown: its id and folder stay.
+  const renameProject = async (p: ProjectSummary, name: string) => {
+    await api.setProjectName(p.id, name);
+    onRenamed?.();
+  };
+  const nameCell = (key: string, label: string, onRename: (name: string) => Promise<void>, meta: ReactNode) => (
+    <div className="home-project renaming" style={rowHeight.current ? { height: rowHeight.current } : undefined}>
+      <RenameField label={label} initial={label} onRename={onRename} onEnd={() => endRename(key)} />
+      {meta}
+      <IconChevron size={16} />
+    </div>
+  );
   useEffect(() => api.onNotesChanged(() => setNoteTick((n) => n + 1)), []);
   const notes = useMemo(() => recentNotes(), [noteTick]);
   const loose = useMemo(() => looseNotes(), [noteTick]);
@@ -108,6 +148,9 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
     setNoteTick((n) => n + 1);
   };
 
+  const refOf = (n: { kind: 'loose'; id: string } | { kind: 'project'; project: string; path: string }): NoteRef => (n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path });
+  const noteMeta = (n: { kind: 'loose' } | { kind: 'project'; project: string }) => (n.kind === 'project' ? <span className="home-project-meta">{projects.find((p) => p.id === n.project)?.name}</span> : null);
+
   const hide = (p: ProjectSummary) => {
     if (!window.confirm(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: p.name }))) return;
     setHidden(hideProject(p.id));
@@ -120,20 +163,26 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
     onDeleted?.();
   };
 
+  const projectMeta = (p: ProjectSummary) => (
+    <span className="home-project-meta">
+      {onboarding(p.onboardingStatus)} · {p.runs} {p.runs === 1 ? t('activity') : t('activities')}
+      {p.openRuns > 0 && <span className="dot dot-warn" title={t('{n} open', { n: p.openRuns })} />}
+    </span>
+  );
   const projectRow = (p: ProjectSummary, pinnedRow: boolean) => (
     <li key={p.id} className="home-row" onContextMenu={menuOn([
+      renameItem(`project:${p.id}`),
       { label: pinnedRow ? t('Unpin') : t('Pin'), icon: <IconPin size={15} />, run: () => setPins(togglePin(p.id)) },
       { label: t('Hide from Moki'), icon: <IconEyeOff size={15} />, run: () => hide(p) },
       { label: t('Delete for good'), icon: <IconTrash size={15} />, danger: true, run: () => setDeleting(p) },
     ])}>
-      <button type="button" className="home-project" onClick={() => onOpen(p.id)}>
-        <span className="home-project-name">{p.name}</span>
-        <span className="home-project-meta">
-          {onboarding(p.onboardingStatus)} · {p.runs} {p.runs === 1 ? t('activity') : t('activities')}
-          {p.openRuns > 0 && <span className="dot dot-warn" title={t('{n} open', { n: p.openRuns })} />}
-        </span>
-        <IconChevron size={16} />
-      </button>
+      {renaming === `project:${p.id}` ? nameCell(`project:${p.id}`, p.name, (name) => renameProject(p, name), projectMeta(p)) : (
+        <button type="button" className="home-project" data-rename-key={`project:${p.id}`} onClick={() => onOpen(p.id)} onKeyDown={onF2(`project:${p.id}`)}>
+          <span className="home-project-name">{p.name}</span>
+          {projectMeta(p)}
+          <IconChevron size={16} />
+        </button>
+      )}
     </li>
   );
 
@@ -279,14 +328,17 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
         {favorites.length > 0 && block('favorites', t('Favorites'), <ul className="home-favorites">
           {favorites.map((f) => (
             <li key={f.kind === 'loose' ? f.id : `${f.project}:${f.path}`} className="home-row" onContextMenu={menuOn([
-              notebookItem(f.kind === 'loose' ? { loose: f.id } : { project: f.project, path: f.path }),
+              notebookItem(refOf(f)),
+              renameItem(`fav:${noteKey(refOf(f))}`),
               { label: t('Remove from favorites'), icon: <IconStar size={15} />, run: () => unstar(f) },
             ])}>
-              <button type="button" className="home-project" onClick={() => setOpenNote(f.kind === 'loose' ? { loose: f.id } : { project: f.project, path: f.path })}>
-                <span className="home-project-name">{f.title}</span>
-                {f.kind === 'project' && <span className="home-project-meta">{projects.find((p) => p.id === f.project)?.name}</span>}
-                <IconChevron size={16} />
-              </button>
+              {renaming === `fav:${noteKey(refOf(f))}` ? nameCell(`fav:${noteKey(refOf(f))}`, f.title, (title) => renameNote(refOf(f), title), noteMeta(f)) : (
+                <button type="button" className="home-project" data-rename-key={`fav:${noteKey(refOf(f))}`} onClick={() => setOpenNote(refOf(f))} onKeyDown={onF2(`fav:${noteKey(refOf(f))}`)}>
+                  <span className="home-project-name">{f.title}</span>
+                  {noteMeta(f)}
+                  <IconChevron size={16} />
+                </button>
+              )}
             </li>
           ))}
         </ul>)}
@@ -296,14 +348,17 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
           <ul>
             {notesShown.map((n) => (
               <li key={n.kind === 'loose' ? n.id : `${n.project}:${n.path}`} className="home-row" onContextMenu={menuOn([
-                notebookItem(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path }),
-                deleteNoteItem(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path }, n.title),
+                notebookItem(refOf(n)),
+                renameItem(noteKey(refOf(n))),
+                deleteNoteItem(refOf(n), n.title),
               ])}>
-                <button type="button" className="home-project" onClick={() => setOpenNote(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path })}>
-                  <span className="home-project-name">{n.title}</span>
-                  {n.kind === 'project' && <span className="home-project-meta">{projects.find((p) => p.id === n.project)?.name}</span>}
-                  <IconChevron size={16} />
-                </button>
+                {renaming === noteKey(refOf(n)) ? nameCell(noteKey(refOf(n)), n.title, (title) => renameNote(refOf(n), title), noteMeta(n)) : (
+                  <button type="button" className="home-project" data-rename-key={noteKey(refOf(n))} onClick={() => setOpenNote(refOf(n))} onKeyDown={onF2(noteKey(refOf(n)))}>
+                    <span className="home-project-name">{n.title}</span>
+                    {noteMeta(n)}
+                    <IconChevron size={16} />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -313,7 +368,7 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
             <ul className="term-menu item-menu" role="menu" style={{ left: rowMenu.left, top: rowMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setRowMenu(null); }}>
               {rowMenu.items.map((item, i) => (
                 <li key={item.label}>
-                  <button type="button" role="menuitem" autoFocus={i === 0} className={item.danger ? 'danger' : ''} onClick={() => { setRowMenu(null); item.run(); }}>{item.icon} {item.label}</button>
+                  <button type="button" role="menuitem" autoFocus={i === 0} className={item.danger ? 'danger' : ''} onClick={() => { setRowMenu(null); item.run(); }}>{item.icon} {item.label}{item.shortcut && <kbd className="menu-key">{item.shortcut}</kbd>}</button>
                 </li>
               ))}
             </ul>

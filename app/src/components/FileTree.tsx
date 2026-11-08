@@ -1,8 +1,9 @@
-import { useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
 import { describeRun, statusLabel, type TreeNode } from '../api';
 import { t } from '../i18n';
 import { IconChevron, IconCode, IconFolder, IconLink, IconList, IconMcp, IconMore, IconPlus, IconSliders, IconStar } from './Icons';
 import { FileIcon, SectionIcon, isSectionIconName } from '../icons';
+import { RenameField, tooLong } from './RenameField';
 
 interface Props {
   nodes: TreeNode[];
@@ -17,6 +18,12 @@ interface Props {
   noteTitles?: Record<string, string>;
   onIde?: (at: { left: number; top: number }) => void; // "Open in the IDE" on the linked folder's row
   onReceive?: (folder: string, event: ReactDragEvent) => void; // a file dropped on this folder
+  renaming?: string | null; // the item whose name is being edited in place
+  onRenameStart?: (path: string) => void; // F2 on a row (the screen says why when the item keeps its name)
+  onRename?: (path: string, name: string) => Promise<void>; // rejects with the reason the name was refused
+  onRenameEnd?: () => void;
+  focusPath?: string | null; // a row to take the focus once it is shown (a file just renamed comes back under its new path)
+  onFocused?: () => void;
 }
 
 export const friendlyName = (name: string): string => ({
@@ -62,11 +69,40 @@ export function FileTree(props: Props) {
 }
 
 const canMove = (path: string) => !path.startsWith('.') && path !== 'project.json' && path !== 'tags.json' && !path.startsWith('runs/') && !path.startsWith('@folder');
+// Why a tree item keeps its name ('' = it can be renamed). Mirrors the service's renameEntry, which
+// has the last word. The menu still shows Rename for these, disabled, with this reason under it.
+const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);
+const MOKI_FILES = new Set(['project.json', 'tags.json', 'README.md', 'activity-log.md', 'proposed-updates.md']);
+export const renameBlock = (path: string): string => {
+  if (FIXED_FOLDERS.has(path)) return t('The project’s fixed folders keep their names.');
+  if (path.startsWith('runs/')) return t('The activity uses these names to continue and to check what it delivered.');
+  if (MOKI_FILES.has(path)) return t('Moki finds this file by its name.');
+  if (path === '@folder') return t('This is your own folder: rename it on your computer.');
+  return '';
+};
+// Sidebar groups (".tracking"…) and the project folder itself have no Rename at all.
+export const canRename = (path: string): boolean => Boolean(path) && !path.startsWith('.') && !renameBlock(path);
+const isNotePath = (path: string) => /^notes\/[^/]+\.md$/.test(path);
+const extOf = (name: string) => { const dot = name.lastIndexOf('.'); return dot > 0 ? name.slice(dot) : ''; };
+// Same rule as the service: a file or folder name every system accepts.
+const fileNameProblem = (value: string): string => tooLong(value)
+  || (/[<>:"/\\|?*\u0000-\u001f]/.test(value) || value.startsWith('.') || /[. ]$/.test(value) || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(value)
+    ? t('Use a name without / \\ : * ? " < > |, not starting or ending with a dot.') : '');
+
 const canReceive = (path: string) => !path.startsWith('.') && path !== 'runs' && !path.startsWith('runs/') && path !== '@folder' && !path.startsWith('@folder/');
 
-function Node({ node, depth, activePath, onOpen, expanded, onToggle, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive }: Props & { node: TreeNode; depth: number }) {
+function Node(props: Props & { node: TreeNode; depth: number }) {
+  const { node, depth, activePath, onOpen, expanded, onToggle, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive, renaming, onRenameStart, onRename, onRenameEnd, focusPath, onFocused } = props;
   const [hover, setHover] = useState(false);
   const [dropOn, setDropOn] = useState(false);
+  const editing = renaming === node.path && Boolean(onRename);
+  const note = isNotePath(node.path);
+  const ext = node.type === 'file' && !note ? extOf(node.name) : '';
+  // Back from typing a name (Esc, or a note's new title): the focus returns to the row.
+  const row = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => { if (wasEditing.current && !editing) row.current?.focus(); wasEditing.current = editing; }, [editing]);
+  useEffect(() => { if (focusPath === node.path && row.current) { row.current.focus(); onFocused?.(); } }, [focusPath, node.path]); // eslint-disable-line react-hooks/exhaustive-deps
   const isDir = node.type === 'dir';
   const open = expanded.has(node.path);
   const run = node.run ? describeRun(node.name) : null;
@@ -86,10 +122,24 @@ function Node({ node, depth, activePath, onOpen, expanded, onToggle, onNewNote, 
     return types.includes('Files') || types.includes('application/x-moki-move');
   };
 
+  const icons = <>
+    {isDir ? <span className={`tree-caret${open ? ' open' : ''}`}><IconChevron size={14} /></span> : <span className="tree-icon"><FileIcon name={node.name} size={16} /></span>}
+    {section && <span className="tree-section-icon"><SectionIcon name={section} size={16} /></span>}
+    {!section && node.path in GROUP_ICONS && <span className="tree-section-icon tree-group-icon">{GROUP_ICONS[node.path]({ size: 16 })}</span>}
+  </>;
+
   return (
     <li role="treeitem" aria-expanded={isDir ? open : undefined}>
       <div className="tree-line">
+      {editing ? (
+        <div className={`tree-row renaming${activePath === node.path ? ' active' : ''}${depth === 0 && isDir ? ' top' : ''}`} style={{ paddingLeft: 8 + depth * INDENT }}>
+          {icons}
+          <RenameField label={label} initial={note ? label : ext ? node.name.slice(0, -ext.length) : node.name} suffix={ext || undefined}
+            check={note ? tooLong : fileNameProblem} onRename={(name) => onRename!(node.path, name)} onEnd={() => onRenameEnd?.()} />
+        </div>
+      ) : (
       <button
+        ref={row}
         type="button"
         className={`tree-row${activePath === node.path ? ' active' : ''}${depth === 0 && isDir ? ' top' : ''}${dropOn ? ' drop-on' : ''}`}
         style={{ paddingLeft: 8 + depth * INDENT }}
@@ -105,12 +155,11 @@ function Node({ node, depth, activePath, onOpen, expanded, onToggle, onNewNote, 
         onClick={() => (isDir ? onToggle(node.path) : onOpen(node.path))}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        onKeyDown={onRenameStart && menu ? (e) => { if (e.key === 'F2') { e.preventDefault(); onRenameStart(node.path); } } : undefined}
         onContextMenu={menu ? (e) => { e.preventDefault(); e.stopPropagation(); menu(node, { left: e.clientX, top: e.clientY }); } : undefined}
         title={node.run ? `${node.name}\n${statusLabel(node.run.status)}${node.run.currentStep ? ` · ${node.run.currentStep}` : ''}` : node.linked ?? node.path}
       >
-        {isDir ? <span className={`tree-caret${open ? ' open' : ''}`}><IconChevron size={14} /></span> : <span className="tree-icon"><FileIcon name={node.name} size={16} /></span>}
-        {section && <span className="tree-section-icon"><SectionIcon name={section} size={16} /></span>}
-        {!section && node.path in GROUP_ICONS && <span className="tree-section-icon tree-group-icon">{GROUP_ICONS[node.path]({ size: 16 })}</span>}
+        {icons}
         <span className="tree-label">{label}</span>
         {favorites?.has(node.path) && <span className="star-mark" title={t('Favorite')}><IconStar size={13} /></span>}
         {!isDir && tagColors && tagColors(node.path).length > 0 && (
@@ -120,13 +169,14 @@ function Node({ node, depth, activePath, onOpen, expanded, onToggle, onNewNote, 
         {run && !hover && <span className="tree-meta">{run.date}</span>}
         {isDir && (depth === 0 || node.path === '.mcps') && !node.linked && node.children && <span className="tree-meta">{node.children.length}</span>}
       </button>
+      )}
       {node.linked && onIde && (
         <button type="button" className="tree-ide" title={t('Open in the IDE')} aria-label={t('Open in the IDE')} aria-haspopup="menu"
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onIde({ left: r.left, top: r.bottom + 2 }); }}>
           <IconCode size={14} />
         </button>
       )}
-      {menu && (
+      {menu && !editing && (
         <button type="button" className="tree-more" title={t('More options')} aria-label={t('More options')} aria-haspopup="menu"
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); menu(node, { left: r.left, top: r.bottom + 2 }); }}>
           <IconMore size={14} />
@@ -136,7 +186,7 @@ function Node({ node, depth, activePath, onOpen, expanded, onToggle, onNewNote, 
       {isDir && open && node.children && (
         <ul role="group">
           {(node.path === 'notes' && favorites ? [...node.children].sort((a, b) => Number(favorites.has(b.path)) - Number(favorites.has(a.path))) : node.children)
-            .map((c) => <Node key={c.path} node={c} depth={depth + 1} activePath={activePath} onOpen={onOpen} expanded={expanded} onToggle={onToggle} onNewNote={onNewNote} tagColors={tagColors} onMenu={onMenu} favorites={favorites} onIde={onIde} noteTitles={noteTitles} onReceive={onReceive} nodes={[]} />)}
+            .map((c) => <Node {...props} key={c.path} node={c} depth={depth + 1} />)}
           {node.path === 'notes' && (
             <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={onNewNote}><span className="tree-icon"><IconPlus size={14} /></span><span className="tree-label">{t('New note')}</span></button></li>
           )}

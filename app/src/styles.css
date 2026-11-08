@@ -285,6 +285,38 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-meta { font-size: 0.75rem; color: var(--faint); white-space: nowrap; }
 .tree-new { color: var(--faint); }
+/* Rename in place (components/RenameField): the field takes the name's place in the same row, so
+   nothing below moves. The reason a name is refused floats under the field (over the next row), as in VS Code. */
+.rename-box {
+  position: relative; flex: 1; min-width: 0; height: 22px; display: flex; align-items: center;
+  border: 1px solid var(--accent); border-radius: 4px; background: var(--bg);
+}
+.rename-box:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+.rename-box.invalid { border-color: var(--err); }
+.rename-box.invalid:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--err) 25%, transparent); }
+.rename-input {
+  flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0 5px;
+  border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: inherit;
+}
+/* A file's extension sits inside the box, after the name, and cannot be edited. */
+.rename-suffix { flex-shrink: 0; padding-right: 6px; color: var(--faint); font-size: 0.85rem; pointer-events: none; }
+.rename-error {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5;
+  padding: 5px 8px; border: 1px solid var(--err); border-radius: 4px;
+  background: var(--bg-2); color: var(--text); font-size: 0.8rem; font-weight: 400; line-height: 1.35; white-space: normal;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}
+.tree-row.renaming { cursor: default; background: var(--bg-3); }
+.tree-row.renaming:hover { background: var(--bg-3); }
+/* Start screen: the box is as tall as the name's line (the negative margins give back the extra),
+   and its text starts where the name was. */
+.home-project.renaming { cursor: default; background: var(--bg-3); }
+.home-project.renaming > svg { visibility: hidden; } /* kept for the row's geometry */
+.home-project.renaming .rename-box { grid-column: 1; height: calc(1lh + 4px); margin: -2px 0 -2px -6px; font-weight: 600; }
+.term-menu .menu-key { margin-left: auto; color: var(--faint); font-size: 0.75rem; }
+/* Rename shown, but not for this item: the reason is under it, no hover needed. */
+.term-menu .menu-blocked button { cursor: default; }
+.term-menu .menu-why { display: block; max-width: 240px; padding: 0 10px 6px 33px; color: var(--faint); font-size: 0.75rem; line-height: 1.35; }
 .tree-line { position: relative; }
 .tree-more {
   position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; padding: 0;

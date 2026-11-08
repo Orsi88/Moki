@@ -319,6 +319,72 @@ test('a file moves between folders, and a drop can land in one; execution files 
   rmSync(join(project, 'context', 'solto.md'));
 });
 
+test('a file or folder is renamed in place, keeps its extension, tags and PDF notes; Moki’s own items keep their names', () => {
+  const project = join(root, 'workspace', 'projects', 'acme');
+  const tag = service.saveTag({ name: 'Renomear' });
+  const note = service.createNote('acme', 'Nota do PDF', 'n');
+  const entry: PdfNote = { id: 'b2222222-2222-4222-8222-222222222222', after: 1, note: { path: note } };
+
+  // A file: the name given is the new stem, the extension stays.
+  writeFileSync(join(project, 'inbox', 'rascunho.md'), '# rascunho');
+  service.setFileTags('acme', 'inbox/rascunho.md', [tag.id]);
+  assert.equal(service.renameEntry('acme', 'inbox/rascunho.md', 'cenarios de login'), 'inbox/cenarios de login.md');
+  assert.equal(existsSync(join(project, 'inbox', 'rascunho.md')), false);
+  assert.equal(readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8'), '# rascunho');
+  assert.deepEqual(service.fileTags('acme')['inbox/cenarios de login.md'], [tag.id]);
+  assert.equal(service.fileTags('acme')['inbox/rascunho.md'], undefined);
+  assert.equal(service.renameEntry('acme', 'inbox/cenarios de login.md', 'cenarios de login'), 'inbox/cenarios de login.md', 'same name: nothing to do');
+
+  // Only the letter case changes: allowed, even where the file system ignores case.
+  assert.equal(service.renameEntry('acme', 'inbox/cenarios de login.md', 'Cenarios de login'), 'inbox/Cenarios de login.md');
+  assert.ok(readdirSync(join(project, 'inbox')).includes('Cenarios de login.md'));
+
+  // A name already taken is refused and nothing moves.
+  writeFileSync(join(project, 'inbox', 'outro.md'), 'outro');
+  assert.throws(() => service.renameEntry('acme', 'inbox/outro.md', 'Cenarios de login'), /already exists/);
+  assert.equal(readFileSync(join(project, 'inbox', 'outro.md'), 'utf8'), 'outro');
+
+  // Names no system accepts, and paths outside the project.
+  for (const bad of ['', '  ', 'a/b', 'a\\b', 'x:y', 'nome?', '.oculto', 'ponto.', 'CON', 'x'.repeat(121)]) {
+    assert.throws(() => service.renameEntry('acme', 'inbox/outro.md', bad), /Use a name/, JSON.stringify(bad));
+  }
+  assert.throws(() => service.renameEntry('acme', '../fora.md', 'x'), ServiceError);
+  assert.throws(() => service.renameEntry('acme', 'inbox/nao-existe.md', 'x'), /not found/);
+
+  // A PDF keeps its page notes.
+  service.setPdfNotes('acme', 'inbox/report.pdf', [entry]);
+  assert.equal(service.renameEntry('acme', 'inbox/report.pdf', 'relatorio'), 'inbox/relatorio.pdf');
+  assert.deepEqual(service.pdfNotes('acme', 'inbox/relatorio.pdf'), [entry]);
+
+  // A folder: what is inside keeps its tags and PDF notes under the new path.
+  mkdirSync(join(project, 'context', 'fluxos'));
+  writeFileSync(join(project, 'context', 'fluxos', 'login.md'), 'login');
+  service.setFileTags('acme', 'context/fluxos/login.md', [tag.id]);
+  assert.equal(service.moveEntry('acme', 'inbox/relatorio.pdf', 'context/fluxos'), 'context/fluxos/relatorio.pdf');
+  assert.deepEqual(service.pdfNotes('acme', 'context/fluxos/relatorio.pdf'), [entry], 'moving a PDF also keeps its notes');
+  assert.equal(service.renameEntry('acme', 'context/fluxos', 'jornadas'), 'context/jornadas');
+  assert.equal(readFileSync(join(project, 'context', 'jornadas', 'login.md'), 'utf8'), 'login');
+  assert.deepEqual(service.fileTags('acme')['context/jornadas/login.md'], [tag.id]);
+  assert.deepEqual(service.pdfNotes('acme', 'context/jornadas/relatorio.pdf'), [entry]);
+
+  // Moki's own items keep their names; a note is renamed through its title (setNoteTitle), not its file.
+  for (const kept of ['project.json', 'README.md', 'activity-log.md', 'proposed-updates.md', 'context', 'inbox', 'notes', 'temporary', 'runs', note]) {
+    assert.throws(() => service.renameEntry('acme', kept, 'outro-nome'), /keeps its name/, kept);
+  }
+  mkdirSync(join(project, 'runs', 'r1'), { recursive: true });
+  writeFileSync(join(project, 'runs', 'r1', 'state.json'), '{}');
+  assert.throws(() => service.renameEntry('acme', 'runs/r1/state.json', 'x'), /keeps its name/);
+
+  rmSync(join(project, 'runs', 'r1'), { recursive: true });
+  rmSync(join(project, 'context', 'jornadas'), { recursive: true });
+  rmSync(join(project, 'inbox', 'Cenarios de login.md'));
+  rmSync(join(project, 'inbox', 'outro.md'));
+  rmSync(join(project, note));
+  writeFileSync(join(project, 'inbox', 'report.pdf'), '%PDF-1.4'); // later tests read it back
+  service.setPdfNotes('acme', 'inbox/report.pdf', []);
+  service.removeTag(tag.id);
+});
+
 test('open folder / open with default program are confined and filtered', () => {
   service.openFolder('acme', 'inbox');
   assert.ok(folders[0].endsWith(join('acme', 'inbox')));
@@ -1353,6 +1419,14 @@ test('open a folder: the name is yours, the folder shows live in the tree as @fo
     assert.equal(readFileSync(join(folder, 'docs', 'us-1.md'), 'utf8'), '# US-1 v2');
     assert.equal(svc.createEntry('loja-virtual', '@folder/docs', 'us-2', 'file'), '@folder/docs/us-2.md');
     assert.ok(existsSync(join(folder, 'docs', 'us-2.md')));
+    // Renamed in place too, files and folders; the linked folder itself keeps its name.
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/docs/us-2.md', 'us-3'), '@folder/docs/us-3.md');
+    assert.ok(existsSync(join(folder, 'docs', 'us-3.md')) && !existsSync(join(folder, 'docs', 'us-2.md')));
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/docs', 'historias'), '@folder/historias');
+    assert.ok(existsSync(join(folder, 'historias', 'us-1.md')));
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/historias', 'docs'), '@folder/docs');
+    assert.throws(() => svc.renameEntry('loja-virtual', '@folder', 'outra'), /keeps its name/);
+    assert.throws(() => svc.renameEntry('loja-virtual', '@folder/../fora.md', 'x'), ServiceError);
     for (const bad of ['@folder/../fora.md', '@folder/../../x']) assert.throws(() => svc.readFile('loja-virtual', bad), ServiceError, bad);
     assert.throws(() => svc.setFileTags('loja-virtual', '@folder/docs/us-1.md', []), /linked folder/);
     assert.throws(() => svc.readFile('acme', '@folder/x.md'), /no linked folder/);
