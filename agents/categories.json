@@ -7,6 +7,10 @@
     "label": "Research",
     "description": "Deep investigation of any topic with well-grounded references (Sherlock), and adversarial critical review of what was produced (Moriarty)."
   },
+  "documentation": {
+    "label": "Documentation",
+    "description": "Building documents people can use and trust, with diagrams inside the Markdown (Watson)."
+  },
   "framework": {
     "label": "Framework",
     "description": "Maintaining Moki itself: skills, scripts, desktop app and checks."

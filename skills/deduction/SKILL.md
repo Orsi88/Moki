@@ -56,6 +56,7 @@ Ask only for what is missing and needed to plan well, one short message, at most
 - **Web search and page reading** (required for a full investigation). Use the AI tool's search and fetch capabilities. Open each source before citing it.
 - Optional: academic search pages (Google Scholar, Semantic Scholar, arXiv, PubMed, SciELO), standards bodies' sites, book previews and publisher pages, an MCP server configured for the project.
 - File reading for the user's attachments; `npm run xlsx -- write` for an optional spreadsheet.
+- The `watson` agent (or the `chronicle` and `blueprint` skills) to write the dossier from the case notes.
 
 **Fallback without web access:** say so in one line, deliver the approved plan with the exact search strings and the list of sources to consult, and offer to build the dossier from material the user brings. Never fill the gap from model memory: anything not verified in this run is marked *not verified* and never appears as a reference.
 
@@ -73,7 +74,11 @@ Step ids are used in `state.json`.
    - assign confidence by the [confidence rules](#rules-and-constraints): the kind of claim, the quality of the evidence, contradictions and whether it applies to the user's context;
    - work in search rounds and log each one; stop when **every key question is answered or declared a gap** and either no new relevant information appeared in the last round (saturation) or the plan's round limit was reached — say which, and list what remains open.
    If the research shows the plan was wrong (the topic is different, a key question is missing), stop and propose the change before continuing.
-4. **`dossier`** — Write the dossier with the [dossier template](references/dossier-template.md), the sections the purpose requires and the sections of each type. Every statement that is not common knowledge has a citation; confidence is stated for each finding; divergences and gaps have their own sections. Optional spreadsheet only when the user asks or approved it in the plan.
+4. **`dossier`** — The investigator owns the content; the documentation specialist writes the document.
+   - Write the **case notes** in the run's work folder (`case-notes.md`): the frame and stop reason, the sections chosen for the purpose and types, every finding with its id, confidence label and citations with locators, the data of each table, the diagrams that would help (what each must show), divergences, gaps and next steps. This is the whole substance of the dossier; the source log stays as it is.
+   - Hand the case notes to **Watson** to write the dossier with the [dossier template](references/dossier-template.md): where the AI tool can call another agent (Claude Code subagents), call the `watson` agent with the case notes, the template, the deliverable language and the output path; otherwise act as Watson yourself and follow the `chronicle` and `blueprint` skills.
+   - **Check the dossier against the case notes**: every finding, figure, citation, locator and confidence label present and unchanged; nothing added; ids resolve to the source log. Fix it or send it back to Watson with the list of differences.
+   - Optional spreadsheet only when the user asks or approved it in the plan.
 5. **`handoff`** — Present a summary (5 to 10 lines: what was found, the strongest evidence, the main gaps), the file paths and the possible next steps (for example `cross-examination` to have the dossier challenged before relying on it, `test-design` with the risk catalog, `requirements-review` with the open questions, proposals for `project-context`). Record results and close the run.
 
 ## Rules and constraints
@@ -99,6 +104,7 @@ Step ids are used in `state.json`.
 - The plan was approved before any search was run, names the investigation types and the time and context frame, and its search strings contain no project data.
 - The dossier covers the "always cover" items of each type, or says which ones could not be established.
 - A question about a past date is answered with the version or state valid at that date, with its source, and changes after that date are reported separately.
+- The dossier was written from the case notes (by Watson or following `chronicle`) and checked against them: no finding, citation, locator or label lost or changed, nothing added.
 - Every entry in the dossier's bibliography appears in the source log's sources table as *used*, with a working link or a precise identifier (DOI, ISBN, RFC number, standard id) and the access date.
 - Every finding has a confidence label and at least one citation with a locator (section, clause, page or paragraph); a normative finding marked *established* cites the clause of the version applicable at the reference date; an empirical finding marked *established* cites at least two independent sources.
 - Every key finding has a row in the source log's evidence table with the locator and a short excerpt that actually supports it.
@@ -144,4 +150,4 @@ The dossier and the source log are saved, every bibliography entry is traceable 
 
 ## Persistence
 
-Follow the [persistence protocol](references/core/persistence-protocol.md). Run in `workspace/projects/<project-id>/runs/<run-id>/` with `state.json` (steps `briefing`, `plan`, `research`, `dossier`, `handoff`; the plan approval in `approvals`; open questions in `pending`), the user's attachments listed in `inputs`, the plan, the dossier and the source log in its outputs folder (all listed in `artifacts`) and working data in its work folder. Offer confirmed general definitions to `project-context` as proposals in `workspace/projects/<project-id>/proposed-updates.md`.
+Follow the [persistence protocol](references/core/persistence-protocol.md). Run in `workspace/projects/<project-id>/runs/<run-id>/` with `state.json` (steps `briefing`, `plan`, `research`, `dossier`, `handoff`; the plan approval in `approvals`; open questions in `pending`), the user's attachments listed in `inputs`, the plan, the dossier and the source log in its outputs folder (all listed in `artifacts`) and working data (including `case-notes.md`) in its work folder. Offer confirmed general definitions to `project-context` as proposals in `workspace/projects/<project-id>/proposed-updates.md`.
