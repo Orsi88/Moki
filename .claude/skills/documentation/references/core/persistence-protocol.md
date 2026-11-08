@@ -11,6 +11,8 @@ Activities may span several sessions and several AI tools. There is **no shared 
 | History of activities | `workspace/projects/<project-id>/activity-log.md` |
 | Progress, pending items, approvals, artifacts of one execution | `workspace/projects/<project-id>/runs/<run-id>/state.json` |
 | Deliverables, evidence, logs of one execution | `workspace/projects/<project-id>/runs/<run-id>/{outputs,evidence,logs}/` |
+| Files that only help produce a deliverable (generator data, working data between steps, drafts) | `workspace/projects/<project-id>/runs/<run-id>/work/`, deleted when the run is completed |
+| Scratch files outside any run | `workspace/projects/<project-id>/temporary/` (the app empties what is older than a few days) |
 
 Keep these separate: activity results never go into `context/`, and context is never edited from inside a run folder.
 
@@ -27,7 +29,7 @@ Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `creat
 - `project` must equal the project folder the run lives in.
 - `status`: `in-progress` | `awaiting-approval` | `awaiting-input` | `blocked` | `paused` | `completed` | `cancelled`. `paused` is set by the user (a multi-agent operation started from the desktop app): nothing new starts until it is resumed.
 - `inputs`: every input actually used, with path and a short description. Never list a document you did not read.
-- `artifacts`: paths of every file produced, relative to the framework root (starting with `workspace/projects/<project-id>/`) or to a target repository (`<target-repo>/...`).
+- `artifacts`: paths of the deliverables — the files the user asked for (and the evidence the skill keeps) — relative to the framework root (starting with `workspace/projects/<project-id>/`) or to a target repository (`<target-repo>/...`). Working files are never listed: they go to the run's `work/` folder and are deleted when the run is completed ([deliverables only](execution-principles.md#deliverables-only)).
 - `pending`: open questions and missing information, each with an id.
 - `activity` (optional): the id of the Moki activity the request came from, when the request names one (the desktop app says it). It is how the app shows each run under its activity; a request that did not come from an activity has none.
 

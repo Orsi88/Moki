@@ -57,10 +57,10 @@ Optional:
    1. A model attached to this request or present in the collection run's `inputs/models/`.
    2. The project standard listed under "Deliverable templates" in `context/conventions.md` (an `.xlsx` plus its mapping, or a layout, under the project's `templates/` folder).
    3. The default layout.
-   A standard written by the QA in the conversation becomes a layout (same format as the default) saved in the run's outputs folder.
+   A standard written by the QA in the conversation becomes a layout (same format as the default) saved in the run's `work/` folder.
 2. **Mapping** (`mapping`). For an `.xlsx` model, run `inspect`, find the header row and map each column to an evidence field ([mapping](references/mapping.md)), including the status vocabulary. Columns without a source stay empty and become pending items; never fill them by assumption.
 3. **Mapping gate**. If the model or its mapping is new or changed, show the mapping table and wait for approval (`awaiting-approval`). A project standard already approved skips this gate.
-4. **Build** (`build`). Write `rows.json` (or `data.json` for a layout) in the run's outputs folder, one row per test case, then produce the xlsx. File name: the model's name with the source id (for example `Evidence LIB-142.xlsx`), or the layout's `fileName`.
+4. **Build** (`build`). Write `rows.json` (or `data.json` for a layout) in the run's `work/` folder, one row per test case, then produce the xlsx. File name: the model's name with the source id (for example `Evidence LIB-142.xlsx`), or the layout's `fileName`.
 5. **Verify** (`verify`). `inspect` the result: one row per test case, ids and statuses equal to `evidence.json`, no row left from the model's examples. Report the script's warnings.
 6. **Standard** (`promote`). If the model is new, offer to register it as the project standard: copy it (and `mapping.json`) to the project's `templates/` folder and add the entry to `context/conventions.md` through `project-context` (proposal, then confirmation).
 
@@ -82,7 +82,7 @@ Optional:
 
 ## Output format
 
-In `workspace/projects/<project-id>/runs/<run-id>/outputs/`: the xlsx, `rows.json` (or `data.json`) and, for a new model, `mapping.json`. To the user: model used, mapping (at the gate), file path, pending items.
+In `workspace/projects/<project-id>/runs/<run-id>/outputs/`: the xlsx only. `rows.json` (or `data.json`) and, for a new model, `mapping.json` stay in `workspace/projects/<project-id>/runs/<run-id>/work/`. To the user: model used, mapping (at the gate), file path, pending items.
 
 ## Human approval points
 

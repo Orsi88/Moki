@@ -153,6 +153,9 @@ export const servedFile = (content: unknown): string | undefined => (typeof cont
 const SKIP_LINKED = new Set(['node_modules', '.git', '.moki-backup', 'dist', 'build', '__pycache__']); // not listed from a linked folder
 const TOP_ORDER = ['context', 'inbox', 'runs', 'notes', PROPOSALS, 'proposed-updates.md', 'activity-log.md', 'project.json', 'README.md', 'temporary'];
 const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);
+// Scratch files in a project's temporary/ untouched for this many days go to the trash when the project opens.
+export const TEMPORARY_DAYS = 7;
+const DONE_STATUSES = new Set(['completed', 'cancelled']);
 // Root files Moki itself keeps up to date or reads by name: they keep their name.
 const KEPT_NAMES = new Set(['project.json', 'tags.json', 'README.md', 'activity-log.md', 'proposed-updates.md']);
 // A file or folder name a project may hold on any system (Windows is the strictest).
@@ -452,6 +455,26 @@ export function createService(root: string, deps: Deps) {
     if (linked && allow !== true) throw new ServiceError(`${verb} changes ${repo}/.claude. Confirm the ${what === 'remove' ? 'removal' : what} to allow it.`);
     if (repo && !existsSync(repo)) throw new ServiceError(`The linked folder was not found: ${repo}. Link it again.`);
     return repo;
+  };
+
+  // The files under a run's outputs/ (paths relative to the project) that its state.json does not list as deliverables.
+  const leftoversOf = (project: string, runId: unknown): string[] => {
+    const run = listRuns(project, root).find((r) => r.id === runId);
+    if (!run) throw new ServiceError('Unknown run.');
+    const listed = (Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''));
+    if (!listed.length) return [];
+    const base = `runs/${run.id}/outputs`;
+    const out: string[] = [];
+    const walk = (abs: string, rel: string) => {
+      for (const e of readdirSync(abs, { withFileTypes: true })) {
+        const r = `${rel}/${e.name}`;
+        if (e.isDirectory()) walk(join(abs, e.name), r);
+        else if (e.isFile() && !listed.includes(r)) out.push(r);
+      }
+    };
+    const abs = join(projectDir(project), 'runs', run.id, 'outputs');
+    if (existsSync(abs)) walk(abs, base);
+    return out.sort();
   };
 
   // An upload read from the user's computer, waiting for the user to choose items and confirm (see claudeUploadPick).
@@ -1731,6 +1754,39 @@ export function createService(root: string, deps: Deps) {
 
     // A file or folder goes to the trash. A fixed project folder is emptied and stays (the tree
     // recreates it if it is missing). project.json and the linked folder itself stay.
+    // What a project no longer needs, to the trash (recoverable), when it opens: scratch files in temporary/ untouched
+    // for TEMPORARY_DAYS days, and the work/ folder (helper files) of each completed or cancelled run. Returns what went.
+    cleanProject: async (project: string, now: unknown = Date.now()) => {
+      const dir = projectDir(project);
+      const at = typeof now === 'number' ? now : Date.now();
+      const trashed: string[] = [];
+      const tmp = join(dir, 'temporary');
+      if (existsSync(tmp)) {
+        for (const name of readdirSync(tmp)) {
+          try { if (at - statSync(join(tmp, name)).mtimeMs > TEMPORARY_DAYS * 86_400_000) { await trash(join(tmp, name)); trashed.push(`temporary/${name}`); } } catch { /* in use or gone: next time */ }
+        }
+      }
+      for (const run of listRuns(project, root)) {
+        const work = join(dir, 'runs', run.id, 'work');
+        if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
+        try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
+      }
+      return trashed;
+    },
+
+    // Files in a run's outputs/ that are not among its deliverables (state.json artifacts): leftovers to clean.
+    // A run that lists no deliverables has none to compare with, so nothing is called a leftover.
+    runLeftovers: (project: string, runId: unknown) => leftoversOf(project, runId),
+    cleanRun: async (project: string, runId: unknown, paths: unknown) => {
+      const leftovers = new Set(leftoversOf(project, runId));
+      const chosen = Array.isArray(paths) ? [...new Set(paths.map(String))] : [];
+      if (!chosen.length) throw new ServiceError('Choose the files to clean.');
+      const bad = chosen.find((p) => !leftovers.has(p));
+      if (bad) throw new ServiceError(`Not a leftover of this run: ${bad}`);
+      for (const p of chosen) await trash(projectPath(project, p));
+      return chosen.length;
+    },
+
     deleteEntry: async (project: string, rel: unknown) => {
       const path = String(rel ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
       if (!path || path === 'project.json' || path === LINKED) throw new ServiceError('This file stays. Delete the project from the project list.');

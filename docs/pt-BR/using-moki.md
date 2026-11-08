@@ -94,6 +94,10 @@ Para compartilhar o contexto com o time, coloque **a pasta daquele projeto** num
 
 Feche a sessão quando quiser. Cada atividade grava o `state.json` no caminho. Peça à IA para continuar aquela execução — na mesma ferramenta ou em outra — e ela lê o arquivo, resume onde você parou e segue dali. As ferramentas não compartilham memória. Os arquivos são a memória. Num chat, envie de novo o `state.json` e o contexto que importa.
 
+## Só o que você pediu
+
+As IAs entregam só os arquivos que você pediu, no formato que você pediu; quando você não diz o formato e a atividade não define um, elas perguntam. Nada de cópia em outro formato, print de planilha ou arquivo de apoio ao lado: os arquivos de apoio vão para a pasta `work/` da execução e são limpos quando ela é concluída. Se ainda assim sobrar algo nas saídas de uma execução, a página dela lista em **Sobras**, para você mandar para a lixeira.
+
 ## Onde fica cada coisa
 
 | O quê | Onde |
@@ -102,7 +106,8 @@ Feche a sessão quando quiser. Cada atividade grava o `state.json` no caminho. P
 | Outros workspaces | `workspaces/<nome>/` na pasta do Moki, ou a pasta que você escolheu; a lista é `workspaces/workspaces.json` |
 | Um projeto | `workspace/projects/<id>/` (ou `projects/<id>/` em outro workspace) |
 | Conhecimento confirmado | `.../context/` |
-| Uma atividade | `.../runs/<run-id>/` |
+| Uma atividade | `.../runs/<run-id>/`: entregas em `outputs/`; arquivos de apoio em `work/`, limpos quando a execução é concluída |
+| Rascunhos fora de uma execução | `.../temporary/`: o que tem mais de 7 dias vai para a lixeira quando o projeto abre |
 | Skills e agentes deste projeto | `workspace/projects/<id>/skills` e `agents`, ou `<pasta vinculada>/.claude/` |
 | Skills e agentes de todos os projetos | `~/.claude/skills`, `~/.agents/skills`, `~/.claude/agents` |
 | Cópias de agentes prontos | `workspace/library/agents/` |

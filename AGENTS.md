@@ -11,8 +11,9 @@ This repository is a portable library of **QA skills** (Agent Skills format). Yo
 5. **No shared memory.** Continuity comes only from files you read explicitly (`state.json`, project context).
 6. **Language.** Talk to the user in their language. Deliverables are in **English** by default, or in the project's `deliverableLanguage`, or in the language the user explicitly asks for. Quoted source content (documented messages, log lines) stays in its original language.
 7. **No secrets, no external sharing** of project data without configuration and authorization.
+8. **Deliverables only.** Produce only the files asked for, in the format asked; when the format is not given, ask. No copies in other formats, no screenshots of a deliverable, no helper files next to it: those go to the run's `work/` folder and are deleted when the run is completed. List only the deliverables in `state.json` `artifacts`.
 
-Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md).
+Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md) (deliverables only).
 
 ## Skill catalog
 
@@ -90,7 +91,7 @@ workspace/projects/<project-id>/
 ├── project.json, context/, proposed-updates.md, activity-log.md   # project knowledge (confirmed only in context/)
 ├── tags.json                                                      # tags of the project's files
 ├── inbox/                                                         # files the user provides
-└── runs/<run-id>/{state.json, inputs/, outputs/, evidence/, logs/}  # each execution
+└── runs/<run-id>/{state.json, inputs/, outputs/, evidence/, logs/, work/}  # each execution (work/: helper files, deleted when completed)
 ```
 
 **Workspaces.** `workspace/` is the default workspace. The desktop app can open others (folders with the same layout, like Obsidian vaults). When the request names a workspace folder, every `workspace/...` path in this file and in the skills means that folder; paths written inside `state.json` and project files keep the `workspace/...` form, and the npm helper commands need `QA_WORKSPACE=<folder>`. Never read or write another workspace.

@@ -94,6 +94,10 @@ To share context with a team, put **that project folder** in its own private Git
 
 Close the session whenever you want. Each activity writes `state.json` as it goes. Ask the AI to continue that run — in the same tool or another — and it reads the file, summarizes where you stopped, and goes on from there. The tools do not share a memory. The files are the memory. In a chat tool, upload `state.json` and the relevant context again.
 
+## Only what you asked for
+
+The AIs deliver only the files you asked for, in the format you asked; when you do not say the format and the activity does not set one, they ask. No copy in another format, no screenshot of a spreadsheet, no helper file next to it: helper files go to the run's `work/` folder and are cleared when the run is completed. If something extra still lands in a run's outputs, the run's page lists it under **Leftovers**, for you to send to the trash.
+
 ## Where things live
 
 | What | Where |
@@ -102,7 +106,8 @@ Close the session whenever you want. Each activity writes `state.json` as it goe
 | Other workspaces | `workspaces/<name>/` in the Moki folder, or the folder you chose; the list is `workspaces/workspaces.json` |
 | One project | `workspace/projects/<id>/` (or `projects/<id>/` in another workspace) |
 | Confirmed knowledge | `.../context/` |
-| One activity | `.../runs/<run-id>/` |
+| One activity | `.../runs/<run-id>/`: deliverables in `outputs/`; helper files in `work/`, cleared when the run is completed |
+| Scratch files outside a run | `.../temporary/`: what is older than 7 days goes to the trash when the project opens |
 | Skills and agents for this project | `workspace/projects/<id>/skills` and `agents`, or `<linked folder>/.claude/` |
 | Skills and agents for every project | `~/.claude/skills`, `~/.agents/skills`, `~/.claude/agents` |
 | Copies of built-in agents | `workspace/library/agents/` |

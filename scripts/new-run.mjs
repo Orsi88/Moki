@@ -33,7 +33,7 @@ if (args.activity !== undefined && !listActivities(ROOT, args.project).some((a) 
 const id = `${nowStamp()}-${name}-${args.slug}`;
 const runDir = join(projectDir, 'runs', id);
 if (existsSync(runDir)) fail(`Run ${id} already exists.`);
-for (const sub of ['inputs', 'outputs', 'evidence', 'logs']) mkdirSync(join(runDir, sub), { recursive: true });
+for (const sub of ['inputs', 'outputs', 'evidence', 'logs', 'work']) mkdirSync(join(runDir, sub), { recursive: true });
 
 const now = new Date().toISOString();
 const state = {

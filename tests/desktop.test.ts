@@ -1,6 +1,6 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync, utimesSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -834,6 +834,7 @@ test('npm run new-run records --activity, and refuses an activity the project do
     assert.equal(ok.status, 0, ok.stderr);
     const dir = readdirSync(join(ws, 'projects', 'loja', 'runs'))[0];
     assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).activity, 'tests');
+    for (const sub of ['inputs', 'outputs', 'evidence', 'logs', 'work']) assert.ok(existsSync(join(ws, 'projects', 'loja', 'runs', dir, sub)), sub); // work/: helper files, never deliverables
     const bad = run('--activity', 'nao-existe');
     assert.notEqual(bad.status, 0);
     assert.match(bad.stderr, /Unknown activity "nao-existe"/);
@@ -2057,6 +2058,40 @@ test('upload of skills and agents: preview writes nothing, blocks per item, inst
   assert.equal(existsSync(join(linked.backup!, '.claude', 'skills')), false);
 
   for (const dir of [home, src, repo, join(root, 'workspace', 'projects', 'up-linked'), join(projectDir, 'skills'), join(projectDir, 'agents')]) rmSync(dir, { recursive: true, force: true });
+});
+
+test('leftovers: old scratch files and finished runs\' helper files go when the project opens; outputs not delivered are cleaned on request', async () => {
+  const dir = join(root, 'workspace', 'projects', 'acme');
+  const runs = join(dir, 'runs');
+  const make = (rel: string, text = 'x') => { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), text); };
+  const state = (id: string, status: string, artifacts: string[]) => writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: 1, id, project: 'acme', skill: 'test-design', status, artifacts }));
+  const done = '20261108-1100-test-design-done';
+  const going = '20261108-1101-test-design-going';
+  try {
+    make('temporary/request-old.md'); make('temporary/request-new.md');
+    const old = (Date.now() - 8 * 86_400_000) / 1000;
+    utimesSync(join(dir, 'temporary', 'request-old.md'), old, old);
+    make(`runs/${done}/work/data.json`); make(`runs/${done}/outputs/Test cases.xlsx`); make(`runs/${done}/outputs/Test cases.png`); make(`runs/${done}/outputs/extra/Test cases.csv`);
+    state(done, 'completed', [`workspace/projects/acme/runs/${done}/outputs/Test cases.xlsx`]);
+    make(`runs/${going}/work/review-matrix.json`); make(`runs/${going}/outputs/draft.md`);
+    state(going, 'awaiting-input', []);
+
+    // Opening the project: the old scratch file and the finished run's work/ go; the rest stays.
+    assert.deepEqual((await service.cleanProject('acme')).sort(), [`runs/${done}/work`, 'temporary/request-old.md']);
+    assert.ok(existsSync(join(dir, 'temporary', 'request-new.md')));
+    assert.ok(existsSync(join(runs, going, 'work', 'review-matrix.json')), 'a run still going keeps its working files');
+    // Leftovers: in outputs/ but not delivered. A run listing no deliverables has nothing to compare with.
+    assert.deepEqual(service.runLeftovers('acme', done), [`runs/${done}/outputs/Test cases.png`, `runs/${done}/outputs/extra/Test cases.csv`]);
+    assert.deepEqual(service.runLeftovers('acme', going), []);
+    await assert.rejects(service.cleanRun('acme', done, [`runs/${done}/outputs/Test cases.xlsx`]), /Not a leftover/);
+    await assert.rejects(service.cleanRun('acme', done, []), /Choose the files/);
+    assert.equal(await service.cleanRun('acme', done, [`runs/${done}/outputs/Test cases.png`, `runs/${done}/outputs/extra/Test cases.csv`]), 2);
+    assert.ok(existsSync(join(runs, done, 'outputs', 'Test cases.xlsx')), 'the deliverable stays');
+    assert.deepEqual(service.runLeftovers('acme', done), []);
+    assert.throws(() => service.runLeftovers('acme', 'nope'), /Unknown run/);
+  } finally {
+    for (const p of [join(runs, done), join(runs, going), join(dir, 'temporary', 'request-new.md')]) rmSync(p, { recursive: true, force: true });
+  }
 });
 
 test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace and links them to the project', async () => {

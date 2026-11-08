@@ -28,6 +28,16 @@ The framework contains no rules specific to any company or application. Never as
 - Limit retries: at most **3 attempts** for the same failing action unless the skill defines a lower limit. Then stop and report.
 - Stop on blockers (missing mandatory input, no access, contradictory instructions) and report them instead of guessing.
 
+## Deliverables only
+
+The user keeps what they asked for, nothing else.
+
+- Deliver exactly the files the request (or the skill's procedure) asks for, in the format asked. A spreadsheet asked as `.xlsx` is one `.xlsx`: no copy in another format (`.csv`, `.json`, `.md`, `.pdf`), no screenshot or image of it, no extra versions.
+- When the format of a file is not given by the user, the activity or the skill, ask which format before producing it. Do not produce several formats to cover the options.
+- Files that only help produce a deliverable — the data or Markdown a generator reads (`npm run xlsx`, `docx`, `pdf`), working data kept between steps, helper scripts, drafts — go to the run's `work/` folder (`runs/<run-id>/work/`), never next to the deliverable; they are deleted when the run is completed. Without a run they go to `workspace/projects/<project-id>/temporary/`, which the app empties of anything older than a few days.
+- Check a deliverable by reading it (`npm run xlsx -- read`, `npm run docx -- inspect`, reading the text), not by rendering screenshots of it. Render an image only when the user asks for one.
+- `state.json` `artifacts` lists the deliverables only; anything in `outputs/` that is not listed there is treated as leftover.
+
 ## Language
 
 Skill instructions are written in English.

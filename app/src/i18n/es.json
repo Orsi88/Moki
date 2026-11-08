@@ -1696,5 +1696,10 @@
   "Skills, agents, activities or a whole .claude folder": "Skills, agentes, actividades o una carpeta .claude entera",
   "Bring to this project": "Traer a este proyecto",
   "Brought from {project}": "Traído de {project}",
-  "Uploaded": "Traídos"
+  "Uploaded": "Traídos",
+  "Leftovers": "Sobrantes",
+  "Leftovers ({n})": "Sobrantes ({n})",
+  "In the outputs folder, but not among the files this run delivered. Choose what goes to the trash.": "Están en la carpeta de salidas, pero no entre los archivos que entregó esta ejecución. Elige qué va a la papelera.",
+  "Send to the trash ({n})": "Enviar a la papelera ({n})",
+  "{n} file(s) sent to the trash.": "{n} archivo(s) enviados a la papelera."
 }

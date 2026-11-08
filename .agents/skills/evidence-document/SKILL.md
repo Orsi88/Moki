@@ -58,7 +58,7 @@ Optional:
    3. The [default structure](references/document-format.md#default-structure).
 2. **Outline** (`outline`). `inspect` the model. With placeholders (`{{name}}`): map each one to an evidence field; `{{content}}` marks where the test cases go. Without placeholders, the model is an example: reproduce its sections, tables and order with the evidence (its header, footer, styles and page setup are kept automatically; its body is replaced). Placeholders or sections without a source stay empty and become pending items.
 3. **Outline gate**. If the model or its structure is new or changed, show the outline and wait for approval (`awaiting-approval`). An approved project standard skips this gate.
-4. **Build** (`build`). Write `document.json` in the run's outputs folder; image paths point to the collection run's evidence folder. Produce the docx. File name: the model's name with the source id (for example `Evidence LIB-142.docx`), or `Test Evidence <source id>.docx` (pt-BR: `Evidências de Teste <id>.docx`).
+4. **Build** (`build`). Write `document.json` in the run's `work/` folder; image paths point to the collection run's evidence folder. Produce the docx. File name: the model's name with the source id (for example `Evidence LIB-142.docx`), or `Test Evidence <source id>.docx` (pt-BR: `Evidências de Teste <id>.docx`).
 5. **Verify** (`verify`). `inspect` the result: one section per test case, images = files listed in `evidence.json`, no `{{placeholder}}` left, no script warning unexplained.
 6. **Standard** (`promote`). If the model is new, offer to register it as the project standard: copy it to the project's `templates/` folder and add the entry to `context/conventions.md` through `project-context` (proposal, then confirmation).
 
@@ -80,7 +80,7 @@ Optional:
 
 ## Output format
 
-In `workspace/projects/<project-id>/runs/<run-id>/outputs/`: the docx and `document.json`. To the user: model used, outline (at the gate), file path, pending items.
+In `workspace/projects/<project-id>/runs/<run-id>/outputs/`: the docx only (`document.json` stays in `workspace/projects/<project-id>/runs/<run-id>/work/`). To the user: model used, outline (at the gate), file path, pending items.
 
 ## Human approval points
 

@@ -2034,6 +2034,9 @@ test.describe('Moki run details panel', () => {
       mkdirSync(join(run, 'outputs', 's2'), { recursive: true });
       writeFileSync(join(run, 'outputs', 's1', 'revisao.md'), '# Primeira');
       writeFileSync(join(run, 'outputs', 's2', 'revisao.md'), '# Segunda');
+      // Not delivered: a screenshot and a copy in another format, left in outputs/ by the AI.
+      writeFileSync(join(run, 'outputs', 's2', 'revisao.png'), 'png');
+      writeFileSync(join(run, 'outputs', 'revisao.csv'), 'a,b');
       writeFileSync(join(run, 'state.json'), JSON.stringify({ id, status: 'in-progress', currentStep: 's2', completedSteps: ['s1'], approvals: [{ step: 's1', decision: 'approved' }], artifacts: [`workspace/projects/acme/runs/${id}/outputs/s1/revisao.md`, `workspace/projects/acme/runs/${id}/outputs/s2/revisao.md`], ...(id === operation ? { operation: { id: 'demo', name: 'Fluxo de teste' }, workflow: 'operation-demo' } : { skill: 'project-context' }) }));
     }
     let window: ElectronApplication | undefined;
@@ -2059,6 +2062,14 @@ test.describe('Moki run details panel', () => {
       await expect(files).toHaveCount(2);
       await expect(files.nth(0)).toContainText('outputs/s1');
       await expect(files.nth(1)).toContainText('outputs/s2');
+      // What is in outputs/ but not delivered is offered for the trash, one by one.
+      const leftovers = details.getByRole('region', { name: 'Sobras' });
+      await expect(leftovers.getByRole('heading')).toHaveText('Sobras (2)');
+      await leftovers.getByRole('checkbox', { name: 'revisao.csv' }).uncheck();
+      await leftovers.getByRole('button', { name: 'Mandar para a lixeira (1)' }).click();
+      await expect(leftovers.getByRole('checkbox')).toHaveCount(1);
+      expect(existsSync(join(project, 'runs', activity, 'outputs', 's2', 'revisao.png'))).toBe(false);
+      expect(existsSync(join(project, 'runs', activity, 'outputs', 's2', 'revisao.md'))).toBe(true);
       await details.getByRole('button', { name: 'Fechar' }).click();
       await page.locator(`.tree-row[title*="${operation}"]`).click();
       await page.locator(`.tree-row[title="runs/${operation}/state.json"]`).click();

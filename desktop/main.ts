@@ -300,6 +300,8 @@ if (!app.requestSingleInstanceLock()) {
       linkedWatcher = null;
       if (typeof project !== 'string' || !isProject(project, ROOT)) return false;
       const changed = () => win?.webContents.send('qa:changed', project);
+      // Opening a project clears what it no longer needs (old scratch files, helper files of finished runs) to the trash.
+      service.cleanProject(project).catch(() => { /* cleaning is a convenience */ });
       try {
         watcher = watchProject(join(projectsDir(ROOT), project), changed, { maxDirs: 2000 });
       } catch { return false; }
