@@ -12,6 +12,7 @@ import { t } from '../i18n';
 import { IconStar } from './Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 import { TagField, useTagCatalog } from './TagField';
+import { BroughtMark, useUploads } from './BroughtMark';
 
 type Kind = 'all' | 'favorites' | 'moki' | 'builtin' | 'library';
 type Targets = { skills: string[]; agents: string[]; workflows: string[]; operations: { id: string; name: string }[] };
@@ -29,6 +30,7 @@ const toDraft = (a: ActivityDetail): ActivityDraft => ({
 });
 
 export function ActivitiesPage() {
+  const uploads = useUploads();
   const [list, setList] = useState<ActivityInfo[] | null>(null);
   const [kind, setKind] = useState<Kind>('all');
   const [query, setQuery] = useState('');
@@ -199,7 +201,7 @@ export function ActivitiesPage() {
         {shown.map((a) => (
           <li key={a.id} className="activity-item">
             <button type="button" className="list-card" onClick={() => { void show(a.id); }}>
-              <span className="list-card-title">{t(a.label)}</span>
+              <span className="list-card-title">{t(a.label)}<BroughtMark uploads={uploads} kind="activity" name={a.id} /></span>
               <span className="list-card-desc">{t(a.hint)}</span>
               <span className="chips">
                 <span className={`chip${a.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(a.source)}</span>

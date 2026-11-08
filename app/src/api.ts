@@ -207,10 +207,12 @@ export interface RegistrySkill {
 export interface SkillSearchPage { items: RegistrySkill[]; page: number; pages: number; total: number; capped: boolean }
 export interface InstallResult { name: string; files: number; folders: string[]; unverified: string[]; backup?: string }
 export type SkillScope = 'project' | 'global';
-// Upload of skills and agents from a .claude folder or a .zip (desktop/claude-import.ts). reason: why an item cannot be installed.
-export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed';
+// Where an upload goes: a scope, or 'bring' (a project's settings: into the workspace, linked to the project).
+export type UploadTarget = SkillScope | 'bring';
+// Upload of skills, agents and activities from a .claude folder, a .zip or a .md (desktop/claude-import.ts). reason: why an item cannot be installed.
+export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
 export interface UploadItem {
-  kind: 'skill' | 'agent'; name: string; description: string; files: number; bytes: number; discarded: string[];
+  kind: 'skill' | 'agent' | 'activity'; name: string; description: string; files: number; bytes: number; discarded: string[];
   blocked?: { reason: UploadBlock; detail?: string; file?: string };
 }
 export interface UploadPreview {
@@ -434,9 +436,11 @@ export const api = {
   craftApps: () => call<{ id: string; label: string }[]>('craftApps'),
   craftDownloadInfo: (id: string) => call<CraftDownloadInfo>('craftDownloadInfo', id),
   craftDownload: (id: string, tag: string, file: string) => call<{ path: string; sha256: string } | null>('craftDownload', id, tag, file),
-  claudeUploadPick: (source: 'folder' | 'zip', project: string, scope: SkillScope) => call<UploadPreview | null>('claudeUploadPick', source, project, scope),
-  claudeUploadPreview: (project: string, scope: SkillScope) => call<UploadPreview>('claudeUploadPreview', project, scope),
-  claudeUploadApply: (project: string, scope: SkillScope, selected: string[], allowClaudeWrite = false) =>
+  claudeUploadPick: (source: 'folder' | 'zip' | 'file', project: string, scope: UploadTarget) => call<UploadPreview | null>('claudeUploadPick', source, project, scope),
+  claudeUploadPath: (path: string, project: string, scope: UploadTarget) => call<UploadPreview>('claudeUploadPath', path, project, scope),
+  claudeUploadPreview: (project: string, scope: UploadTarget) => call<UploadPreview>('claudeUploadPreview', project, scope),
+  uploads: () => call<Record<string, { project: string; projectName: string; at: string }>>('uploads'),
+  claudeUploadApply: (project: string, scope: UploadTarget, selected: string[], allowClaudeWrite = false) =>
     call<{ installed: { kind: string; name: string; folders: string[] }[]; backup?: string }>('claudeUploadApply', project, scope, selected, allowClaudeWrite),
   proposeSkill: (project: string, req: { name: string; prompt: string; tool: string; language: string }) => call<LaunchResult>('proposeSkill', project, req),
   skillProposals: (project: string) => call<{ name: string; description: string }[]>('skillProposals', project),

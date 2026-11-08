@@ -163,7 +163,7 @@ test.describe.serial('Moki settings', () => {
     await page.getByRole('button', { name: 'Adicionar skill' }).click();
     await expect(page.getByRole('tab', { name: 'Criar skill' })).toBeVisible();
     await page.getByRole('tab', { name: 'Enviar', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Escolher um arquivo .zip' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Escolher arquivo (.zip ou .md)' })).toBeVisible();
     await expect(page.getByText('Instalar para')).toHaveCount(0); // Settings installs for every project
     await page.getByRole('button', { name: 'Voltar para Skills' }).click();
   });
@@ -2995,5 +2995,46 @@ test.describe.serial('Moki project defaults', () => {
     await expect(settings.getByRole('list', { name: 'Atividades', exact: true })).not.toContainText('Triagem de log');
     await expect(settings.getByRole('list', { name: 'Templates' }).locator('li', { hasText: 'Cliente' }).getByRole('radio', { name: 'Em uso' })).toBeChecked();
     await settings.getByRole('button', { name: 'Cancelar' }).click();
+  });
+
+  test('bring to this project: one upload is sorted by kind, linked here and marked in the workspace settings', async () => {
+    // A kit with an agent (Claude Code format) and an activity; the native folder dialog answers with it.
+    const kit = mkdtempSync(join(tmpdir(), 'moki-kit-'));
+    dirs.push(kit);
+    mkdirSync(join(kit, '.claude', 'agents'), { recursive: true });
+    mkdirSync(join(kit, 'activities'), { recursive: true });
+    writeFileSync(join(kit, '.claude', 'agents', 'log-scout.md'), '---\nname: log-scout\ndescription: Finds the failing line\ntools: Read, Grep\n---\nLook at the log first.\n');
+    writeFileSync(join(kit, 'activities', 'log-triage.md'), '---\nlabel: "Triagem do log"\ndescription: ""\ncategory: "QA"\nfiles: required\nnote: ""\ntags: ""\n---\n\nSepare os erros do log.\n');
+    await defApp.evaluate(({ dialog }, folder) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [folder] })) as typeof dialog.showOpenDialog; }, kit);
+
+    await dp.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
+    const settings = dp.getByRole('dialog', { name: /^Configurações de / });
+    await settings.getByRole('button', { name: 'Trazer para este projeto' }).click();
+    const bring = dp.getByRole('dialog', { name: 'Trazer para este projeto' });
+    await expect(bring.getByRole('group', { name: 'Área para soltar' })).toContainText('Arraste uma pasta, um .zip ou um .md para cá');
+    await bring.getByRole('button', { name: 'Escolher uma pasta' }).click();
+    // Sorted by kind, everything checked; installed only after confirming.
+    await expect(bring.getByRole('region', { name: 'Agentes' })).toContainText('log-scout');
+    await expect(bring.getByRole('region', { name: 'Atividades' })).toContainText('log-triage');
+    await expect(bring.getByRole('region', { name: 'Skills' })).toHaveCount(0);
+    dp.once('dialog', (d) => { void d.accept(); });
+    await bring.getByRole('button', { name: 'Instalar os itens escolhidos' }).click();
+    await expect(bring.getByRole('status')).toContainText('2');
+    await bring.locator('.modal-foot').getByRole('button', { name: 'Fechar', exact: true }).click();
+    // Already linked here: the fields show them, and saving keeps them.
+    await expect(settings.getByRole('list', { name: 'Agentes', exact: true })).toContainText('log-scout');
+    await expect(settings.getByRole('list', { name: 'Atividades', exact: true })).toContainText('Triagem do log');
+    await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(settings).toBeHidden();
+    const root = join(project, '..', '..', '..');
+    expect(readFileSync(join(root, 'workspace', 'library', 'activities', 'log-triage.md'), 'utf8')).toContain('tags: "project:acme"');
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'library', 'agent-tags.json'), 'utf8')).agents['log-scout']).toEqual(['project:acme']);
+    // The workspace settings list them with the mark of where they came from.
+    await dp.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await dp.getByRole('tab', { name: 'Agentes' }).click();
+    await expect(dp.locator('.library-item', { hasText: 'log-scout' }).getByRole('img', { name: 'Trazido de Acme Library' })).toBeVisible();
+    await dp.getByRole('tab', { name: 'Atividades' }).click();
+    await expect(dp.locator('.list-card', { hasText: 'Triagem do log' }).getByRole('img', { name: 'Trazido de Acme Library' })).toBeVisible();
+    await dp.keyboard.press('Escape');
   });
 });

@@ -17,6 +17,7 @@ import { StarButton, useFavorites } from './Favorites';
 import { SkillCat } from './SkillCat';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload } from './ClaudeUpload';
+import { BroughtMark, useUploads } from './BroughtMark';
 
 type Kind = 'all' | 'native' | 'created' | 'installed' | 'plugin';
 type Place = { kind: 'global'; linkedBy: string[] } | { kind: 'project'; project: ProjectSummary };
@@ -42,6 +43,7 @@ const READY = new Set(['stable', 'draft']);
 
 export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = false }: Props) {
   const fav = useFavorites('skills');
+  const uploads = useUploads();
   const [skills, setSkills] = useState<Skill[] | null>(null);
   const [plugins, setPlugins] = useState<Record<string, string[]>>(() => Object.fromEntries(projects.map((p) => [p.id, p.plugins])));
   const [kind, setKind] = useState<Kind>('all');
@@ -246,7 +248,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
         {fav.first(shown, (s) => s.name).map((s) => (
           <li key={s.name} className="fav-item">
             <button type="button" className={`list-card skill-item${s.plugin ? ' is-plugin' : ''}`} onClick={() => setOpen(s.name)}>
-              <span className="list-card-title"><CatIcon id={skillCat(s.name)} size={26} />{s.name}</span>
+              <span className="list-card-title"><CatIcon id={skillCat(s.name)} size={26} />{s.name}<BroughtMark uploads={uploads} kind="skill" name={s.name} /></span>
               <span className="list-card-desc">{s.description}</span>
               <span className="chips">{badges(s)}</span>
             </button>

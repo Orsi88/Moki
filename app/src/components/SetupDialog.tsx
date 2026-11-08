@@ -10,8 +10,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectLinks, type ProjectSummary, type Reach } from '../api';
 import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
-import { ClaudeUpload } from './ClaudeUpload';
-import { IconLock, IconSearch, IconX } from './Icons';
+import { ClaudeUpload, type UploadDone } from './ClaudeUpload';
+import { IconLock, IconSearch, IconUpload, IconX } from './Icons';
 import { ChipPicker, type PickChip, type PickOption } from './ChipPicker';
 
 interface Props {
@@ -65,19 +65,29 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   // Ask the AI next: on by default only in the plan flows (a blank project, a plan to approve); editing settings opens nothing.
   const [prepare, setPrepare] = useState<boolean | null>(null);
   const [finding, setFinding] = useState<string | null>(null); // Find skills query while open
-  const [uploading, setUploading] = useState(false); // the upload of skills or a .claude folder is open on top
+  const [uploading, setUploading] = useState(false); // "Bring to this project" is open on top
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const loadGlobal = useCallback(() => { api.installedSkills(project.id).then((s) => { setGlobal(s.global); setArtcraft(s.artcraft); }).catch(() => { /* keep */ }); }, [project.id]);
   useEffect(loadGlobal, [loadGlobal]);
   // What can be a default here: the activities this project sees (not the app's own actions), usable skills, operations.
-  useEffect(() => {
+  const loadKinds = useCallback(() => {
     api.activities(project.id).then((r) => setActivities(r.activities.filter((a) => a.source !== 'moki' && a.available))).catch(() => setActivities([]));
     api.skills().then((list) => setSkills(list.filter((s) => s.status === 'draft' || s.status === 'stable').map((s) => s.name))).catch(() => setSkills([]));
     api.operations().then(setOperations).catch(() => setOperations([]));
     api.projectLinks(project.id).then(setLinks).catch(() => setLinks(null));
   }, [project.id]);
+  useEffect(loadKinds, [loadKinds]);
+  // What was brought in is already linked to the project (its tag, its linked skills): the fields show it at once,
+  // and saving keeps it.
+  const onBrought = (done: UploadDone) => {
+    const of = (kind: string) => done.installed.filter((i) => i.kind === kind).map((i) => i.name);
+    setLinked((s) => [...new Set([...s, ...of('skill')])]);
+    setEnabled((s) => [...new Set([...s, ...of('agent')])]);
+    api.agents().then((list) => setAgents(list.filter((a) => a.usable))).catch(() => { /* keep */ });
+    loadGlobal(); loadKinds();
+  };
 
   // A plan waiting for approval preselects what the AI recommended.
   useEffect(() => {
@@ -215,7 +225,11 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
               ? t('The AI recommended what is checked below (the full plan is in proposed-updates.md). Keep what you want; nothing is created before you save.')
               : t('What the project is, what an AI opened in it starts with, and what it uses. You can change this later.')}</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <div className="modal-head-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUploading(true)}
+              title={t('Skills, agents, activities or a whole .claude folder')}><IconUpload size={15} /> {t('Bring to this project')}</button>
+            <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          </div>
         </header>
 
         <div className="modal-body">
@@ -247,7 +261,6 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
                 <button key={q} type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(q)} title={t('Suggested by the AI: not installed yet')}><IconSearch size={15} /> {t('Find “{q}”', { q })}</button>
               ))}
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(description)}><IconSearch size={15} /> {t('Find new skills')}</button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUploading(true)}>{t('Upload skills or a .claude folder')}</button>
             </div>
           </Section>
 
@@ -348,14 +361,14 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
       </div>
     </div>
     {uploading && (
-      <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) { setUploading(false); loadGlobal(); } }}>
+      <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploading(false); }}>
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
           <header className="modal-head">
-            <h2 id="upload-title">{t('Upload skills or a .claude folder')}</h2>
-            <button type="button" className="icon-btn" onClick={() => { setUploading(false); loadGlobal(); }} title={t('Close')}><IconX size={18} /></button>
+            <h2 id="upload-title">{t('Bring to this project')}</h2>
+            <button type="button" className="icon-btn" onClick={() => setUploading(false)} title={t('Close')}><IconX size={18} /></button>
           </header>
-          <div className="modal-body"><ClaudeUpload project={project} scopes={['project', 'global']} onInstalled={loadGlobal} /></div>
-          <footer className="modal-foot"><button type="button" className="btn btn-ghost" onClick={() => { setUploading(false); loadGlobal(); }}>{t('Close')}</button></footer>
+          <div className="modal-body"><ClaudeUpload project={project} scopes={['bring']} onInstalled={onBrought} /></div>
+          <footer className="modal-foot"><button type="button" className="btn btn-ghost" onClick={() => setUploading(false)}>{t('Close')}</button></footer>
         </div>
       </div>
     )}

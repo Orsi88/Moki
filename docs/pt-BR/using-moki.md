@@ -24,6 +24,8 @@ As **Configurações do projeto** (o ícone ao lado do nome do projeto, o menu �
 - **Suas atividades**, **Templates**: marcar um aqui dá a ele a tag do projeto, a mesma que as Configurações mostram (e vice-versa); o que chega por uma tag compartilhada, ou vale para todos os projetos, fica travado com o motivo. O template em uso formata as entregas.
 - **Servidores MCP**: os que o projeto recebe, só leitura (mude nas Configurações).
 
+**Trazer para este projeto** (no topo das configurações do projeto) recebe skills, agentes e atividades, um de cada vez (um .md, a pasta de uma skill) ou uma pasta .claude inteira ou um .zip, arrastados ou escolhidos. O Moki separa o que encontrar por tipo, bloqueia o que não for seguro ou já existir, e instala só o que você confirmar: as skills para todos os projetos (ligadas a este), os agentes e as atividades entre os seus, com a tag deste projeto. As configurações gerais também mostram esses itens, com uma marca dizendo de que projeto vieram.
+
 Uma IA aberta no projeto (Novo › IA) começa com eles: se o único padrão for uma atividade que não pede arquivos, ela começa na hora; senão, a IA assume o papel do agente padrão, usa as skills padrão, diz em uma ou duas linhas o que está configurado e o que precisa, e espera. A aba mostra isso ("Claude Code · failure-analyst"). Uma atividade escolhida em **Chamar…** vai sem os padrões e sem as instruções, e o **Chamar…** lista os padrões primeiro. Em Novo › IA, *Sem o padrão do projeto* abre uma IA sem nada disso.
 
 Aí você conversa nessa ferramenta como de costume. O pedido cita o projeto, a pasta vinculada e as skills e os agentes instalados nele.

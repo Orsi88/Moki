@@ -18,7 +18,8 @@ import { pathReady } from './tool-path.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
 import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
-import { LIMITS, readFolder, readZip, scan, type Scan } from './claude-import.ts';
+import { LIMITS, readFolder, readMarkdown, readZip, scan, type Scan } from './claude-import.ts';
+import { listUploads, recordUploads } from '../scripts/lib/uploads.ts';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
 import { setWorkspaceDir, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
@@ -28,7 +29,7 @@ import { checkOperation, cleanOperation, formatMessage, listOperations, removeOp
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favorites.ts';
-import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
+import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
 import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
@@ -43,7 +44,7 @@ import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, type ProbeResult } from './mcp-probe.ts';
-import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
+import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
 // writeFile with a base the file no longer holds (the app offers to see the new version or keep its own).
@@ -61,7 +62,7 @@ export interface Deps {
   pickFolder?: () => Promise<string | null>; // native folder dialog; the UI never sends paths
   saveFile?: (name: string, extension: string, title?: string) => Promise<string | null>; // native save dialog (exporting a note, downloading an app); the UI never sends paths
   craftSystem?: { platform: string; arch: string; family?: string }; // which release files fit this computer; family = 'rpm' | 'deb' | '' (tests fake it)
-  pickFile?: () => Promise<string | null>; // native dialog for a .zip (an uploaded .claude); the UI never sends paths
+  pickFile?: () => Promise<string | null>; // native dialog for a .zip or a .md (an upload); the UI never sends paths
   parse?: ParseClient; // Word and spreadsheet previews on a worker thread (desktop/parse-pool.ts); without it they parse inline
   home?: string; // user folder for skills and agents for all projects (tests point it elsewhere)
   fetch?: typeof fetch;
@@ -455,15 +456,41 @@ export function createService(root: string, deps: Deps) {
 
   // An upload read from the user's computer, waiting for the user to choose items and confirm (see claudeUploadPick).
   let upload: Scan | null = null;
+  // A folder, a .zip or one .md, read and scanned; nothing is written.
+  const readUpload = (chosen: string, project: unknown, scope: unknown) => {
+    if (!existsSync(chosen)) throw new ServiceError('Not found.');
+    const st = statSync(chosen);
+    const ext = extname(chosen).toLowerCase();
+    if (st.isFile() && (!['.zip', '.md'].includes(ext) || st.size > LIMITS.maxTotalBytes)) throw new ServiceError(`Choose a folder, or a .zip or .md file of up to ${LIMITS.maxTotalBytes / 1048576} MB.`);
+    if (!st.isFile() && !st.isDirectory()) throw new ServiceError('Choose a folder, or a .zip or .md file.');
+    upload = failing(() => scan(st.isDirectory() ? readFolder(chosen) : ext === '.zip' ? readZip(readFileSync(chosen)) : readMarkdown(basename(chosen), readFileSync(chosen)), reservedNames()));
+    return uploadPreview(project, scope);
+  };
   // Moki's own skills and agents: an upload may not take their names.
-  const reservedNames = () => ({ skills: new Set(listSkills(root).map((x) => x.name)), agents: new Set(listAgents(root).filter((a) => a.source === 'builtin').map((a) => a.name)) });
+  const reservedNames = () => ({
+    skills: new Set(listSkills(root).map((x) => x.name)),
+    agents: new Set(listAgents(root).filter((a) => a.source === 'builtin').map((a) => a.name)),
+    activities: new Set(listActivities(root).filter((a) => a.source !== 'library').map((a) => a.id)),
+  });
+  // "bring" (a project's settings): everything goes where the workspace keeps it - skills for all projects, the
+  // person's agents and activities - linked to the project (its tag, its linked skills), so both settings show it.
+  const uploadFolders = (id: string, scope: unknown) => {
+    if (scope !== 'bring') return scopeFolders(id, scope);
+    projectDir(id);
+    return { skills: globalSkillDirs, agents: libraryDir(root), label: globalSkillDirs[0], agentsLabel: libraryDir(root) };
+  };
+  const uploadTaken = (e: Scan['entries'][number], f: { skills: string[]; agents: string }, scope: unknown): boolean => {
+    if (e.kind === 'activity') return Boolean(getActivity(e.name, root));
+    if (e.kind === 'skill') return f.skills.some((d) => existsSync(join(d, e.name)));
+    return scope === 'bring' ? listAgents(root).some((a) => a.name === e.name) : existsSync(join(f.agents, `${e.name}.md`));
+  };
   const uploadPreview = (project: unknown, scope: unknown) => {
     if (!upload) throw new ServiceError('Choose what to upload first.');
     const id = typeof project === 'string' ? project : '';
-    const f = scopeFolders(id, scope);
+    const f = uploadFolders(id, scope);
     const repo = scope === 'project' ? projectRepository(id, root) : '';
     const items = upload.entries.map((e) => {
-      const taken = !e.blocked && (e.kind === 'skill' ? f.skills.some((d) => existsSync(join(d, e.name))) : existsSync(join(f.agents, `${e.name}.md`)));
+      const taken = !e.blocked && uploadTaken(e, f, scope);
       return {
         kind: e.kind, name: e.name, description: e.description.slice(0, 300), files: e.files.length, bytes: e.files.reduce((n, x) => n + x.data.length, 0),
         discarded: e.discarded, blocked: e.blocked ?? (taken ? { reason: 'installed' as const } : undefined),
@@ -1919,17 +1946,24 @@ export function createService(root: string, deps: Deps) {
     // The source is chosen in the native dialog and read here; nothing is written until claudeUploadApply, after the
     // user marked items and confirmed. Destinations are the existing install scopes (scopeFolders).
     claudeUploadPick: async (source: unknown, project: unknown = '', scope: unknown = 'global') => {
-      if (source !== 'folder' && source !== 'zip') throw new ServiceError('Choose a folder or a .zip file.');
-      const pick = source === 'zip' ? deps.pickFile : deps.pickFolder;
+      if (source !== 'folder' && source !== 'zip' && source !== 'file') throw new ServiceError('Choose a folder, or a .zip or .md file.');
+      const pick = source === 'folder' ? deps.pickFolder : deps.pickFile;
       if (!pick) throw new ServiceError('Choosing a file or folder is not available here.');
       const chosen = await pick();
       if (!chosen) return null;
-      if (!existsSync(chosen)) throw new ServiceError('Not found.');
-      const st = statSync(chosen);
-      if (source === 'zip' && (!st.isFile() || st.size > LIMITS.maxTotalBytes)) throw new ServiceError(`Choose a .zip file of up to ${LIMITS.maxTotalBytes / 1048576} MB.`);
-      if (source === 'folder' && !st.isDirectory()) throw new ServiceError('Choose a folder.');
-      upload = failing(() => scan(source === 'zip' ? readZip(readFileSync(chosen)) : readFolder(chosen), reservedNames()));
-      return uploadPreview(project, scope);
+      return readUpload(chosen, project, scope);
+    },
+    // A folder or file dropped on the upload area: the window gives its path (preload filePath); it is only read here.
+    claudeUploadPath: (path: unknown, project: unknown = '', scope: unknown = 'global') => {
+      const p = String(path ?? '');
+      if (!p || !isAbsolute(p)) throw new ServiceError('Drop a folder, or a .zip or .md file.');
+      return readUpload(p, project, scope);
+    },
+
+    // What was brought from a project's settings: "<kind>:<name>" → the project (its name) and when.
+    uploads: () => {
+      const names = Object.fromEntries(listProjects(root).map((p) => [p, projectSummary(p, root).name]));
+      return Object.fromEntries(Object.entries(listUploads(root)).map(([k, v]) => [k, { ...v, projectName: names[v.project] ?? v.project }]));
     },
 
     // The same upload seen for another destination (the user changed the scope): items already installed there are blocked.
@@ -1944,8 +1978,11 @@ export function createService(root: string, deps: Deps) {
       const bad = items.find((i) => i?.blocked);
       if (bad) throw new ServiceError(`"${bad.name}" cannot be installed (${bad.blocked?.reason}).`);
       const id = typeof project === 'string' ? project : '';
-      const repo = linkedWrite(id, scope, allowClaudeWrite, 'install');
-      const f = scopeFolders(id, scope);
+      const bring = scope === 'bring';
+      const repo = bring ? '' : linkedWrite(id, scope, allowClaudeWrite, 'install');
+      const f = uploadFolders(id, scope);
+      // An activity brought to (or uploaded for) a project gets its tag; one for all projects gets none.
+      const activityTags = scope === 'global' ? [] : [projectTag(id)];
       const entries = (upload as Scan).entries.filter((e) => keys.includes(`${e.kind}:${e.name}`));
       const backup = repo ? backupAiConfig(backupsDir(id), repo, 'claude', ['.claude']) : undefined;
       // Everything is new (installed names are blocked), so undoing a failure is removing what was created.
@@ -1966,6 +2003,20 @@ export function createService(root: string, deps: Deps) {
                 writeFileSync(target, file.data);
               }
             }
+          } else if (e.kind === 'activity') {
+            const { activity } = parseActivity(e.files[0].data.toString('utf8'), e.name, 'library');
+            if (!activity) throw new Error(`${e.name} is not a valid activity`);
+            const saved = saveLibraryActivity(e.name, activityMarkdown({ ...activity, tags: activityTags }), root);
+            if (saved.path) { created.push(saved.path); folders.push(saved.path); }
+          } else if (bring) {
+            // One of the person's agents, in Moki's format, reaching this project by its tag.
+            const { text, category } = libraryAgentText(e.files[0].data.toString('utf8'), e.name);
+            const dir = join(f.agents, category);
+            make(dir);
+            const target = inside(dir, `${e.name}.md`);
+            writeFileSync(target, text);
+            created.push(target);
+            folders.push(target);
           } else {
             make(f.agents);
             const target = inside(f.agents, `${e.name}.md`);
@@ -1980,6 +2031,18 @@ export function createService(root: string, deps: Deps) {
         throw new ServiceError(`Could not install: ${e instanceof Error ? e.message : String(e)}. Nothing was installed.`);
       }
       upload = null;
+      if (bring) {
+        // Linked to the project, as its settings would do: agents by its tag, skills by name; then remembered as brought.
+        for (const i of installed.filter((x) => x.kind === 'agent')) setAgentTags(i.name, [projectTag(id)], root);
+        const skills = installed.filter((x) => x.kind === 'skill').map((x) => x.name);
+        if (skills.length) {
+          const file = join(projectDir(id), 'project.json');
+          const data = JSON.parse(readFileSync(file, 'utf8')) as { linkedSkills?: unknown };
+          const linked = Array.isArray(data.linkedSkills) ? data.linkedSkills.map(String) : [];
+          writeFileSync(file, `${JSON.stringify({ ...data, linkedSkills: [...new Set([...linked, ...skills])].sort() }, null, 2)}\n`);
+        }
+        recordUploads(installed.map((i) => ({ kind: i.kind as 'skill' | 'agent' | 'activity', name: i.name })), id, root);
+      }
       return { installed, backup };
     },
 

@@ -143,6 +143,9 @@ export const IconEyeOff = ({ size }: IconProps) => (
 export const IconExternal = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>
 );
+export const IconUpload = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M12 15V4" /><path d="M7 9l5-5 5 5" /><path d="M5 20h14" /></svg>
+);
 export const IconDownload = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M12 4v11" /><path d="M7 10l5 5 5-5" /><path d="M5 20h14" /></svg>
 );

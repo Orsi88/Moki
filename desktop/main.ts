@@ -72,7 +72,7 @@ const service = createService(ROOT, {
   },
   pickFile: async () => {
     if (!win) return null;
-    const r = await dialog.showOpenDialog(win, { title: 'Choose a .zip file', properties: ['openFile'], filters: [{ name: 'ZIP', extensions: ['zip'] }] });
+    const r = await dialog.showOpenDialog(win, { title: 'Choose a .zip or .md file', properties: ['openFile'], filters: [{ name: 'ZIP or Markdown', extensions: ['zip', 'md'] }] });
     return r.canceled ? null : r.filePaths[0] ?? null;
   },
   onWorkspace: (dir) => { searchWindow?.close(); setWorkspaceEnv(ROOT, dir); },

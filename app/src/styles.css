@@ -1986,3 +1986,14 @@ span.mcp-row-main { cursor: default; }
 .chip-picker-head:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
 .chip-picker-none { padding: 6px 8px; color: var(--muted); font-size: 0.82rem; }
 .setup-section .chip-picker + .row-actions { margin-top: 8px; }
+
+/* "Bring to this project" in the dialog's head, beside the close button. */
+.modal-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+/* The upload's drop area (ClaudeUpload): drag a folder, a .zip or a .md, or choose one. */
+.upload-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 16px; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg-2); color: var(--muted); text-align: center; font-size: 0.86rem; transition: border-color .12s, background .12s; }
+.upload-drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.upload-drop svg { color: var(--accent); }
+.upload-kind { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.upload-kind-head { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+/* Brought from a project's settings: a small mark on the item in the workspace's settings. */
+.brought-mark { display: inline-flex; align-items: center; margin-left: 6px; color: var(--accent); }

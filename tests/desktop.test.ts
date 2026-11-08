@@ -23,7 +23,7 @@ import { formatNumber } from '../scripts/lib/numfmt.mjs';
 import { zip } from '../scripts/lib/zip.mjs';
 import { buildXlsx } from '../scripts/xlsx.mjs';
 import { ROOT } from '../scripts/lib/repo.mjs';
-import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
+import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, projectSummary, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
 
 // Fixture: a framework root with a few skills, the project template and one project.
 const root = mkdtempSync(join(tmpdir(), 'qa-desktop-'));
@@ -2059,6 +2059,63 @@ test('upload of skills and agents: preview writes nothing, blocks per item, inst
   for (const dir of [home, src, repo, join(root, 'workspace', 'projects', 'up-linked'), join(projectDir, 'skills'), join(projectDir, 'agents')]) rmSync(dir, { recursive: true, force: true });
 });
 
+test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace and links them to the project', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'qa-bring-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'qa-bring-src-'));
+  const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
+  put('kit/.claude/skills/log-reader/SKILL.md', '---\nname: log-reader\ndescription: Reads logs\n---\nBody');
+  put('kit/.claude/agents/log-scout.md', '---\nname: log-scout\ndescription: Finds the failing line\ntools: Read, Grep\nmodel: sonnet\n---\nLook at the log first.');
+  put('kit/activities/log-triage.md', '---\nlabel: "Triagem do log"\ndescription: ""\ncategory: "QA"\nfiles: required\nnote: ""\ntags: "project:outro"\n---\n\nSepare os erros do log.\n');
+  put('kit/activities/review.md', '---\nlabel: "Takes a Moki id"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nx\n');
+  put('kit/activities/broken.md', '---\nlabel: "No body"\nfiles: sometimes\n---\n');
+  put('one/checklist.md', '---\nlabel: "Checklist"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nRevise.\n');
+  const svc = createService(root, { ...noLaunch, home, pickFolder: async () => join(src, 'kit') });
+  const library = join(root, 'workspace', 'library');
+  try {
+    const view = await svc.claudeUploadPick('folder', 'acme', 'bring');
+    assert.ok(view);
+    const by = Object.fromEntries(view.items.map((i) => [`${i.kind}:${i.name}`, i]));
+    assert.deepEqual(Object.keys(by).sort(), ['activity:broken', 'activity:log-triage', 'activity:review', 'agent:log-scout', 'skill:log-reader']);
+    assert.equal(by['activity:log-triage'].description, 'Triagem do log');
+    assert.equal(by['activity:review'].blocked?.reason, 'moki-name');
+    assert.equal(by['activity:broken'].blocked?.reason, 'invalid-activity');
+    assert.equal(existsSync(join(home, '.claude')), false, 'the preview writes nothing');
+
+    svc.claudeUploadApply('acme', 'bring', ['skill:log-reader', 'agent:log-scout', 'activity:log-triage']);
+    // The skill for all projects, linked to acme.
+    assert.ok(existsSync(join(home, '.claude', 'skills', 'log-reader', 'SKILL.md')));
+    assert.ok(projectSummary('acme', root).linkedSkills.includes('log-reader'));
+    // The agent as one of the person's, in Moki's format (read-only: it had no editing tools), reaching acme by its tag.
+    const agent = readFileSync(join(library, 'agents', 'uploaded', 'log-scout.md'), 'utf8');
+    assert.match(agent, /^---\nname: log-scout\ndescription: "Finds the failing line"\ncategory: uploaded\naccess: read-only\nmodel: sonnet\nmetadata:\n {2}version: "1\.0\.0"\n {2}status: draft\n---\n\nLook at the log first\.\n$/);
+    assert.ok(svc.projectAgents('acme').includes('log-scout'));
+    assert.deepEqual(svc.agentTags()['log-scout'], ['project:acme']);
+    // The activity among the person's, with acme's tag only (the tag it came with belongs to another workspace).
+    assert.deepEqual(listActivities(root).find((a) => a.id === 'log-triage')?.tags, ['project:acme']);
+    // Remembered as brought from acme, for the workspace's lists.
+    const uploads = svc.uploads();
+    assert.deepEqual(Object.keys(uploads).sort(), ['activity:log-triage', 'agent:log-scout', 'skill:log-reader']);
+    assert.equal(uploads['agent:log-scout'].project, 'acme');
+    assert.equal(uploads['agent:log-scout'].projectName, projectSummary('acme', root).name);
+    // Bringing again: all three are already there.
+    const again = await svc.claudeUploadPick('folder', 'acme', 'bring');
+    assert.deepEqual(again?.items.filter((i) => i.blocked?.reason === 'installed').map((i) => i.name).sort(), ['log-reader', 'log-scout', 'log-triage']);
+    // One dropped .md: an activity, by its header.
+    const dropped = svc.claudeUploadPath(join(src, 'one', 'checklist.md'), 'acme', 'bring');
+    assert.deepEqual(dropped.items.map((i) => `${i.kind}:${i.name}`), ['activity:checklist']);
+    assert.throws(() => svc.claudeUploadPath('relative/x.md', 'acme', 'bring'), /Drop a folder/);
+    assert.throws(() => svc.claudeUploadPath(join(src, 'one', 'nope.md'), 'acme', 'bring'), /Not found/);
+    writeFileSync(join(src, 'notes.txt'), 'x');
+    assert.throws(() => svc.claudeUploadPath(join(src, 'notes.txt'), 'acme', 'bring'), /\.zip or \.md file/);
+  } finally {
+    try { svc.setAgentTags('log-scout', []); } catch { /* not created */ }
+    rmSync(join(library, 'agents', 'uploaded'), { recursive: true, force: true });
+    rmSync(join(library, 'activities', 'log-triage.md'), { force: true });
+    rmSync(join(library, 'uploads.json'), { force: true });
+    for (const dir of [home, src]) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('upload from a zip: layouts, limits, unsafe paths, and a failure undoes everything', async () => {
   const home = mkdtempSync(join(tmpdir(), 'qa-upz-home-'));
   const dir = mkdtempSync(join(tmpdir(), 'qa-upz-'));
@@ -2085,7 +2142,7 @@ test('upload from a zip: layouts, limits, unsafe paths, and a failure undoes eve
   await assert.rejects(pick([['SKILL.md', skill('big')], ['big.bin', 'x'.repeat(5 * 1024 * 1024 + 1)]]), /larger than 5 MB/);
   writeFileSync(file, 'not a zip');
   await assert.rejects(svc.claudeUploadPick('zip', '', 'global'), /Could not read the ZIP|not a ZIP/);
-  await assert.rejects(svc.claudeUploadPick('other', '', 'global'), /folder or a \.zip/);
+  await assert.rejects(svc.claudeUploadPick('other', '', 'global'), /folder, or a \.zip or \.md/);
   await assert.rejects(createService(root, { ...noLaunch, home }).claudeUploadPick('zip'), /not available here/);
 
   // A failure in the second skill removes the first one too (a file and a folder with the same name).

@@ -1,5 +1,5 @@
-// Upload of skills and agents from a .claude folder, a project that contains one, a skills/ or agents/
-// folder, a single skill, or the same inside a .zip. Pure reading and checking: nothing here writes to
+// Upload of skills, agents and Moki activities from a .claude folder, a project that contains one, a skills/,
+// agents/ or activities/ folder, a single skill, a single agent or activity (.md), or the same inside a .zip. Pure reading and checking: nothing here writes to
 // the install folders (the service does, after the user confirms). Everything read is untrusted: names are
 // validated, files are limited, symbolic links are not followed and secrets block the item. Blocking
 // reasons are codes; the app translates them.
@@ -8,17 +8,18 @@ import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { unzip } from '../scripts/lib/zip.mjs';
 import { PATTERNS } from '../scripts/lib/secret-patterns.mjs';
+import { parseActivity } from '../scripts/lib/activities.ts';
 
 export const LIMITS = { maxFiles: 1000, maxFileBytes: 5 * 1024 * 1024, maxTotalBytes: 50 * 1024 * 1024 };
 
-export type ImportKind = 'skill' | 'agent';
+export type ImportKind = 'skill' | 'agent' | 'activity';
 // Why an item cannot be installed. 'installed' is added by the service (it knows the destination).
-export type BlockReason = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed';
+export type BlockReason = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
 export interface Blocked { reason: BlockReason; detail?: string; file?: string } // secret: its kind (detail) and file, never its value
 export interface ImportFile { path: string; data: Buffer }
 export interface ImportEntry {
   kind: ImportKind; name: string; description: string;
-  files: ImportFile[]; // what would be written (agents: one file)
+  files: ImportFile[]; // what would be written (agents and activities: one file)
   discarded: string[]; // files left out of a skill (.env*, *.pem, *.key, settings.local.json)
   blocked?: Blocked;
 }
@@ -26,6 +27,7 @@ export type IgnoredReason = 'config' | 'symlink' | 'other';
 export interface Scan { entries: ImportEntry[]; ignored: { path: string; reason: IgnoredReason }[] }
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const PARTS = ['skills', 'agents', 'activities'];
 // Settings, hooks, commands and MCP files can run commands or change the AI tool: listed, never imported.
 const CONFIG = new Set(['settings.json', 'settings.local.json', 'hooks', 'commands', 'CLAUDE.md', '.mcp.json']);
 const SENSITIVE_FILE = /(^|\/)(\.env(\..*)?|settings\.local\.json|[^/]+\.(pem|key))$/i;
@@ -62,13 +64,20 @@ export function readFolder(dir: string): Read {
   const has = (p: string) => kind(p) !== null;
   if (kind('.claude')?.isDirectory()) {
     walk(join(dir, '.claude'), '.claude', out, used);
+    if (kind('activities')?.isDirectory()) walk(join(dir, 'activities'), 'activities', out, used);
     for (const f of ['CLAUDE.md', '.mcp.json']) if (has(f)) out.ignored.push({ path: f, reason: 'config' });
-  } else if (kind('skills')?.isDirectory() || kind('agents')?.isDirectory()) {
-    for (const part of ['skills', 'agents']) if (kind(part)?.isDirectory()) walk(join(dir, part), part, out, used);
+  } else if (PARTS.some((part) => kind(part)?.isDirectory())) {
+    for (const part of PARTS) if (kind(part)?.isDirectory()) walk(join(dir, part), part, out, used);
     for (const f of CONFIG) if (has(f)) out.ignored.push({ path: f, reason: 'config' });
   } else if (has('SKILL.md')) walk(dir, '', out, used);
-  else throw new Error('No .claude folder, skills/, agents/ or SKILL.md found in this folder.');
+  else throw new Error('No .claude folder, skills/, agents/, activities/ or SKILL.md found in this folder.');
   return out;
+}
+
+// One agent or activity file (.md), dropped or chosen on its own.
+export function readMarkdown(name: string, data: Buffer): Read {
+  if (data.length > LIMITS.maxFileBytes) throw new Error(`${name} is larger than ${LIMITS.maxFileBytes / 1048576} MB.`);
+  return { files: new Map([[name, data]]), ignored: [] };
 }
 
 export function readZip(buf: Buffer): Read {
@@ -81,9 +90,9 @@ export function readZip(buf: Buffer): Read {
   // A zip of a folder keeps the folder's name as its only top-level entry.
   const tops = new Set([...files.keys()].map((k) => k.split('/')[0]));
   const [only] = [...tops];
-  const wrapped = tops.size === 1 && ![...files.keys()].includes(only) && !['.claude', 'skills', 'agents'].includes(only);
+  const wrapped = tops.size === 1 && ![...files.keys()].includes(only) && !['.claude', ...PARTS].includes(only);
   const out: Read = { files: wrapped ? new Map([...files].map(([k, v]) => [k.slice(only.length + 1), v])) : files, ignored: skipped.map((path) => ({ path, reason: 'symlink' as const })) };
-  if (![...out.files.keys()].some((k) => /^(\.claude\/|skills\/|agents\/|SKILL\.md$)/.test(k))) throw new Error('No .claude folder, skills/, agents/ or SKILL.md found in this ZIP.');
+  if (![...out.files.keys()].some((k) => /^(\.claude\/|skills\/|agents\/|activities\/|SKILL\.md$|[^/]+\.md$)/.test(k))) throw new Error('No .claude folder, skills/, agents/, activities/ or SKILL.md found in this ZIP.');
   return out;
 }
 
@@ -113,7 +122,18 @@ function secretIn(files: ImportFile[]): { detail: string; file: string } | undef
 }
 
 // `reserved`: names of Moki's own skills and agents, which an upload may not take over.
-export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<string> }): Scan {
+// An activity has a "label:" in its header; any other .md with a header is taken as an agent.
+const isActivity = (text: string): boolean => /^label:/m.test(/^---\r?\n([\s\S]*?)\r?\n---/.exec(text.replace(/^﻿/, ''))?.[1] ?? '');
+
+function activityEntry(file: string, data: Buffer, reserved: Set<string>): ImportEntry {
+  const id = file.replace(/\.md$/, '');
+  const { activity, errors } = parseActivity(data.toString('utf8'), id, 'library');
+  const e: ImportEntry = { kind: 'activity', name: id, description: activity?.label ?? '', files: [{ path: file, data }], discarded: [] };
+  if (!activity) return { ...e, blocked: { reason: NAME.test(id) ? 'invalid-activity' : 'invalid-name', detail: errors[0] } };
+  return check(e, reserved);
+}
+
+export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<string>; activities?: Set<string> }): Scan {
   const hasBase = [...read.files.keys()].some((k) => k.startsWith('.claude/'));
   const ignored = [...read.ignored];
   const listed = new Set<string>();
@@ -124,13 +144,15 @@ export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<st
   for (const [k, v] of read.files) {
     if (!hasBase) rel.set(k, v);
     else if (k.startsWith('.claude/')) rel.set(k.slice('.claude/'.length), v);
+    else if (k.startsWith('activities/')) rel.set(k, v); // Moki activities kept beside a .claude folder
     else skip(k.split('/')[0]);
   }
 
   const entries: ImportEntry[] = [];
   const skills = new Map<string, ImportFile[]>();
   const keys = [...rel.keys()];
-  const singleSkill = rel.has('SKILL.md') && !keys.some((k) => /^(skills|agents)\//.test(k));
+  const singleSkill = rel.has('SKILL.md') && !keys.some((k) => /^(skills|agents|activities)\//.test(k));
+  const activities = reserved.activities ?? new Set<string>();
   if (singleSkill) skills.set('', keys.map((k) => ({ path: k, data: rel.get(k) as Buffer })));
   else {
     for (const [path, data] of rel) {
@@ -138,6 +160,13 @@ export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<st
       if (parts[0] === 'skills' && parts.length >= 3) skills.set(parts[1], [...(skills.get(parts[1]) ?? []), { path: parts.slice(2).join('/'), data }]);
       else if (parts[0] === 'agents' && parts.length === 2 && parts[1].endsWith('.md')) {
         entries.push(check({ kind: 'agent', name: parts[1].slice(0, -3), description: describe(data.toString('utf8')), files: [{ path: parts[1], data }], discarded: [] }, reserved.agents));
+      } else if (parts[0] === 'activities' && parts.length === 2 && parts[1].endsWith('.md') && parts[1] !== 'README.md') {
+        entries.push(activityEntry(parts[1], data, activities));
+      } else if (parts.length === 1 && parts[0].endsWith('.md') && rel.size === 1) {
+        // A single .md: an activity or an agent, by its header.
+        const text = data.toString('utf8');
+        entries.push(isActivity(text) ? activityEntry(parts[0], data, activities)
+          : check({ kind: 'agent', name: parts[0].slice(0, -3), description: describe(text), files: [{ path: parts[0], data }], discarded: [] }, reserved.agents));
       } else skip(parts[0]);
     }
   }

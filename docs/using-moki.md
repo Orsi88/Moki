@@ -24,6 +24,8 @@ To talk through an idea, choose an agent in **Call…** and add the subject as a
 - **Your activities**, **Templates**: checking one here gives it the project's tag, the same tag Settings shows (and the other way round); one reached through a shared tag, or meant for every project, is locked with the reason. The template in use styles the deliverables.
 - **MCP servers**: the ones the project gets, read-only (change them in Settings).
 
+**Bring to this project** (top of the project settings) takes skills, agents and activities, one at a time (a .md, a skill folder) or a whole .claude folder or .zip, dragged in or chosen. Moki sorts what it finds by kind, blocks what is unsafe or already there, and installs only what you confirm: skills for all projects (linked here), agents and activities among yours with this project's tag. The workspace settings list them too, with a mark saying which project they were brought from.
+
 An AI opened in the project (New › AI) starts with them: one activity that needs no files as the only default starts right away; otherwise the AI takes the default agent's role, uses the default skills, says in a line or two what is set up and what it needs, and waits. Its tab says so ("Claude Code · failure-analyst"). An activity you choose in **Call…** goes without the defaults and the instructions, and **Call…** lists the defaults first. In New › AI, *Without the project defaults* opens one with none of them.
 
 Then you talk in that tool as usual. The request names the project, the linked folder, and the skills and agents installed for it.

@@ -16,6 +16,7 @@ import { TagField, TagFilter, matchesTag, useTagCatalog } from '../components/Ta
 import { SkillsField } from '../components/SkillsField';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from '../components/ListPage';
 import { StarButton, useFavorites } from '../components/Favorites';
+import { BroughtMark, useUploads } from '../components/BroughtMark';
 
 // The sections every agent's instructions keep (scripts/lib/agents.ts AGENT_SECTIONS).
 const AGENT_SECTIONS = ['Role', 'When to use', 'How to work', 'Boundaries'];
@@ -54,6 +55,7 @@ const statusText = (status: string): string => ({ stable: t('Stable'), draft: t(
 
 export function Library({ onBack, backLabel, embedded = false, onCreate, creating = false, onBrowse, create, project = null, installedTick = 0 }: Props) {
   const fav = useFavorites('agents'); // an agent of the user folder is starred as ~<name>
+  const uploads = useUploads();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [sel, setSel] = useState<Sel | null>(null);
@@ -214,7 +216,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                 <TagFilter catalog={catalog} value={filter} onChange={setFilter} />
                 <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t('Category')}>
                   <option value="">{t('All categories')}</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  {categories.map((c) => <option key={c.id} value={c.id}>{t(c.label)}</option>)}
                 </select>
               </ListTools>
               {categories.map((c) => {
@@ -222,12 +224,12 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                 if (!group.length) return null;
                 return (
                   <section key={c.id} className="list-group">
-                    <h2 className="list-group-head" title={c.description}>{c.label}</h2>
+                    <h2 className="list-group-head" title={c.description}>{t(c.label)}</h2>
                     <ul className="list-cards">
                       {fav.first(group, (a) => a.name).map((a) => (
                         <li key={a.name} className="fav-item">
                           <button type="button" className="list-card library-item" onClick={() => choose({ kind: 'library', name: a.name })}>
-                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{a.name}</span>
+                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{a.name}<BroughtMark uploads={uploads} kind="agent" name={a.name} /></span>
                             <span className="list-card-desc">{a.description}</span>
                             <span className="chips">
                               {a.source === 'custom' && <span className="chip chip-accent">{t('yours')}</span>}
@@ -288,7 +290,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
               <div>
                 <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{detail.name}</h1></div>
                 <div className="agent-badges">
-                  <span className="chip">{categories.find((c) => c.id === detail.category)?.label ?? detail.category}</span>
+                  <span className="chip">{t(categories.find((c) => c.id === detail.category)?.label ?? detail.category)}</span>
                   <span className="chip"><span className={`dot ${detail.usable ? 'dot-ok' : 'dot-muted'}`} /> {statusText(detail.status)}</span>
                   <span className="chip">{detail.source === 'builtin' ? t('Built-in (read-only)') : detail.basedOn ? t('Yours, based on {agent}', { agent: detail.basedOn }) : t('Yours')}</span>
                 </div>

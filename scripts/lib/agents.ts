@@ -271,3 +271,24 @@ export function claudeSubagent(agent: Agent): string {
   const model = agent.model ? `model: ${agent.model}\n` : '';
   return `---\nname: ${agent.name}\ndescription: ${JSON.stringify(description)}\n${tools}${model}---\n${agent.body.trimEnd()}\n\n## Skills\n\n${skills}\n`;
 }
+
+// An agent brought from outside (a Claude Code subagent, or another Moki's agent) as one of the person's own:
+// the Moki header it needs to be listed and used (category, access, version, status), its text kept. A Claude
+// Code agent without the editing tools becomes read-only, so bringing it never widens what it may do.
+export function libraryAgentText(text: string, name: string): { text: string; category: string } {
+  const { data, body } = parseFrontmatter(text) as { data: Record<string, unknown> | null; body: string };
+  const d = data ?? {};
+  const meta = (typeof d.metadata === 'object' && d.metadata ? d.metadata : {}) as Record<string, unknown>;
+  const category = SLUG.test(String(d.category ?? '')) ? String(d.category) : 'uploaded';
+  const tools = typeof d.tools === 'string' ? d.tools : '';
+  const access = (ACCESS_LEVELS as readonly string[]).includes(String(d.access)) ? String(d.access)
+    : tools && !/\b(Edit|Write|NotebookEdit|Bash)\b/.test(tools) ? 'read-only' : 'project-write';
+  const model = (AGENT_MODELS as readonly string[]).includes(String(d.model)) ? String(d.model) : '';
+  const version = /^\d+\.\d+\.\d+$/.test(String(meta.version ?? '')) ? String(meta.version) : '1.0.0';
+  const description = String(d.description ?? '').replace(/\s+/g, ' ').trim().slice(0, 1024);
+  const skills = list(d.skills);
+  const lines = ['---', `name: ${name}`, `description: ${JSON.stringify(description)}`, `category: ${category}`,
+    ...(skills.length ? [`skills: ${skills.join(', ')}`] : []), `access: ${access}`, ...(model ? [`model: ${model}`] : []),
+    'metadata:', `  version: "${version}"`, '  status: draft', '---'];
+  return { text: `${lines.join('\n')}\n${body.startsWith('\n') ? '' : '\n'}${body.trimEnd()}\n`, category };
+}

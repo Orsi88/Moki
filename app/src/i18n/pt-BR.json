@@ -1683,5 +1683,18 @@
   "Everything is already here.": "Tudo já está aqui.",
   "The agents of this project. The star makes one a default: an AI opened here takes its role.": "Os agentes deste projeto. A estrela torna um deles padrão: uma IA aberta aqui assume o papel dele.",
   "The Moki skills are in every project; skills installed for all projects are linked by name, nothing copied. The star: an AI opened here uses it whenever it fits.": "As skills do Moki estão em todo projeto; as instaladas para todos os projetos são ligadas pelo nome, nada é copiado. A estrela: uma IA aberta aqui usa a skill sempre que couber.",
-  "Yours get this project's tag (also in Settings › Activities); the Moki ones are in every project. The star: a default. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.": "As suas ganham a tag deste projeto (que aparece também em Configurações › Atividades); as do Moki estão em todo projeto. A estrela: padrão. Se for só uma e ela não pedir arquivos, começa sozinha; senão, a IA diz o que sabe fazer e espera."
+  "Yours get this project's tag (also in Settings › Activities); the Moki ones are in every project. The star: a default. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.": "As suas ganham a tag deste projeto (que aparece também em Configurações › Atividades); as do Moki estão em todo projeto. A estrela: padrão. Se for só uma e ela não pedir arquivos, começa sozinha; senão, a IA diz o que sabe fazer e espera.",
+  "Not a valid activity: {problem}.": "Não é uma atividade válida: {problem}.",
+  "Not part of a skill, an agent or an activity.": "Não faz parte de uma skill, de um agente nem de uma atividade.",
+  "this project (they also appear in the workspace settings)": "este projeto (eles aparecem também nas configurações gerais)",
+  "Skills, agents and activities, one at a time or a whole .claude folder. Moki sorts what it finds and installs only what you confirm; it also shows in the workspace settings, marked as brought from this project.": "Skills, agentes e atividades, um de cada vez ou uma pasta .claude inteira. O Moki separa o que encontrar e instala só o que você confirmar; tudo aparece também nas configurações gerais, marcado como trazido deste projeto.",
+  "Upload a .claude folder, a project that contains one, a skills, agents or activities folder, a single skill, agent or activity, or the same in a .zip. Nothing is installed until you choose the items and confirm.": "Envie uma pasta .claude, um projeto que tenha uma, uma pasta de skills, agentes ou atividades, uma skill, um agente ou uma atividade, ou o mesmo num .zip. Nada é instalado antes de você escolher os itens e confirmar.",
+  "Drop area": "Área para soltar",
+  "Drag a folder, a .zip or a .md here": "Arraste uma pasta, um .zip ou um .md para cá",
+  "Choose a file (.zip or .md)": "Escolher arquivo (.zip ou .md)",
+  "No skills, agents or activities found in what you chose.": "Nenhuma skill, agente ou atividade encontrada no que você escolheu.",
+  "Skills, agents, activities or a whole .claude folder": "Skills, agentes, atividades ou uma pasta .claude inteira",
+  "Bring to this project": "Trazer para este projeto",
+  "Brought from {project}": "Trazido de {project}",
+  "Uploaded": "Trazidos"
 }
