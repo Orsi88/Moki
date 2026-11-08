@@ -4,12 +4,14 @@
 import type { MouseEvent } from 'react';
 import type { ProjectSummary } from '../api';
 import { t } from '../i18n';
+import { AddButton } from './AddButton';
 import { IconFolder, IconHome, IconLink, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
 
 interface Props {
   settingsOn: boolean;
   onHome: () => void;
   onSettings: () => void;
+  onNewNote: () => void;
   project?: ProjectSummary | null;
   onPlay?: () => void;
   onTerminal?: (e: MouseEvent<HTMLElement>) => void;
@@ -22,7 +24,7 @@ interface Props {
   onSearch?: () => void; // the magnifier: search the workspace
 }
 
-export function Ribbon({ settingsOn, onHome, onSettings, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch }: Props) {
+export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch }: Props) {
   const ready = Boolean(project);
   return (
     <nav className="ribbon" aria-label={t('Actions')}>
@@ -36,6 +38,7 @@ export function Ribbon({ settingsOn, onHome, onSettings, project, onPlay, onTerm
       <button type="button" className={`icon-btn${settingsOn ? ' on' : ''}`} onClick={onSettings} title={t('Settings')}><IconSettings size={19} /></button>
       <button type="button" className="icon-btn" disabled={!ready} onClick={onRefresh} title={t('Refresh')}><IconRefresh size={19} /></button>
       <span className="ribbon-spacer" />
+      <AddButton title={t('New note')} onClick={onNewNote} />
       <button type="button" className="icon-btn" disabled={!ready || settingsOn} onClick={onPanel} aria-expanded={!sidebarCollapsed}
         title={sidebarCollapsed ? t('Show the file sidebar') : t('Hide the file sidebar')} aria-label={sidebarCollapsed ? t('Show the file sidebar') : t('Hide the file sidebar')}><IconPanel size={19} /></button>
     </nav>

@@ -63,6 +63,179 @@ async function cssSize(selector: string): Promise<{ height: number; fontSize: st
   });
 }
 
+test('Moki restores document tabs, active mode and scroll after leaving, reloading and deleting a file', async () => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-view-profile-'));
+  const project = join(root, 'workspace', 'projects', 'acme');
+  writeFileSync(join(project, 'context', 'long.md'), '# Long document\n\n' + 'A paragraph for scrolling.\n\n'.repeat(160));
+  writeFileSync(join(project, 'context', 'second.txt'), 'Line for scrolling\n'.repeat(180));
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    const tabs = view.locator('.tabs > .tab:not(.tab-term)');
+    await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/long.md"]').click();
+    await expect(view.locator('.doc .ProseMirror')).toContainText('Long document');
+    await view.locator('.doc-body').evaluate((el) => { el.scrollTop = 900; el.dispatchEvent(new Event('scroll')); });
+    await view.locator('.tree-row[title="context/second.txt"]').click();
+    await view.locator('.doc textarea.editor').evaluate((el) => { el.scrollTop = 600; el.dispatchEvent(new Event('scroll')); });
+    // Leave immediately: the pending metadata write must be flushed on unmount.
+    await view.getByRole('button', { name: 'Todos os projetos', exact: true }).click();
+    await view.locator('.home-project', { hasText: 'Acme Library' }).first().click();
+    await expect(tabs).toHaveText(['long.md', 'second.txt']);
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(() => view.locator('.doc textarea.editor').evaluate((el) => el.scrollTop)).toBe(600);
+    await tabs.first().click();
+    await expect.poll(() => view.locator('.doc-body').evaluate((el) => el.scrollTop)).toBe(900);
+    await view.reload();
+    await expect(view.locator('.doc .ProseMirror')).toContainText('Long document');
+    await expect.poll(() => view.locator('.doc-body').evaluate((el) => el.scrollTop)).toBe(900);
+
+    await view.keyboard.press('Control+e');
+    const source = view.locator('.doc textarea.md-source');
+    await expect(source).toBeVisible();
+    await source.evaluate((el) => { el.scrollTop = 450; el.dispatchEvent(new Event('scroll')); });
+    await view.reload();
+    await expect(tabs).toHaveText(['long.md', 'second.txt']);
+    await expect(source).toBeVisible();
+    await expect.poll(() => source.evaluate((el) => Math.abs(el.scrollTop - 450))).toBeLessThan(1);
+
+    if (!await view.locator('.tree-row[title="context/long.md"]').isVisible()) await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/long.md"]').focus();
+    await view.keyboard.press('F2');
+    const rename = view.getByRole('textbox', { name: 'Novo nome de long.md' });
+    await rename.fill('continued');
+    await rename.press('Enter');
+    await expect(tabs.first()).toContainText('continued.md');
+    await view.reload();
+    await expect(tabs).toHaveText(['continued.md', 'second.txt']);
+    await expect.poll(() => source.evaluate((el) => Math.abs(el.scrollTop - 450))).toBeLessThan(1);
+
+    // A missing active file does not stop the other tabs from coming back.
+    await view.getByRole('button', { name: 'Todos os projetos', exact: true }).click();
+    rmSync(join(project, 'context', 'continued.md'));
+    await view.locator('.home-project', { hasText: 'Acme Library' }).first().click();
+    await expect(tabs).toHaveText(['second.txt']);
+    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(() => view.locator('.doc textarea.editor').evaluate((el) => el.scrollTop)).toBe(600);
+
+    // Closed tabs stay closed; a new opening still works after restoration.
+    await tabs.first().locator('.tab-close').click();
+    await view.reload();
+    await expect(tabs).toHaveCount(0);
+    await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/second.txt"]').click();
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.first()).toContainText('second.txt');
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('Moki restores scroll after PDF pages load asynchronously', async () => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-pdf-view-profile-'));
+  const pdf = await PDFDocument.create();
+  for (let n = 0; n < 5; n++) pdf.addPage().drawText('Page ' + (n + 1));
+  writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'long.pdf'), await pdf.save());
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    await view.locator('.tree-row[title="inbox"]').click();
+    await view.locator('.tree-row[title="inbox/long.pdf"]').click();
+    const pages = view.locator('.pdf-page');
+    const scroller = view.locator('.pdf-scroll');
+    await expect(pages).toHaveCount(5);
+    await scroller.evaluate((el) => { el.scrollTop = 1200; el.dispatchEvent(new Event('scroll')); });
+    await view.reload();
+    await expect(pages).toHaveCount(5);
+    await expect.poll(() => scroller.evaluate((el) => Math.abs(el.scrollTop - 1200))).toBeLessThan(1);
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('Moki quick notes stay available over a project, collapsed sidebar and settings without replacing the current view', async () => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-quick-note-profile-'));
+  const project = join(root, 'workspace', 'projects', 'acme');
+  writeFileSync(join(project, 'context', 'working.md'), '# Working document\n\n' + 'Keep my place.\n\n'.repeat(150));
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    const rail = view.locator('.ribbon');
+    const add = rail.getByRole('button', { name: 'Nova nota', exact: true });
+    // A real terminal remains attached while a note is opened and saved above the project.
+    await rail.getByTitle('Num terminal novo', { exact: true }).click();
+    await view.getByRole('menuitem', { name: 'Terminal', exact: true }).click();
+    await view.getByRole('menuitem', { name: /seu shell/ }).click();
+    await expect(view.locator('.term-pane:not([hidden])')).toBeVisible();
+    await expect.poll(() => view.evaluate(async () => (await window.qa?.term?.list('acme'))?.length)).toBe(1);
+    const terminals = await view.evaluate(() => window.qa?.term?.list('acme'));
+    await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/working.md"]').click();
+    await expect(view.locator('.doc .ProseMirror')).toContainText('Working document');
+    await view.locator('.doc-body').evaluate((el) => { el.scrollTop = 450; el.dispatchEvent(new Event('scroll')); });
+    await rail.getByRole('button', { name: 'Recolher barra de arquivos', exact: true }).click();
+    await expect(view.locator('.workspace')).toHaveClass(/sidebar-collapsed/);
+    // The two bottom actions are the note + followed by the sidebar toggle.
+    await expect(rail.locator('button').nth(-2)).toHaveAttribute('aria-label', 'Nova nota');
+    await add.click();
+    const note = view.locator('.modal-backdrop > .note-dialog');
+    await expect(note).toBeVisible();
+    await expect(view.locator('.workspace .project-switch')).toHaveText('Acme Library');
+    await expect(note.locator('.note-destination select')).toHaveValue('');
+    await note.getByPlaceholder('ex.: Ideias de teste').fill('Captura rápida');
+    await view.keyboard.press('Control+e');
+    await note.locator('textarea.note-editor').fill('Anotei sem sair do arquivo.');
+    await expect(view.locator('.doc textarea.md-source')).toHaveCount(0); // Ctrl+E belongs only to the note
+    await view.keyboard.press('Control+s');
+    await view.keyboard.press('Control+f');
+    expect(running.windows()).toHaveLength(1); // no workspace search opens behind the note
+    await note.getByRole('button', { name: 'Fechar (Esc)', exact: true }).click();
+    await expect(note).toHaveCount(0);
+    await expect(add).toBeFocused();
+    await expect(view.locator('.workspace')).toHaveClass(/sidebar-collapsed/);
+    await expect(view.locator('.tabs > .tab:not(.tab-term)')).toHaveText(['working.md']);
+    await expect.poll(() => view.locator('.doc-body').evaluate((el) => Math.abs(el.scrollTop - 450))).toBeLessThan(1);
+    expect(await view.evaluate(() => window.qa?.term?.list('acme'))).toEqual(terminals);
+    expect(existsSync(join(project, 'notes')) && readdirSync(join(project, 'notes')).some((name) => name.endsWith('.md'))).toBe(false);
+    expect(await view.evaluate(() => localStorage.getItem('qa-loose-notes'))).toContain('Anotei sem sair do arquivo.');
+
+    // Both settings entry points keep their selected tab after closing a quick note.
+    for (const atHome of [false, true]) {
+      if (atHome) await rail.getByRole('button', { name: 'Todos os projetos', exact: true }).click();
+      await rail.getByRole('button', { name: 'Configurações', exact: true }).click();
+      const themes = view.getByRole('tab', { name: 'Temas', exact: true });
+      await themes.click();
+      await add.click();
+      await expect(note).toBeVisible();
+      await note.getByPlaceholder('ex.: Ideias de teste').fill(atHome ? 'Na tela inicial' : 'No projeto');
+      await view.keyboard.press('Escape');
+      await expect(note).toHaveCount(0);
+      await expect(themes).toHaveAttribute('aria-selected', 'true');
+      await expect(add).toBeFocused();
+    }
+    await rail.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await expect(view.locator('.home-row', { hasText: 'Captura rápida' })).toBeVisible();
+    await expect(view.locator('[data-section="notes"] .add-btn')).toHaveCount(0);
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
 test.describe.serial('Moki settings', () => {
   test.beforeAll(async () => {
     const root = fixture();
@@ -575,11 +748,11 @@ test.describe.serial('Moki workspaces', () => {
     await wsPage.locator('.project-switch').click(); // back to the start screen
   });
 
-  test('a loose note opens inside the app; its notebook window lists the loose notes opened, as tabs', async () => {
-    await wsPage.getByRole('button', { name: 'Nova nota' }).click();
-    const note = wsPage.locator('.home-main .note-dialog'); // in the main area of the start screen, not a popup
-    await expect(wsPage.locator('.modal-backdrop')).toHaveCount(0);
-    await expect(wsPage.locator('.hero')).toHaveCount(0);
+  test('a loose note is created from the fixed rail; saved notes open inside the app and in the notebook tabs', async () => {
+    await wsPage.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
+    const note = wsPage.locator('.modal-backdrop > .note-dialog');
+    await expect(note).toBeVisible();
+    await expect(wsPage.locator('.hero')).toHaveCount(1); // the start screen stays mounted under the note
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Lista');
     await note.getByRole('button', { name: 'Código Markdown' }).click(); // a note opens in its formatted editor; the source is one click away
     await note.locator('textarea.note-editor').fill('leite');
@@ -591,9 +764,18 @@ test.describe.serial('Moki workspaces', () => {
 
     // A click opens it here again; the icon beside it opens the notebook window.
     await wsPage.locator('.home-row', { hasText: 'Lista' }).last().locator('.home-project').click();
-    await note.getByRole('button', { name: 'Código Markdown' }).click();
-    await expect(note.locator('textarea.note-editor')).toHaveValue('leite');
-    await note.getByRole('button', { name: 'Fechar (Esc)' }).click();
+    const embedded = wsPage.locator('.home-main .note-dialog');
+    await embedded.getByRole('button', { name: 'Código Markdown' }).click();
+    await expect(embedded.locator('textarea.note-editor')).toHaveValue('leite');
+    // Creating another note does not send its shortcuts to the note underneath it.
+    await wsPage.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
+    await wsPage.keyboard.press('Control+e');
+    await expect(note.locator('textarea.note-editor')).toBeVisible();
+    await expect(embedded.locator('textarea.note-editor')).toBeVisible();
+    await wsPage.keyboard.press('Escape');
+    await expect(note).toHaveCount(0);
+    await expect(embedded).toBeVisible();
+    await embedded.getByRole('button', { name: 'Fechar (Esc)' }).click();
 
     const row = wsPage.locator('.home-row', { hasText: 'Lista' }).last();
     await row.click({ button: 'right' });
