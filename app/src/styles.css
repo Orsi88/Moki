@@ -695,6 +695,25 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .agent-toggles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .agent-toggles label { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 0.86rem; cursor: pointer; }
 .agent-toggles input { accent-color: var(--accent); }
+/* Project settings (SetupDialog): one framed section per kind, stacked; a default agent has its star lit. */
+.setup-section { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 12px 14px 14px; border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; }
+.setup-section legend { padding: 0 6px; font-weight: 600; }
+.setup-section > p { margin: 0; }
+.setup-section .field { margin: 0; }
+.setup-section .agent-toggles li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.setup-star { color: var(--faint); }
+.setup-star.on { color: var(--accent); }
+.setup-star.on svg { fill: currentColor; }
+.setup-defaults { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.setup-defaults .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.setup-chip { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+.setup-defaults select { width: auto; min-width: 180px; padding: 3px 8px; font-size: 0.85rem; }
+.setup-start { margin: 0; padding: 6px 10px; border-radius: 6px; background: var(--bg-2); color: var(--muted); font-size: 0.82rem; }
+.setup-modal .modal-body { gap: 14px; }
+.invoke-chips { display: inline-flex; gap: 4px; flex-shrink: 0; }
+/* New › AI: the option to open one without the project's defaults. */
+.new-menu-check { display: inline-grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.7rem; color: var(--accent); flex-shrink: 0; }
+.new-menu-check.on { border-color: var(--accent); }
 
 /* ---------- Launch dialog ---------- */
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: rgb(0 0 0 / 0.5); }
@@ -1826,7 +1845,8 @@ span.mcp-row-main { cursor: default; }
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin) 35%, transparent), 0 0 18px color-mix(in srgb, var(--plugin) 22%, transparent);
 }
 .file-pick.plugin-pick label.on { border-color: var(--plugin); background: var(--plugin-soft); }
-.file-pick.plugin-pick .file-name { color: var(--plugin); font-weight: 600; }
+.file-pick.plugin-pick .file-name { color: var(--plugin); font-weight: 600; flex: 0 0 auto; } /* the name keeps its width; a long description takes the rest */
+.file-pick.plugin-pick .file-name + .muted { flex: 1; min-width: 0; }
 
 /* Settings › Skills: the plugins per project (components/SkillsDialog.tsx). */
 .plugin-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }

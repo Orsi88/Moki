@@ -3,6 +3,8 @@
 
 import { lang, t } from './i18n';
 
+// A project's default (project.json defaults): several of each kind may be set.
+export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
   id: string; name: string; description: string; onboardingStatus: string; deliverableLanguage: string; runs: number; openRuns: number;
   repository: string; // folder linked to the project ('' when none)
@@ -10,6 +12,8 @@ export interface ProjectSummary {
   starter: Starter;
   tags: string[]; // tag ids
   plugins: string[]; // app plugins turned on for this project (caveman, superpowers)
+  defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with
+  startInstructions: string; // sent with that start only
 }
 // A tag shares context between projects: the context of the projects with it and the files marked with it.
 export interface Tag { id: string; name: string; color: string; description: string }
@@ -256,7 +260,8 @@ export interface Bridge {
   onShowTerminal?(callback: (project: string, terminal: TerminalRef) => void): () => void;
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
-    create(tool: string, project?: string): Promise<{ terminal?: TerminalRef; error?: string }>; // tool '' = the user's shell; a project brings its plugins
+    // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
+    create(tool: string, project?: string, options?: { plain?: boolean; language?: string }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
     start(id: string, cols: number, rows: number, project: string): Promise<string>;
     input(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
@@ -431,7 +436,8 @@ export const api = {
   projectItems: (project: string) => call<ProjectItems>('projectItems', project),
   removeProjectItem: (project: string, kind: 'skill' | 'agent', name: string, allowClaudeWrite = false) => call<{ backup?: string }>('removeProjectItem', project, kind, name, allowClaudeWrite),
   globalItems: () => call<GlobalItems>('globalItems'),
-  setupProject: (project: string, req: { description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[] }) => call<ProjectSummary>('setupProject', project, req),
+  // name, defaults and startInstructions are written only when given.
+  setupProject: (project: string, req: { name?: string; description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[]; defaults?: ProjectDefault[]; startInstructions?: string }) => call<ProjectSummary>('setupProject', project, req),
   readPlan: (project: string) => call<Plan | null>('readPlan', project),
   globalAgent: (name: string) => call<GlobalAgentDetail>('globalAgent', name),
   saveGlobalAgent: (name: string, text: string) => call<boolean>('saveGlobalAgent', name, text),

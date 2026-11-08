@@ -316,19 +316,24 @@ if (!app.requestSingleInstanceLock()) {
     // Embedded terminals: the UI only refers to terminals prepared here, by id.
     const isSize = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0 && (n as number) <= 1000;
     // New terminal tab: the user's shell (tool '') or a terminal AI tool started without a request.
-    ipcMain.handle('qa:term-new', (event, tool: unknown, project: unknown) => {
+    // options.plain: the person asked for an AI without the project's defaults; options.language: the conversation's.
+    ipcMain.handle('qa:term-new', (event, tool: unknown, project: unknown, options: unknown) => {
       if (!trusted(event)) return { error: 'Untrusted caller.' };
       if (!terminals.available()) return { error: 'Terminals inside the app are not available on this computer (node-pty is not installed).' };
       if (tool === '') return { terminal: { id: terminals.prepare({ ...shellSpec(ROOT), title: 'Terminal' }), title: 'Terminal' } };
       if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].command || TOOLS[tool].clipboard) return { error: 'Unknown tool.' };
-      // UI tests get an echo input, never a real AI. Its submission marker proves Call did not press Enter.
+      const opts = (options ?? {}) as { plain?: unknown; language?: unknown };
+      let start: { prompt: string; label: string; several: boolean } | null = null;
+      if (isProject(project, ROOT) && opts.plain !== true) { try { start = service.startOf(project, tool, opts.language); } catch { start = null; } }
+      const started = start?.prompt ? { start: { label: start.label, several: start.several } } : {};
+      // UI tests get an echo input, never a real AI. Its submission marker proves Call did not press Enter; [start] shows what it was opened with.
       if (fakeTools) {
-        const driver = "process.stdin.setRawMode?.(true); process.stdin.setEncoding('utf8'); let draft=''; process.stdout.write('[ready]\\r\\n'); process.stdin.on('data', data => { for (const c of data) { if (c === '\\r' || c === '\\n') { process.stdout.write('\\r\\n[submitted] '+draft+'\\r\\n'); draft=''; } else { draft += c; process.stdout.write(c); } } });";
-        return { terminal: { id: terminals.prepare({ file: which('node') ?? process.execPath, args: ['-e', driver], cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, title: TOOLS[tool].label, tool }), title: TOOLS[tool].label, tool } };
+        const driver = "process.stdin.setRawMode?.(true); process.stdin.setEncoding('utf8'); let draft=''; if (process.env.QA_FAKE_START) process.stdout.write('[start] '+process.env.QA_FAKE_START+'\\r\\n'); process.stdout.write('[ready]\\r\\n'); process.stdin.on('data', data => { for (const c of data) { if (c === '\\r' || c === '\\n') { process.stdout.write('\\r\\n[submitted] '+draft+'\\r\\n'); draft=''; } else { draft += c; process.stdout.write(c); } } });";
+        return { terminal: { id: terminals.prepare({ file: which('node') ?? process.execPath, args: ['-e', driver], cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', QA_FAKE_START: start?.prompt ?? '' }, title: TOOLS[tool].label, tool }), title: TOOLS[tool].label, tool }, ...started };
       }
       const plugins = isProject(project, ROOT) ? projectSummary(project, ROOT).plugins : [];
-      const r = launchInTerminal(tool, '', ROOT, terminals.prepare, plugins);
-      return r.terminal ? { terminal: r.terminal } : { error: r.message };
+      const r = launchInTerminal(tool, start?.prompt ?? '', ROOT, terminals.prepare, plugins);
+      return r.terminal ? { terminal: r.terminal, ...started } : { error: r.message };
     });
     ipcMain.handle('qa:term-start', (event, id: unknown, cols: unknown, rows: unknown, project: unknown) => {
       if (!trusted(event) || typeof id !== 'string' || !isSize(cols) || !isSize(rows)) return 'Invalid terminal.';

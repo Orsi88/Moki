@@ -16,6 +16,14 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de
 
 Para conversar sobre uma ideia, escolha um agente em **Chamar…** e acrescente o assunto como observação opcional. Uma execução só começa quando o procedimento ou seu pedido exigir.
 
+As **Configurações do projeto** (o ícone ao lado do nome do projeto, o menu ⋯ da pasta do projeto ou *Configurar projeto…* na árvore) guardam o nome e a descrição do projeto e com o que uma IA aberta nele começa. Uma seção por tipo:
+
+- **Ao abrir uma IA aqui**: instruções opcionais, enviadas junto com os padrões abaixo para toda IA aberta sem escolher nada.
+- **Agentes**: os habilitados no projeto; a estrela torna um deles padrão.
+- **Skills**, **Atividades**, **Operações**: os padrões de cada tipo, quantos você quiser.
+
+Uma IA aberta no projeto (Novo › IA) começa com eles: se o único padrão for uma atividade que não pede arquivos, ela começa na hora; senão, a IA assume o papel do agente padrão, usa as skills padrão, diz em uma ou duas linhas o que está configurado e o que precisa, e espera. A aba mostra isso ("Claude Code · failure-analyst"). Uma atividade escolhida em **Chamar…** vai sem os padrões e sem as instruções, e o **Chamar…** lista os padrões primeiro. Em Novo › IA, *Sem o padrão do projeto* abre uma IA sem nada disso.
+
 Aí você conversa nessa ferramenta como de costume. O pedido cita o projeto, a pasta vinculada e as skills e os agentes instalados nele.
 
 **Configurações** (a engrenagem) tem sete abas; fora Minhas IAs, cada uma é uma lista com filtros e busca:

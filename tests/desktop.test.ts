@@ -17,6 +17,7 @@ import { docxToMarkdown, readableInputs } from '../scripts/lib/docx.ts';
 import { frameworkTarget, syncFramework } from '../desktop/framework.ts';
 import { noteKey, noteQuery, parseNoteRequest } from '../desktop/notes.ts';
 import { remapPdfNotes, type PdfNote } from '../desktop/pdf-notes.ts';
+import { listActivities } from '../scripts/lib/activities.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { formatNumber } from '../scripts/lib/numfmt.mjs';
 import { zip } from '../scripts/lib/zip.mjs';
@@ -730,6 +731,57 @@ test('a run records the activity it came from; the requests and the tree show it
   } finally {
     rmSync(join(runs, '20261108-1030-requirements-review-login-error'), { recursive: true });
     rmSync(join(runs, '20261108-1031-failure-analysis-checkout'), { recursive: true });
+  }
+});
+
+test('project settings keep the name, the description\'s lines, the defaults and the instructions at start; a default agent is turned on', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
+  const before = readFileSync(file, 'utf8');
+  try {
+    const summary = service.setupProject('acme', {
+      name: 'Logs do pagamento', description: 'Linha um\nLinha dois', linkedSkills: [],
+      defaults: [{ kind: 'agent', id: 'failure-analyst' }, { kind: 'skill', id: 'failure-analysis' }, { kind: 'activity', id: 'failure' }],
+      startInstructions: 'Horário de Brasília.\nResponda em tópicos.',
+    });
+    assert.equal(summary.name, 'Logs do pagamento');
+    assert.equal(summary.description, 'Linha um\nLinha dois');
+    assert.deepEqual(summary.defaults.map((d) => `${d.kind}:${d.id}`), ['agent:failure-analyst', 'skill:failure-analysis', 'activity:failure']);
+    assert.equal(summary.startInstructions, 'Horário de Brasília.\nResponda em tópicos.');
+    assert.ok(service.projectAgents('acme').includes('failure-analyst'));
+    // Not available here: refused, and nothing is written.
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'nao-existe' }] }), /Not available as a default here: nao-existe/);
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'operation', id: 'nenhuma' }] }), /Not available as a default here/);
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'robot', id: 'x' }] }), /Invalid project defaults/);
+    assert.throws(() => service.setupProject('acme', { name: '  ', description: '', linkedSkills: [] }), /Give the project a name/);
+    // An older caller that sends neither keeps them.
+    assert.equal(service.setupProject('acme', { description: 'Outra', linkedSkills: [] }).defaults.length, 3);
+  } finally { writeFileSync(file, before); }
+});
+
+test('an AI opened in the project starts with its defaults: one activity without files runs, anything else waits', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
+  const before = readFileSync(file, 'utf8');
+  service.saveActivity({ label: 'Resumo rápido', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [], template: 'Resuma o estado do projeto em três linhas.' });
+  const own = listActivities(root, 'acme').find((a) => a.label === 'Resumo rápido');
+  assert.ok(own);
+  try {
+    assert.deepEqual(service.startOf('acme', 'claude', 'English'), { prompt: '', label: '', several: false }); // nothing set
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'activity', id: own.id }], startInstructions: 'Seja breve.' });
+    const run = service.startOf('acme', 'claude', 'Portuguese (pt-BR)');
+    assert.match(run.prompt, /Resuma o estado do projeto em três linhas\./);
+    assert.match(run.prompt, /Additional instructions: Seja breve\./);
+    assert.match(run.prompt, new RegExp(`add --activity ${own.id} to npm run new-run`)); // its origin is recorded, as for any activity
+    assert.equal(run.label, 'Resumo rápido');
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'failure-analyst' }], startInstructions: '' });
+    const waits = service.startOf('acme', 'claude', 'English');
+    assert.match(waits.prompt, /Act as the failure-analyst agent/);
+    assert.match(waits.prompt, /wait for it: do not start any work before that/);
+    assert.deepEqual({ label: waits.label, several: waits.several }, { label: 'failure-analyst', several: false });
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'failure-analyst' }, { kind: 'skill', id: 'failure-analysis' }] });
+    assert.deepEqual({ label: service.startOf('acme', 'claude', 'English').label, several: service.startOf('acme', 'claude', 'English').several }, { label: '', several: true });
+  } finally {
+    writeFileSync(file, before);
+    service.deleteActivity(own.id);
   }
 });
 

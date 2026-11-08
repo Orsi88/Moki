@@ -180,6 +180,27 @@ export interface ProjectSummary {
   starter: Starter;
   tags: string[]; // tag ids (project.json tags)
   plugins: string[]; // app plugins turned on for this project (project.json plugins)
+  defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with (project.json defaults)
+  startInstructions: string; // sent with that start only (project.json startInstructions)
+}
+
+// A project's defaults: the activities, agents, skills and operations set for it, several of each if wanted.
+export type DefaultKind = 'activity' | 'agent' | 'skill' | 'operation';
+export interface ProjectDefault { kind: DefaultKind; id: string }
+export const DEFAULT_KINDS: DefaultKind[] = ['activity', 'agent', 'skill', 'operation'];
+export const START_INSTRUCTIONS_LIMIT = 2000;
+export function parseDefaults(value: unknown): ProjectDefault[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((d) => {
+    const item = (d ?? {}) as Record<string, unknown>;
+    const kind = item.kind as DefaultKind;
+    const id = typeof item.id === 'string' ? item.id : '';
+    const key = `${kind}:${id}`;
+    if (!DEFAULT_KINDS.includes(kind) || !/^[a-z0-9][a-z0-9:-]{0,99}$/.test(id) || seen.has(key)) return [];
+    seen.add(key);
+    return [{ kind, id }];
+  });
 }
 
 export const projectsDir = (root = ROOT): string => join(workspaceDir(root), 'projects');
@@ -225,6 +246,8 @@ function summaryOf(id: string, data: Record<string, unknown>, runs: RunState[]):
     starter: data.starter === 'blank' || data.starter === 'minimal' ? data.starter : 'qa',
     tags: Array.isArray(data.tags) ? [...new Set(data.tags.filter((s): s is string => typeof s === 'string'))] : [],
     plugins: Array.isArray(data.plugins) ? PROJECT_PLUGINS.filter((p) => (data.plugins as unknown[]).includes(p)) : [],
+    defaults: parseDefaults(data.defaults),
+    startInstructions: typeof data.startInstructions === 'string' ? data.startInstructions.slice(0, START_INSTRUCTIONS_LIMIT) : '',
   };
 }
 
@@ -541,6 +564,50 @@ export interface Request {
   skill?: string; // the skill named by the project panel's "Use a skill" start
 }
 
+function promptHead(project: string, workspace: string, repository: string): string[] {
+  const parts = [`Follow AGENTS.md. Project: ${project}.`];
+  if (workspace !== 'workspace') {
+    parts.push(`Workspace folder: ${workspace}. Every path that AGENTS.md and the skills write as workspace/... is inside this folder, not in this repository's workspace/ folder;`
+      + ` paths recorded inside state.json and project files keep the workspace/... form. Run the npm helper commands with the environment variable QA_WORKSPACE=${workspace}.`);
+  }
+  if (repository) parts.push(`Linked folder (the system's repository): ${repository}.`);
+  return parts;
+}
+
+// What an AI opened in the project without a choice starts with, when its defaults are not a single activity
+// without files (that one starts as its own request, like any activity): the agents, skills and activities set
+// for the project and its instructions; then the AI says in a line or two what is set up and what it needs, and
+// waits. Operations run step by step in terminals of their own, so they are not part of it ('' = nothing set).
+export function buildStartPrompt({ project, defaults, instructions = '', language = 'English', repository = '', workspace = 'workspace', globalSkills = [], root = ROOT }: {
+  project: string; defaults: ProjectDefault[]; instructions?: string; language?: string; repository?: string; workspace?: string;
+  globalSkills?: { name: string; path: string }[]; root?: string;
+}): string {
+  const agents = defaults.flatMap((d) => (d.kind === 'agent' ? listAgents(root).filter((a) => a.name === d.id && isUsableAgent(a)) : []));
+  const skills = defaults.flatMap((d) => {
+    if (d.kind !== 'skill') return [];
+    if (existsSync(join(root, 'skills', d.id, 'SKILL.md'))) return [`${d.id} (skills/${d.id}/SKILL.md)`];
+    const global = globalSkills.find((g) => g.name === d.id);
+    return [global ? `${d.id} (${global.path})` : d.id];
+  });
+  const activities = defaults.flatMap((d) => {
+    const def = d.kind === 'activity' ? getActivity(d.id, root) : undefined;
+    return def && def.target.kind !== 'operation' && def.target.kind !== 'moki' ? [def] : [];
+  });
+  const text = instructions.trim();
+  if (!agents.length && !skills.length && !activities.length && !text) return '';
+  const parts = promptHead(project, workspace, repository);
+  if (agents.length === 1) parts.push(`Act as the ${agents[0].name} agent: read ${agents[0].path} and follow it.`);
+  else if (agents.length > 1) parts.push(`This project's agents: ${agents.map((a) => `${a.name} (${a.path})`).join(', ')}. For each request act as the one that fits, or ask me which.`);
+  if (skills.length) parts.push(`Use these skills whenever they fit, following each one's procedure and approval gates: ${skills.join(', ')}.`);
+  if (activities.length) {
+    parts.push(`This project's activities, to follow when I ask for one: ${activities.map((a) => `"${a.label}"${a.files === 'required' ? ' (it needs files: ask me for them)' : ''}: ${activityRequest(a, [], project)}`).join(' ')}`);
+  }
+  if (text) parts.push(`Instructions for this project: ${text.replace(/([^.!?])$/, '$1.')}`);
+  parts.push('Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
+  parts.push(`Talk to me in ${language}.`);
+  return parts.join(' ');
+}
+
 export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], root = ROOT, workspace = 'workspace', skill = '' }: Request): string {
   // Resolve an activity's agent here too, so the terminal menu and the app ask for the same role.
   const definition = getActivity(activity, root);
@@ -551,12 +618,7 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
     agent = { name: own.name, path: own.path };
   }
   const list = files.length ? files.join(', ') : '';
-  const parts = [`Follow AGENTS.md. Project: ${project}.`];
-  if (workspace !== 'workspace') {
-    parts.push(`Workspace folder: ${workspace}. Every path that AGENTS.md and the skills write as workspace/... is inside this folder, not in this repository's workspace/ folder;`
-      + ` paths recorded inside state.json and project files keep the workspace/... form. Run the npm helper commands with the environment variable QA_WORKSPACE=${workspace}.`);
-  }
-  if (repository) parts.push(`Linked folder (the system's repository): ${repository}.`);
+  const parts = promptHead(project, workspace, repository);
   if (agent) parts.push(`Act as the ${agent.name} agent: read ${agent.path} and follow it.`);
   switch (activity) {
     case 'open':

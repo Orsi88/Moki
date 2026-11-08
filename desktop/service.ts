@@ -9,7 +9,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  CRAFT_APPS, LANGUAGES, TOOLS, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
+  CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildStartPrompt, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
   listRuns, listSkills, openRuns, projectAgentsDir, projectRepository, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
@@ -341,6 +341,21 @@ export function createService(root: string, deps: Deps) {
   const artcraftSkills = () => [...new Set(listAgents(root).filter((a) => a.source === 'builtin' && a.category === 'artcraft').flatMap((a) => a.skills))]
     .filter((n) => isUsable(n, root)).sort();
   const linkableSkills = () => new Set([...globalSkillDirs.flatMap(skillFolders), ...artcraftSkills()]);
+
+  // A project's defaults: activities it sees (not the app's own actions), usable agents and skills, operations that exist.
+  const checkDefaults = (project: string, value: unknown): ProjectDefault[] => {
+    const list = parseDefaults(value);
+    if (!Array.isArray(value) || list.length !== value.length) throw new ServiceError('Invalid project defaults.');
+    const known: Record<ProjectDefault['kind'], Set<string>> = {
+      activity: new Set(listActivities(root, project).filter((a) => a.source !== 'moki').map((a) => a.id)),
+      agent: new Set(listAgents(root).filter(isUsableAgent).map((a) => a.name)),
+      skill: new Set([...listSkills(root).filter((sk) => isUsable(sk.name, root)).map((sk) => sk.name), ...linkableSkills()]),
+      operation: new Set(listOperations(root).map((o) => o.id)),
+    };
+    const unknown = list.filter((d) => !known[d.kind].has(d.id));
+    if (unknown.length) throw new ServiceError(`Not available as a default here: ${unknown.map((d) => d.id).join(', ')}`);
+    return list;
+  };
 
   // Agent names accepted for a project: usable agents of the library only.
   const checkAgents = (names: unknown): string[] => {
@@ -2049,28 +2064,67 @@ export function createService(root: string, deps: Deps) {
     // "Set up the project": its goal, the global and ArtCraft skills it uses (by reference, nothing is copied) and,
     // when given, its agents. Only skills installed globally or Moki's ArtCraft skills can be linked. When the AI left a plan.json,
     // contextFiles approves it with the files the user kept.
-    setupProject: (project: string, req: { description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown }) => {
+    // The project's settings. name, defaults and startInstructions are written only when given (older callers leave them).
+    setupProject: (project: string, req: { name?: unknown; description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown; defaults?: unknown; startInstructions?: unknown }) => {
       const file = join(projectDir(project), 'project.json');
-      const description = cleanPrompt(String(req?.description ?? '')).slice(0, 2000);
-      const wanted = Array.isArray(req?.linkedSkills) ? [...new Set(req.linkedSkills.map(String))] : [];
+      // The description keeps its lines, as when it is edited on its own (setProjectDescription); requests clean it when they quote it.
+      const description = String(req?.description ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 2000);
+      const name = req?.name === undefined ? undefined : String(req.name).trim();
+      if (name !== undefined && !name) throw new ServiceError('Give the project a name.');
+      const defaults = req?.defaults === undefined ? undefined : checkDefaults(project, req.defaults);
+      // The instructions keep their lines (they are read and edited here); control characters other than line breaks go.
+      const startInstructions = req?.startInstructions === undefined ? undefined
+        : String(req.startInstructions).replace(/\r\n/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim().slice(0, START_INSTRUCTIONS_LIMIT);
       const linkable = linkableSkills();
+      const wanted = Array.isArray(req?.linkedSkills) ? [...new Set(req.linkedSkills.map(String))] : [];
       const missing = wanted.filter((n) => !linkable.has(n));
       if (missing.length) throw new ServiceError(`Not installed for all projects: ${missing.join(', ')}`);
-      const agents = req?.agents === undefined ? undefined : checkAgents(req.agents);
+      // A default skill installed for all projects is linked, so requests from here name it.
+      const linked = [...new Set([...wanted, ...(defaults ?? []).filter((d) => d.kind === 'skill' && linkable.has(d.id)).map((d) => d.id)])];
+      const chosen = req?.agents === undefined ? undefined : checkAgents(req.agents);
+      // A default agent is turned on in the project.
+      const needed = (defaults ?? []).filter((d) => d.kind === 'agent').map((d) => d.id);
+      const base = chosen ?? enabledAgents(project);
+      const agents = needed.some((n) => !base.includes(n)) ? [...new Set([...base, ...needed])] : chosen;
       const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-      writeFileSync(file, `${JSON.stringify({ ...data, description, linkedSkills: wanted.sort() }, null, 2)}\n`);
+      writeFileSync(file, `${JSON.stringify({
+        ...data, ...(name !== undefined ? { name } : {}), description, linkedSkills: linked.sort(),
+        ...(defaults !== undefined ? { defaults } : {}), ...(startInstructions !== undefined ? { startInstructions } : {}),
+      }, null, 2)}\n`);
+      if (name !== undefined) projectsScan = null; // see setProjectName
       if (agents) failing(() => setAgentsOfProject(project, agents, root));
       const plan = readPlan(project);
       if (plan && Array.isArray(req?.contextFiles)) {
         const kept = new Set(req.contextFiles.map(String));
         const keptFolders = new Set(Array.isArray(req.folders) ? req.folders.map(String) : []);
-        const approved = { ...plan, approved: true, skills: wanted, agents: enabledAgents(project), contextFiles: plan.contextFiles.filter((f) => kept.has(f.path)), folders: plan.folders.filter((f) => keptFolders.has(f.path)) };
+        const approved = { ...plan, approved: true, skills: linked, agents: enabledAgents(project), contextFiles: plan.contextFiles.filter((f) => kept.has(f.path)), folders: plan.folders.filter((f) => keptFolders.has(f.path)) };
         writeFileSync(join(projectDir(project), 'plan.json'), `${JSON.stringify(approved, null, 2)}\n`);
       }
       return projectSummary(project, root);
     },
 
     readPlan: (project: string) => readPlan(project),
+
+    // What an AI opened in this project without a choice starts with: its request ('' = nothing set) and what its
+    // tab names (the default's name, or several). One activity without files starts like any activity (its own
+    // request, its origin recorded); anything else asks the AI to take the role and skills set and wait.
+    startOf: (project: string, tool: string, language: unknown) => {
+      const summary = projectSummary(project, root);
+      const lang = LANGUAGES.includes(String(language)) ? String(language) : 'English';
+      const set = summary.defaults.filter((d) => d.kind !== 'operation');
+      const only = set.length === 1 && set[0].kind === 'activity' ? listActivities(root, project).find((a) => a.id === set[0].id) : undefined;
+      if (only && only.files === 'none' && only.target.kind !== 'operation') {
+        try {
+          const prepared = prepareLaunch({ project, activity: only.id, tool, files: [], language: lang, note: summary.startInstructions } as LaunchRequest);
+          return { prompt: prepared.prompt, label: only.label, several: false };
+        } catch { /* not available now: start as the other defaults do */ }
+      }
+      const prompt = buildStartPrompt({ project, defaults: summary.defaults, instructions: summary.startInstructions, language: lang,
+        repository: projectRepository(project, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(project), root });
+      if (!prompt) return { prompt: '', label: '', several: false };
+      const names = set.map((d) => (d.kind === 'activity' ? listActivities(root, project).find((a) => a.id === d.id)?.label ?? d.id : d.id));
+      return { prompt, label: names.length === 1 ? names[0] : '', several: names.length !== 1 };
+    },
 
     openGlobal: (kind: unknown, name: unknown) => {
       if (kind === 'skill') deps.openFolder(globalSkill(name)[0]);

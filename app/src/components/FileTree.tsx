@@ -22,6 +22,7 @@ interface Props {
   onRenameStart?: (path: string) => void; // F2 on a row (the screen says why when the item keeps its name)
   onRename?: (path: string, name: string) => Promise<void>; // rejects with the reason the name was refused
   onRenameEnd?: () => void;
+  onSetup?: () => void; // the Project settings group ends with a row that opens them
   focusPath?: string | null; // a row to take the focus once it is shown (a file just renamed comes back under its new path)
   onFocused?: () => void;
 }
@@ -191,6 +192,9 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         <ul role="group">
           {(node.path === 'notes' && favorites ? [...node.children].sort((a, b) => Number(favorites.has(b.path)) - Number(favorites.has(a.path))) : node.children)
             .map((c) => <Node {...props} key={c.path} node={c} depth={depth + 1} />)}
+          {node.path === '.settings' && props.onSetup && (
+            <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={props.onSetup}><span className="tree-icon"><IconSliders size={14} /></span><span className="tree-label">{t('Project settings…')}</span></button></li>
+          )}
           {node.path === 'notes' && (
             <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={onNewNote}><span className="tree-icon"><IconPlus size={14} /></span><span className="tree-label">{t('New note')}</span></button></li>
           )}

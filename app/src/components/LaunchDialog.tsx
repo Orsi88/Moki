@@ -233,7 +233,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
           {error && step !== 'review' && <p className="error" role="alert">{error}</p>}
           {step === 'activity' && (
             <InvokeCatalog activities={activities.filter((a) => a.available && (a.id !== 'resume' || runs.length > 0))}
-              agents={agents} skills={skills} operations={operations} onPick={pick} />
+              agents={agents} skills={skills} operations={operations} onPick={pick} defaults={project.defaults} />
           )}
 
           {step === 'run' && (

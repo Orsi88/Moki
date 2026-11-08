@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { api, describeRun, statusLabel, type OpenRun, type ProjectSummary, type RunState, type LaunchPreset, type ToolInfo } from '../api';
 import { t } from '../i18n';
 import { preferredTool } from '../prefs';
-import { IconCheck, IconChevron, IconEdit, IconGraph, IconPanel, IconPlay, IconX } from './Icons';
+import { IconChevron, IconGraph, IconPanel, IconPlay, IconSliders } from './Icons';
 import { AiPick, QUICK_KINDS } from './ToolCatalog';
 import { pluginList } from './SkillsDialog';
 
@@ -34,12 +34,7 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
   const [run, setRun] = useState<RunState | null>(null);
   const [runs, setRuns] = useState<OpenRun[]>([]);
   const [planPending, setPlanPending] = useState(false); // the AI left a plan.json to review
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(project.name);
-  const [descriptionMode, setDescriptionMode] = useState<'closed' | 'view' | 'edit'>('closed');
-  const [descriptionDraft, setDescriptionDraft] = useState(project.description);
-  const [savingProject, setSavingProject] = useState(false);
-  const [projectError, setProjectError] = useState('');
+  const [descriptionOpen, setDescriptionOpen] = useState(false); // the whole description, read-only
   const quick = tools.filter((x) => x.available && QUICK_KINDS.includes(x.kind));
   // Starts on the default AI (Settings › My AIs); another choice here is for this panel only.
   // It is the one AI of the card: calling an agent and starting an activity use the same pick.
@@ -61,16 +56,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
   }, [project.id, refreshKey]);
 
   const pickTool = (id: string) => { setToolId(id); setLaunchMsg(''); };
-  const saveProject = async (field: 'name' | 'description') => {
-    setSavingProject(true); setProjectError('');
-    try {
-      if (field === 'name') await api.setProjectName(project.id, nameDraft);
-      else await api.setProjectDescription(project.id, descriptionDraft);
-      onProjectChanged();
-      if (field === 'name') setEditingName(false); else setDescriptionMode('closed');
-    } catch (e) { setProjectError(e instanceof Error ? e.message : String(e)); }
-    finally { setSavingProject(false); }
-  };
 
   const togglePlugin = (name: string) => {
     const next = pluginOn.includes(name) ? pluginOn.filter((p) => p !== name) : [...pluginOn, name];
@@ -151,28 +136,18 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
     <aside className="panel pp">
       <header className="pp-head">
         <div className="pp-label-row"><div className="panel-label">{t('Project')}</div>{collapseBtn}</div>
+        {/* The name and the description are shown here and edited in the project's settings (onSetup), with its defaults. */}
         <div className="pp-title-row">
-          {editingName ? <form className="pp-name-form" onSubmit={(e) => { e.preventDefault(); void saveProject('name'); }}>
-            <input aria-label={t('Project name')} autoFocus value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setEditingName(false); setProjectError(''); } }} />
-            <button type="submit" className="icon-btn" title={t('Save')} aria-label={t('Save')} disabled={savingProject || !nameDraft.trim()}><IconCheck size={15} /></button>
-            <button type="button" className="icon-btn" title={t('Cancel')} aria-label={t('Cancel')} disabled={savingProject} onClick={() => { setEditingName(false); setProjectError(''); }}><IconX size={15} /></button>
-          </form> : <>
-            <h2 className="panel-title">{project.name}</h2>
-            <button type="button" className="icon-btn pp-edit" onClick={() => { setNameDraft(project.name); setProjectError(''); setEditingName(true); }} title={t('Edit project name')} aria-label={t('Edit project name')}><IconEdit size={15} /></button>
-          </>}
+          <h2 className="panel-title">{project.name}</h2>
+          <button type="button" className="icon-btn pp-edit" onClick={onSetup} title={t('Project settings')} aria-label={t('Project settings')}><IconSliders size={15} /></button>
         </div>
-        {project.description
-          ? <><p className="pp-desc small">{project.description}</p><button type="button" className="link small pp-description-link" onClick={() => { setProjectError(''); setDescriptionMode('view'); }}>{t('See full description…')}</button></>
-          : <button type="button" className="link small pp-description-link" onClick={() => { setDescriptionDraft(project.description); setProjectError(''); setDescriptionMode('edit'); }}>{t('Add a description')}</button>}
-        {descriptionMode !== 'closed' && <div className="pp-description-card" role="region" aria-label={t('Description')}>
-          <div className="pp-description-head"><strong>{t('Description')}</strong><button type="button" className="icon-btn" title={t('Close')} aria-label={t('Close')} disabled={savingProject} onClick={() => { setDescriptionMode('closed'); setProjectError(''); }}><IconX size={15} /></button></div>
-          {descriptionMode === 'view' ? <><p className="pp-description-full">{project.description}</p><button type="button" className="btn btn-ghost btn-sm" onClick={() => { setDescriptionDraft(project.description); setDescriptionMode('edit'); }}>{t('Edit description')}</button></>
-            : <form onSubmit={(e) => { e.preventDefault(); void saveProject('description'); }}>
-              <textarea aria-label={t('Description')} autoFocus rows={4} maxLength={2000} value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} />
-              <div className="form-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={savingProject} onClick={() => { setDescriptionMode('closed'); setProjectError(''); }}>{t('Cancel')}</button><button type="submit" className="btn btn-sm" disabled={savingProject}>{savingProject ? t('Saving…') : t('Save')}</button></div>
-            </form>}
+        {project.description && <>
+          <p className="pp-desc small">{project.description}</p>
+          <button type="button" className="link small pp-description-link" onClick={() => setDescriptionOpen((v) => !v)} aria-expanded={descriptionOpen}>{descriptionOpen ? t('Show less') : t('See full description…')}</button>
+        </>}
+        {descriptionOpen && project.description && <div className="pp-description-card" role="region" aria-label={t('Description')}>
+          <p className="pp-description-full">{project.description}</p>
         </div>}
-        {projectError && <p className="error small" role="alert">{projectError}</p>}
       </header>
 
       {planPending && <button type="button" className="pp-banner" onClick={onSetup}>{t('The AI proposed a plan — review it')}<IconChevron size={14} /></button>}

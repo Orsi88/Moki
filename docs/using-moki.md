@@ -16,6 +16,14 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent open in a termi
 
 To talk through an idea, choose an agent in **Call…** and add the subject as an optional note. No run starts unless its procedure or your request calls for one.
 
+**Project settings** (the sliders next to the project's name, the ⋯ menu of the project folder, or *Project settings…* in the tree) hold the project's name and description and what an AI opened in it starts with. One section per kind:
+
+- **When an AI opens here**: optional instructions, sent with the defaults below to every AI opened without choosing something.
+- **Agents**: the ones the project enables; the star makes one a default.
+- **Skills**, **Activities**, **Operations**: the defaults of each kind, several if you want.
+
+An AI opened in the project (New › AI) starts with them: one activity that needs no files as the only default starts right away; otherwise the AI takes the default agent's role, uses the default skills, says in a line or two what is set up and what it needs, and waits. Its tab says so ("Claude Code · failure-analyst"). An activity you choose in **Call…** goes without the defaults and the instructions, and **Call…** lists the defaults first. In New › AI, *Without the project defaults* opens one with none of them.
+
 Then you talk in that tool as usual. The request names the project, the linked folder, and the skills and agents installed for it.
 
 **Settings** (the gear) has seven tabs; besides My AIs, each one is a list with filters and a search field:

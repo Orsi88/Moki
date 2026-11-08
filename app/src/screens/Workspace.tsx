@@ -21,7 +21,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -399,13 +399,18 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   }, [pendingPath, openPath, onPendingPath]);
 
   // tool '' opens the user's shell; otherwise the AI tool starts right away in the tab.
-  const newTerminal = (tool: string) => {
+  // An AI opened here starts with the project's defaults unless plain; its tab says which ("Claude Code · failure-analyst").
+  const newTerminal = (tool: string, plain = false) => {
     setTermMenu(null);
     setError('');
     const bridge = api.term();
     if (!bridge) { setError(t('Terminals are only available in the desktop app.')); return; }
-    bridge.create(tool, project.id)
-      .then((r) => (r.terminal ? addTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
+    bridge.create(tool, project.id, { plain, language: conversationLanguage() })
+      .then((r) => {
+        if (!r.terminal) { setError(r.error ?? t('Could not open the terminal.')); return; }
+        const mode = r.start ? (r.start.several ? t('project defaults') : t(r.start.label)) : '';
+        addTerminal(mode ? { ...r.terminal, title: `${r.terminal.title} · ${mode}` } : r.terminal);
+      })
       .catch((e: Error) => setError(e.message));
   };
   const openTermMenu = (e: MouseEvent<HTMLElement>) => {
@@ -484,6 +489,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const treeProps = {
     tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openPath, expanded,
     onNewNote: () => setNote({ path: null }), onMenu: openItemMenu, favorites, onIde: openIde, noteTitles, onReceive: dropOnFolder,
+    onSetup: () => setShowSetup(true),
     renaming, onRenameStart: startRename, onRename: renameItem, onRenameEnd: () => setRenaming(null), focusPath, onFocused: () => setFocusPath(null),
     onToggle: (p: string) => setExpanded((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
   };
@@ -853,7 +859,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       </footer>
 
       {termMenu && (
-        <NewMenu at={termMenu} tools={tools} onTerminal={newTerminal} onClose={() => setTermMenu(null)}
+        <NewMenu at={termMenu} tools={tools} onTerminal={newTerminal} withDefaults={project.defaults.some((d) => d.kind !== 'operation') || Boolean(project.startInstructions.trim())} onClose={() => setTermMenu(null)}
           onFile={(ext) => { setTermMenu(null); setCreating({ parent: tree.some((n) => n.path === 'inbox') ? 'inbox' : '', kind: 'file', ext }); }}
           onCraft={() => { setTermMenu(null); setCraftOpen(true); }} />
       )}
@@ -870,6 +876,10 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
           <ul className="term-menu item-menu" role="menu" style={{ left: itemMenu.left, top: itemMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setItemMenu(null); }}>
+            {itemMenu.path === '' && <>
+              <li><button type="button" role="menuitem" onClick={() => { setItemMenu(null); setShowSetup(true); }}><IconSliders size={15} /> {t('Project settings')}</button></li>
+              <li className="ws-menu-sep" />
+            </>}
             {itemMenu.canCreate && <>
               <li><button type="button" role="menuitem" autoFocus onClick={() => startCreate(itemMenu.path, 'file')}><IconFile size={15} /> {t('New file')}</button></li>
               <li><button type="button" role="menuitem" onClick={() => startCreate(itemMenu.path, 'folder')}><IconFolder size={15} /> {t('New folder')}</button></li>

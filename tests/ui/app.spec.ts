@@ -1888,24 +1888,22 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await aiPage.keyboard.press('Escape');
   });
 
-  test('the project title and description are edited without opening setup', async () => {
+  test('the panel shows the project name and description; they are edited in the project settings', async () => {
     const panel = aiPage.locator('.pp');
-    await panel.getByRole('button', { name: 'Editar nome do projeto' }).click();
-    await panel.getByRole('textbox', { name: 'Nome do projeto' }).fill('Novo nome');
-    await panel.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Editar nome do projeto' })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Adicionar uma descrição' })).toHaveCount(0); // no description: nothing shown
+    await panel.getByRole('button', { name: 'Configurações do projeto' }).click();
+    const settings = aiPage.getByRole('dialog', { name: /^Configurações de / });
+    await settings.getByRole('textbox', { name: 'Nome' }).fill('Novo nome');
+    await settings.getByRole('textbox', { name: 'Descrição' }).fill('Primeira linha\nDescrição completa do projeto.');
+    // Editing settings opens no AI: the "ask the AI next" box is off outside the plan flows.
+    await expect(settings.getByRole('checkbox', { name: /adapte o contexto/ })).not.toBeChecked();
+    await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(settings).toBeHidden();
     await expect(panel.getByRole('heading', { name: 'Novo nome' })).toBeVisible();
-    await expect(aiPage.getByRole('dialog')).toHaveCount(0);
-    await panel.getByRole('button', { name: 'Adicionar uma descrição' }).click();
-    const card = panel.getByRole('region', { name: 'Descrição' });
-    await card.getByRole('textbox', { name: 'Descrição' }).fill('Primeira linha\nDescrição completa do projeto.');
-    await card.getByRole('button', { name: 'Salvar' }).click();
-    await expect(panel.getByRole('button', { name: 'Ver completa...' })).toBeVisible();
+    await expect(panel.locator('.pp-desc')).toContainText('Primeira linha');
     await panel.getByRole('button', { name: 'Ver completa...' }).click();
-    await expect(card.getByText('Descrição completa do projeto.', { exact: false })).toBeVisible();
-    await card.getByRole('button', { name: 'Editar descrição' }).click();
-    await card.getByRole('textbox', { name: 'Descrição' }).fill('Outra descrição');
-    await card.getByRole('button', { name: 'Salvar' }).click();
-    await expect(panel.locator('.pp-desc')).toHaveText('Outra descrição');
+    await expect(panel.getByRole('region', { name: 'Descrição' })).toContainText('Descrição completa do projeto.');
     await expect(aiPage.getByRole('dialog')).toHaveCount(0);
   });
 
@@ -2807,4 +2805,102 @@ test('Moki call pastes into the current AI terminal and waits for Enter', async 
     rmSync(root, { recursive: true, force: true });
     rmSync(profile, { recursive: true, force: true });
   }
+});
+
+test.describe.serial('Moki project defaults', () => {
+  let defApp: ElectronApplication;
+  let dp: Page;
+  let project = '';
+  const dirs: string[] = [];
+  const pane = () => dp.locator('.term-pane:not([hidden])');
+  const newAi = async (plain = false) => {
+    await dp.getByRole('button', { name: 'Novo: terminal, IA ou arquivo', exact: true }).click();
+    await dp.getByRole('menuitem', { name: 'IA', exact: true }).click();
+    if (plain) await dp.getByRole('menuitemcheckbox', { name: /Sem o padrão do projeto/ }).click();
+    await dp.getByRole('menuitem', { name: /Claude Code/ }).click();
+    await expect(pane()).toContainText('[ready]');
+  };
+  const closeTab = async () => { await dp.keyboard.press('Control+w'); };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    project = join(root, 'workspace', 'projects', 'acme');
+    // An activity of the person's that needs no files: as the only default, it starts by itself.
+    const library = join(root, 'workspace', 'library', 'activities');
+    mkdirSync(library, { recursive: true });
+    writeFileSync(join(library, 'resumo-rapido.md'), '---\nlabel: "Resumo rápido"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nResuma o estado do projeto em três linhas.\n');
+    ({ app: defApp, page: dp } = await openApp(root, userData, 'acme', { QA_FAKE_TOOLS: '1' }));
+  });
+
+  test.afterAll(async () => {
+    await defApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('the settings open from the project menu and from the tree, one section per kind', async () => {
+    await dp.getByRole('button', { name: 'Opções da pasta do projeto' }).click();
+    await dp.getByRole('menuitem', { name: 'Configurações do projeto' }).click();
+    const settings = dp.getByRole('dialog', { name: /^Configurações de / });
+    for (const section of ['Projeto', 'Ao abrir uma IA aqui', 'Agentes', 'Skills', 'Atividades', 'Operações', 'Plugins']) {
+      await expect(settings.getByRole('group', { name: section, exact: true })).toBeVisible();
+    }
+    await expect(settings.getByRole('status')).toHaveText('Uma IA aberta aqui começa sem nada configurado.');
+    await settings.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(settings).toBeHidden();
+    // The tree's Project settings group ends with the same door.
+    await dp.locator('.tree-row[title=".settings"]').click();
+    await dp.getByRole('button', { name: 'Configurar projeto…' }).click();
+    await expect(settings).toBeVisible();
+    await settings.getByRole('button', { name: 'Cancelar' }).click();
+  });
+
+  test('a default agent and skill with instructions: a new AI takes the role, uses the skill and waits', async () => {
+    await dp.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
+    const settings = dp.getByRole('dialog', { name: /^Configurações de / });
+    await settings.getByRole('button', { name: 'Padrão: failure-analyst' }).click();
+    await expect(settings.getByRole('button', { name: 'Padrão: failure-analyst' })).toHaveAttribute('aria-pressed', 'true');
+    await settings.getByRole('combobox', { name: 'Skills padrão' }).selectOption('failure-analysis');
+    await expect(settings.getByRole('list', { name: 'Skills padrão' })).toContainText('failure-analysis');
+    await settings.getByRole('textbox', { name: /Instruções ao iniciar/ }).fill('Os logs vêm do serviço X, em horário de Brasília.');
+    await expect(settings.getByRole('status')).toHaveText('Uma IA aberta aqui diz o que está configurado e espera você.');
+    await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(settings).toBeHidden();
+    const saved = JSON.parse(readFileSync(join(project, 'project.json'), 'utf8'));
+    expect(saved.defaults).toEqual([{ kind: 'agent', id: 'failure-analyst' }, { kind: 'skill', id: 'failure-analysis' }]);
+    expect(saved.startInstructions).toBe('Os logs vêm do serviço X, em horário de Brasília.');
+
+    await newAi();
+    await expect(pane()).toContainText('[start] Follow AGENTS.md. Project: acme.');
+    await expect(pane()).toContainText('Act as the failure-analyst agent');
+    await expect(pane()).toContainText('Use these skills whenever they fit');
+    await expect(pane()).toContainText('Instructions for this project: Os logs vêm do serviço X');
+    await expect(dp.locator('.tab-term.active')).toContainText('Claude Code · padrão do projeto');
+    await closeTab();
+  });
+
+  test('an AI can still open without the project defaults', async () => {
+    await newAi(true);
+    await expect(pane()).not.toContainText('[start]');
+    await expect(dp.locator('.tab-term.active')).not.toContainText('·');
+    await closeTab();
+  });
+
+  test('one activity that needs no files as the only default starts by itself; defaults come first in Call', async () => {
+    const file = join(project, 'project.json');
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...data, defaults: [{ kind: 'activity', id: 'resumo-rapido' }], startInstructions: '' }, null, 2));
+    await expect.poll(async () => { await newAi(); const text = await pane().textContent(); await closeTab(); return text ?? ''; }).toContain('Resuma o estado do projeto em três linhas.');
+    await newAi();
+    await expect(pane()).toContainText('add --activity resumo-rapido'); // its origin is recorded, as for any activity
+    await expect(dp.locator('.tab-term.active')).toContainText('Claude Code · Resumo rápido');
+    await closeTab();
+    // Call lists the project's defaults first, marked.
+    await dp.locator('.pp').getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const call = dp.getByRole('dialog');
+    await expect(call.locator('.invoke-row').first()).toContainText('Resumo rápido');
+    await expect(call.locator('.invoke-row').first()).toContainText('Padrão');
+    await dp.keyboard.press('Escape');
+  });
 });
