@@ -15,8 +15,10 @@ Request: "Act as sherlock. <paste the content of request.md>".
 
 - [ ] `dossier-<slug>.md` has Summary, Key questions and answers, Context, the risk sections (risk catalog, known incidents, care points, test ideas per risk, scores), Divergences, Gaps and limits, Next steps and Bibliography.
 - [ ] The risk catalog covers at least: XML signature wrapping, assertion replay, missing audience/recipient/issuer validation, redirect URI manipulation, missing state/nonce/PKCE, token leakage, insecure logout/session handling, IdP misconfiguration; each with a reference (CWE, CAPEC or OWASP) and a confidence label.
-- [ ] Every citation id in the text exists in the bibliography and in `evidence/sources.md` as opened, with link and access date; no entry under "Further reading (not consulted)" is cited in the text.
-- [ ] Spot-check three references: each link opens and says what the dossier attributes to it.
+- [ ] Every citation id in the text exists in the bibliography and in the sources table of `outputs/sources.md` as used, with link and access date; no entry under "Further reading (not consulted)" is cited in the text.
+- [ ] Each key finding (F1…) has a row in the evidence table of `sources.md` with a locator and a short excerpt; spot-check three: the link opens and the excerpt is there and supports the finding.
+- [ ] Confidence: a requirement quoted from a specification may be *established*; a claim about how common an attack is, backed by one report or one paper, is at most *supported*.
+- [ ] The search rounds table shows, for each key question, answered or gap, and the stop reason (saturation or round limit).
 - [ ] The handoff offers `test-design` with the risk catalog.
 
 ## Case 3 — no web access

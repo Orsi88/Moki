@@ -27,15 +27,24 @@ Useful search operators: exact phrase in quotes, `site:` (for example `site:owas
 
 ## 4. Record as you go
 
-Every source opened goes into the source log right away: id (S1, S2…), title, author or organization, publication date, tier, link or identifier (DOI, ISBN, RFC, standard id), accessed on (date), used or discarded and why. The dossier cites these ids.
+Write to the source log (`outputs/sources.md`) right away:
+
+- **Sources**: every source opened — id (S1, S2…), title, author or organization, publication date, tier, link or identifier (DOI, ISBN, RFC, standard id), accessed on (date), used or discarded and why.
+- **Evidence for key findings**: for each key finding (F1, F2…), the source id, the exact locator (section, clause, page or paragraph) and a short excerpt in the original language that supports it. If you cannot point to the place, the source does not support the finding.
+- **Search rounds**: one row per round — round number, key question, queries run, new relevant sources found, outcome (answered, gap, continue).
+
+The dossier cites the source ids with their locator: `[S3 §4.1.4]`, `[S7 p. 12]`.
 
 ## 5. Know when to stop
 
-Stop and say which criterion applied:
+A **search round** is one pass for one key question across the relevant layers (primary → academic → reference → practice → signals), followed by reading what was found. Log every round.
 
-- **Saturation**: the last searches across layers bring no new relevant fact, risk or position.
-- **Limit**: the plan's time, period or number of sources was reached; list what remains as next questions.
-- **Plan change needed**: the findings show the plan was wrong — stop and ask (plan change gate).
+Stop a key question when it is **answered** (with the confidence its evidence allows) or **declared a gap**, and one of these holds:
+
+- **Saturation**: the last round brought no new relevant fact, risk or position.
+- **Round limit**: the plan's limit was reached (default: 3 rounds per key question); what is still open goes to *Gaps and limits* and *Next steps*.
+
+Stop the whole investigation when every key question has stopped. If the findings show the plan was wrong, stop and ask (plan change gate).
 
 ## Search hygiene
 

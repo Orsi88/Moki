@@ -34,5 +34,5 @@ Short: the user reads it in one minute and approves or adjusts. Labels in the de
 Mandatory sections + <the purpose's sections, see the dossier template>. Spreadsheet: <no | yes: risk catalog>.
 
 ## Stop criterion
-<saturation | limit: …>
+Each key question answered or declared a gap, then saturation or at most <N> search rounds per question (default 3).
 ```

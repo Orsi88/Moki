@@ -6,7 +6,8 @@ A dossier is read top-down: the answer first, then the ground under it. Every se
 
 - **Answer first.** The summary gives the conclusions, not the history of the research.
 - **One idea per paragraph**, at most four lines. Tables for anything with more than two attributes per item. Lists for parallel items.
-- **Cite inline** with the source log id in brackets: "Signature wrapping lets an attacker inject an unsigned assertion [S3][S7]." The bibliography resolves the ids.
+- **Cite inline** with the source log id and the exact place in brackets: "Signature wrapping lets an attacker inject an unsigned assertion [S3 §5.2][S7 p. 4]." The bibliography resolves the ids; the source log's evidence table holds the excerpt for each key finding.
+- **Number key findings** (F1, F2…) so they match the source log's evidence table.
 - **Confidence on every finding**: *established*, *supported*, *disputed*, *weak* or *hypothesis* (meanings in the skill's rules).
 - **Diagrams** in Mermaid code blocks, at most 15 nodes, only where they explain better than text (concept map, flow, timeline, comparison of architectures).
 - Quotes short, in the original language, in quotation marks, with the id.
@@ -18,7 +19,7 @@ A dossier is read top-down: the answer first, then the ground under it. Every se
 # <Topic> — investigation dossier
 
 **Purpose:** <…> · **Date:** <YYYY-MM-DD> · **Run:** <run-id>
-**Confidence overall:** <high | medium | low> — <one-line reason>
+**Confidence overall:** <high | medium | low> — <one-line reason> · **Stop:** <saturation | round limit> — <questions left open, if any>
 
 ## Summary
 <5 to 10 lines: the answers to the key questions, the strongest evidence, the main gap>

@@ -60,14 +60,14 @@ Ask only for what is missing and needed to plan well, one short message, at most
 Step ids are used in `state.json`.
 
 1. **`briefing`** — Identify the project and create the run. Read the request and any attachment. Ask only the missing information ([Inputs](#inputs)). Restate the topic and purpose in one or two lines.
-2. **`plan`** — Write the investigation plan with the [plan template](references/plan-template.md): key questions, scope and out of scope, source types by tier, search strings (sanitized, see [rules](#rules-and-constraints)), languages, the dossier sections chosen for the purpose, and the stop criterion. Save it, set `awaiting-approval` and **stop** with the [plan gate](#human-approval-points).
+2. **`plan`** — Write the investigation plan with the [plan template](references/plan-template.md): key questions, scope and out of scope, source types by tier, search strings (sanitized, see [rules](#rules-and-constraints)), languages, the dossier sections chosen for the purpose, and the stop criterion (question coverage plus a round limit; default: 3 search rounds per key question). Save it, set `awaiting-approval` and **stop** with the [plan gate](#human-approval-points).
 3. **`research`** — Follow [research method](references/research-method.md):
    - start from primary and reference sources ([source tiers](references/source-tiers.md)), then practice, then signals;
    - follow citations backwards to the origin and forwards to newer work that confirms, refines or contradicts it;
    - read laterally: check who publishes a source and whether others corroborate it;
-   - record every source opened in the source log (used or discarded, and why);
-   - a **key claim** needs at least two independent sources, or one primary source; otherwise it is labeled accordingly;
-   - stop when new searches stop bringing new relevant information (saturation) or the plan's limit is reached, and say which.
+   - record every source opened in the source log (used or discarded, and why) and, for each key finding, the exact place that supports it (section, page or paragraph, and a short excerpt);
+   - assign confidence by the [confidence rules](#rules-and-constraints): the kind of claim, the quality of the evidence, contradictions and whether it applies to the user's context;
+   - work in search rounds and log each one; stop when **every key question is answered or declared a gap** and either no new relevant information appeared in the last round (saturation) or the plan's round limit was reached — say which, and list what remains open.
    If the research shows the plan was wrong (the topic is different, a key question is missing), stop and propose the change before continuing.
 4. **`dossier`** — Write the dossier with the [dossier template](references/dossier-template.md) and the sections the purpose requires. Every statement that is not common knowledge has a citation; confidence is stated for each finding; divergences and gaps have their own sections. Optional spreadsheet only when the user asks or approved it in the plan.
 5. **`handoff`** — Present a summary (5 to 10 lines: what was found, the strongest evidence, the main gaps), the file paths and the possible next steps (for example `test-design` with the risk catalog, `requirements-review` with the open questions, proposals for `project-context`). Record results and close the run.
@@ -76,7 +76,11 @@ Step ids are used in `state.json`.
 
 - **Never invent a reference.** Cite only what was opened in this run, with title, author or organization, date of publication (or "undated") and date of access, and a link. A paper known only by its abstract is cited as such. A book not accessible is listed under *Further reading (not consulted)*, never as a source of a statement.
 - **No project data on the web.** Search strings use only generic terms (protocol, technology, standard, error class). Never put customer names, internal hosts or URLs, ids, people's names, logs or confidential text in a query or in any external service, unless `project.json` has `externalDataSharingAllowed: true` and the user authorizes it for this task ([isolation](references/core/isolation-policy.md)). Show the search strings in the plan.
-- **Fact, consensus, hypothesis.** Label each finding: *established* (primary source or broad agreement), *supported* (good sources, little contradiction), *disputed* (credible sources disagree — show both sides), *weak* (single or low-tier source), *hypothesis* (inference by the investigator — say from what).
+- **Confidence rules.** Judge each finding by the kind of claim, not only by the tier of its source:
+  - *Normative* claims ("the standard requires X", "the law says Y") are *established* by the current version of the text itself, cited at the exact clause. They say what is required, not what happens in practice.
+  - *Empirical or general* claims ("X is common", "Y prevents Z", "most implementations…") need corroboration: *established* only with independent agreement of good sources (for example several studies, or a systematic review) and no credible contradiction; one study or one authority alone is at most *supported*.
+  - Labels: *established* (as above), *supported* (good evidence, little or no contradiction, not yet broad agreement), *disputed* (credible sources disagree — show both sides), *weak* (single low-tier source, indirect or outdated evidence), *hypothesis* (the investigator's inference — say from what).
+  - Lower the label when the evidence is old for a fast-moving topic, comes from an interested party, or was observed in a context different from the user's (other version, protocol, sector, country); say why.
 - **Original over repetition.** When ten pages repeat one claim, find and cite the origin; count them as one source.
 - **Currency.** Note the date of each source; for fast-moving topics (security, versions, prices, law) prefer the latest and flag outdated ones.
 - **Interests.** Note when a source sells what it recommends or is otherwise interested.
@@ -88,8 +92,10 @@ Step ids are used in `state.json`.
 ## Validation criteria
 
 - The plan was approved before any search was run, and the search strings in it contain no project data.
-- Every entry in the dossier's bibliography appears in the source log as *opened*, with a working link or a precise identifier (DOI, ISBN, RFC number, standard id) and the access date.
-- Every finding has a confidence label and at least one citation; key claims marked *established* or *supported* have two independent sources or one primary source.
+- Every entry in the dossier's bibliography appears in the source log's sources table as *used*, with a working link or a precise identifier (DOI, ISBN, RFC number, standard id) and the access date.
+- Every finding has a confidence label and at least one citation with a locator (section, clause, page or paragraph); a normative finding marked *established* cites the clause of the current text; an empirical finding marked *established* cites at least two independent sources.
+- Every key finding has a row in the source log's evidence table with the locator and a short excerpt that actually supports it.
+- The source log's rounds table shows the stop criterion was met: each key question answered or declared a gap, and saturation or the round limit stated.
 - The dossier has the mandatory sections of the template plus the sections of the chosen purpose; divergences and gaps are explicit (even if "none found").
 - No statement in the dossier comes from a source marked *not consulted* or from memory.
 
@@ -99,7 +105,10 @@ Deliverables (language: deliverable language; see `AGENTS.md`):
 
 - Investigation plan: `workspace/projects/<project-id>/runs/<run-id>/outputs/investigation-plan.md` ([plan template](references/plan-template.md)).
 - Dossier: `workspace/projects/<project-id>/runs/<run-id>/outputs/dossier-<slug>.md` ([dossier template](references/dossier-template.md)), Markdown with tables, Mermaid diagrams and links.
-- Source log (evidence the skill keeps): `workspace/projects/<project-id>/runs/<run-id>/evidence/sources.md` — one row per source opened: id, title, author/organization, date, tier, link, accessed on, used or discarded and why.
+- Source log: `workspace/projects/<project-id>/runs/<run-id>/outputs/sources.md`, delivered with the dossier so anyone can audit it, in three tables:
+  - **Sources** — one row per source opened: id, title, author/organization, date, tier, link or identifier, accessed on, used or discarded and why;
+  - **Evidence for key findings** — finding id, source id, locator (section, clause, page or paragraph), short excerpt in the original language (at most about 25 words);
+  - **Search rounds** — round, key question, queries run, new relevant sources, outcome (answered, gap, continue).
 - Optional spreadsheet (only when asked or approved in the plan), for a large table such as a risk catalog: `npm run xlsx -- write --layout skills/investigation/assets/risk-catalog.layout.json --data <data.json> --lang <pt-BR|en> --out workspace/projects/<project-id>/runs/<run-id>/outputs/<file>.xlsx`; the data file goes to the run's work folder. Layout: [risk-catalog.layout.json](assets/risk-catalog.layout.json). Other tables: a Markdown table in the dossier.
 
 Chat-only tools: present the plan and the dossier in the conversation and tell the user where to save them.
@@ -128,4 +137,4 @@ The dossier and the source log are saved, every bibliography entry is traceable 
 
 ## Persistence
 
-Follow the [persistence protocol](references/core/persistence-protocol.md). Run in `workspace/projects/<project-id>/runs/<run-id>/` with `state.json` (steps `briefing`, `plan`, `research`, `dossier`, `handoff`; the plan approval in `approvals`; open questions in `pending`), the user's attachments listed in `inputs`, the plan and dossier in its outputs folder, the source log in its evidence folder and working data in its work folder. Offer confirmed general definitions to `project-context` as proposals in `workspace/projects/<project-id>/proposed-updates.md`.
+Follow the [persistence protocol](references/core/persistence-protocol.md). Run in `workspace/projects/<project-id>/runs/<run-id>/` with `state.json` (steps `briefing`, `plan`, `research`, `dossier`, `handoff`; the plan approval in `approvals`; open questions in `pending`), the user's attachments listed in `inputs`, the plan, the dossier and the source log in its outputs folder (all listed in `artifacts`) and working data in its work folder. Offer confirmed general definitions to `project-context` as proposals in `workspace/projects/<project-id>/proposed-updates.md`.
