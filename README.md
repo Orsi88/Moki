@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Download Moki for Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.4.2/Moki.Setup.0.4.2.exe">Moki.Setup.0.4.2.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.0/Moki.Setup.0.5.0.exe">Moki.Setup.0.5.0.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
 
@@ -20,11 +20,11 @@ It started as software quality work: review a story, design tests, look at a fai
 
 ## Install
 
-1. Download [Moki.Setup.0.4.2.exe](https://github.com/Orsi88/moki/releases/download/v0.4.2/Moki.Setup.0.4.2.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
+1. Download [Moki.Setup.0.5.0.exe](https://github.com/Orsi88/moki/releases/download/v0.5.0/Moki.Setup.0.5.0.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
 2. If Windows says it protected your PC, choose **More info → Run anyway**. The installer is not digitally signed yet.
 3. Install an AI tool too (Claude Code, Cursor, Codex, Gemini, or a chat you already use).
 
-For VS Code, download [moki-0.4.2.vsix](https://github.com/Orsi88/moki/releases/download/v0.4.2/moki-0.4.2.vsix) and run `code --install-extension moki-0.4.2.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
+For VS Code, download [moki-0.5.0.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.0/moki-0.5.0.vsix) and run `code --install-extension moki-0.5.0.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
 
 Your projects live in **Documents\Moki**, and a newer installer never touches them. macOS, Linux and running from the source: [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
@@ -47,6 +47,14 @@ Your projects live in **Documents\Moki**, and a newer installer never touches th
 | [Project context](skills/project-context/SKILL.md) | Onboarding, updates, and the plan for a blank project |
 
 Agents chain these into **multi-agent operations**, MCP servers give the AI your tools (Playwright, Azure DevOps, Jira…), and the **VS Code extension** brings the project's context to the AI of your editor.
+
+## New in 0.5
+
+- **Groups and split screen.** Each AI terminal opens its own colored tab group, and the files it delivers open there by themselves. Split the screen into up to four views, each with its own tabs.
+- **Project settings with defaults.** Choose the agents, skills, activities and operations an AI opened in the project starts with, and link them by the project's tag (both settings show the same).
+- **Bring to this project.** Drop a skill, an agent, an activity or a whole `.claude` folder; Moki sorts it and links it to the project.
+- **Only what you asked for.** The AI delivers the files you asked for, in your format, and Moki clears the helper files it leaves behind.
+- **Notes and files.** Rename anything in place, edit and comment Markdown in one view, add table rows and columns, and themes for Moki, the terminal and documents.
 
 ## Documentation
 
