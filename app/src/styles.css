@@ -2001,27 +2001,41 @@ span.mcp-row-main { cursor: default; }
 .run-leftovers .row-actions { margin-top: 8px; }
 
 /* ---- Tab groups and split views (components/TabGroups.tsx, tab-groups.ts) */
-/* Group colors, as a browser's tab groups: soft shades on the dark theme, strong ones on the light. -ink: text on them. */
+/* Group colors: soft tones that sit with Moki's warm palette. --group: the line under a group; -soft: its chip; -ink: the chip's text. */
 :root {
-  --group-blue: #8ab4f8; --group-red: #f28b82; --group-yellow: #fdd663; --group-green: #81c995; --group-pink: #ff8bcb;
-  --group-purple: #d7aefb; --group-cyan: #78d9ec; --group-orange: #fcad70; --group-grey: #dadce0;
-  --group-blue-ink: #202124; --group-red-ink: #202124; --group-yellow-ink: #202124; --group-green-ink: #202124; --group-pink-ink: #202124;
-  --group-purple-ink: #202124; --group-cyan-ink: #202124; --group-orange-ink: #202124; --group-grey-ink: #202124;
+  --group-blue: #8fa9cc; --group-blue-soft: #2a3340; --group-blue-ink: #c5d4e8;
+  --group-red: #d69488; --group-red-soft: #3d2a27; --group-red-ink: #ecc4bc;
+  --group-yellow: #e3c56d; --group-yellow-soft: #3a3322; --group-yellow-ink: #f1dfa4;
+  --group-green: #93bb98; --group-green-soft: #273329; --group-green-ink: #c6dec9;
+  --group-pink: #d79cbc; --group-pink-soft: #3a2932; --group-pink-ink: #eecbdd;
+  --group-purple: #b0a2d6; --group-purple-soft: #2f2b3c; --group-purple-ink: #d8d0ee;
+  --group-cyan: #84bcc0; --group-cyan-soft: #233536; --group-cyan-ink: #c0e0e2;
+  --group-orange: #e0a678; --group-orange-soft: #3b2e23; --group-orange-ink: #f0d0b4;
+  --group-grey: #b3aa9c; --group-grey-soft: #2f2d2a; --group-grey-ink: #ddd5c8;
 }
 :root[data-theme="light"] {
-  --group-blue: #1a73e8; --group-red: #d93025; --group-yellow: #f9ab00; --group-green: #188038; --group-pink: #d01884;
-  --group-purple: #a142f4; --group-cyan: #007b83; --group-orange: #e8710a; --group-grey: #5f6368;
-  --group-blue-ink: #fff; --group-red-ink: #fff; --group-yellow-ink: #202124; --group-green-ink: #fff; --group-pink-ink: #fff;
-  --group-purple-ink: #fff; --group-cyan-ink: #fff; --group-orange-ink: #fff; --group-grey-ink: #fff;
+  --group-blue: #6f8fb8; --group-blue-soft: #dfe7f1; --group-blue-ink: #2f4a6b;
+  --group-red: #c07468; --group-red-soft: #f3dfdb; --group-red-ink: #7a3329;
+  --group-yellow: #c9a227; --group-yellow-soft: #f6ecc9; --group-yellow-ink: #6b5512;
+  --group-green: #6f9c76; --group-green-soft: #dfeadf; --group-green-ink: #2f5a37;
+  --group-pink: #c27aa0; --group-pink-soft: #f3dfe9; --group-pink-ink: #6f2f52;
+  --group-purple: #9583bf; --group-purple-soft: #e6e1f1; --group-purple-ink: #4a3c74;
+  --group-cyan: #5f9ea3; --group-cyan-soft: #dbecec; --group-cyan-ink: #255458;
+  --group-orange: #cf8a52; --group-orange-soft: #f6e3d2; --group-orange-ink: #74431b;
+  --group-grey: #9a9184; --group-grey-soft: #ebe6dd; --group-grey-ink: #4d473f;
 }
 /* A group chip in a view's row (before its tabs when it is the shown one). */
 .pane-tabs .group-chip { align-self: center; margin: 0 4px 4px 2px; }
-.group-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; height: 22px; padding: 0 10px; border: 0; border-radius: 7px;
-  background: var(--group, var(--bg-3)); color: var(--group-ink, var(--text)); font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+.group-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; height: 22px; padding: 0 10px; border: 0; border-radius: 6px;
+  background: var(--group-soft, var(--bg-3)); color: var(--group-ink, var(--muted)); font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+.group-chip:hover { filter: brightness(0.97); }
 .group-chip.general { background: var(--bg-3); color: var(--muted); }
-.group-chip.on { box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 3.5px var(--group, var(--muted)); }
 .group-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group-chip-new { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--group-ink, var(--accent)); color: var(--group, var(--accent-text)); font-size: 0.68rem; line-height: 16px; text-align: center; }
+.group-chip-new { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--group, var(--accent)); color: var(--bg); font-size: 0.68rem; line-height: 16px; text-align: center; }
+/* The shown group: its chip and its tabs over one continuous line in its color. */
+.tab-group { display: flex; align-items: flex-end; gap: 2px; flex-shrink: 0; border-bottom: 2px solid var(--group, transparent); }
+.tab-group.general { border-bottom-color: transparent; }
+.tab-group .group-chip { margin-bottom: 4px; }
 /* The layout and New buttons, at the end of the top-right view's row. */
 .pane-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; padding-bottom: 4px; flex-shrink: 0; position: sticky; right: 0; background: var(--bg-2); }
 .layout-menu button svg { flex-shrink: 0; }
@@ -2044,18 +2058,14 @@ span.mcp-row-main { cursor: default; }
 /* A view's head: its group (with several views) and its tabs; a tab of a group has its color under it, the active one outlined. */
 .pane-tabs { align-items: flex-end; }
 .pane-tabs.drop-over { background: var(--accent-soft); }
-.tab.in-group { box-shadow: inset 0 -2px 0 var(--group); }
-.tab.active.in-group { box-shadow: inset 0 0 0 1.5px var(--group); }
 .tab-new { width: 7px; height: 7px; border-radius: 50%; background: var(--group, var(--accent)); flex-shrink: 0; }
 /* Group and tab menus. */
 .group-menu { display: flex; flex-direction: column; gap: 8px; width: 236px; padding: 10px; }
 .group-name { width: 100%; }
 .group-colors { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
-.group-swatch { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: var(--group); cursor: pointer; }
+.group-swatch { width: 20px; height: 20px; padding: 0; border: 2px solid var(--group); border-radius: 50%; background: var(--group-soft); cursor: pointer; }
 .group-swatch.on, .group-swatch:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .group-menu-item { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; font-size: 0.85rem; }
 .group-menu-item:hover { background: var(--bg-3); }
 .group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--group, var(--muted)); flex-shrink: 0; }
 .term-menu .menu-head { padding: 4px 10px; color: var(--muted); font-size: 0.72rem; letter-spacing: .04em; text-transform: uppercase; }
-.pane-tabs { scrollbar-width: thin; }
-.pane-tabs::-webkit-scrollbar { height: 3px; }

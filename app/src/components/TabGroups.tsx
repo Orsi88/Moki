@@ -10,7 +10,7 @@ import { IconX } from './Icons';
 
 export const TAB_DRAG = 'application/x-moki-tab';
 export const groupLabel = (g: Group): string => (g.id === GENERAL ? t('General') : g.name || t('Group'));
-export const colorStyle = (c: GroupColor): CSSProperties => ({ '--group': `var(--group-${c})`, '--group-ink': `var(--group-${c}-ink)` } as CSSProperties);
+export const colorStyle = (c: GroupColor): CSSProperties => ({ '--group': `var(--group-${c})`, '--group-soft': `var(--group-${c}-soft)`, '--group-ink': `var(--group-${c}-ink)` } as CSSProperties);
 export const groupStyle = (g: Group | undefined): CSSProperties | undefined => (g && g.id !== GENERAL ? colorStyle(g.color) : undefined);
 const COLOR_NAMES: Record<GroupColor, string> = { blue: 'Blue', red: 'Red', yellow: 'Yellow', green: 'Green', pink: 'Pink', purple: 'Purple', cyan: 'Cyan', orange: 'Orange', grey: 'Grey' };
 
@@ -64,11 +64,9 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
   const accepts = (e: DragEvent) => Array.from(e.dataTransfer.types).includes(TAB_DRAG);
   const grouped = groups.some((g) => g.id !== GENERAL && counts(g.id) > 0);
   const chips = grouped ? groups.filter((g) => counts(g.id) > 0 || g.id === shown) : [];
-  const group = groups.find((g) => g.id === shown);
   const tabRow = tabs.map((tab) => (
     <div key={tab.key} role="tab" aria-selected={tab.key === active} draggable
-      className={`tab${tab.term ? ' tab-term' : ''}${tab.key === active ? ' active' : ''}${tab.exited ? ' exited' : ''}${group && group.id !== GENERAL ? ' in-group' : ''}`}
-      style={groupStyle(group)}
+      className={`tab${tab.term ? ' tab-term' : ''}${tab.key === active ? ' active' : ''}${tab.exited ? ' exited' : ''}`}
       onClick={() => onSelect(tab.key)} title={tab.title} onAuxClick={(e) => { if (e.button === 1) onClose(tab.key); }}
       onContextMenu={(e) => { e.preventDefault(); onTabMenu(tab.key, { left: e.clientX, top: e.clientY }); }}
       onDragStart={(e) => { e.dataTransfer.setData(TAB_DRAG, tab.key); e.dataTransfer.effectAllowed = 'move'; }}>
@@ -95,7 +93,9 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
     <div className={`tabs pane-tabs${over ? ' drop-over' : ''}`} role="tablist"
       onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
       onDrop={(e) => { if (!accepts(e)) return; e.preventDefault(); setOver(false); onDropTab(e.dataTransfer.getData(TAB_DRAG)); }}>
-      {chips.length ? chips.flatMap((g) => (g.id === shown ? [chip(g), ...tabRow] : [chip(g)])) : tabRow}
+      {chips.length ? chips.map((g) => (g.id === shown
+        ? <span key={`seg-${g.id}`} className={`tab-group${g.id === GENERAL ? ' general' : ''}`} style={groupStyle(g)}>{chip(g)}{tabRow}</span>
+        : chip(g))) : tabRow}
       {actions && <span className="pane-actions">{actions}</span>}
     </div>
   );
