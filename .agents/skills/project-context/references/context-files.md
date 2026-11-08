@@ -33,6 +33,7 @@ Load only what the activity needs. Within a file, load only the sections for the
 | deduction | overview, glossary (only what scopes the topic) | system-characteristics, integrations |
 | cross-examination | — (the deliverable and its inputs) | the context files the deliverable relies on |
 | chronicle, blueprint | conventions (deliverable language, document templates) | glossary |
+| dispatch | environments-and-tools (tracker map, MCP servers), conventions (item templates) | glossary (names of item types) |
 | evidence-collection | environments-and-tools (trackers, MCP servers, whether the tracker MCP can write), conventions (id formats, deliverable templates) | modules |
 | evidence-sheet, evidence-document | conventions (deliverable language, deliverable templates) | — |
 | documentation (planned) | conventions, business-rules, flows | modules |

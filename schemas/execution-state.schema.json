@@ -69,6 +69,34 @@
         }
       }
     },
+    "sources": {
+      "type": "array",
+      "description": "Tracker items the run used (dispatch skill): the version adopted as the basis of the work and the last update check.",
+      "items": {
+        "type": "object",
+        "required": ["tracker", "item", "checkedAt", "origin"],
+        "properties": {
+          "tracker": { "type": "string", "enum": ["azure-devops", "jira"] },
+          "item": { "type": "string", "minLength": 1 },
+          "url": { "type": "string" },
+          "revision": { "type": "string", "description": "Azure DevOps rev, or Jira updated timestamp." },
+          "snapshot": { "type": "string", "description": "The snapshot file in the run's inputs folder." },
+          "checkedAt": { "type": "string", "minLength": 10 },
+          "origin": { "type": "string", "enum": ["tracker", "user"], "description": "Read through the MCP, or sent by the user." },
+          "adopted": { "type": "boolean", "description": "Whether this version is the basis of the work (a found change is not adopted until decided)." },
+          "lastCheck": {
+            "type": "object",
+            "required": ["at", "result"],
+            "properties": {
+              "at": { "type": "string", "minLength": 10 },
+              "result": { "type": "string", "enum": ["unchanged", "changed", "failed"] },
+              "revisionSeen": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "results": { "type": "array", "items": { "type": "object" } },
     "artifacts": {
       "type": "array",

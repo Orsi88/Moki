@@ -180,6 +180,12 @@ test('state schema', () => {
   assert.ok(validateSchema(schema, { ...state, artifacts: ['skills/x.md'] }).length);
   const { approvals, ...missing } = state;
   assert.ok(validateSchema(schema, missing).some((e) => e.includes('approvals')));
+  // sources (dispatch): optional; when present, each item says tracker, item, check date and origin.
+  const source = { tracker: 'jira', item: 'LIB-12', revision: '2026-11-08T10:00:00Z', checkedAt: '2026-11-08T10:05:00Z', origin: 'tracker', adopted: true, lastCheck: { at: '2026-11-09T09:00:00Z', result: 'failed', note: 'MCP unavailable' } };
+  assert.deepEqual(validateSchema(schema, { ...state, sources: [source] }), []);
+  assert.ok(validateSchema(schema, { ...state, sources: [{ ...source, tracker: 'trello' }] }).length);
+  assert.ok(validateSchema(schema, { ...state, sources: [{ ...source, origin: 'memory' }] }).length);
+  assert.ok(validateSchema(schema, { ...state, sources: [{ ...source, lastCheck: { at: '2026-11-09T09:00:00Z', result: 'none' } }] }).length);
 });
 
 test('xlsx round trip and missing sheet warning', () => {
