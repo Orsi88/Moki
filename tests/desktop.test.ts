@@ -676,6 +676,35 @@ test('activity tracking is optional, validated and never creates a run', () => {
   assert.doesNotMatch(service.launch(base).prompt, /solely for tracking/);
 });
 
+test('calling into a terminal uses the validated launch request without launching another tool', () => {
+  const pasted: { project: string; id: string; prompt: string }[] = [];
+  const svc = createService(root, {
+    launch: () => { throw new Error('must not start a tool'); },
+    openFolder: () => undefined,
+    openPath: () => undefined,
+    pasteRequest: (project, id, prompt) => { pasted.push({ project, id, prompt }); return id === 'ai-1'; },
+  });
+  const req = { project: 'acme', activity: 'review', tool: 'claude', files: ['us-1.md'], language: 'English', note: 'Check permissions', trackingId: 'b'.repeat(32) };
+  const runs = svc.activityRuns('acme');
+  const result = svc.invokeInTerminal(req, 'ai-1');
+  assert.equal(result.prepared, true);
+  assert.deepEqual(pasted, [{ project: 'acme', id: 'ai-1', prompt: result.prompt }]);
+  assert.match(result.prompt, /requirements-review skill/);
+  assert.match(result.prompt, /workspace\/projects\/acme\/inbox\/us-1.md/);
+  assert.match(result.prompt, /Check permissions/);
+  assert.match(result.prompt, /--activity review/);
+  assert.match(result.prompt, /moki-b{32}/);
+  assert.deepEqual(svc.activityRuns('acme'), runs);
+  assert.throws(() => svc.invokeInTerminal({ ...req, files: [] }, 'ai-1'), /needs at least one file/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, project: '../acme' }, 'ai-1'), /Unknown project/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, files: ['../../secret.txt'] }, 'ai-1'), /Not in the project inbox/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, activity: 'skill', skill: 'missing' }, 'ai-1'), /Choose a skill that can run/);
+  assert.throws(() => svc.invokeInTerminal(req, null), /running AI terminal/);
+  assert.equal(pasted.length, 1, 'invalid choices never reach the terminal');
+  assert.throws(() => svc.invokeInTerminal(req, 'closed'), /running AI terminal/);
+  assert.throws(() => service.invokeInTerminal(req, 'ai-1'), /running AI terminal/);
+});
+
 test('a run records the activity it came from; the requests and the tree show it, and its scenario', () => {
   // The request asks the AI to record the activity (with or without the app's tracking), but not when resuming.
   const base = { project: 'acme', activity: 'review', tool: 'print', files: ['us-1.md'], language: 'English', note: '' };
@@ -1604,7 +1633,9 @@ test('agents created from Skills & agents only use skills installed in their own
   const req = { name: 'API Tester', description: 'Act as a senior API tester: use @lint.\nList breaking changes.', skills: ['lint'], scope: 'project' };
   assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: ['shared'] }), /"shared" is not installed in workspace\/projects\/acme\/skills/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: ['../skills/lint'] }), /not installed/);
-  assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: [] }), /at least one skill/);
+  const plain = svc.createScopeAgent('acme', { ...req, name: 'instructions-only', description: 'Review the clarity of my writing.', skills: [] });
+  assert.match(readFileSync(plain.file, 'utf8'), /No skills are assigned\. Follow the role and instructions above/);
+  rmSync(plain.file);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, name: '!!' }), /name/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, scope: 'root' }), /Choose where/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, name: 'auto', skills: ['automation'] }), /not installed/, 'pending skills are not offered');
@@ -2091,12 +2122,12 @@ test('terminal tabs start only the chosen tool, in the framework root, with the 
   try {
     const specs: TermSpec[] = [];
     const r = launchInTerminal('claude', "it's $(rm -rf ~)\nação", '/home/u/qa', (spec) => { specs.push(spec); return 't7'; });
-    assert.deepEqual(r.terminal, { id: 't7', title: 'Claude Code' });
+    assert.deepEqual(r.terminal, { id: 't7', title: 'Claude Code', tool: 'claude' });
     const plugins = pluginArgs('claude', '/home/u/qa');
     // The prompt after "--" (never read as an option); the tab is named after the tool.
-    assert.deepEqual(specs, [{ file: 'claude', args: [...plugins, '--', "it's $(rm -rf ~) ação"], cwd: '/home/u/qa', title: 'Claude Code' }] as TermSpec[]);
+    assert.deepEqual(specs, [{ file: 'claude', args: [...plugins, '--', "it's $(rm -rf ~) ação"], cwd: '/home/u/qa', title: 'Claude Code', tool: 'claude' }] as TermSpec[]);
     launchInTerminal('claude', '', '/home/u/qa', (spec) => { specs.push(spec); return 't8'; }); // "+" menu: the tool alone
-    assert.deepEqual(specs[1], { file: 'claude', args: plugins, cwd: '/home/u/qa', title: 'Claude Code' });
+    assert.deepEqual(specs[1], { file: 'claude', args: plugins, cwd: '/home/u/qa', title: 'Claude Code', tool: 'claude' });
     assert.throws(() => launchInTerminal('vscode', 'x', '/home/u/qa', () => 'never'), /does not run in a terminal/);
   } finally {
     process.env.PATH = path;

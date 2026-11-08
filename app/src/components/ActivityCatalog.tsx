@@ -1,11 +1,11 @@
 // Activity catalog: every activity as a card, with a search, to choose "what to do" in the
-// side panel. An activity is an entry point; each one runs one of Moki's own skills (several
-// activities can share a skill, e.g. "Project context" and "Prepare the project").
+// side panel. An activity is a reusable request: text alone, an agent, skills, a workflow or
+// an operation. The request's procedures and roles stay in the selected skills and agent.
 // Each card shows the activity's cat from the cat library (icons/cats.ts).
 // ActivityPick is the field that opens it.
 
 import { useState } from 'react';
-import type { ActivityInfo } from '../api';
+import { activityTargetLabel, type ActivityInfo } from '../api';
 import { t } from '../i18n';
 import { ACTIVITY_CAT } from '../icons/cats';
 import { CatIcon } from './CatIcon';
@@ -25,10 +25,10 @@ const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 export function ActivityCatalog({ activities, selected, onPick, onClose, blocked }: Props) {
   const [query, setQuery] = useState('');
   const everything = activities.filter((a) => a.id !== 'resume');
-  const list = everything.filter((a) => matchesQuery(query, t(a.label), t(a.hint), a.skill, a.category));
+  const list = everything.filter((a) => matchesQuery(query, t(a.label), t(a.hint), activityTargetLabel(a.target), a.category));
 
   return (
-    <CatalogModal titleId="catalog-title" title={t('What do you want to do?')} hint={t('Each activity runs one of the skills that come with Moki.')} onClose={onClose}
+    <CatalogModal titleId="catalog-title" title={t('What do you want to do?')} hint={t('An activity can be a request, an agent, skills, a workflow or an operation.')} onClose={onClose}
       search={{ value: query, onChange: setQuery, placeholder: t('Search activities') }}>
       {!list.length && <p className="muted small">{t('No activity matches.')}</p>}
       <ul className="catalog-grid">
@@ -38,7 +38,7 @@ export function ActivityCatalog({ activities, selected, onPick, onClose, blocked
               aria-pressed={a.id === selected} onClick={() => { onPick(a.id); onClose(); }}>
               <span className="catalog-top">
                 <span className="catalog-num">{String(everything.indexOf(a) + 1).padStart(2, '0')}</span>
-                <span className="catalog-skill">{a.skill}</span>
+                <span className="catalog-skill">{activityTargetLabel(a.target)}</span>
               </span>
               <span className="catalog-main">
                 <span className="catalog-emblem" aria-hidden="true"><CatIcon id={ACTIVITY_CAT[a.id] ?? 'run'} size={64} /></span>

@@ -81,7 +81,6 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
   const missing = [
     !name.trim() && t('give the agent a name'),
     !description.trim() && t('describe what it does'),
-    !chosen.length && t('choose at least one skill'),
     notInstalled.length > 0 && t('remove {mentions}', { mentions: notInstalled.map((m) => `@${m}`).join(', ') }),
   ].filter(Boolean) as string[];
 
@@ -146,7 +145,7 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
       <div className="field">
         <span className="label">{t('Skills it may use ({n} of {total})', { n: chosen.length, total: usable.length })}</span>
         {data && !usable.length ? (
-          <p className="muted small">{t('No skills installed in this folder yet. Install them in')} {findSkills}{t(', then come back.')}</p>
+          <p className="muted small">{t('Skills are optional. You can create this agent using only its instructions.')}</p>
         ) : (
           <>
             {installed.length > 0 && <div className="chips" role="group" aria-label={t('Installed skills')}>{installed.map((s) => chip(s))}</div>}

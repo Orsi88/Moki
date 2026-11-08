@@ -8,8 +8,10 @@
 // its tab is closed, or the app quits.
 
 import { createRequire } from 'node:module';
+import { TOOLS, type ToolKey } from '../scripts/lib/core.ts';
+import { cleanPrompt } from './launcher.ts';
 
-export interface TermSpec { file: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv; title?: string }
+export interface TermSpec { file: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv; title?: string; tool?: ToolKey }
 const KEEP = 128 * 1024; // characters of output kept per terminal, drawn again when its tab comes back
 const BATCH_MS = 16; // output is sent to the window once per frame, not once per chunk of the process
 const FLOW_HIGH = 1024 * 1024; // characters sent and not yet drawn by the window above which the process is paused
@@ -126,17 +128,18 @@ export const shellSpec = (cwd: string): TermSpec => process.platform === 'win32'
   : { file: process.env.SHELL || '/bin/bash', args: [], cwd };
 
 // onExit: a terminal ended, with the project whose tab ran it (operations follow their steps' terminals here, whatever is on screen).
-export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit', id: string, payload: string | number) => void, onExit?: (id: string, project: string) => void) {
+export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit', id: string, payload: string | number) => void, onExit?: (id: string, project: string) => void, getPty: () => PtyModule | null = loadPty) {
   const prepared = new Map<string, TermSpec>();
   const running = new Map<string, IPty>();
   const projectOf = new Map<string, string>(); // project whose tab runs the terminal, for the status bar
   const titleOf = new Map<string, string>();
+  const toolOf = new Map<string, ToolKey>();
   const output = new Map<string, { tail: ReturnType<typeof createTail>; batch: ReturnType<typeof createBatcher>; flow: ReturnType<typeof createFlowControl> }>(); // the end of each running terminal's output, the output not yet sent, and its backpressure
   let next = 0;
   // Ids differ between sessions: a run started before Moki was restarted never takes a new terminal for its own.
   const session = Date.now().toString(36);
 
-  const forget = (id: string): void => { projectOf.delete(id); titleOf.delete(id); output.get(id)?.batch.cancel(); output.get(id)?.flow.dispose(); output.delete(id); };
+  const forget = (id: string): void => { projectOf.delete(id); titleOf.delete(id); toolOf.delete(id); output.get(id)?.batch.cancel(); output.get(id)?.flow.dispose(); output.delete(id); };
   const kill = (id: string): void => {
     prepared.delete(id);
     forget(id);
@@ -146,12 +149,13 @@ export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit',
   };
 
   return {
-    available: (): boolean => Boolean(loadPty()),
+    available: (): boolean => Boolean(getPty()),
 
     prepare(spec: TermSpec): string {
       const id = `t${session}-${++next}`;
       prepared.set(id, spec);
       titleOf.set(id, spec.title ?? 'Terminal');
+      if (spec.tool) toolOf.set(id, spec.tool);
       return id;
     },
 
@@ -159,7 +163,7 @@ export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit',
     start(id: string, cols: number, rows: number, project = ''): string {
       if (running.has(id)) return '';
       const spec = prepared.get(id);
-      const p = loadPty();
+      const p = getPty();
       if (!spec || !p) return 'This terminal can no longer be started.';
       prepared.delete(id);
       try {
@@ -184,10 +188,21 @@ export function createTerminals(send: (channel: 'qa:term-data' | 'qa:term-exit',
     },
 
     write: (id: string, data: string): void => { running.get(id)?.write(data); },
+    describe: (id: string): { title: string; tool?: ToolKey } | null => titleOf.has(id) ? { title: titleOf.get(id) ?? 'Terminal', ...(toolOf.has(id) ? { tool: toolOf.get(id) } : {}) } : null,
+    // A request is plain input, never Enter or terminal controls. Keep the existing draft and cursor.
+    pasteRequest(project: string, id: string, prompt: string): boolean {
+      const proc = running.get(id);
+      const tool = toolOf.get(id);
+      if (!proc || !project || projectOf.get(id) !== project || !tool || !TOOLS[tool].command || TOOLS[tool].clipboard || prompt.length > 1_000_000) return false;
+      const text = cleanPrompt(prompt).replace(/[\u0080-\u009f\u2028\u2029]/g, ' ');
+      if (!text.trim()) return false;
+      proc.write(` ${text} `);
+      return true;
+    },
     alive: (id: string): boolean => prepared.has(id) || running.has(id), // its tab exists in this session (started or about to)
     resize: (id: string, cols: number, rows: number): void => { try { running.get(id)?.resize(cols, rows); } catch { /* exited */ } },
     kill,
-    list: (): { id: string; pid: number; project: string; title: string }[] => [...running].map(([id, proc]) => ({ id, pid: proc.pid, project: projectOf.get(id) ?? '', title: titleOf.get(id) ?? 'Terminal' })),
+    list: (): { id: string; pid: number; project: string; title: string; tool?: ToolKey }[] => [...running].map(([id, proc]) => ({ id, pid: proc.pid, project: projectOf.get(id) ?? '', title: titleOf.get(id) ?? 'Terminal', ...(toolOf.has(id) ? { tool: toolOf.get(id) } : {}) })),
     // What a running terminal printed (its last part), for a tab drawn again; null when it is not running.
     // Output waiting to be sent goes first, so it reaches the tab before this answer (which already contains it) and is not drawn twice.
     attach: (id: string): string | null => {

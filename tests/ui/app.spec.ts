@@ -927,14 +927,14 @@ test.describe.serial('Moki operations in a project', () => {
   test('an operation is started from its form, and moves on as each agent delivers its files', async () => {
     const side = opsPage.getByRole('region', { name: 'Execuções' });
     const assistant = opsPage.getByRole('region', { name: 'Assistente de IA' });
-    await assistant.getByRole('tab', { name: 'Operação' }).click();
-    await assistant.getByRole('button', { name: 'Escolher operação' }).click();
+    await assistant.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = opsPage.getByRole('dialog');
-    await dialog.getByRole('searchbox', { name: 'Buscar operações' }).fill('fluxo');
-    await expect(dialog.locator('.catalog-card')).toHaveCount(1);
-    await dialog.locator('.catalog-card').click();
+    await dialog.getByRole('tab', { name: 'Operações', exact: true }).click();
+    await dialog.getByRole('searchbox').fill('fluxo');
+    await expect(dialog.locator('.invoke-row')).toHaveCount(1);
+    await expect(dialog.locator('.invoke-row')).toContainText('Cada etapa usa seu próprio terminal');
+    await dialog.locator('.invoke-row').click();
     await expect(dialog).toHaveCount(0);
-    await assistant.getByRole('button', { name: 'Iniciar operação' }).click();
 
     const launch = opsPage.getByRole('region', { name: 'Iniciar Fluxo QA' });
     await expect(launch.locator('.ops-run-agent')).toHaveText(['requirements-analyst', 'test-designer']);
@@ -1029,14 +1029,13 @@ test.describe.serial('Moki operations in a project', () => {
 
   test('an operation starts from the assistant card: its steps keep their agent and each AI is changed with the same pick', async () => {
     const card = opsPage.getByRole('region', { name: 'Assistente de IA' });
-    await card.getByRole('tab', { name: 'Operação' }).click();
-    await card.locator('button.pp-pick').click();
+    await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = opsPage.getByRole('dialog');
-    await dialog.getByRole('searchbox', { name: 'Buscar operações' }).fill('fluxo');
-    await expect(dialog.locator('.catalog-card')).toHaveCount(1);
-    await dialog.locator('.catalog-card').click();
+    await dialog.getByRole('tab', { name: 'Operações', exact: true }).click();
+    await dialog.getByRole('searchbox').fill('fluxo');
+    await expect(dialog.locator('.invoke-row')).toHaveCount(1);
+    await dialog.locator('.invoke-row').click();
     await expect(dialog).toHaveCount(0);
-    await card.getByRole('button', { name: 'Iniciar operação' }).click();
 
     // Each step arrives with its agent and AI; the operation's start is not flattened to one agent and one AI.
     const launch = opsPage.getByRole('region', { name: 'Iniciar Fluxo QA' });
@@ -1054,10 +1053,9 @@ test.describe.serial('Moki operations in a project', () => {
 
   test('a result picks the arrow: rejected goes to the fixer and back to the review; no valid result asks the user', async () => {
     const assistant = opsPage.getByRole('region', { name: 'Assistente de IA' });
-    await assistant.getByRole('tab', { name: 'Operação' }).click();
-    await assistant.locator('button.pp-pick').click();
-    await opsPage.getByRole('dialog').locator('.catalog-card').filter({ hasText: 'Revisa até aprovar' }).click();
-    await assistant.getByRole('button', { name: 'Iniciar operação' }).click();
+    await assistant.getByRole('button', { name: 'Chamar…', exact: true }).click();
+    await opsPage.getByRole('dialog').getByRole('tab', { name: 'Operações', exact: true }).click();
+    await opsPage.getByRole('dialog').locator('.invoke-row').filter({ hasText: 'Revisa até aprovar' }).click();
     await opsPage.getByRole('region', { name: 'Iniciar Revisa até aprovar' }).getByRole('button', { name: 'Iniciar operação' }).click();
 
     const runView = opsPage.locator('.ops-run');
@@ -1645,7 +1643,8 @@ test.describe.serial('Moki activities', () => {
     await expect(actPage.locator('.activity-item .list-card-title').getByText('Desenhar testes', { exact: true })).toBeVisible(); // one that comes with Moki
     await actPage.getByRole('button', { name: 'Nova atividade' }).click();
     await actPage.getByRole('textbox', { name: 'Nome' }).fill('Checar smoke');
-    await actPage.getByRole('combobox', { name: 'O que ela usa' }).selectOption('test-design');
+    await actPage.getByRole('combobox', { name: 'Ela usa', exact: true }).selectOption('skills');
+    await actPage.getByRole('group', { name: 'Skills', exact: true }).getByRole('button', { name: 'test-design', exact: true }).click();
     await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Use the test-design skill to list smoke checks for: {files}.');
     await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(actPage.getByRole('heading', { name: 'Checar smoke', level: 1 })).toBeVisible();
@@ -1662,6 +1661,64 @@ test.describe.serial('Moki activities', () => {
     await actPage.getByRole('button', { name: 'Configurações', exact: true }).click();
     await actPage.getByRole('button', { name: 'Abrir na sua ferramenta de IA' }).click();
     await expect(actPage.locator('.answer-list .answer').first()).toContainText('Checar smoke');
+    await actPage.getByRole('button', { name: 'Fechar (Esc)' }).click();
+  });
+
+  test('text-only activities require a request and keep it through editing', async () => {
+    await actPage.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await actPage.getByRole('tab', { name: 'Atividades', exact: true }).click();
+    await actPage.getByRole('button', { name: 'Nova atividade' }).click();
+    await actPage.getByRole('textbox', { name: 'Nome', exact: true }).fill('Resumir minhas notas');
+    await expect(actPage.getByRole('combobox', { name: 'Ela usa', exact: true })).toHaveValue('prompt');
+    await expect(actPage.getByRole('button', { name: 'Salvar', exact: true })).toBeDisabled();
+    await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Summarize my notes for {project}.');
+    await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(actPage.getByRole('heading', { name: 'Resumir minhas notas', level: 1 })).toBeVisible();
+    const file = join(library, 'resumir-minhas-notas.md');
+    expect(readFileSync(file, 'utf8')).not.toContain('uses:');
+    await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Summarize the decisions for {project}.');
+    await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('Summarize the decisions');
+    await actPage.getByRole('button', { name: 'Voltar para Atividades' }).click();
+    await actPage.getByRole('tab', { name: /^Todos/ }).click();
+    await expect(actPage.locator('.activity-item', { hasText: 'Resumir minhas notas' })).toContainText('Só texto');
+  });
+
+  test('multiple skills survive saving and reopening, and the prepared request includes them all', async () => {
+    await actPage.getByRole('button', { name: 'Nova atividade' }).click();
+    await actPage.getByRole('textbox', { name: 'Nome', exact: true }).fill('Revisar e desenhar');
+    await actPage.getByRole('combobox', { name: 'Ela usa', exact: true }).selectOption('skills');
+    const skills = actPage.getByRole('group', { name: 'Skills', exact: true });
+    await expect(actPage.getByRole('button', { name: 'Salvar', exact: true })).toBeDisabled();
+    for (const name of ['requirements-review', 'test-design']) await skills.getByRole('button', { name, exact: true }).click();
+    await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Focus on permissions.');
+    await actPage.screenshot({ path: test.info().outputPath('multiple-skills.png') });
+    await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(actPage.getByRole('heading', { name: 'Revisar e desenhar', level: 1 })).toBeVisible();
+    expect(readFileSync(join(library, 'revisar-e-desenhar.md'), 'utf8')).toContain('uses: skill:requirements-review, skill:test-design');
+    await actPage.getByRole('button', { name: 'Voltar para Atividades' }).click();
+    await actPage.locator('.activity-item .list-card', { hasText: 'Revisar e desenhar' }).click();
+    for (const name of ['requirements-review', 'test-design']) await expect(skills.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const request = await actPage.evaluate(async () => {
+      if (!window.qa) throw new Error('Moki bridge is missing');
+      const result = await window.qa.call('launch', { project: 'acme', activity: 'revisar-e-desenhar', tool: 'print', files: [], note: '', language: 'English' });
+      if (!result.ok) throw new Error(result.error);
+      return result.value as { prompt: string };
+    });
+    expect(request.prompt).toContain('procedure and approval gates: requirements-review, test-design. Focus on permissions.');
+  });
+
+  test('an agent can be created with instructions and no skills', async () => {
+    await actPage.getByRole('tab', { name: 'Agentes', exact: true }).click();
+    await actPage.getByRole('button', { name: 'Criar agente', exact: true }).click();
+    await actPage.getByRole('textbox', { name: 'Nome', exact: true }).fill('Writing helper');
+    await actPage.getByRole('combobox', { name: 'Descreva o agente' }).fill('Review my writing and explain unclear wording.');
+    const create = actPage.locator('.form-actions').getByRole('button', { name: 'Criar agente', exact: true });
+    await expect(create).toBeEnabled();
+    await create.click();
+    const file = join(dirs[0], 'workspace', 'projects', 'acme', 'agents', 'writing-helper.md');
+    await expect.poll(() => existsSync(file)).toBe(true);
+    expect(readFileSync(file, 'utf8')).toContain('No skills are assigned. Follow the role and instructions above.');
   });
 });
 
@@ -1802,68 +1859,33 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     expect(await aiPage.evaluate(() => localStorage.getItem('qa-tool'))).toBe('gemini');
   });
 
-  test('the project panel starts four ways under tabs with no title: an agent, an activity, an operation, a skill', async () => {
-    const panel = aiPage.locator('.pp');
-    const card = panel.getByRole('region', { name: 'Assistente de IA' });
-    await expect(card.getByRole('heading')).toHaveCount(0);
-    await expect(panel.getByText('Assistente de IA', { exact: true })).toHaveCount(0);
-    // The tabs are icons (the name is the aria-label, so no visible text): agent, activity, operation, skill.
-    await expect(card.getByRole('tab')).toHaveCount(4);
-    for (const name of ['Agente', 'Atividade', 'Operação', 'Skill']) await expect(card.getByRole('tab', { name, exact: true })).toBeVisible();
-    await expect(card.getByRole('tab')).toHaveText(['', '', '', '']);
-    await expect(card.getByRole('button', { name: 'Iniciar atividade' })).toBeVisible();
-    for (const gone of ['Minha pasta', 'Agentes deste projeto', 'Entregáveis']) await expect(panel.getByText(gone)).toHaveCount(0);
-
-    // Call an agent stops at the agent and the AI: no activity, no files, no note.
-    await card.getByRole('tab', { name: 'Agente' }).click();
-    const call = card.getByRole('button', { name: 'Chamar agente' });
-    await expect(call).toBeDisabled();
-    await expect(card.getByRole('button', { name: 'Escolher atividade' })).toHaveCount(0);
-    await card.getByRole('button', { name: 'Escolher agente' }).click();
-    const dialog = aiPage.getByRole('dialog', { name: 'Com quem você quer conversar?' });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('textbox', { name: 'Sobre o quê? (opcional)' })).toHaveCount(0);
-    await expect(dialog.locator('.catalog-card', { hasText: 'Deixar a skill decidir' })).toHaveCount(0); // here the agent is required
-    await dialog.getByRole('searchbox', { name: 'Buscar agentes' }).fill('test-designer');
-    await expect(dialog.locator('.catalog-card')).toHaveCount(1);
-    await dialog.locator('.catalog-card').click();
-    await expect(dialog).toHaveCount(0);
-    await expect(call).toBeEnabled();
-    await call.click();
-    await expect(aiPage.getByRole('dialog')).toHaveCount(0); // no wizard
-    await expect(card.locator('.pp-msg')).toHaveText('fake'); // QA_FAKE_TOOLS: started, nothing opened
-    await card.getByRole('tab', { name: 'Atividade' }).click();
+  test('one Call catalog lists activities, agents, skills and operations', async () => {
+    const card = aiPage.getByRole('region', { name: 'Assistente de IA' });
+    await expect(card.getByRole('tab')).toHaveCount(0);
+    await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const dialog = aiPage.getByRole('dialog');
+    for (const name of ['Todos', 'Atividades', 'Agentes', 'Skills', 'Operações']) await expect(dialog.getByRole('tab', { name, exact: true })).toBeVisible();
+    await dialog.getByRole('tab', { name: 'Agentes', exact: true }).click();
+    await dialog.getByRole('searchbox').fill('requirements-analyst');
+    await expect(dialog.locator('.invoke-row')).toHaveCount(1);
+    await aiPage.screenshot({ path: test.info().outputPath('call-picker.png') });
+    await dialog.locator('.invoke-row').click();
+    await dialog.getByRole('button', { name: 'Continuar sem arquivos' }).click();
+    await expect(dialog.locator('textarea')).toBeVisible();
+    await aiPage.keyboard.press('Escape');
   });
 
-  test('an activity is found by search, its agent is optional and its AI is the same pick', async () => {
-    const card = aiPage.locator('.pp').getByRole('region', { name: 'Assistente de IA' });
-    await card.getByRole('tab', { name: 'Atividade' }).click();
-    await card.getByRole('button', { name: 'Escolher atividade' }).click();
-    const catalog = aiPage.getByRole('dialog');
-    const all = await catalog.locator('.catalog-card').count();
+  test('the Call catalog searches across kinds and reports an empty result', async () => {
+    await aiPage.getByRole('region', { name: 'Assistente de IA' }).getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const dialog = aiPage.getByRole('dialog');
+    const all = await dialog.locator('.invoke-row').count();
     expect(all).toBeGreaterThan(1);
-    const search = catalog.getByRole('searchbox', { name: 'Buscar atividades' });
-    await search.fill('zzzz-nada');
-    await expect(catalog.locator('.catalog-card')).toHaveCount(0);
-    await expect(catalog.getByText('Nenhuma atividade corresponde.')).toBeVisible();
-    await search.fill('');
-    await expect(catalog.locator('.catalog-card')).toHaveCount(all);
+    await dialog.getByRole('searchbox').fill('zzzz-nada');
+    await expect(dialog.locator('.invoke-row')).toHaveCount(0);
+    await expect(dialog.getByText('Nada corresponde a esta busca.')).toBeVisible();
+    await dialog.getByRole('searchbox').fill('');
+    await expect(dialog.locator('.invoke-row')).toHaveCount(all);
     await aiPage.keyboard.press('Escape');
-    await expect(aiPage.getByRole('dialog')).toHaveCount(0);
-
-    // The agent is optional here (the skill decides) and the AI is the one picked in Call an agent.
-    const agent = card.getByRole('button', { name: 'Deixar a skill decidir' });
-    await expect(agent).toBeVisible();
-    await agent.click();
-    const agents = aiPage.getByRole('dialog');
-    await expect(agents.locator('.catalog-card', { hasText: 'Deixar a skill decidir' })).toHaveCount(1);
-    await agents.getByRole('searchbox', { name: 'Buscar agentes' }).fill('test-designer');
-    await agents.locator('.catalog-card', { hasText: 'test-designer' }).click();
-    await expect(card.getByRole('button', { name: 'test-designer' })).toBeVisible();
-    await card.getByRole('button', { name: 'test-designer' }).click();
-    await aiPage.getByRole('dialog').locator('.catalog-card', { hasText: 'Deixar a skill decidir' }).click();
-    await expect(card.getByRole('button', { name: 'Deixar a skill decidir' })).toBeVisible();
-    await expect(card.locator('.pp-field').filter({ has: aiPage.locator('.pp-field-label', { hasText: /^Onde$/ }) })).toHaveCount(1);
   });
 
   test('the project title and description are edited without opening setup', async () => {
@@ -1889,9 +1911,17 @@ test.describe.serial('Moki my AIs and the project panel', () => {
 
   test('an activity request appears in executions and follows its registered run', async () => {
     const panel = aiPage.locator('.pp');
-    await panel.getByRole('button', { name: 'Escolher atividade' }).click();
-    await aiPage.locator('.catalog-card').filter({ hasText: 'Começa na hora' }).first().click();
-    await panel.getByRole('button', { name: 'Iniciar atividade' }).click();
+    await panel.getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const wizard = aiPage.getByRole('dialog');
+    await wizard.getByRole('button', { name: /Só abrir o projeto/ }).click();
+    await wizard.getByRole('button', { name: 'Continuar sem arquivos' }).click();
+    const decide = wizard.getByRole('button', { name: /Deixar a skill decidir/ });
+    if (await decide.count()) await decide.click();
+    await wizard.getByRole('button', { name: 'Nada mais — continuar' }).click();
+    await wizard.getByRole('button', { name: /^Num terminal novo/ }).click();
+    await wizard.getByRole('button', { name: /OpenAI Codex CLI/ }).click();
+    await wizard.getByRole('button', { name: 'Abrir no OpenAI Codex CLI' }).click();
+    await wizard.getByRole('button', { name: 'Concluir', exact: true }).click();
     const side = aiPage.getByRole('region', { name: 'Execuções' });
     await expect(side.getByRole('tab', { name: 'Pedidos', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(side.getByText('Aguardando registro da execução')).toBeVisible();
@@ -1910,26 +1940,22 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await expect(side.getByText('Concluída', { exact: true })).toBeVisible();
   });
 
-  test('an activity that needs inbox files asks only for them, with the agent and the AI already chosen in the card', async () => {
+  test('calling an activity retains required files, optional agent and destination choices', async () => {
     writeFileSync(join(dirs[0], 'workspace', 'projects', 'acme', 'inbox', 'us-1.md'), '# US-1');
-    const card = aiPage.locator('.pp').getByRole('region', { name: 'Assistente de IA' });
-    await card.locator('.pp-field').filter({ has: aiPage.locator('.pp-field-label', { hasText: /^O que fazer$/ }) }).locator('.pp-pick').click();
-    await aiPage.getByRole('dialog').locator('.catalog-card', { hasText: 'requirements-review' }).first().click();
-    await card.getByRole('button', { name: 'Deixar a skill decidir' }).click();
-    await aiPage.getByRole('dialog').locator('.catalog-card', { hasText: 'requirements-analyst' }).click();
-    await card.getByRole('button', { name: 'Iniciar atividade' }).click();
-
-    // Files first; no step asks for the agent or the AI again.
+    await aiPage.getByRole('region', { name: 'Assistente de IA' }).getByRole('button', { name: 'Chamar…', exact: true }).click();
     const wizard = aiPage.getByRole('dialog');
-    await expect(wizard.locator('.wizard-progress')).toContainText('etapa 1 de 3');
+    await wizard.getByRole('tab', { name: 'Atividades', exact: true }).click();
+    await wizard.getByRole('searchbox').fill('requirements-review');
+    await wizard.locator('.invoke-row').first().click();
+    await expect(wizard.getByRole('button', { name: 'Escolha um arquivo para continuar' })).toBeDisabled();
     await wizard.getByText('us-1.md').click();
     await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await wizard.getByRole('button', { name: /Deixar a skill decidir/ }).click();
     await wizard.getByRole('button', { name: 'Nada mais — continuar' }).click();
-    const picks = wizard.locator('.wizard-picks');
-    await expect(picks.getByRole('button', { name: 'requirements-analyst' })).toBeVisible();
-    await expect(picks.locator('.pp-field')).toHaveCount(2);
+    await expect(wizard.getByRole('button', { name: /^Neste terminal/ })).toBeDisabled();
+    await wizard.getByRole('button', { name: /^Num terminal novo/ }).click();
+    await expect(wizard.locator('.answer-list')).toContainText('Claude Code');
     await aiPage.keyboard.press('Escape');
-    await expect(aiPage.getByRole('dialog')).toHaveCount(0);
   });
 });
 
@@ -2730,4 +2756,51 @@ test.describe.serial('Moki requests', () => {
     await expect(filter).toHaveCount(0);
     await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toBeVisible();
   });
+});
+
+test('Moki call pastes into the current AI terminal and waits for Enter', async () => {
+  const root = fixture();
+  const profile = mkdtempSync(join(tmpdir(), 'moki-call-'));
+  let window: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' }); window = opened.app;
+    const page = opened.page;
+    await page.getByRole('button', { name: 'Novo: terminal, IA ou arquivo', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'IA', exact: true }).click();
+    await page.getByRole('menuitem', { name: /Claude Code/ }).click();
+    const pane = page.locator('.term-pane:not([hidden])');
+    await expect(pane).toContainText('[ready]');
+    await pane.locator('textarea').focus();
+    await page.keyboard.type('meu contexto: ');
+    await page.keyboard.press('Control+Shift+K');
+    const wizard = page.getByRole('dialog');
+    await wizard.getByRole('tab', { name: 'Skills', exact: true }).click();
+    await wizard.getByRole('searchbox').fill('test-design');
+    await wizard.locator('.invoke-row').click();
+    await wizard.getByRole('button', { name: 'Continuar sem arquivos' }).click();
+    const decide = wizard.getByRole('button', { name: /Deixar a skill decidir/ });
+    if (await decide.count()) await decide.click();
+    await wizard.locator('textarea').fill('Foque no login');
+    await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await wizard.getByRole('button', { name: /^Neste terminal/ }).click();
+    await wizard.getByRole('button', { name: 'Colar neste terminal' }).click();
+    await expect(wizard).toHaveCount(0);
+    await expect(pane).toContainText('Foque no login');
+    await expect(pane).toContainText('meu contexto:');
+    await expect(pane).not.toContainText('[submitted]');
+    await expect(pane.locator('textarea')).toBeFocused();
+    const phases = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('qa-activity-launches:')).flatMap(k => JSON.parse(localStorage.getItem(k)!)).map((r: { phase: string }) => r.phase));
+    expect(phases).toContain('prepared');
+    await page.screenshot({ path: test.info().outputPath('call-pasted.png') });
+    await page.keyboard.press('Enter');
+    await expect(pane).toContainText('[submitted]');
+    // The same list is available from its terminal button.
+    await page.locator('.terminal-callbar').getByRole('button', { name: 'Chamar…', exact: true }).click();
+    await expect(page.getByRole('dialog').getByRole('tab', { name: 'Atividades', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+  } finally {
+    await window?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
 });

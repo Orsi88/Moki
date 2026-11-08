@@ -41,7 +41,7 @@ Status meaning: **draft** = usable, procedure complete, not yet validated in two
 
 ## Agents
 
-An **agent** is a role with instructions that uses one or more skills and asks for an access level. Built-in agents are in `agents/<category>/<name>.md` (Claude Code also gets them as subagents in `.claude/agents/`); the user's own agents are in `workspace/library/agents/<category>/<name>.md`. When the user asks you to act as an agent, read its file and follow it; its skills define how the work is done.
+An **agent** is a role with instructions, optional skills and an access level. Built-in agents are in `agents/<category>/<name>.md` (Claude Code also gets them as subagents in `.claude/agents/`); the user's own agents are in `workspace/library/agents/<category>/<name>.md`. When the user asks you to act as an agent, read its file and follow it; any skills it declares define their procedures and approval gates.
 
 | Agent | Category | Status | Uses skills | Access |
 |---|---|---|---|---|

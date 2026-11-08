@@ -3,7 +3,7 @@
 // tool the QA already uses. Moki has no chat of its own.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type LaunchResult, type OpenRun, type ProjectSummary, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
+import { api, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type Invocation, type LaunchPreset, type LaunchResult, type OpenRun, type Operation, type ProjectSummary, type SkillInfo, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, remember } from '../prefs';
 import { IconCheck, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPlay, IconRefresh, IconTerminal, IconX } from './Icons';
@@ -11,21 +11,23 @@ import { FileIcon } from '../icons';
 import { TagChip } from './TagPicker';
 import { AgentPick } from './AgentCatalog';
 import { AiPick } from './ToolCatalog';
+import { InvokeCatalog } from './InvokeCatalog';
 import type { ActivityLaunchPhase } from '../activity-launches';
 
 interface Props {
   project: ProjectSummary;
   tools: ToolInfo[];
-  preset?: { activity: string; run?: string; skipActivity?: boolean; tool?: string; agent?: string; startAtTool?: boolean }; // skipActivity: the activity, its agent and the AI were already chosen (side panel: tool, agent)
+  preset?: LaunchPreset;
   onClose: () => void;
   onTerminal: (terminal: TerminalRef) => void; // the tool opened in a terminal tab of the app
+  onPrepared?: (terminal: TerminalRef) => void; // pasted without Enter; close the dialog and focus this exact terminal
   onActivityStart?: (activity: string, label: string) => string | undefined;
   onActivityUpdate?: (id: string | undefined, phase: ActivityLaunchPhase) => void;
   onOperation?: (operation: string) => void; // an activity of an operation opens its start form instead
   onMyAis?: () => void; // Settings › My AIs, to install the AIs not found here
 }
 
-type StepKey = 'activity' | 'run' | 'files' | 'context' | 'agent' | 'details' | 'tool' | 'review';
+type StepKey = 'activity' | 'run' | 'files' | 'context' | 'agent' | 'details' | 'destination' | 'tool' | 'review';
 
 const KIND_ICON: Record<ToolKind, ReactNode> = {
   terminal: <IconTerminal size={16} />, editor: <IconCode size={16} />, chat: <IconGlobe size={16} />, print: <IconFile size={16} />,
@@ -37,10 +39,15 @@ const kindHint = (kind: ToolKind): string => ({
 
 const formatSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onActivityStart, onActivityUpdate, onOperation, onMyAis }: Props) {
+export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPrepared, onActivityStart, onActivityUpdate, onOperation, onMyAis }: Props) {
   const [activities, setActivities] = useState<ActivityInfo[]>([]);
   const [languages, setLanguages] = useState<string[]>(['English']);
   const [activity, setActivity] = useState(preset?.activity ?? '');
+  const [selection, setSelection] = useState<Invocation | null>(null);
+  const [skill, setSkill] = useState(preset?.skill ?? '');
+  const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const [operations, setOperations] = useState<Operation[]>([]);
+  const [destination, setDestination] = useState<'current' | 'new'>(preset?.terminal ? 'current' : 'new');
   const [inbox, setInbox] = useState<InboxFile[]>([]);
   const [files, setFiles] = useState<string[]>([]);
   const [runs, setRuns] = useState<OpenRun[]>([]);
@@ -77,6 +84,8 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
     Promise.all([api.agents(), api.projectAgents(project.id)])
       .then(([list, enabled]) => setAgents(list.filter((a) => a.usable && enabled.includes(a.name))))
       .catch(() => setAgents([]));
+    api.skills().then((items) => setSkills(items.filter((s) => s.status === 'draft' || s.status === 'stable'))).catch((e: Error) => setError(e.message));
+    api.operations().then(setOperations).catch((e: Error) => setError(e.message));
     load();
   }, [load, project.id]);
 
@@ -93,9 +102,13 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
   // Started from the side panel: the activity, the agent and the AI arrive chosen (changed in the last step, with the
   // same pickers), so only what the activity needs is asked: files, shared context, notes.
   const fromPanel = Boolean(preset?.skipActivity && !resume);
+  const inputSteps: StepKey[] = resume ? ['run'] : [
+    ...(current?.files === 'none' && activity !== 'talk' && activity !== 'skill' ? [] : ['files' as const]),
+    ...(sharing ? ['context' as const] : []),
+    ...(agents.length && activity !== 'talk' && !fromPanel ? ['agent' as const] : []),
+  ];
   const steps: StepKey[] = preset?.startAtTool ? ['tool', 'review']
-    : fromPanel ? ['files', ...(sharing ? ['context' as const] : []), 'details', 'review']
-    : ['activity', ...(resume ? ['run' as const] : ['files' as const, ...(sharing ? ['context' as const] : []), ...(agents.length ? ['agent' as const] : [])]), 'details', 'tool', 'review'];
+    : [...(fromPanel ? [] : ['activity' as const]), ...inputSteps, 'details', 'destination', ...(destination === 'new' ? ['tool' as const] : []), 'review'];
   const toggle = (paths: string[]) => setExclude((ex) => (paths.every((p) => ex.includes(p)) ? ex.filter((p) => !paths.includes(p)) : [...new Set([...ex, ...paths])]));
   const sharedPaths = [...new Set(choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths)))];
   const keptShared = sharedPaths.filter((p) => !exclude.includes(p));
@@ -104,15 +117,29 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
   const back = () => { setResult(null); setError(''); setStep(steps[Math.max(index - 1, 0)]); };
 
   // Agents that use the chosen activity's skill come first.
-  const suited = agents.filter((a) => current && a.skills.includes(current.skill));
+  const suited = agents.filter((a) => current && current.skills.some((s) => a.skills.includes(s)));
   const others = agents.filter((a) => !suited.includes(a));
   const selectedTool = tools.find((t) => t.id === tool);
   const installed = tools.filter((t) => t.available);
   const notInstalled = tools.filter((t) => !t.available);
+  const pick = (item: Invocation) => {
+    const chosen = item.kind === 'activity' ? activities.find((a) => a.id === item.id) : undefined;
+    if (item.kind === 'operation' || chosen?.target.kind === 'operation') {
+      onOperation?.(item.kind === 'operation' ? item.id : chosen?.target.kind === 'operation' ? chosen.target.name : '');
+      return;
+    }
+    const id = item.kind === 'agent' ? 'talk' : item.kind === 'skill' ? 'skill' : item.id;
+    setSelection(item); setActivity(id); setSkill(item.kind === 'skill' ? item.id : '');
+    setAgent(item.kind === 'agent' ? item.id : chosen?.target.kind === 'agent' ? chosen.target.name : '');
+    setError(''); setResult(null);
+    if (id === 'resume') {
+      setRun((r) => runs.some((x) => x.id === r) ? r : runs[0]?.id ?? ''); setStep('run');
+    } else setStep(chosen?.files !== 'none' ? 'files' : sharing ? 'context' : agents.length ? 'agent' : 'details');
+  };
 
   const submit = async () => {
     setBusy(true); setResult(null); setError(''); setCopied(false);
-    const trackingId = onActivityStart?.(activity, current ? t(current.label) : activity);
+    const trackingId = onActivityStart?.(activity, selection ? t(selection.label) : current ? t(current.label) : skill || activity);
     remember('qa-language', language);
     // The window shares the main process. If opening the tool never returns, say so instead of leaving "Opening…" up.
     let late = false;
@@ -123,7 +150,13 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
       setError(t('The request is taking too long. Close this and try again.'));
     }, 20000);
     try {
-      const r = await api.launch({ project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, exclude: resume ? [] : exclude, ...(trackingId ? { trackingId } : {}) });
+      const req = { project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, skill: skill || undefined, exclude: resume ? [] : exclude, ...(trackingId ? { trackingId } : {}) };
+      if (destination === 'current' && preset?.terminal) {
+        await api.invokeInTerminal(req, preset.terminal.id);
+        if (!late) { onActivityUpdate?.(trackingId, 'prepared'); onPrepared?.(preset.terminal); }
+        return;
+      }
+      const r = await api.launch(req);
       if (late) return;
       onActivityUpdate?.(trackingId, r.copied ? 'prepared' : r.terminal || r.opened ? 'sent' : r.prompt && !r.message ? 'prepared' : 'failed');
       if (r.terminal) { onTerminal(r.terminal); return; }
@@ -141,7 +174,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
 
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } };
 
-  const buttonLabel = !selectedTool ? t('Open') : selectedTool.kind === 'print' ? t('Prepare the request')
+  const buttonLabel = destination === 'current' ? t('Paste into this terminal') : !selectedTool ? t('Open') : selectedTool.kind === 'print' ? t('Prepare the request')
     : selectedTool.kind === 'chat' ? t('Prepare for the web chat') : t('Open in {tool}', { tool: t(selectedTool.label).replace(/ \(.*\)$/, '') });
   // "Just show the request" and the web chat never open a program. The request itself is the result.
   const requestReady = Boolean(result && !error && !result.opened && result.prompt && (selectedTool?.kind === 'print' || selectedTool?.kind === 'chat'));
@@ -151,7 +184,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
   }, [result, error]);
 
   const questions: Record<StepKey, { title: string; hint: string }> = {
-    activity: { title: t('What do you want to do?'), hint: t('Choose one.') },
+    activity: { title: t('Call…'), hint: t('Choose an activity, agent, skill or operation.') },
     run: { title: t('Which activity do you want to continue?'), hint: t('These are the activities that are not finished yet.') },
     files: {
       title: current?.needsFiles ? t('Which files should the AI use?') : t('Should the AI use any file?'),
@@ -160,6 +193,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
     context: { title: t('Which context should the AI consider?'), hint: t('Your tags share these files from other projects. Uncheck what this activity should not use.') },
     agent: { title: t('Who should do it?'), hint: t('An agent is a specialist with its own instructions. If you are not sure, let the skill decide.') },
     details: { title: t('Anything else the AI should know?'), hint: t('Optional. Write it as you would tell a colleague.') },
+    destination: { title: t('Where should the request go?'), hint: t('In this terminal it is pasted without sending. In a new terminal it opens as usual.') },
     tool: { title: t('Which AI tool do you want to use?'), hint: t('Only the tools found on this computer can be chosen.') },
     review: { title: t('Everything ready'), hint: t('Check your answers. Click an answer to change it.') },
   };
@@ -169,16 +203,17 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
   const summary: { step: StepKey; label: string; value: string }[] = preset?.startAtTool ? [
     { step: 'tool', label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' },
   ] : [
-    { step: 'activity', label: t('Activity'), value: current ? t(current.label) : '—' },
+    { step: 'activity', label: t('Call'), value: selection ? t(selection.label) : current ? t(current.label) : '—' },
     ...(resume ? [{ step: 'run' as StepKey, label: t('Continue'), value: run ? describeRun(run).title : '—' }] : [
       { step: 'files' as StepKey, label: t('Files'), value: files.length ? files.join(', ') : t('None') },
       ...(sharing ? [{ step: 'context' as StepKey, label: t('Shared context'), value: t('{n} of {total} files from other projects', { n: keptShared.length, total: sharedPaths.length })
         + (exclude.some((p) => choice.own.includes(p)) ? ` · ${t('{n} of this project left out', { n: exclude.filter((p) => choice.own.includes(p)).length })}` : '') }] : []),
-      ...(agents.length && !fromPanel ? [{ step: 'agent' as StepKey, label: t('Who does it'), value: agentLabel }] : []),
+      ...(agents.length && !fromPanel && activity !== 'talk' ? [{ step: 'agent' as StepKey, label: t('Who does it'), value: agentLabel }] : []),
     ]),
     { step: 'details', label: t('Notes'), value: note.trim() || t('None') },
     ...(resume ? [] : [{ step: 'details' as StepKey, label: t('Conversation language'), value: t(language) }]),
-    ...(fromPanel ? [] : [{ step: 'tool' as StepKey, label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' }]),
+    { step: 'destination', label: t('Destination'), value: destination === 'current' ? `${t('This terminal')} · ${preset?.terminal?.title ?? ''}` : t('New terminal') },
+    ...(destination === 'current' || fromPanel ? [] : [{ step: 'tool' as StepKey, label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' }]),
   ];
 
   return (
@@ -195,21 +230,10 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
         <div className="wizard-bar"><span style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div>
 
         <div className="modal-body">
+          {error && step !== 'review' && <p className="error" role="alert">{error}</p>}
           {step === 'activity' && (
-            <div className="answer-list">
-              {/* Only what can be done now: unavailable skills and an empty "resume" are hidden. */}
-              {activities.filter((a) => a.available && (a.id !== 'resume' || runs.length > 0)).map((a) => {
-                return (
-                  <Answer key={a.id} title={t(a.label)} hint={t(a.hint)} on={activity === a.id}
-                    onPick={() => {
-                      if (a.target.kind === 'operation') { onOperation?.(a.target.name); return; }
-                      setActivity(a.id);
-                      if (a.id === 'resume') setRun((r) => (runs.some((x) => x.id === r) ? r : runs[0]?.id ?? ''));
-                      setStep(a.id === 'resume' ? 'run' : 'files');
-                    }} />
-                );
-              })}
-            </div>
+            <InvokeCatalog activities={activities.filter((a) => a.available && (a.id !== 'resume' || runs.length > 0))}
+              agents={agents} skills={skills} operations={operations} onPick={pick} />
           )}
 
           {step === 'run' && (
@@ -307,6 +331,12 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
                 {onMyAis && <> <button type="button" className="link" onClick={onMyAis}>{t('Install in Settings › My AIs')}</button></>}</p>}
             </div>
           )}
+          {step === 'destination' && <div className="answer-list">
+            <Answer title={t('This terminal')} hint={preset?.terminal ? t('Paste into {terminal}. Review it, add context and press Enter when ready.', { terminal: preset.terminal.title }) : t('Open a running AI terminal in this project to use this option.')}
+              on={destination === 'current'} disabled={!preset?.terminal} onPick={() => { setDestination('current'); setStep('review'); }} />
+            <Answer title={t('New terminal')} hint={t('Choose an AI and open the request in a new session.')}
+              on={destination === 'new'} onPick={() => { setDestination('new'); setStep('tool'); }} />
+          </div>}
 
           {step === 'review' && (
             <>
@@ -345,7 +375,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
               {fromPanel && (
                 <div className="wizard-picks">
                   {agents.length > 0 && <AgentPick label={t('Who does it')} agents={agents} value={agent} onChange={(name) => { setResult(null); setError(''); setAgent(name); }} optional />}
-                  <AiPick label={t('AI tool')} tools={tools} value={tool} onChange={(id) => { setResult(null); setError(''); setTool(id); }} onInstall={onMyAis} />
+                  {destination === 'new' && <AiPick label={t('AI tool')} tools={tools} value={tool} onChange={(id) => { setResult(null); setError(''); setTool(id); }} onInstall={onMyAis} />}
                 </div>
               )}
             </>
@@ -364,7 +394,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onAc
           {step === 'details' && <button type="button" className="btn" onClick={next}>{note.trim() ? t('Continue') : t('Nothing else — continue')}</button>}
           {step === 'review' && (result?.opened || requestReady
             ? <button type="button" className="btn" onClick={onClose}>{t('Done')}</button>
-            : <button type="button" className="btn" disabled={busy || !selectedTool} onClick={() => { void submit(); }}><IconPlay size={15} /> {busy ? t('Opening…') : buttonLabel}</button>)}
+            : <button type="button" className="btn" disabled={busy || (destination === 'new' ? !selectedTool : !preset?.terminal)} onClick={() => { void submit(); }}><IconPlay size={15} /> {busy ? t('Preparing…') : buttonLabel}</button>)}
         </footer>
       </div>
     </div>

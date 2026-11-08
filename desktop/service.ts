@@ -28,7 +28,7 @@ import { checkOperation, cleanOperation, formatMessage, listOperations, removeOp
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favorites.ts';
-import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, favorites, getActivity, isPickable, listActivities, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
+import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
 import { appliesTo as reaches, projectTag } from '../scripts/lib/tags.mjs';
@@ -74,6 +74,7 @@ export interface Deps {
   killTerminal?: (id: string) => void; // stops what runs in a terminal tab of the app (cancelling an operation)
   terminalAlive?: (id: string) => boolean; // whether a terminal tab exists in this session (a step's terminal is gone after a restart)
   writeTerminal?: (id: string, data: string) => void; // types into a terminal tab (an answer to the agent waiting there)
+  pasteRequest?: (project: string, id: string, prompt: string) => boolean; // plain input in a running AI terminal of this project, without submitting
   probe?: (server: McpServer) => Promise<ProbeResult>; // MCP server test (tests pass a fake)
 }
 
@@ -525,16 +526,19 @@ export function createService(root: string, deps: Deps) {
   // An activity as the app shows it: what it points to, whether it can run, whether it is a favorite.
   const frameworkSkill = (name: string) => existsSync(join(root, 'skills', name, 'SKILL.md'));
   const activityInfo = (a: ActivityDef, project: string | undefined, stars: string[]) => {
-    const skill = a.target.kind === 'moki' || a.target.kind === 'skill' ? a.target.name : a.target.kind === 'workflow' ? 'qa-orchestrator' : '';
-    const agent = a.target.kind === 'agent' ? listAgents(root).find((x) => x.name === a.target.name) : undefined;
+    const target = a.target;
+    const skills = activitySkills(a);
+    const skill = skills[0] ?? '';
+    const agent = target.kind === 'agent' ? listAgents(root).find((x) => x.name === target.name) : undefined;
+    const unavailableSkill = skills.find((s) => frameworkSkill(s) && !isUsable(s, root));
     const available = a.id === 'resume' ? true
       : a.target.kind === 'agent' ? Boolean(agent && isUsableAgent(agent))
-      : a.target.kind === 'operation' ? listOperations(root).some((o) => o.id === a.target.name)
-      : !frameworkSkill(skill) || isUsable(skill, root); // a skill installed by the person (not in the framework) is theirs to use
+      : target.kind === 'operation' ? listOperations(root).some((o) => o.id === target.name)
+      : skills.every((s) => !frameworkSkill(s) || isUsable(s, root)); // installed skills outside the framework remain usable
     return {
       id: a.id, label: a.label, hint: a.description, category: a.category, source: a.source, target: a.target, files: a.files,
-      needsFiles: a.files === 'required', note: a.note, tags: a.tags, skill, favorite: stars.includes(a.id),
-      available, status: skill && frameworkSkill(skill) ? skillStatus(skill, root) : available ? 'ready' : 'unavailable',
+      needsFiles: a.files === 'required', note: a.note, tags: a.tags, skill, skills, favorite: stars.includes(a.id),
+      available, status: unavailableSkill ? skillStatus(unavailableSkill, root) : skill && frameworkSkill(skill) ? skillStatus(skill, root) : available ? 'ready' : 'unavailable',
     };
   };
   // What the person typed for an activity of their own: checked like a file of activities/, and its target must exist.
@@ -542,8 +546,19 @@ export function createService(root: string, deps: Deps) {
     const r = (raw ?? {}) as Record<string, unknown>;
     const kind = String(r.kind ?? '') as TargetKind;
     const name = String(r.target ?? '').trim();
-    if (!TARGET_KINDS.includes(kind)) throw new ServiceError('Choose what the activity uses: a skill, an agent, a workflow or an operation.');
-    if (!/^[a-z0-9][a-z0-9:-]{0,99}$/.test(name)) throw new ServiceError('Choose the skill, agent, workflow or operation it uses.');
+    if (!TARGET_KINDS.includes(kind)) throw new ServiceError('Choose text only, skills, an agent, a workflow or an operation.');
+    let target: ActivityTarget;
+    if (kind === 'prompt') target = { kind: 'prompt' };
+    else if (kind === 'skills') {
+      const names = Array.isArray(r.skills) ? r.skills.filter((s): s is string => typeof s === 'string').map((s) => s.trim()) : [];
+      if (!names.length || names.length !== (Array.isArray(r.skills) ? r.skills.length : 0) || new Set(names).size !== names.length) throw new ServiceError('Choose one or more different skills.');
+      const offered = new Set(listSkills(root).filter((s) => isUsable(s.name, root)).map((s) => s.name));
+      if (names.some((s) => !offered.has(s))) throw new ServiceError('Choose skills that are available in the list.');
+      target = names.length === 1 ? { kind: 'skill', name: names[0] } : { kind: 'skills', names };
+    } else {
+      if (!/^[a-z0-9][a-z0-9:-]{0,99}$/.test(name)) throw new ServiceError('Choose the skill, agent, workflow or operation it uses.');
+      target = { kind, name };
+    }
     if (kind === 'agent' && !listAgents(root).some((a) => a.name === name)) throw new ServiceError(`There is no agent "${name}".`);
     if (kind === 'workflow' && !existsSync(join(root, 'skills', 'qa-orchestrator', 'references', 'workflows', `${name}.md`))) throw new ServiceError(`There is no workflow "${name}".`);
     if (kind === 'operation' && !listOperations(root).some((o) => o.id === name)) throw new ServiceError(`There is no operation "${name}".`);
@@ -552,8 +567,9 @@ export function createService(root: string, deps: Deps) {
     if (!label) throw new ServiceError('Give the activity a name.');
     const tags = Array.isArray(r.tags) ? r.tags.map(String) : [];
     const template = String(r.template ?? '').replace(/\r\n/g, '\n').slice(0, 4000);
+    if (target.kind === 'prompt' && !template.trim()) throw new ServiceError('Write the request for this text-only activity.');
     if (/^---/m.test(template)) throw new ServiceError('The text of the request cannot have a line with ---.');
-    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target: { kind, name }, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template }) };
+    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template }) };
   };
   const knownOperation = (id: unknown) => {
     const op = listOperations(root).find((o) => o.id === id);
@@ -725,6 +741,71 @@ export function createService(root: string, deps: Deps) {
       try { return { kind: 'json', path, text: JSON.stringify(JSON.parse(text), null, 2) }; } catch { return { kind: 'json', path, text }; }
     }
     return { kind: 'text', path, text, editable: isEditable(file) };
+  }
+
+  // Prepare once: opening another AI and calling into a conversation use the same validation and context.
+  function prepareLaunch(req: LaunchRequest) {
+    const project = isProject(req?.project, root) ? req.project : null;
+    if (!project) throw new ServiceError('Unknown project.');
+    const activity = String(req.activity ?? '');
+    const trackingId = req.trackingId;
+    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
+    const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
+    if (!def) throw new ServiceError('Unknown activity.');
+    if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
+    const skillName = activity === 'skill' ? String(req.skill ?? '').trim() : '';
+    if (activity === 'skill' && !isUsable(skillName, root)) throw new ServiceError('Choose a skill that can run.');
+    if (def.target.kind === 'operation') throw new ServiceError(`The activity "${def.label}" starts the operation ${def.target.name}: start it from the Operations panel.`);
+    if (!activityInfo(def, project, []).available) throw new ServiceError(`The activity "${def.label}" is not available yet.`);
+    const tool = String(req.tool ?? '');
+    if (!isTool(tool)) throw new ServiceError('Unknown tool.');
+    const language = LANGUAGES.includes(String(req.language)) ? String(req.language) : 'English';
+    const note = cleanPrompt(String(req.note ?? '')).slice(0, 2000);
+    const dir = projectDir(project);
+    const available = new Set(inboxFiles(dir).map((f) => f.name));
+    const names = Array.isArray(req.files) ? req.files.map(String) : [];
+    const unknown = names.filter((n) => !available.has(n));
+    if (unknown.length) throw new ServiceError(`Not in the project inbox: ${unknown.join(', ')}`);
+    if (def.files === 'required' && !names.length) throw new ServiceError('This activity needs at least one file from the inbox.');
+    const files = names.map((n) => `${workspaceLabel(root)}/projects/${project}/inbox/${n}`);
+    let run = '';
+    if (activity === 'resume') {
+      run = String(req.run ?? '');
+      if (!openRuns(project, root).some((r) => r.id === run)) throw new ServiceError('Choose an open activity to resume.');
+    }
+    let agent: { name: string; path: string } | undefined;
+    if (req.agent) {
+      const chosen = findAgent(String(req.agent));
+      if (!isUsableAgent(chosen)) throw new ServiceError(`The ${chosen.name} agent is not available yet.`);
+      if (!enabledAgents(project).includes(chosen.name)) throw new ServiceError(`The ${chosen.name} agent is not enabled in this project.`);
+      agent = { name: chosen.name, path: chosen.path };
+    } else if (def.target.kind === 'agent') {
+      // An activity of an agent: that agent, unless the person chose another.
+      const name = def.target.name;
+      const own = listAgents(root).find((a) => a.name === name);
+      if (!own || !isUsableAgent(own)) throw new ServiceError(`The ${name} agent is not available yet.`);
+      agent = { name: own.name, path: own.path };
+    }
+    // Shared context is worked out here again from the tags; the UI only says what to leave out.
+    const exclude = new Set(Array.isArray(req.exclude) ? req.exclude.map(String) : []);
+    const choice = activity === 'resume' ? { own: [], shared: [] } : contextChoice(project, root);
+    const offered = new Set([...choice.own, ...choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths))]);
+    const stray = [...exclude].filter((p) => !offered.has(p));
+    if (stray.length) throw new ServiceError(`Not in this project's context: ${stray.join(', ')}`);
+    const seen = new Set<string>();
+    const shared = choice.shared.flatMap((g) => g.sources.map((s) => ({
+      tag: g.tag.name, project: s.project,
+      paths: s.paths.filter((p) => !exclude.has(p) && !seen.has(p) && Boolean(seen.add(p))),
+    }))).filter((s) => s.paths.length);
+    const excluded = choice.own.filter((p) => exclude.has(p));
+    const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, workspace: workspaceLabel(root),
+      skills: installedSkills(project, root), agents: installedAgents(project, root),
+      description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
+      available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
+    // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
+    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
+    const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
+    return { project, dir, files, run, shared, prompt, tool };
   }
 
   return {
@@ -1906,7 +1987,6 @@ export function createService(root: string, deps: Deps) {
       if (!description) throw new ServiceError('Describe what the agent does.');
       if (description.length > AGENT_TEXT_LIMIT) throw new ServiceError(`Keep the description under ${AGENT_TEXT_LIMIT} characters.`);
       const wanted = Array.isArray(req?.skills) ? [...new Set(req.skills.map(String))] : [];
-      if (!wanted.length) throw new ServiceError('Choose at least one skill.');
       // A repository agent runs outside the framework, so it gets absolute paths to the framework's skills.
       const builtin = req.scope === 'project' ? frameworkSkills().map((s) => s.name) : [];
       const skills = wanted.map((n) => {
@@ -2053,66 +2133,15 @@ export function createService(root: string, deps: Deps) {
       return true;
     },
 
+    invokeInTerminal: (req: LaunchRequest, terminalId: unknown) => {
+      if (typeof terminalId !== 'string') throw new ServiceError('Choose a running AI terminal in this project.');
+      const prepared = prepareLaunch({ ...req, tool: 'print' });
+      if (!deps.pasteRequest?.(prepared.project, terminalId, prepared.prompt)) throw new ServiceError('Choose a running AI terminal in this project.');
+      return { prepared: true, prompt: prepared.prompt };
+    },
+
     launch: (req: LaunchRequest) => {
-      const project = isProject(req?.project, root) ? req.project : null;
-      if (!project) throw new ServiceError('Unknown project.');
-      const activity = String(req.activity ?? '');
-      const trackingId = req.trackingId;
-      if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
-      const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
-      if (!def) throw new ServiceError('Unknown activity.');
-      if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
-      const skillName = activity === 'skill' ? String(req.skill ?? '').trim() : '';
-      if (activity === 'skill' && !isUsable(skillName, root)) throw new ServiceError('Choose a skill that can run.');
-      if (def.target.kind === 'operation') throw new ServiceError(`The activity "${def.label}" starts the operation ${def.target.name}: start it from the Operations panel.`);
-      if (!activityInfo(def, project, []).available) throw new ServiceError(`The activity "${def.label}" is not available yet.`);
-      const tool = String(req.tool ?? '');
-      if (!isTool(tool)) throw new ServiceError('Unknown tool.');
-      const language = LANGUAGES.includes(String(req.language)) ? String(req.language) : 'English';
-      const note = cleanPrompt(String(req.note ?? '')).slice(0, 2000);
-      const dir = projectDir(project);
-      const available = new Set(inboxFiles(dir).map((f) => f.name));
-      const names = Array.isArray(req.files) ? req.files.map(String) : [];
-      const unknown = names.filter((n) => !available.has(n));
-      if (unknown.length) throw new ServiceError(`Not in the project inbox: ${unknown.join(', ')}`);
-      if (def.files === 'required' && !names.length) throw new ServiceError('This activity needs at least one file from the inbox.');
-      const files = names.map((n) => `${workspaceLabel(root)}/projects/${project}/inbox/${n}`);
-      let run = '';
-      if (activity === 'resume') {
-        run = String(req.run ?? '');
-        if (!openRuns(project, root).some((r) => r.id === run)) throw new ServiceError('Choose an open activity to resume.');
-      }
-      let agent: { name: string; path: string } | undefined;
-      if (req.agent) {
-        const chosen = findAgent(String(req.agent));
-        if (!isUsableAgent(chosen)) throw new ServiceError(`The ${chosen.name} agent is not available yet.`);
-        if (!enabledAgents(project).includes(chosen.name)) throw new ServiceError(`The ${chosen.name} agent is not enabled in this project.`);
-        agent = { name: chosen.name, path: chosen.path };
-      } else if (def.target.kind === 'agent') {
-        // An activity of an agent: that agent, unless the person chose another.
-        const own = listAgents(root).find((a) => a.name === def.target.name);
-        if (!own || !isUsableAgent(own)) throw new ServiceError(`The ${def.target.name} agent is not available yet.`);
-        agent = { name: own.name, path: own.path };
-      }
-      // Shared context is worked out here again from the tags; the UI only says what to leave out.
-      const exclude = new Set(Array.isArray(req.exclude) ? req.exclude.map(String) : []);
-      const choice = activity === 'resume' ? { own: [], shared: [] } : contextChoice(project, root);
-      const offered = new Set([...choice.own, ...choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths))]);
-      const stray = [...exclude].filter((p) => !offered.has(p));
-      if (stray.length) throw new ServiceError(`Not in this project's context: ${stray.join(', ')}`);
-      const seen = new Set<string>();
-      const shared = choice.shared.flatMap((g) => g.sources.map((s) => ({
-        tag: g.tag.name, project: s.project,
-        paths: s.paths.filter((p) => !exclude.has(p) && !seen.has(p) && Boolean(seen.add(p))),
-      }))).filter((s) => s.paths.length);
-      const excluded = choice.own.filter((p) => exclude.has(p));
-      const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, workspace: workspaceLabel(root),
-        skills: installedSkills(project, root), agents: installedAgents(project, root),
-        description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
-        available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
-      // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
-      const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
-      const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
+      const { project, dir, files, run, shared, prompt, tool } = prepareLaunch(req);
       const t = TOOLS[tool];
       if (t.print || t.chat) {
         const upload = t.chat ? [

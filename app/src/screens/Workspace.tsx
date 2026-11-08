@@ -3,7 +3,7 @@
 // the activity or project details.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
-import { api, CHANGED_OUTSIDE, type FileContent, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
+import { api, CHANGED_OUTSIDE, type FileContent, type LaunchPreset, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, recall, remember } from '../prefs';
 import { DocView, type DocMode, type MdWhy } from '../components/DocView';
@@ -112,12 +112,25 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     if (docSide) { window.dispatchEvent(new Event('moki:doc-side-close')); setPanelRail(false); return; }
     togglePanel();
   };
-  const [launch, setLaunch] = useState<{ activity: string; run?: string; skipActivity?: boolean; tool?: string; agent?: string; startAtTool?: boolean } | null>(startSetup && project.starter === 'blank' ? { activity: 'plan', startAtTool: true } : launchOnOpen ? { activity: 'open' } : null);
+  const [launch, setLaunch] = useState<LaunchPreset | null>(startSetup && project.starter === 'blank' ? { activity: 'plan', startAtTool: true } : launchOnOpen ? { activity: 'open' } : null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(startNotice);
   const [terms, setTerms] = useState<TermTab[]>([]);
   const [activeTerm, setActiveTerm] = useState<string | null>(null);
+  const activeAiTerminal = terms.find((term) => term.id === activeTerm && term.running && term.tool);
+  const openCall = useCallback((preset: LaunchPreset = {}) => {
+    const current = terms.find((term) => term.id === activeTerm && term.running && term.tool);
+    setLaunch({ ...preset, ...(current ? { terminal: current } : {}) });
+  }, [terms, activeTerm]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key.toLowerCase() !== 'k' || launch || settings || document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault(); e.stopPropagation(); openCall();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [openCall, launch, settings]);
   // Graph view is a placeholder tab. The rail button under the AI icon opens it.
   const [graphOpen, setGraphOpen] = useState(false);
   const [graphFocus, setGraphFocus] = useState(false);
@@ -757,6 +770,9 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
           <AddButton size="sm" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
         </div>
         {notice && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
+        {activeAiTerminal && <div className="terminal-callbar">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => openCall()} title={t('Call… (Ctrl+Shift+K / ⌘⇧K)')}>{t('Call…')}</button>
+        </div>}
         {error && <div className="error-bar">{error}<button type="button" className="icon-btn" onClick={() => setError('')}><IconX size={14} /></button></div>}
         {terms.map((t) => (
           <TerminalView key={t.id} id={t.id} project={project.id} active={t.id === activeTerm} onExit={() => setTerms((all) => all.map((x) => (x.id === t.id ? { ...x, running: false } : x)))} />
@@ -814,7 +830,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         )}
       </main>
 
-      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={(p) => setLaunch(p ?? { activity: 'open' })} onOperation={startOperationForm} onOperationRun={showOperationRun} onOpenRun={openListedRun} onTerminal={addTerminal} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onSetup={() => setShowSetup(true)} onProjectChanged={onProjectChanged} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
+      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onOpenRun={openListedRun} onSetup={() => setShowSetup(true)} onProjectChanged={onProjectChanged} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
         operations={(
           <OperationsPanel project={project.id} tick={opsTick} active={activityView ?? opView?.id ?? null} launches={activityLaunches} activityLaunchTick={activityLaunchTick}
             onDismissLaunch={(id) => setActivityLaunches((items) => items.filter((item) => item.id !== id))} onActivityRun={showActivity}
@@ -888,7 +904,12 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       {creating && <NewEntryDialog project={project.id} parent={creating.parent} kind={creating.kind} ext={creating.ext} folders={creating.ext ? folders : undefined} onClose={() => setCreating(null)} onCreated={(path) => created(path, creating.kind)} />}
       {showSetup && <SetupDialog project={project} onClose={() => setShowSetup(false)}
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
-      {launch && <LaunchDialog project={project} tools={tools} preset={launch} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onOperation={startOperationForm} onMyAis={() => { setLaunch(null); onSettings('ai'); }} />}
+      {launch && <LaunchDialog project={project} tools={tools} preset={launch} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
+        onPrepared={(terminal) => {
+          setLaunch(null); setGraphFocus(false); setActiveTerm(terminal.id);
+          setNotice(t('Request pasted. Add context and press Enter when ready.'));
+          requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.term-pane:not([hidden]) textarea')?.focus());
+        }} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onOperation={startOperationForm} onMyAis={() => { setLaunch(null); onSettings('ai'); }} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // Output of an embedded terminal (desktop/terminals.ts): the kept tail and the grouping sent to the window.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBatcher, createFlowControl, createTail } from '../desktop/terminals.ts';
+import { createBatcher, createFlowControl, createTail, createTerminals, type TermSpec } from '../desktop/terminals.ts';
 
 test('terminal output tail keeps only the last characters, across chunks', () => {
   const tail = createTail(10);
@@ -13,6 +13,53 @@ test('terminal output tail keeps only the last characters, across chunks', () =>
   assert.equal(tail.text(), 'x'.repeat(10));
   tail.push('');
   assert.equal(tail.text(), 'x'.repeat(10));
+});
+
+function requestRig() {
+  const writes: string[] = [];
+  let end: ((event: { exitCode: number }) => void) | undefined;
+  const terminals = createTerminals(() => {}, undefined, () => ({
+    spawn: () => ({ pid: 123, onData: () => {}, onExit: (fn) => { end = fn; }, write: (data) => { writes.push(data); }, resize: () => {}, kill: () => {}, pause: () => {}, resume: () => {} }),
+  }));
+  const spec: TermSpec = { file: 'fake', args: [], cwd: '.', title: 'Claude Code', tool: 'claude' };
+  return { terminals, writes, spec, exit: () => end?.({ exitCode: 0 }) };
+}
+
+test('calling into an AI terminal preserves the draft and never sends Enter or terminal controls', () => {
+  const { terminals, writes, spec, exit } = requestRig();
+  const id = terminals.prepare(spec);
+  assert.equal(terminals.pasteRequest('acme', id, 'not started'), false);
+  assert.equal(terminals.start(id, 80, 24, 'acme'), '');
+  terminals.write(id, 'my context: ');
+  assert.equal(terminals.pasteRequest('acme', id, 'Review\nlogin\r\nação\t\x1b\u009b\u2028next'), true);
+  assert.equal(writes[0], 'my context: ');
+  assert.match(writes[1], /Review login ação/);
+  assert.doesNotMatch(writes[1], /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+  assert.equal(terminals.list()[0].tool, 'claude');
+  terminals.detach(id);
+  assert.equal(terminals.describe(id)?.tool, 'claude');
+  exit();
+  assert.equal(terminals.pasteRequest('acme', id, 'ended'), false);
+});
+
+test('calling refuses other projects, shells, editors, closed terminals and invalid text', () => {
+  const { terminals, writes, spec } = requestRig();
+  const id = terminals.prepare(spec);
+  terminals.start(id, 80, 24, 'acme');
+  assert.equal(terminals.pasteRequest('beta', id, 'other project'), false);
+  assert.equal(terminals.pasteRequest('acme', 'missing', 'missing'), false);
+  assert.equal(terminals.pasteRequest('acme', id, '\r\n'), false);
+  assert.equal(terminals.pasteRequest('acme', id, 'x'.repeat(1_000_001)), false);
+  const shell = terminals.prepare({ file: 'fake', args: [], cwd: '.' });
+  terminals.start(shell, 80, 24, 'acme');
+  assert.equal(terminals.pasteRequest('acme', shell, 'not an AI'), false);
+  const editor = terminals.prepare({ ...spec, tool: 'vscode' });
+  terminals.start(editor, 80, 24, 'acme');
+  assert.equal(terminals.pasteRequest('acme', editor, 'not a terminal AI'), false);
+  terminals.kill(id);
+  assert.equal(terminals.pasteRequest('acme', id, 'closed'), false);
+  assert.deepEqual(writes, []);
+  terminals.killAll();
 });
 
 test('terminal output tail keeps the order over many small and large chunks', () => {

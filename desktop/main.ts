@@ -9,7 +9,7 @@ import { Readable } from 'node:stream';
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ROOT, workspaceDir } from '../scripts/lib/repo.mjs';
-import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, type ToolKey } from '../scripts/lib/core.ts';
+import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, which, type ToolKey } from '../scripts/lib/core.ts';
 import { callService, createService, servedFile, type CallResult } from './service.ts';
 import { FILE_SCHEME, createFileGrants } from './file-protocol.ts';
 import { watchProject } from './project-watch.ts';
@@ -37,7 +37,7 @@ const terminals = createTerminals((channel, id, payload) => win?.webContents.sen
   if (project) { try { service.operationStepExited(project, id); } catch { /* a run that is gone */ } }
 });
 
-// QA_FAKE_TOOLS (UI tests only): every AI tool looks installed and nothing is started.
+// QA_FAKE_TOOLS (UI tests only): every AI tool looks installed; AI launches are faked.
 const fakeTools = process.env.QA_FAKE_TOOLS === '1';
 
 const service = createService(ROOT, {
@@ -79,6 +79,7 @@ const service = createService(ROOT, {
   killTerminal: (id) => terminals.kill(id),
   terminalAlive: (id) => terminals.alive(id),
   writeTerminal: (id, data) => terminals.write(id, data),
+  pasteRequest: (project, id, prompt) => terminals.pasteRequest(project, id, prompt),
 });
 
 let win: BrowserWindow | null = null;
@@ -320,6 +321,11 @@ if (!app.requestSingleInstanceLock()) {
       if (!terminals.available()) return { error: 'Terminals inside the app are not available on this computer (node-pty is not installed).' };
       if (tool === '') return { terminal: { id: terminals.prepare({ ...shellSpec(ROOT), title: 'Terminal' }), title: 'Terminal' } };
       if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].command || TOOLS[tool].clipboard) return { error: 'Unknown tool.' };
+      // UI tests get an echo input, never a real AI. Its submission marker proves Call did not press Enter.
+      if (fakeTools) {
+        const driver = "process.stdin.setRawMode?.(true); process.stdin.setEncoding('utf8'); let draft=''; process.stdout.write('[ready]\\r\\n'); process.stdin.on('data', data => { for (const c of data) { if (c === '\\r' || c === '\\n') { process.stdout.write('\\r\\n[submitted] '+draft+'\\r\\n'); draft=''; } else { draft += c; process.stdout.write(c); } } });";
+        return { terminal: { id: terminals.prepare({ file: which('node') ?? process.execPath, args: ['-e', driver], cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, title: TOOLS[tool].label, tool }), title: TOOLS[tool].label, tool } };
+      }
       const plugins = isProject(project, ROOT) ? projectSummary(project, ROOT).plugins : [];
       const r = launchInTerminal(tool, '', ROOT, terminals.prepare, plugins);
       return r.terminal ? { terminal: r.terminal } : { error: r.message };
@@ -337,7 +343,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on('qa:term-kill', (event, id: unknown) => { if (trusted(event) && typeof id === 'string') terminals.kill(id); });
     // A project opened again: the terminals still running for it, and what one printed while its tab was away.
     ipcMain.handle('qa:term-list', (event, project: unknown) => (trusted(event) && typeof project === 'string'
-      ? terminals.list().filter((x) => x.project === project).map((x) => ({ id: x.id, title: x.title })) : []));
+      ? terminals.list().filter((x) => x.project === project).map((x) => ({ id: x.id, title: x.title, ...(x.tool ? { tool: x.tool } : {}) })) : []));
     ipcMain.handle('qa:term-attach', (event, id: unknown) => (trusted(event) && typeof id === 'string' ? terminals.attach(id) : null));
     // Flow control: the window confirms how much output it drew (finite, >= 0, capped), or that its tab left.
     ipcMain.on('qa:term-ack', (event, id: unknown, bytes: unknown) => {
@@ -372,7 +378,8 @@ if (!app.requestSingleInstanceLock()) {
     const toFront = () => { if (!win) return; if (win.isMinimized()) win.restore(); win.focus(); };
     ipcMain.on('qa:show-terminal', (event, project: unknown, id: unknown, title: unknown) => {
       if (!fromNote(event, project) || typeof id !== 'string' || !/^[\w-]{1,80}$/.test(id) || typeof title !== 'string') return;
-      win?.webContents.send('qa:show-terminal', project, { id, title: title.slice(0, 120) });
+      const terminal = terminals.describe(id);
+      win?.webContents.send('qa:show-terminal', project, { id, title: title.slice(0, 120), ...(terminal?.tool ? { tool: terminal.tool } : {}) });
       toFront();
     });
     ipcMain.on('qa:open-in-main', (event, project: unknown, path: unknown) => {

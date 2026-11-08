@@ -1914,4 +1914,11 @@ span.mcp-row-main { cursor: default; }
 .activity-uses { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .activity-form textarea { font-family: var(--mono, monospace); font-size: 0.85rem; }
 .activity-template { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-3); font-size: 0.82rem; white-space: pre-wrap; }
+.invoke-catalog { display: flex; flex-direction: column; gap: 12px; }
+.invoke-catalog .answer-list { max-height: 45vh; overflow-y: auto; }
+.invoke-row { align-items: center; }
+.invoke-row .answer-text { min-width: 0; }
+.invoke-row .chip { flex-shrink: 0; }
+.invoke-operation { color: var(--muted); font-size: 0.78rem; }
+.terminal-callbar { display: flex; justify-content: flex-end; padding: 4px 10px; border-bottom: 1px solid var(--border); }
 @media (max-width: 700px) { .activity-uses { grid-template-columns: minmax(0, 1fr); } }

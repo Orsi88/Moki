@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { ROOT, SLUG, readJson, workspaceDir, workspaceLabel } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { contractLines, isUsableAgent, listAgents, type AgentContract } from './agents.ts';
-import { activityRequest, getActivity, listActivities, type ActivityDef } from './activities.ts';
+import { activityRequest, activitySkills, getActivity, listActivities, type ActivityDef } from './activities.ts';
 
 // Activities are scripts/lib/activities.ts: the app's own actions in code, the others in activities/ and the workspace library.
 export type ActivityKey = string;
@@ -119,10 +119,13 @@ export const isTool = (v: string): v is ToolKey => Object.hasOwn(TOOLS, v);
 export function activityProblem(a: ActivityDef, root = ROOT): string {
   if (a.id === 'resume') return '';
   if (a.target.kind === 'operation') return 'an operation: start it from the app';
-  if (a.target.kind === 'agent') return listAgents(root).some((x) => x.name === a.target.name && isUsableAgent(x)) ? '' : `agent ${a.target.name} not available`;
-  const skill = a.target.kind === 'workflow' ? 'qa-orchestrator' : a.target.name;
-  if (!existsSync(join(root, 'skills', skill, 'SKILL.md'))) return ''; // a skill the person installed
-  return isUsable(skill, root) ? '' : `not available yet: ${skillStatus(skill, root)}`;
+  const target = a.target;
+  if (target.kind === 'agent') return listAgents(root).some((x) => x.name === target.name && isUsableAgent(x)) ? '' : `agent ${target.name} not available`;
+  for (const skill of activitySkills(a)) {
+    if (!existsSync(join(root, 'skills', skill, 'SKILL.md'))) continue; // a skill the person installed
+    if (!isUsable(skill, root)) return `not available yet: ${skillStatus(skill, root)}`;
+  }
+  return '';
 }
 
 // ---------------------------------------------------------------- skills
@@ -328,7 +331,8 @@ export function agentMarkdown({ name, description, skills, framework, contract }
     '---', `name: ${name}`, `description: ${JSON.stringify(summary)}`, ...(contract ? contractLines(contract) : []), '---', '',
     description, '',
     '## Skills', '',
-    'Use only these skills (read the SKILL.md when one fits the task). Do not use or install any other skill; if the task needs one that is not listed, say so and stop.', '',
+    skills.length ? 'Use only these skills (read the SKILL.md when one fits the task). Do not use or install any other skill; if the task needs one that is not listed, say so and stop.'
+      : 'No skills are assigned. Follow the role and instructions above. Do not use or install skills; if the task needs one, say so and stop.', '',
     ...skills.map((s) => `- \`${s.name}\`: \`${s.path}\``), '',
     ...(framework ? [`The Moki skills follow \`${framework.root}/AGENTS.md\` for the project \`${framework.project}\`: its context, runs and approvals are in \`${framework.workspace ?? `${framework.root}/workspace`}/projects/${framework.project}/\`.`, ''] : []),
   ].join('\n');
@@ -538,6 +542,14 @@ export interface Request {
 }
 
 export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], root = ROOT, workspace = 'workspace', skill = '' }: Request): string {
+  // Resolve an activity's agent here too, so the terminal menu and the app ask for the same role.
+  const definition = getActivity(activity, root);
+  if (!agent && definition?.target.kind === 'agent') {
+    const name = definition.target.name;
+    const own = listAgents(root).find((a) => a.name === name && isUsableAgent(a));
+    if (!own) throw new Error(`The ${name} agent is not available yet.`);
+    agent = { name: own.name, path: own.path };
+  }
   const list = files.length ? files.join(', ') : '';
   const parts = [`Follow AGENTS.md. Project: ${project}.`];
   if (workspace !== 'workspace') {
@@ -590,7 +602,7 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
       break;
     default: {
       // A builtin or library activity: its own text (activities.ts).
-      const def = getActivity(activity, root);
+      const def = definition;
       if (!def || def.target.kind === 'moki') throw new Error(`Unknown activity "${String(activity)}"`);
       if (def.target.kind === 'operation') throw new Error(`The activity "${def.label}" starts the operation ${def.target.name}: start it from the Operations panel of the project.`);
       parts.push(activityRequest(def, files, project));

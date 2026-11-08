@@ -36,14 +36,20 @@ export interface ToolInfo {
 // Settings › My AIs: where a tool is, its version and, in an editor, the Moki extension's version ('' = unknown or none).
 export interface AiToolStatus { id: string; available: boolean; path: string; version: string; extension: string }
 // An activity (scripts/lib/activities.ts): the app's own (moki), one that comes with Moki (builtin) or the person's (library).
-export type ActivityTarget = { kind: 'moki' | 'skill' | 'agent' | 'workflow' | 'operation'; name: string };
+export type ActivityTarget =
+  | { kind: 'prompt' }
+  | { kind: 'skills'; names: string[] }
+  | { kind: 'moki' | 'skill' | 'agent' | 'workflow' | 'operation'; name: string };
 export interface ActivityInfo {
-  id: string; label: string; hint: string; skill: string; needsFiles: boolean; available: boolean; status: string;
+  id: string; label: string; hint: string; skill: string; skills: string[]; needsFiles: boolean; available: boolean; status: string;
   category: string; source: 'moki' | 'builtin' | 'library'; target: ActivityTarget; files: 'required' | 'optional' | 'none'; note: string; tags: string[]; favorite: boolean;
 }
 export interface ActivityDetail extends ActivityInfo { template: string; path: string }
 export type FavoriteKind = 'activities' | 'agents' | 'operations' | 'templates' | 'skills';
-export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; files: string; note: string; tags: string[]; template: string }
+export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; skills?: string[]; files: string; note: string; tags: string[]; template: string }
+// The activity's chosen role or procedures, for badges and search in the renderer.
+export const activityTargetLabel = (target: ActivityTarget): string => target.kind === 'prompt' ? t('Text only')
+  : target.kind === 'skills' ? target.names.join(', ') : target.name;
 // "Open with" (Excel, Word and PDF files): the programs the system offers; dialog = the system shows its own list instead (Windows).
 export interface OpenWithApps { dialog: boolean; apps: { id: string; name: string; isDefault: boolean }[] }
 // PDF comments and page edits, written by PdfCraft (desktop/pdfcraft.ts). Quads: 8 numbers, points from the page's top-left.
@@ -178,7 +184,9 @@ export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Ver
 
 export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
-export interface TerminalRef { id: string; title: string }
+export interface TerminalRef { id: string; title: string; tool?: string }
+export type Invocation = { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string; label: string };
+export interface LaunchPreset { activity?: string; run?: string; skipActivity?: boolean; tool?: string; agent?: string; skill?: string; startAtTool?: boolean; terminal?: TerminalRef }
 
 // Skills & agents dialog: skills installed from the SkillMD registry and Claude Code agents, per project or for all projects.
 export interface RegistrySkill {
@@ -363,6 +371,7 @@ export const api = {
   linkRepository: (project: string) => call<(ProjectSummary & { backup?: string }) | null>('linkRepository', project),
   openLinkedFolder: (project: string) => call<boolean>('openLinkedFolder', project),
   launch: (req: LaunchRequest) => call<LaunchResult>('launch', req),
+  invokeInTerminal: (req: LaunchRequest, terminalId: string) => call<{ prepared: boolean; prompt: string }>('invokeInTerminal', req, terminalId),
   categories: () => call<Category[]>('categories'),
   agents: () => call<AgentInfo[]>('agents'),
   agent: (name: string) => call<AgentDetail>('agent', name),

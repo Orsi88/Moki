@@ -93,7 +93,6 @@ export function validateAgent(agent: Agent, ctx: { skills: string[]; categories:
   if (!SLUG.test(agent.category)) errors.push(`invalid category "${agent.category}"`);
   else if (agent.category !== ctx.folder) errors.push(`category "${agent.category}" must match its folder "${ctx.folder}"`);
   if (agent.source === 'builtin' && !ctx.categories.includes(agent.category)) errors.push(`category "${agent.category}" is not defined in agents/categories.json`);
-  if (!agent.skills.length) errors.push('list at least one skill');
   for (const s of agent.skills) if (!ctx.skills.includes(s)) errors.push(`unknown skill "${s}"`);
   if (!(ACCESS_LEVELS as readonly string[]).includes(agent.access)) errors.push(`access must be one of ${ACCESS_LEVELS.join(', ')}`);
   if (agent.model && !(AGENT_MODELS as readonly string[]).includes(agent.model)) errors.push(`model must be one of ${AGENT_MODELS.join(', ')} (or left out)`);
@@ -179,7 +178,7 @@ export function withSkills(text: string, skills: string[]): string {
   const end = normalized.indexOf('\n---', 4);
   if (!normalized.startsWith('---\n') || end === -1) throw new Error('The file has no frontmatter.');
   const lines = normalized.slice(4, end).split('\n');
-  const line = `skills: ${skills.join(', ')}`;
+  const line = `skills: ${skills.length ? skills.join(', ') : '""'}`;
   const at = lines.findIndex((l) => /^skills:/.test(l));
   if (at >= 0) lines[at] = line;
   else lines.splice(Math.max(0, lines.findIndex((l) => /^access:/.test(l))), 0, line);

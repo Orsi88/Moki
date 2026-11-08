@@ -16,7 +16,7 @@ import { TOOLS, copyToClipboard, which, type ToolKey } from '../scripts/lib/core
 import type { TermSpec } from './terminals.ts';
 import { fixToolPathSync, pathPending } from './tool-path.ts';
 
-export interface LaunchResult { opened: boolean; message: string; copied?: boolean; terminal?: { id: string; title: string } }
+export interface LaunchResult { opened: boolean; message: string; copied?: boolean; terminal?: { id: string; title: string; tool?: ToolKey } }
 
 // extra: arguments Moki adds for this start (Claude Code's --mcp-config), before the prompt.
 export type Launcher = (tool: ToolKey, prompt: string, root: string, plugins?: string[], extra?: string[]) => LaunchResult;
@@ -147,9 +147,9 @@ export function launchInTerminal(tool: ToolKey, prompt: string, root: string, pr
   const args = [...pluginArgs(tool, root, plugins), ...extra, ...(prompt ? t.args(cleanPrompt(prompt)) : [])];
   const win = process.platform === 'win32';
   const id = prepare(win || !found
-    ? { file: win ? (which('node') ?? process.execPath) : process.execPath, args: [runToolPath(), requestFile(tool, args, root, t.label)], cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, title: t.label }
-    : { file: t.command, args, cwd: root, title: t.label });
-  return { opened: true, message: `${t.label} opened in a terminal tab${prompt ? ' with your request' : ''}.`, terminal: { id, title: t.label } };
+    ? { file: win ? (which('node') ?? process.execPath) : process.execPath, args: [runToolPath(), requestFile(tool, args, root, t.label)], cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, title: t.label, tool }
+    : { file: t.command, args, cwd: root, title: t.label, tool });
+  return { opened: true, message: `${t.label} opened in a terminal tab${prompt ? ' with your request' : ''}.`, terminal: { id, title: t.label, tool } };
 }
 
 // Opens a folder in the system file manager (Explorer, Finder, ...).

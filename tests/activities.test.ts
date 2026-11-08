@@ -6,7 +6,8 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from '../scripts/lib/repo.mjs';
-import { createProject } from '../scripts/lib/core.ts';
+import { activityProblem, buildPrompt, createProject } from '../scripts/lib/core.ts';
+import { duplicateAgent, parseAgent, validateAgent } from '../scripts/lib/agents.ts';
 import { activityId, activityMarkdown, activityRequest, favorites, getActivity, libraryDir, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite } from '../scripts/lib/activities.ts';
 import { createService } from '../desktop/service.ts';
 
@@ -31,6 +32,7 @@ before(() => {
 after(() => rmSync(root, { recursive: true, force: true }));
 
 const text = (fields: Record<string, string>, body = '') => ['---', ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`), '---', '', body, ''].join('\n');
+const printRequest = { project: 'acme', tool: 'print', files: [], note: '', language: 'English' };
 
 test('the app\'s actions and the activities that come with Moki: one list, the same ids as before', () => {
   const ids = listActivities(root).map((a) => `${a.source}:${a.id}`);
@@ -140,4 +142,79 @@ test('launching: "skill" names one usable skill and stays out of the activity li
   assert.throws(() => svc.launch({ project: 'acme', activity: 'skill', tool: 'claude', files: [], note: '', language: 'English', skill: 'documentation' } as never), /Choose a skill/);
   svc.launch({ project: 'acme', activity: 'skill', tool: 'claude', files: [], note: '', language: 'English', skill: 'test-design' } as never);
   assert.match(prompts.at(-1) ?? '', /Use the test-design skill: read skills\/test-design\/SKILL\.md and follow its procedure and approval gates\./);
+});
+
+test('text-only activities need a request, round-trip without uses, and keep files and project substitutions', () => {
+  assert.match(parseActivity(text({ label: 'Empty' }), 'empty', 'library').errors.join(' '), /needs a request/);
+  const parsed = parseActivity(text({ label: 'Summarize', files: 'optional' }, 'Summarize {project}.\nFiles: {files}.'), 'summarize', 'library');
+  assert.deepEqual(parsed.errors, []);
+  assert.ok(parsed.activity);
+  assert.deepEqual(parsed.activity.target, { kind: 'prompt' });
+  assert.equal(activityRequest(parsed.activity, [], 'acme'), 'Summarize acme.');
+  const serialized = activityMarkdown(parsed.activity);
+  assert.doesNotMatch(serialized, /^uses:/m);
+  assert.deepEqual(parseActivity(serialized, 'summarize', 'library').activity?.target, { kind: 'prompt' });
+
+  assert.throws(() => svc.saveActivity({ label: 'Empty', kind: 'prompt', template: ' ' }), /Write the request/);
+  const saved = svc.saveActivity({ label: 'Summarize the project', kind: 'prompt', template: 'Summarize {project}.\nFiles: {files}.' });
+  const copy = svc.duplicateActivity(saved.id);
+  assert.deepEqual(copy.target, { kind: 'prompt' });
+  assert.equal(svc.activities('acme').activities.find((a) => a.id === saved.id)?.available, true);
+  const prompt = svc.launch({ ...printRequest, activity: saved.id, files: ['us-1.md'] }).prompt;
+  assert.match(prompt, /Summarize acme\. Files: workspace\/projects\/acme\/inbox\/us-1\.md\./);
+  assert.doesNotMatch(prompt, /Use the .* skill|Act as/);
+  assert.match(prompt, /--activity summarize-the-project/);
+});
+
+test('several skills round-trip in uses, all reach the request even with custom text, and invalid combinations are refused', () => {
+  const parsed = parseActivity(text({ label: 'Combined', uses: 'skill:requirements-review, skill:test-design' }, 'Focus on permissions.'), 'combined', 'library');
+  assert.deepEqual(parsed.errors, []);
+  assert.ok(parsed.activity);
+  assert.deepEqual(parsed.activity.target, { kind: 'skills', names: ['requirements-review', 'test-design'] });
+  assert.deepEqual(parseActivity(activityMarkdown(parsed.activity), 'combined', 'library').activity?.target, parsed.activity.target);
+  assert.match(activityRequest(parsed.activity, [], 'acme'), /procedure and approval gates: requirements-review, test-design\. Focus on permissions\./);
+  for (const uses of ['skill:test-design, agent:test-designer', 'agent:test-designer, agent:qa-lead', 'skill:test-design, skill:test-design', 'skill:test-design,', 'skill:../outside']) {
+    assert.equal(parseActivity(text({ label: 'Invalid', uses }), 'invalid', 'library').activity, null, uses);
+  }
+});
+
+test('service validates every selected skill, preserves them when copying and editing, and makes the same request for the CLI', () => {
+  for (const skills of [[], ['test-design', 'missing'], ['test-design', 'test-design'], ['test-design', 3], ['../outside']]) {
+    assert.throws(() => svc.saveActivity({ label: 'Bad', kind: 'skills', skills }), /Choose/);
+  }
+  const saved = svc.saveActivity({ label: 'Review and design', kind: 'skills', skills: ['requirements-review', 'test-design'], template: 'Focus on permissions.' });
+  assert.deepEqual(svc.activity(saved.id).skills, ['requirements-review', 'test-design']);
+  const copied = svc.duplicateActivity(saved.id);
+  assert.deepEqual(copied.target, saved.target);
+  const prompt = svc.launch({ ...printRequest, activity: saved.id }).prompt;
+  assert.match(prompt, /procedure and approval gates: requirements-review, test-design\. Focus on permissions\./);
+  assert.match(buildPrompt({ project: 'acme', activity: saved.id, root }), /procedure and approval gates: requirements-review, test-design/);
+  const edited = svc.saveActivity({ id: saved.id, label: saved.label, kind: 'skills', skills: ['test-design'] });
+  assert.deepEqual(edited.target, { kind: 'skill', name: 'test-design' });
+  assert.deepEqual(svc.activity(saved.id).skills, ['test-design']);
+});
+
+test('a planned second skill makes the whole activity unavailable in the app and terminal menu', () => {
+  cpSync(join(ROOT, 'skills', 'smoke-test'), join(root, 'skills', 'smoke-test'), { recursive: true });
+  assert.throws(() => svc.saveActivity({ label: 'Not ready', kind: 'skills', skills: ['test-design', 'smoke-test'] }), /available in the list/);
+  const activity = saveLibraryActivity('not-ready', text({ label: 'Not ready', uses: 'skill:test-design, skill:smoke-test' }), root);
+  assert.match(activityProblem(activity, root), /not available yet: planned/);
+  const info = svc.activities('acme').activities.find((a) => a.id === activity.id);
+  assert.equal(info?.available, false);
+  assert.equal(info?.status, 'planned');
+  assert.throws(() => svc.launch({ ...printRequest, activity: activity.id }), /not available yet/);
+});
+
+test('an agent may have no skills: validation, profile saving and activities still retain its role', () => {
+  const copy = duplicateAgent('test-designer', root);
+  const body = '# Writing helper\n\n## Role\nReview writing.\n## When to use\nWhen asked.\n## How to work\nExplain unclear wording.\n## Boundaries\nRead only.\n';
+  svc.saveAgentProfile(copy.name, { description: 'Reviews writing.', body, skills: [], contract: { inputs: [], outputs: [], mcps: [], ai: '' } });
+  const parsed = parseAgent(readFileSync(join(root, copy.path), 'utf8'), 'custom', copy.path);
+  assert.ok(parsed.agent);
+  assert.deepEqual(parsed.agent.skills, []);
+  assert.deepEqual(validateAgent(parsed.agent, { skills: [], categories: [], fileName: copy.name, folder: copy.category }), []);
+  assert.deepEqual(validateAgent({ ...parsed.agent, skills: ['missing'] }, { skills: [], categories: [], fileName: copy.name, folder: copy.category }).filter((e) => e.includes('unknown skill')), ['unknown skill "missing"']);
+  const activity = svc.saveActivity({ label: 'Review my writing', kind: 'agent', target: copy.name });
+  assert.match(svc.launch({ ...printRequest, activity: activity.id }).prompt, new RegExp(`Act as the ${copy.name} agent`));
+  assert.match(buildPrompt({ project: 'acme', activity: activity.id, root }), new RegExp(`Act as the ${copy.name} agent`));
 });
