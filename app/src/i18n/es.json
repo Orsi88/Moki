@@ -1673,5 +1673,15 @@
   "In use": "En uso",
   "The servers the AIs opened here get. Change them in Settings › MCP servers.": "Los servidores que reciben las IA abiertas aquí. Cámbialos en Configuración › Servidores MCP.",
   "this project": "este proyecto",
-  "No MCP server for this project.": "Ningún servidor MCP para este proyecto."
+  "No MCP server for this project.": "Ningún servidor MCP para este proyecto.",
+  "For all projects": "Para todos los proyectos",
+  "Choose agents…": "Elige los agentes…",
+  "Choose skills…": "Elige las skills…",
+  "Choose activities…": "Elige las actividades…",
+  "Choose operations…": "Elige las operaciones…",
+  "Nothing matches.": "Nada coincide.",
+  "Everything is already here.": "Todo ya está aquí.",
+  "The agents of this project. The star makes one a default: an AI opened here takes its role.": "Los agentes de este proyecto. La estrella hace a uno predeterminado: una IA abierta aquí asume su papel.",
+  "The Moki skills are in every project; skills installed for all projects are linked by name, nothing copied. The star: an AI opened here uses it whenever it fits.": "Las skills de Moki están en todos los proyectos; las instaladas para todos los proyectos se vinculan por nombre, sin copiar nada. La estrella: una IA abierta aquí la usa siempre que encaje.",
+  "Yours get this project's tag (also in Settings › Activities); the Moki ones are in every project. The star: a default. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.": "Las tuyas reciben la etiqueta de este proyecto (también en Configuración › Actividades); las de Moki están en todos los proyectos. La estrella: predeterminada. Si es solo una y no pide archivos, empieza sola; si no, la IA dice qué sabe hacer y espera."
 }

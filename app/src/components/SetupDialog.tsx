@@ -11,7 +11,8 @@ import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type
 import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload } from './ClaudeUpload';
-import { IconCheck, IconLock, IconSearch, IconStar, IconX } from './Icons';
+import { IconLock, IconSearch, IconX } from './Icons';
+import { ChipPicker, type PickChip, type PickOption } from './ChipPicker';
 
 interface Props {
   project: ProjectSummary;
@@ -21,36 +22,14 @@ interface Props {
 
 const INSTRUCTIONS_LIMIT = 2000;
 
-// A kind's defaults as removable chips, and what can still be added, in one select.
-function DefaultList({ label, items, chosen, onAdd, onRemove }: {
-  label: string; items: { id: string; name: string }[]; chosen: string[]; onAdd: (id: string) => void; onRemove: (id: string) => void;
-}) {
-  const name = (id: string) => items.find((i) => i.id === id)?.name ?? id;
-  const left = items.filter((i) => !chosen.includes(i.id));
-  return (
-    <div className="setup-defaults">
-      {chosen.length > 0 && <div className="chips" role="list" aria-label={label}>
-        {chosen.map((id) => (
-          <span key={id} className="chip setup-chip" role="listitem">{name(id)}
-            <button type="button" className="chip-x" onClick={() => onRemove(id)} title={t('Remove')} aria-label={`${t('Remove')} ${name(id)}`}><IconX size={11} /></button>
-          </span>
-        ))}
-      </div>}
-      {left.length > 0 && (
-        <select aria-label={label} value="" onChange={(e) => { if (e.target.value) onAdd(e.target.value); }}>
-          <option value="">{t('Add…')}</option>
-          {left.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-        </select>
-      )}
-    </div>
-  );
-}
-
-// Why an item cannot be turned off in this project alone: what brings it here, said in the workspace's settings.
-const lockedWhy = (r: Reach | undefined): string => (r?.state === 'shared' ? t('Comes through the tag "{tag}". Change it in the workspace settings.', { tag: r.via ?? '' }) : '');
+// Why an item cannot be removed from this project alone: what brings it here, said in the workspace's settings.
+const lockedWhy = (r: Reach | undefined): string | undefined => (r?.state === 'shared' ? t('Comes through the tag "{tag}". Change it in the workspace settings.', { tag: r.via ?? '' }) : undefined);
+// The lock and the tag that brings an item (templates).
 const Locked = ({ reach }: { reach: Reach | undefined }) => (reach?.state === 'shared'
   ? <span className="setup-locked" title={lockedWhy(reach)}><IconLock size={12} /> {t('tag {tag}', { tag: reach.via ?? '' })}</span> : null);
-
+// Defaults (starred) first, the rest in their order.
+const starredFirst = (chips: PickChip[]) => [...chips.filter((c) => c.star), ...chips.filter((c) => !c.star)];
+const byGroup = (options: PickOption[]) => [...options].sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || a.name.localeCompare(b.name));
 // One kind of setting: a frame with its title and a line saying what it is for.
 const Section = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
   <fieldset className="setup-section">
@@ -131,7 +110,6 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
     const auto = templates.find((tp) => tp.on && tp.state === 'all') ?? templates.find((tp) => tp.on);
     return (templateUse === null ? auto : templates.find((tp) => tp.chosen && tp.on) ?? auto)?.id ?? '';
   })();
-  const suggested = (list: string[] | undefined, item: string) => pending && list?.includes(item) ? <span className="chip">{t('suggested by the AI')}</span> : null;
 
   // Defaults, kind by kind. A default agent is turned on in the project.
   const chosen = (kind: ProjectDefault['kind']) => defaults.filter((d) => d.kind === kind).map((d) => d.id);
@@ -142,6 +120,54 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
     addDefault('agent', agent);
     if (!enabled.includes(agent)) { setEnabled((s) => [...s, agent]); setAgentsChanged(true); }
   };
+  const aiSuggests = (list: string[] | undefined, id: string) => (pending && list?.includes(id) ? t('suggested by the AI') : undefined);
+  const stars = (kind: ProjectDefault['kind'], id: string) => chosen(kind).includes(id);
+  const toggleDefault = (kind: ProjectDefault['kind'], id: string) => (stars(kind, id) ? removeDefault(kind, id) : addDefault(kind, id));
+
+  // Agents: the ones on in this project; the star makes one a default.
+  const agentChips = starredFirst(agents.filter((a) => enabled.includes(a.name)).map((a) => ({
+    id: a.name, name: a.name, star: stars('agent', a.name), locked: lockedWhy(links?.agents[a.name]), marked: aiSuggests(plan?.agents, a.name),
+  })));
+  const agentOptions = byGroup(agents.filter((a) => !enabled.includes(a.name)).map((a) => ({ id: a.name, name: a.name, hint: a.description, group: a.source === 'custom' ? t('Your own') : 'Moki' })));
+  const addAgent = (id: string) => { setEnabled((s) => (s.includes(id) ? s : [...s, id])); setAgentsChanged(true); };
+  const removeAgent = (id: string) => { setEnabled((s) => s.filter((x) => x !== id)); removeDefault('agent', id); setAgentsChanged(true); };
+
+  // Skills: the ones installed for all projects are linked by name (the star: always used); the Moki ones are in every
+  // project, so one shows here only as a default.
+  const linkable = [...global, ...artcraft];
+  const skillChips = starredFirst([
+    ...linked.filter((n) => linkable.includes(n)).map((n) => ({ id: n, name: n, star: stars('skill', n), marked: aiSuggests(plan?.skills, n) })),
+    ...chosen('skill').filter((n) => !linkable.includes(n)).map((n) => ({ id: n, name: n, star: true })),
+  ]);
+  const skillOptions = byGroup([
+    ...global.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: n, group: t('For all projects') })),
+    ...artcraft.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: n, group: 'ArtCraft' })),
+    ...skills.filter((n) => !linkable.includes(n) && !stars('skill', n)).map((n) => ({ id: n, name: n, group: 'Moki' })),
+  ]);
+  const addSkill = (id: string) => (linkable.includes(id) ? setLinked((s) => (s.includes(id) ? s : [...s, id])) : addDefault('skill', id));
+  const removeSkill = (id: string) => { setLinked((s) => s.filter((x) => x !== id)); removeDefault('skill', id); };
+  const starSkill = (id: string) => { toggleDefault('skill', id); if (linkable.includes(id)) setLinked((s) => (s.includes(id) ? s : [...s, id])); };
+
+  // Activities: yours by this project's tag (also seen in Settings › Activities); the Moki ones only as defaults.
+  const yours = links?.activities ?? [];
+  const yourOn = (a: (typeof yours)[number]) => isOn(a, activityOn[a.id]);
+  const builtin = activities.filter((a) => a.source === 'builtin');
+  const activityChips = starredFirst([
+    ...yours.filter(yourOn).map((a) => ({ id: a.id, name: a.name, star: stars('activity', a.id), locked: lockedWhy(a) })),
+    ...builtin.filter((a) => stars('activity', a.id)).map((a) => ({ id: a.id, name: t(a.label), star: true })),
+  ]);
+  const activityOptions = byGroup([
+    ...yours.filter((a) => !yourOn(a)).map((a) => ({ id: a.id, name: a.name, group: t('Your own') })),
+    ...builtin.filter((a) => !stars('activity', a.id)).map((a) => ({ id: a.id, name: t(a.label), hint: t(a.hint), group: 'Moki' })),
+  ]);
+  const isYours = (id: string) => yours.some((a) => a.id === id);
+  const addActivity = (id: string) => (isYours(id) ? setActivityOn((o) => ({ ...o, [id]: true })) : addDefault('activity', id));
+  const removeActivity = (id: string) => { if (isYours(id)) setActivityOn((o) => ({ ...o, [id]: false })); removeDefault('activity', id); };
+
+  // Operations: the defaults, first when one is called.
+  const operationChips = chosen('operation').map((id) => ({ id, name: operations.find((o) => o.id === id)?.name ?? id }));
+  const operationOptions = operations.filter((o) => !stars('operation', o.id)).map((o) => ({ id: o.id, name: o.name, hint: o.description }));
+
   // What an AI opened here does, with what is set now (the same rule as the service's startOf).
   const startHint = (() => {
     const set = defaults.filter((d) => d.kind !== 'operation');
@@ -162,6 +188,10 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const save = async () => {
     setBusy(true); setError('');
     try {
+      const some = <T,>(o: Record<string, T>) => (Object.keys(o).length ? o : undefined);
+      if (Object.keys(activityOn).length || Object.keys(templateOn).length || templateUse !== undefined) {
+        await api.setProjectLinks(project.id, { activities: some(activityOn), templates: some(templateOn), ...(templateUse !== undefined ? { template: templateUse } : {}) });
+      }
       // Links to skills that are no longer installed are dropped. Agents are only written when chosen here,
       // so a project without a list keeps getting every agent.
       await api.setupProject(project.id, {
@@ -170,29 +200,10 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
         ...(pending || agentsChanged ? { agents: enabled } : {}),
         ...(pending ? { contextFiles: files, folders } : {}),
       });
-      const some = <T,>(o: Record<string, T>) => (Object.keys(o).length ? o : undefined);
-      if (Object.keys(activityOn).length || Object.keys(templateOn).length || templateUse !== undefined) {
-        await api.setProjectLinks(project.id, { activities: some(activityOn), templates: some(templateOn), ...(templateUse !== undefined ? { template: templateUse } : {}) });
-      }
       await api.setProjectPlugins(project.id, plugins);
       onSaved(asking ? next.activity : null);
     } catch (e) { setError(e instanceof Error ? t(e.message) : String(e)); } finally { setBusy(false); }
   };
-
-  const skillItems = [...new Set([...skills, ...global, ...artcraft])].sort().map((s) => ({ id: s, name: s }));
-  const linkList = (list: string[], label: string) => (
-    <ul className="pick-list" role="listbox" aria-multiselectable="true" aria-label={label}>
-      {list.map((n) => (
-        <li key={n}>
-          <button type="button" role="option" aria-selected={linked.includes(n)} className={`library-item${linked.includes(n) ? ' active' : ''}`} onClick={() => setLinked((s) => flip(s, n))}>
-            <span className="library-item-name">{n}</span>
-            {suggested(plan?.skills, n)}
-            {linked.includes(n) && <IconCheck size={15} />}
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 
   return (<>
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -225,81 +236,27 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
             <p className="setup-start" role="status">{startHint}</p>
           </Section>
 
-          <Section title={t('Agents')} hint={t('The agents this project enables. The star makes one a default: an AI opened here takes its role.')}>
-            <ul className="agent-toggles">
-              {agents.map((a) => {
-                const isDefault = chosen('agent').includes(a.name);
-                return (
-                  <li key={a.name}>
-                    <label title={a.description}>
-                      <input type="checkbox" checked={enabled.includes(a.name)} disabled={isDefault || links?.agents[a.name]?.state === 'shared'} onChange={() => { setEnabled((s) => flip(s, a.name)); setAgentsChanged(true); }} />
-                      <span>{a.name}</span>
-                      <Locked reach={links?.agents[a.name]} />
-                      {a.source === 'custom' && <span className="chip">{t('yours')}</span>}
-                      {suggested(plan?.agents, a.name)}
-                    </label>
-                    <button type="button" className={`icon-btn setup-star${isDefault ? ' on' : ''}`} aria-pressed={isDefault} onClick={() => toggleAgentDefault(a.name)}
-                      title={isDefault ? t('Default of this project: click to remove') : t('Make it a default of this project')} aria-label={`${t('Default')}: ${a.name}`}><IconStar size={14} /></button>
-                  </li>
-                );
-              })}
-            </ul>
+          <Section title={t('Agents')} hint={t('The agents of this project. The star makes one a default: an AI opened here takes its role.')}>
+            <ChipPicker label={t('Agents')} chips={agentChips} options={agentOptions} onAdd={addAgent} onRemove={removeAgent} onStar={toggleAgentDefault} empty={t('Choose agents…')} />
           </Section>
 
-          <Section title={t('Skills')}>
-            <div className="field">
-              <span className="label">{t('Default skills')}</span>
-              <span className="muted small">{t('An AI opened here uses them whenever they fit.')}</span>
-              <DefaultList label={t('Default skills')} items={skillItems} chosen={chosen('skill')}
-                onAdd={(id) => { addDefault('skill', id); if (global.includes(id) || artcraft.includes(id)) setLinked((s) => (s.includes(id) ? s : [...s, id])); }}
-                onRemove={(id) => removeDefault('skill', id)} />
+          <Section title={t('Skills')} hint={t('The Moki skills are in every project; skills installed for all projects are linked by name, nothing copied. The star: an AI opened here uses it whenever it fits.')}>
+            <ChipPicker label={t('Skills')} chips={skillChips} options={skillOptions} onAdd={addSkill} onRemove={removeSkill} onStar={starSkill} empty={t('Choose skills…')} />
+            <div className="row-actions">
+              {pending && plan?.searchSkills.map((q) => (
+                <button key={q} type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(q)} title={t('Suggested by the AI: not installed yet')}><IconSearch size={15} /> {t('Find “{q}”', { q })}</button>
+              ))}
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(description)}><IconSearch size={15} /> {t('Find new skills')}</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUploading(true)}>{t('Upload skills or a .claude folder')}</button>
             </div>
-            <div className="field">
-              <span className="label">{t('Skills for all projects to use here')}</span>
-              <span className="muted small">{t('Linked by name: requests from this project tell the AI to use them. Nothing is copied.')}</span>
-              {global.length === 0 ? <p className="muted small">{t('No skills installed for all projects yet.')}</p> : linkList(global, t('Skills for all projects to use here'))}
-              <div className="row-actions">
-                {pending && plan?.searchSkills.map((q) => (
-                  <button key={q} type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(q)} title={t('Suggested by the AI: not installed yet')}><IconSearch size={15} /> {t('Find “{q}”', { q })}</button>
-                ))}
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFinding(description)}><IconSearch size={15} /> {t('Find new skills')}</button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUploading(true)}>{t('Upload skills or a .claude folder')}</button>
-              </div>
-            </div>
-            {artcraft.length > 0 && (
-              <div className="field">
-                <span className="label">{t('ArtCraft skills')}</span>
-                <span className="muted small">{t('Moki references for the Craft App Suite. Linked by name, like the skills above.')}</span>
-                {linkList(artcraft, t('ArtCraft skills'))}
-              </div>
-            )}
           </Section>
 
-          <Section title={t('Activities')} hint={t('Default activities. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.')}>
-            <DefaultList label={t('Default activities')} items={activities.map((a) => ({ id: a.id, name: t(a.label) }))} chosen={chosen('activity')}
-              onAdd={(id) => addDefault('activity', id)} onRemove={(id) => removeDefault('activity', id)} />
-            {Boolean(links?.activities.length) && (
-              <div className="field">
-                <span className="label">{t('Your activities in this project')}</span>
-                <span className="muted small">{t("Checking one gives it this project's tag, also in Settings › Activities. The Moki activities are in every project.")}</span>
-                <ul className="agent-toggles" aria-label={t('Your activities in this project')}>
-                  {links!.activities.map((a) => (
-                    <li key={a.id}>
-                      <label title={lockedWhy(a)}>
-                        <input type="checkbox" checked={isOn(a, activityOn[a.id])} disabled={a.state === 'shared'} onChange={(e) => { const on = e.target.checked; setActivityOn((o) => ({ ...o, [a.id]: on })); }} />
-                        <span>{a.name}</span>
-                        <Locked reach={a} />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <Section title={t('Activities')} hint={t("Yours get this project's tag (also in Settings › Activities); the Moki ones are in every project. The star: a default. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.")}>
+            <ChipPicker label={t('Activities')} chips={activityChips} options={activityOptions} onAdd={addActivity} onRemove={removeActivity} onStar={(id) => toggleDefault('activity', id)} empty={t('Choose activities…')} />
           </Section>
 
           <Section title={t('Operations')} hint={t('Default operations come first when you call one. Each step runs in its own terminal.')}>
-            <DefaultList label={t('Default operations')} items={operations.map((o) => ({ id: o.id, name: o.name }))} chosen={chosen('operation')}
-              onAdd={(id) => addDefault('operation', id)} onRemove={(id) => removeDefault('operation', id)} />
+            <ChipPicker label={t('Operations')} chips={operationChips} options={operationOptions} onAdd={(id) => addDefault('operation', id)} onRemove={(id) => removeDefault('operation', id)} empty={t('Choose operations…')} />
           </Section>
 
           {templates.length > 0 && (

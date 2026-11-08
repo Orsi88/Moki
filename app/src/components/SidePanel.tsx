@@ -6,7 +6,6 @@ import { t } from '../i18n';
 import { preferredTool } from '../prefs';
 import { IconChevron, IconGraph, IconPanel, IconPlay, IconSliders } from './Icons';
 import { AiPick, QUICK_KINDS } from './ToolCatalog';
-import { pluginList } from './SkillsDialog';
 
 interface Props {
   project: ProjectSummary;
@@ -18,7 +17,6 @@ interface Props {
   onOperationRun: (run: string) => void;
   onOpenRun: (run: string) => void; // a run from this panel opens in the main area
   onSetup: () => void; // description and the global skills the project uses
-  onProjectChanged: () => void;
   collapsed: boolean; // shown as a thin rail
   onToggle: () => void; // collapse / expand
   graphOn: boolean;
@@ -30,7 +28,7 @@ interface Props {
 const statusDot = (s: string): string => (s === 'completed' ? 'dot-ok' : s === 'cancelled' ? 'dot-muted' : s === 'blocked' ? 'dot-err' : 'dot-warn');
 const NEEDS_YOU = ['awaiting-approval', 'awaiting-input', 'blocked'];
 
-export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onOpenRun, onSetup, onProjectChanged, collapsed, onToggle, graphOn, onGraph, onMyAis, operations }: Props) {
+export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onOpenRun, onSetup, collapsed, onToggle, graphOn, onGraph, onMyAis, operations }: Props) {
   const [run, setRun] = useState<RunState | null>(null);
   const [runs, setRuns] = useState<OpenRun[]>([]);
   const [planPending, setPlanPending] = useState(false); // the AI left a plan.json to review
@@ -41,9 +39,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
   const [toolId, setToolId] = useState('');
   const tool = quick.find((x) => x.id === toolId) ?? preferredTool(quick);
   const [launchMsg, setLaunchMsg] = useState('');
-  const [pluginOn, setPluginOn] = useState<string[]>(project.plugins);
-  const [pluginBusy, setPluginBusy] = useState(false);
-  useEffect(() => { setPluginOn(project.plugins); }, [project.id, project.plugins]);
 
   useEffect(() => {
     if (runId) api.run(project.id, runId).then(setRun).catch(() => setRun(null));
@@ -56,13 +51,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
   }, [project.id, refreshKey]);
 
   const pickTool = (id: string) => { setToolId(id); setLaunchMsg(''); };
-
-  const togglePlugin = (name: string) => {
-    const next = pluginOn.includes(name) ? pluginOn.filter((p) => p !== name) : [...pluginOn, name];
-    setPluginOn(next);
-    setPluginBusy(true);
-    api.setProjectPlugins(project.id, next).then(() => onProjectChanged()).catch((e: Error) => { setPluginOn(project.plugins); setLaunchMsg(e.message); }).finally(() => setPluginBusy(false));
-  };
 
   const prefix = `workspace/projects/${project.id}/`;
   const local = (p: string) => (p.startsWith(prefix) ? p.slice(prefix.length) : null);
@@ -159,16 +147,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
         {tool ? <AiPick label={t('In')} tools={tools} value={tool.id} onChange={pickTool} onInstall={onMyAis} />
           : <p className="pp-hint">{t('No AI tool found on this computer.')} <button type="button" className="link" onClick={onMyAis}>{t('Install in Settings › My AIs')}</button></p>}
         {launchMsg && <p className="pp-msg" role="status">{launchMsg}</p>}
-        <details className="pp-plugins">
-          <summary>{t('Plugins')}</summary>
-          {pluginList().filter((p) => p.optional).map((p) => (
-            <label key={p.name} className="check-row" title={p.text}>
-              <input type="checkbox" checked={pluginOn.includes(p.name)} disabled={pluginBusy} onChange={() => togglePlugin(p.name)} />
-              <span>{p.name}</span>
-            </label>
-          ))}
-          <p className="pp-hint">{t('When on, these load in every AI session opened from this project.')}</p>
-        </details>
       </section>
 
       {needsYou.length > 0 && (

@@ -1919,6 +1919,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     const panel = aiPage.locator('.pp');
     await expect(panel.getByRole('button', { name: 'Editar nome do projeto' })).toHaveCount(0);
     await expect(panel.getByRole('button', { name: 'Adicionar uma descrição' })).toHaveCount(0); // no description: nothing shown
+    await expect(panel.getByText('Plugins', { exact: true })).toHaveCount(0); // they are in the project settings
     await panel.getByRole('button', { name: 'Configurações do projeto' }).click();
     const settings = aiPage.getByRole('dialog', { name: /^Configurações de / });
     await settings.getByRole('textbox', { name: 'Nome' }).fill('Novo nome');
@@ -2901,8 +2902,19 @@ test.describe.serial('Moki project defaults', () => {
     const settings = dp.getByRole('dialog', { name: /^Configurações de / });
     await settings.getByRole('button', { name: 'Padrão: failure-analyst' }).click();
     await expect(settings.getByRole('button', { name: 'Padrão: failure-analyst' })).toHaveAttribute('aria-pressed', 'true');
-    await settings.getByRole('combobox', { name: 'Skills padrão' }).selectOption('failure-analysis');
-    await expect(settings.getByRole('list', { name: 'Skills padrão' })).toContainText('failure-analysis');
+    // Every kind is one field: a click lists what can be added, typing filters it, a choice joins the field as a chip.
+    const skills = settings.getByRole('combobox', { name: 'Skills' });
+    await skills.click();
+    await expect(settings.getByRole('listbox', { name: 'Skills' }).locator('.chip-picker-head')).toContainText(['Moki']);
+    await skills.fill('failure-ana');
+    await expect(settings.getByRole('listbox', { name: 'Skills' }).getByRole('option')).toHaveCount(1);
+    await settings.getByRole('option', { name: /failure-analysis/ }).click();
+    const chosen = settings.getByRole('list', { name: 'Skills' });
+    await expect(chosen).toContainText('failure-analysis');
+    await expect(chosen.getByRole('button', { name: 'Padrão: failure-analysis' })).toHaveAttribute('aria-pressed', 'true'); // a Moki skill joins as a default
+    await skills.press('Escape');
+    await expect(settings.getByRole('listbox', { name: 'Skills' })).toBeHidden();
+    await expect(settings).toBeVisible(); // Escape closed the list, not the settings
     await settings.getByRole('textbox', { name: /Instruções ao iniciar/ }).fill('Os logs vêm do serviço X, em horário de Brasília.');
     await expect(settings.getByRole('status')).toHaveText('Uma IA aberta aqui diz o que está configurado e espera você.');
     await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
@@ -2951,21 +2963,22 @@ test.describe.serial('Moki project defaults', () => {
       return dp.getByRole('dialog', { name: /^Configurações de / });
     };
     let settings = await openSettings();
-    const mine = settings.getByRole('list', { name: 'Suas atividades neste projeto' });
-    await expect(mine.getByRole('checkbox', { name: 'Resumo rápido' })).toBeChecked(); // no tag: every project
-    await expect(mine.getByRole('checkbox', { name: 'Triagem de log' })).not.toBeChecked();
-    // A shared tag brings it: checked, locked, and the tag named.
-    const shared = mine.getByRole('checkbox', { name: /Conciliação/ });
-    await expect(shared).toBeChecked();
-    await expect(shared).toBeDisabled();
-    await expect(mine.locator('li', { hasText: 'Conciliação' })).toContainText('tag Pagamentos');
+    const mine = settings.getByRole('list', { name: 'Atividades', exact: true });
+    await expect(mine).toContainText('Resumo rápido'); // no tag: every project
+    await expect(mine).not.toContainText('Triagem de log');
+    // A shared tag brings it: in the field, locked (no remove), the tag named on hover.
+    const shared = mine.locator('li', { hasText: 'Conciliação' });
+    await expect(shared.getByRole('button', { name: /^Remover/ })).toHaveCount(0);
+    await expect(shared).toHaveAttribute('title', /tag "Pagamentos"/);
     // Templates: the one for every project is locked; another can be linked and put in use.
     const templates = settings.getByRole('list', { name: 'Templates' });
     await expect(templates.getByRole('checkbox', { name: /Default/ })).toBeDisabled();
     await expect(templates.getByRole('radio', { name: 'Em uso' })).toHaveCount(1);
     await expect(settings.getByRole('group', { name: 'Servidores MCP' })).toContainText('Nenhum servidor MCP para este projeto.');
 
-    await mine.getByRole('checkbox', { name: 'Triagem de log' }).check();
+    await settings.getByRole('combobox', { name: 'Atividades' }).click();
+    await settings.getByRole('option', { name: /Triagem de log/ }).click();
+    await expect(mine).toContainText('Triagem de log');
     await templates.getByRole('checkbox', { name: 'Cliente' }).check();
     await templates.locator('li', { hasText: 'Cliente' }).getByRole('radio', { name: 'Em uso' }).check();
     await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
@@ -2979,7 +2992,7 @@ test.describe.serial('Moki project defaults', () => {
     const file = join(root, 'workspace', 'library', 'activities', 'triagem-de-log.md');
     writeFileSync(file, readFileSync(file, 'utf8').replace('project:beta, project:acme', 'project:beta'));
     settings = await openSettings();
-    await expect(settings.getByRole('list', { name: 'Suas atividades neste projeto' }).getByRole('checkbox', { name: 'Triagem de log' })).not.toBeChecked();
+    await expect(settings.getByRole('list', { name: 'Atividades', exact: true })).not.toContainText('Triagem de log');
     await expect(settings.getByRole('list', { name: 'Templates' }).locator('li', { hasText: 'Cliente' }).getByRole('radio', { name: 'Em uso' })).toBeChecked();
     await settings.getByRole('button', { name: 'Cancelar' }).click();
   });

@@ -1159,8 +1159,6 @@ kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font:
 .pp-tool-icon { position: absolute; left: 10px; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
 .pp-tool select { width: 100%; padding-left: 32px; font-size: 0.88rem; cursor: pointer; }
 .pp-hint { margin: 0; font-size: 0.8rem; line-height: 1.4; color: var(--muted); }
-.pp-plugins { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.pp-plugins .check-row { font-size: 0.86rem; }
 .pp-more { color: var(--muted); }
 .pp-msg { margin: 0; padding: 7px 9px; border-radius: 6px; background: var(--bg-3); font-size: 0.8rem; line-height: 1.4; }
 .pp-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1962,3 +1960,29 @@ span.mcp-row-main { cursor: default; }
 .tag-field-hint { display: inline-flex; align-items: center; flex-wrap: wrap; }
 .tag-options-head { padding: 4px 6px 2px; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .04em; }
 .tag-options-head:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 6px; }
+
+/* ChipPicker: one field per kind in the project settings; chips collect inside, the options open below. */
+.chip-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 40px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); cursor: text; }
+.chip-picker:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.chip-picker-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; list-style: none; margin: 0; padding: 0; }
+.chip-picker-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-2); color: var(--text); font-size: 0.82rem; cursor: default; }
+.chip-picker-chip.starred { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: var(--accent-soft); }
+.chip-picker-chip.marked { border-style: dashed; }
+.chip-picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-picker-star, .chip-picker-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--faint); cursor: pointer; }
+.chip-picker-star:hover, .chip-picker-x:hover { color: var(--text); background: var(--bg-3); }
+.chip-picker-star[aria-pressed="true"] { color: var(--accent); }
+.chip-picker-star[aria-pressed="true"] svg { fill: currentColor; }
+.chip-picker-lock { display: inline-flex; color: var(--muted); }
+.chip-picker-input { position: relative; flex: 1; min-width: 140px; }
+.chip-picker-input input, .chip-picker-input input:focus { width: 100%; padding: 3px 2px; border: 0; background: transparent; box-shadow: none; outline: none; font-size: 0.85rem; }
+.chip-picker-options { position: absolute; z-index: 25; top: calc(100% + 8px); left: -8px; width: min(420px, 80vw); max-height: 260px; overflow: auto; margin: 0; padding: 4px; list-style: none;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.28); }
+.chip-picker-options button { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.chip-picker-options button:hover { background: var(--bg-3); }
+.chip-picker-option-name { font-size: 0.85rem; }
+.chip-picker-option-hint { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.chip-picker-head { padding: 6px 8px 2px; color: var(--muted); font-size: 0.7rem; letter-spacing: .04em; text-transform: uppercase; }
+.chip-picker-head:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
+.chip-picker-none { padding: 6px 8px; color: var(--muted); font-size: 0.82rem; }
+.setup-section .chip-picker + .row-actions { margin-top: 8px; }
