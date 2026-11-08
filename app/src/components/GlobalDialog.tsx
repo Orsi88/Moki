@@ -1,23 +1,16 @@
 // Opened from the start screen: the skills and agents installed for all
 // projects, without opening a project first.
 
-import { useEffect } from 'react';
 import { t } from '../i18n';
 import { GlobalPanel } from './GlobalPanel';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 interface Props { onClose: () => void }
 
 export function GlobalDialog({ onClose }: Props) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="global-title">
+    <Modal labelledBy="global-title" onClose={onClose}>
         <header className="modal-head">
           <div>
             <h2 id="global-title">{t('Skills & agents for all projects')}</h2>
@@ -31,7 +24,6 @@ export function GlobalDialog({ onClose }: Props) {
         <footer className="modal-foot">
           <button type="button" className="btn btn-ghost" onClick={onClose}>{t('Close')}</button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }

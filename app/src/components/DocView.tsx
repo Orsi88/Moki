@@ -1,26 +1,43 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { api, type FileContent, type OpenWithApps } from '../api';
 import { t } from '../i18n';
-import { IconChat, IconChevron, IconCode, IconEdit, IconExternal, IconEye, IconMore, IconRefresh, IconTag } from './Icons';
+import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, IconMore, IconRefresh, IconTag, IconX } from './Icons';
 import { FileIcon } from '../icons';
 import { PdfDoc } from './PdfDoc';
-import { useMarkdownEditing } from './useMarkdownEditing';
 import { MarkdownBody } from './MarkdownBody';
 import { MarkdownComments } from './MarkdownComments';
 import { readComments } from '../md-comments';
 import { recall, remember } from '../prefs';
-import { LazyTipTap, warmTipTap } from './LazyTipTap';
-import { DiagramSourceEditor } from './DiagramSourceEditor';
+import { LazyTipTap } from './LazyTipTap';
+import { CommentedEditor } from './CommentedEditor';
+
+// A .md file: the formatted editor ('edit', comments beside it) is where it is edited and commented; its Markdown
+// source ('source') is read and copied; the reading view ('preview', comments too) is for a file the editor would lose
+// parts of, or too large for it. Any other file is shown ('preview').
+export type DocMode = 'preview' | 'edit' | 'source';
+// format: the editor rewrites the formatting (tables, list marks, emphasis) but keeps every word; loss: it would drop
+// parts of the file (HTML, syntax it does not know); large: too big for the editor.
+export type MdWhy = 'large' | 'format' | 'loss';
 
 interface Props {
   content: FileContent;
   project?: string; // lets the preview of unsaved edits show the file's relative images
-  mode: 'preview' | 'edit';
+  mode: DocMode;
+  initialScrollTop?: number;
+  onScroll?: (scrollTop: number) => void;
   draft: string;
   dirty: boolean;
   saving: boolean;
   onDraft: (text: string) => void;
-  onMode: (mode: 'preview' | 'edit') => void;
+  onMode: (mode: DocMode) => void;
+  why?: MdWhy; // what the bar says about a .md file the editor would change, or does not edit
+  onQuiet?: () => void; // the note about the formatting is closed
+  autosave?: boolean; // the file saves on its own: the bar shows the state instead of Save
+  savedAt?: number;
+  conflict?: boolean; // the file changed outside Moki while this tab had edits
+  onTakeTheirs?: () => void;
+  onKeepMine?: () => void;
+  onRewrite?: (kind: 'format' | 'loss') => void; // the formatted editor would change this file (TipTapEditor)
   onSave: () => void;
   onOpenExternal: () => void;
   onReload: () => void;
@@ -137,23 +154,9 @@ function HtmlView({ text, title }: { text: string; title: string }) {
 
 const formatSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-// A .md file in edit mode: the same / commands and list continuation as the notes (useMarkdownEditing).
-function MarkdownEditor({ value, onChange }: { value: string; onChange: (text: string) => void }) {
-  const editor = useRef<HTMLTextAreaElement>(null);
-  const md = useMarkdownEditing(editor);
-  return (
-    <div className="note-editor-wrap md-editor-wrap">
-      <DiagramSourceEditor editorRef={editor} className="editor" value={value} onChange={onChange} placeholder={t('Type / for commands.')}
-        onEdit={(segment, caret) => md.findSlash(segment, caret)}
-        onKeyDown={(e) => { if (!md.slashKey(e)) md.listKey(e); }}
-        onClick={(e) => md.findSlash(e.currentTarget.value, e.currentTarget.selectionStart)}
-        onBlur={() => setTimeout(() => md.setSlash(null), 150)} />
-      {md.slashList}
-    </div>
-  );
-}
+const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-export function DocView({ content, project, mode, draft, dirty, saving, onDraft, onMode, onSave, onOpenExternal, onReload, onLink, onPdfSaved, onCommit, openWith, tags }: Props) {
+export function DocView({ content, project, mode, initialScrollTop = 0, onScroll, draft, dirty, saving, onDraft, onMode, why, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onRewrite, onQuiet, onSave, onOpenExternal, onReload, onLink, onPdfSaved, onCommit, openWith, tags }: Props) {
   const editable = (content.kind === 'markdown' || content.kind === 'text') && content.editable;
   const crumbs = content.path.split('/');
   const savedHtml = content.kind === 'markdown' ? content.html : '';
@@ -161,14 +164,73 @@ export function DocView({ content, project, mode, draft, dirty, saving, onDraft,
   const [menu, setMenu] = useState<(OpenWithApps & { right: number; top: number }) | null>(null);
   const [keep, setKeep] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [sourceMode, setSourceMode] = useState(false);
-  useEffect(() => { setTagsOpen(false); setSourceMode(false); }, [content.path]);
+  const body = useRef<HTMLDivElement>(null);
+  const scrollCallback = useRef(onScroll);
+  scrollCallback.current = onScroll;
+  const sourceMode = mode === 'source';
+  // Where the source button goes back to: the editor, or the reading view of a file the editor does not edit.
+  const home: DocMode = content.kind === 'markdown' && content.editable && why !== 'large' && why !== 'loss' ? 'edit' : 'preview';
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { setTagsOpen(false); }, [content.path]);
+  useLayoutEffect(() => {
+    const host = body.current;
+    if (!host || !scrollCallback.current) return;
+    // Editors/PDF pages can arrive after the tab mounts. Wait for their layout, and
+    // stop restoring as soon as the reader starts interacting with the document.
+    const selector = mode === 'source' || content.kind === 'text' && content.editable
+      ? 'textarea.editor' : content.kind === 'xlsx' ? '.sheet-grid' : content.kind === 'pdf' ? '.pdf-scroll' : '';
+    const scroller = (): HTMLElement | null => selector ? host.querySelector<HTMLElement>(selector) : host;
+    let restoring = true;
+    let frame = 0;
+    let observed: Element | null = null;
+    const capture = () => {
+      const target = scroller();
+      if (!restoring && target) scrollCallback.current?.(target.scrollTop);
+    };
+    const restore = () => {
+      const target = scroller();
+      if (!target || !restoring) return;
+      target.scrollTop = initialScrollTop;
+      if (Math.abs(target.scrollTop - initialScrollTop) < 1) restoring = false;
+      const child = target.firstElementChild;
+      if (child !== observed) {
+        if (observed) size.unobserve(observed);
+        observed = child;
+        if (child) size.observe(child);
+      }
+    };
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(restore); };
+    const interact = () => { restoring = false; };
+    const size = new ResizeObserver(schedule);
+    size.observe(host);
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(host, { childList: true, subtree: true });
+    const scroll = (event: Event) => { if (event.target === scroller()) capture(); };
+    host.addEventListener('scroll', scroll, true);
+    host.addEventListener('load', schedule, true);
+    host.addEventListener('wheel', interact, { passive: true });
+    host.addEventListener('pointerdown', interact);
+    host.addEventListener('keydown', interact);
+    restore();
+    return () => {
+      capture();
+      cancelAnimationFrame(frame);
+      size.disconnect();
+      mutations.disconnect();
+      host.removeEventListener('scroll', scroll, true);
+      host.removeEventListener('load', schedule, true);
+      host.removeEventListener('wheel', interact);
+      host.removeEventListener('pointerdown', interact);
+      host.removeEventListener('keydown', interact);
+    };
+  }, [content.path, mode]); // scroll updates must never pull the reader back to the saved position
   // The comment column of a .md file, opened or closed from the bar (remembered), as for a PDF.
   const [commentsOff, setCommentsOffState] = useState(() => recall('qa-md-comments') === 'closed');
   const setCommentsOff = (off: boolean) => { setCommentsOffState(off); remember('qa-md-comments', off ? 'closed' : 'open'); };
-  // Only the reading view shows the count: not read (a regex over the whole text) on every change while editing.
+  // The reading view and the formatted editor show the comments; the Markdown source does not (no count read there on every change).
   const canComment = Boolean(onCommit);
-  const commentCount = useMemo(() => (content.kind === 'markdown' && canComment && mode === 'preview' ? readComments(draft).comments.length : 0), [content.kind, canComment, mode, draft]);
+  const withComments = !sourceMode;
+  const commentCount = useMemo(() => (content.kind === 'markdown' && canComment && withComments ? readComments(draft).comments.length : 0), [content.kind, canComment, withComments, draft]);
   const renewPdf = useCallback(() => (project
     ? api.readFile(project, content.path).then((c) => { if (c.kind !== 'pdf') throw new Error(content.path); return c.url; })
     : Promise.reject(new Error(content.path))), [project, content.path]);
@@ -208,21 +270,25 @@ export function DocView({ content, project, mode, draft, dirty, saving, onDraft,
         </div>
         <div className="doc-actions">
           {tags && <button type="button" className={`icon-btn${tagsOpen ? ' on' : ''}`} title={t('Tags')} aria-label={t('Tags')} aria-expanded={tagsOpen} onClick={() => setTagsOpen((v) => !v)}><IconTag size={16} /></button>}
-          {content.kind === 'markdown' && (
-            <div className="view-toggle" role="group" aria-label={t('Markdown view')}>
-              <button type="button" className={mode === 'preview' ? 'on' : ''} aria-pressed={mode === 'preview'} onClick={() => onMode('preview')} title={t('Reading view (Ctrl+E)')} aria-label={t('Reading view (Ctrl+E)')}><IconEye size={16} /></button>
-              <button type="button" className={mode === 'edit' ? 'on' : ''} aria-pressed={mode === 'edit'} onPointerEnter={warmTipTap} onFocus={warmTipTap} onClick={() => onMode('edit')} title={t('Edit (Ctrl+E)')} aria-label={t('Edit (Ctrl+E)')}><IconEdit size={15} /></button>
-            </div>
+          {content.kind === 'markdown' && <button type="button" className={`icon-btn${sourceMode ? ' on' : ''}`}
+            title={sourceMode ? t('Back to the document (Ctrl+E)') : t('Markdown source, to read and copy (Ctrl+E)')} aria-label={t('Markdown source')} aria-pressed={sourceMode}
+            onClick={() => onMode(sourceMode ? home : 'source')}><IconCode size={16} /></button>}
+          {content.kind === 'markdown' && sourceMode && (
+            // An icon like the bar's others (same size); a check for a moment once copied.
+            <button type="button" className="icon-btn" title={copied ? t('Copied') : t('Copy all')} aria-label={copied ? t('Copied') : t('Copy all')}
+              onClick={() => { api.copyText(draft).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => setCopied(false)); }}>
+              {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+            </button>
           )}
-          {content.kind === 'markdown' && mode === 'edit' && <button type="button" className={`icon-btn${sourceMode ? ' on' : ''}`}
-            title={sourceMode ? t('Visual editor') : t('Markdown source')} aria-label={sourceMode ? t('Visual editor') : t('Markdown source')}
-            onClick={() => setSourceMode((v) => !v)}><IconCode size={16} /></button>}
-          {commentCount > 0 && mode === 'preview' && (
+          {commentCount > 0 && withComments && (
             <button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${commentsOff ? '' : ' on'}`} aria-pressed={!commentsOff}
               title={commentsOff ? t('Show the comments beside the text') : t('Hide the comments: the text gets the room')} aria-label={`${t('Comments')} (${commentCount})`}
               onClick={() => setCommentsOff(!commentsOff)}><IconChat size={14} /><span className="pdf-rail-count">{commentCount}</span></button>
           )}
-          {editable && (dirty || saving) && (
+          {editable && autosave && !conflict && (dirty || saving || savedAt) && (
+            <span className="doc-saved muted small" role="status">{dirty || saving ? t('Saving…') : t('Saved at {time}', { time: clock(savedAt ?? Date.now()) })}</span>
+          )}
+          {editable && !autosave && (dirty || saving) && (
             <button type="button" className="btn btn-sm" onClick={onSave} disabled={saving}>{saving ? t('Saving…') : t('Save')}</button>
           )}
           <button type="button" className="icon-btn" onClick={onReload} title={t('Reload this file')} aria-label={t('Reload this file')}><IconRefresh size={16} /></button>
@@ -234,17 +300,43 @@ export function DocView({ content, project, mode, draft, dirty, saving, onDraft,
         </div>
       </div>
       {tags && tagsOpen && <div className="file-tags-bar"><span className="label">{t('Tags')}</span>{tags}</div>}
+      {conflict && (
+        <div className="notice-bar doc-conflict" role="alert">
+          <span>{t('This file changed outside Moki (by the AI, for example) while you were editing it. Nothing was overwritten.')}</span>
+          <button type="button" className="btn btn-sm" onClick={onTakeTheirs}>{t('See the new version')}</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onKeepMine}>{t('Keep mine')}</button>
+        </div>
+      )}
+      {content.kind === 'markdown' && content.editable && why === 'format' && mode === 'edit' && (
+        <div className="notice-bar doc-why" role="status">
+          <span>{t('When you change this file, the editor writes its formatting its own way (tables, list marks, emphasis). The words stay the same.')}</span>
+          <button type="button" className="icon-btn" onClick={onQuiet} title={t('Close')} aria-label={t('Close')}><IconX size={14} /></button>
+        </div>
+      )}
+      {content.kind === 'markdown' && content.editable && (why === 'large' || why === 'loss') && mode === 'preview' && (
+        <div className="notice-bar doc-why" role="status">
+          <span>{why === 'large'
+            ? t('This file is large, so here it is for reading and comments. To edit it, open it in your program.')
+            : t('The editor would lose parts of this file (HTML, for example), so here it is for reading and comments. To edit it, open it in your program.')}</span>
+          <button type="button" className="btn btn-sm" onClick={onOpenExternal}>{t('Open in your program')}</button>
+        </div>
+      )}
 
-      <div className="doc-body">
+      <div ref={body} className="doc-body">
+        {content.kind === 'markdown' && mode === 'source' && !(content.editable && home === 'edit') && (
+          <textarea className="editor md-source" readOnly spellCheck={false} value={draft} aria-label={t('Markdown source')} />
+        )}
         {content.kind === 'markdown' && mode === 'preview' && (
           // HTML comes from the main process renderer, which escapes all markup from the file.
           onCommit && content.editable
             ? <MarkdownComments html={html} text={draft} onCommit={onCommit} onClick={onClick} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} />
             : <MarkdownBody className="markdown" html={html} text={draft} onChange={content.editable && onCommit ? onCommit : undefined} onClick={onClick} />
         )}
-        {content.kind === 'markdown' && mode === 'edit' && (content.editable
-          ? sourceMode ? <MarkdownEditor value={draft} onChange={onDraft} />
-            : <LazyTipTap key={content.path} text={draft} path={content.path} onChange={onDraft} />
+        {content.kind === 'markdown' && mode !== 'preview' && content.editable && home === 'edit' && (content.editable
+          ? sourceMode ? <textarea className="editor md-source" readOnly spellCheck={false} value={draft} aria-label={t('Markdown source')} />
+            : onCommit
+              ? <CommentedEditor key={content.path} text={draft} path={content.path} onChange={onDraft} onCommit={onCommit} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} onRewrite={onRewrite} />
+              : <LazyTipTap key={content.path} text={draft} path={content.path} onChange={onDraft} onRewrite={onRewrite} />
           : <pre className="plain">{content.text}</pre>)}
         {content.kind === 'text' && (content.editable
           ? <textarea className="editor" spellCheck value={draft} onChange={(e) => onDraft(e.target.value)} />

@@ -67,7 +67,12 @@ export function TerminalView({ id, project, active, onExit }: Props) {
         fontSize: 13,
         fontFamily: '"Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace',
         scrollback: 3000,
-        theme: { background: css('--bg'), foreground: css('--text'), cursor: css('--accent'), selectionBackground: css('--accent-soft') },
+        theme: {
+          background: css('--cli-bg'),
+          foreground: css('--cli-text'),
+          cursor: css('--cli-accent'),
+          selectionBackground: css('--cli-selection'),
+        },
       });
       const fit = new FitAddon();
       made.loadAddon(fit);

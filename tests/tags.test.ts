@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from '../scripts/lib/repo.mjs';
 import { createProject, saveTag, setProjectTags } from '../scripts/lib/core.ts';
-import { appliesTo, cleanTags } from '../scripts/lib/tags.mjs';
+import { NOWHERE, appliesTo, cleanTags, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, styleFor, templateFor } from '../scripts/lib/doc-style.mjs';
 
@@ -92,4 +92,25 @@ test('templates: the old styles become a list; each project uses its default, el
   assert.throws(() => removeTemplate('default', root), /at least one/);
   assert.throws(() => saveTemplate({ name: '  ' }, root), /name/);
   assert.ok(existsSync(join(root, 'workspace', 'document-style.json')), 'the old file stays, unread');
+});
+
+test('seen from one project: how an item reaches it, and turning it on or off there through the project\'s own tag', () => {
+  const all = ['acme', 'beta', 'gamma'];
+  assert.deepEqual(reachOf([], 'acme', root), { state: 'all' });
+  assert.deepEqual(reachOf(['project:acme'], 'acme', root), { state: 'own' });
+  assert.deepEqual(reachOf(['cliente-x', 'project:beta'], 'beta', root), { state: 'shared', via: 'cliente-x' });
+  assert.deepEqual(reachOf(['cliente-x'], 'acme', root), { state: 'off' });
+  // On: the project's tag joins the others; every project by its own tag is the same as no tag.
+  assert.deepEqual(withProject(['cliente-x'], 'acme', true, all, root), ['cliente-x', 'project:acme']);
+  assert.deepEqual(withProject([NOWHERE], 'acme', true, all, root), ['project:acme']);
+  assert.deepEqual(withProject(['project:beta', 'project:gamma'], 'acme', true, all, root), []);
+  // Off: only this project's tag goes; what reached every project now reaches the others; the last one leaves it nowhere.
+  assert.deepEqual(withProject(['project:acme', 'project:beta'], 'acme', false, all, root), ['project:beta']);
+  assert.deepEqual(withProject([], 'acme', false, all, root), ['project:beta', 'project:gamma']);
+  assert.deepEqual(withProject(['project:acme'], 'acme', false, all, root), [NOWHERE]);
+  assert.equal(appliesTo([NOWHERE], 'acme', root), false);
+  // A shared tag is the workspace's choice: refused here, with the tag named. Nothing to do is no change.
+  assert.throws(() => withProject(['cliente-x'], 'beta', false, all, root), /through the tag "cliente-x"/);
+  assert.deepEqual(withProject(['cliente-x'], 'beta', true, all, root), ['cliente-x']);
+  assert.deepEqual(withProject(['cliente-x'], 'acme', false, all, root), ['cliente-x']);
 });

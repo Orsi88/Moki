@@ -1,13 +1,21 @@
 # Atividades
 
-Uma **atividade** é um pedido pronto: o item que você escolhe em **Abrir na sua ferramenta de IA** (e no painel lateral do projeto, numa nota ou no painel do VS Code). Ela não sabe fazer nada sozinha: ela diz **o que pedir, para quem e com o quê**.
+Uma **atividade** é um modelo de pedido reutilizável: o item que você escolhe em **Chamar…** (também disponível numa nota ou no painel do VS Code). Pode ser só texto, um agente com ou sem skills, uma ou várias skills, um fluxo ou uma operação. Ela diz **o que pedir, para quem e com o quê**.
 
 | Peça | O que é | Numa cozinha |
 |---|---|---|
 | **Skill** | O procedimento: passos, regras, saída, onde parar para aprovação | A receita |
-| **Agente** | Um papel que usa uma ou mais skills | O cozinheiro |
+| **Agente** | Um papel com instruções e skills opcionais | O cozinheiro |
 | **Operação** | Agentes encadeados por setas, cada passo no próprio terminal | A linha da cozinha |
-| **Atividade** | O pedido: o nome na lista, quais arquivos da entrada ela pede, para onde aponta (uma skill, um agente, um workflow ou uma operação) e o texto que vai para a IA | O item do cardápio, que vira a comanda |
+| **Atividade** | O modelo do pedido: nome, arquivos da entrada, skills, agente, fluxo ou operação opcionais, e o texto enviado à IA | O item do cardápio, que vira a comanda |
+
+## Chamar pelo painel ou pela conversa
+
+**Chamar…** abre uma lista com busca de Atividades, Agentes, Skills e Operações no painel do projeto e acima de um terminal de IA em execução. O atalho **Ctrl+Shift+K** (macOS: **Cmd+Shift+K**) abre a mesma lista.
+
+Escolha um item e informe os arquivos da Entrada, o contexto compartilhado e uma observação, conforme necessário. **Neste terminal** cola o pedido no cursor, sem enviar e sem apagar o que você já escreveu; acrescente contexto e pressione Enter quando quiser. Essa opção exige um terminal de IA em execução neste projeto. **Num terminal novo** mantém a escolha da ferramenta e a abertura habitual.
+
+Uma operação, inclusive uma atividade que aponta para ela, sempre abre seu próprio formulário: cada etapa usa seu próprio terminal. A lista explica isso antes da escolha. Um pedido colado fica como *preparado* até que uma execução correspondente seja registrada; o Moki não presume que você o enviou.
 
 ## Três origens, uma lista
 
@@ -23,10 +31,12 @@ As suas atividades chegam aos projetos por **tags**, como os agentes e os templa
 
 A aba lista todas as atividades, com filtros (Todos, Favoritas, Vem com o Moki, Suas, Ações do Moki) e busca.
 
-- **Nova atividade**: nome, descrição, categoria, o que ela usa (uma skill, um agente, um workflow ou uma operação, escolhidos entre os que existem), quais arquivos da entrada precisa (obrigatórios, opcionais ou nenhum), o pedido enviado à IA, uma dica para a observação e as tags.
+- **Nova atividade**: nome, descrição, categoria, modelo (Só texto, Agente, Skills, Fluxo ou Operação), quais arquivos da entrada precisa (obrigatórios, opcionais ou nenhum), o pedido enviado à IA, uma dica para a observação e as tags. Em Skills, selecione uma ou várias.
 - **A estrela** torna uma atividade favorita: as favoritas aparecem primeiro em todo lugar onde se escolhe uma atividade.
 - Uma atividade de **operação** abre o formulário de início da operação, em vez de um pedido; a operação precisa estar vinculada ao projeto (no painel Operações dele).
 - Uma atividade de **agente** pede à IA que aja como aquele agente, a menos que você escolha outro agente ao abrir.
+- O agente mantém suas próprias instruções e lista de skills; essa lista pode estar vazia. Escolher skills numa atividade não edita um agente.
+- **Só texto** exige um pedido preenchido e não obriga a usar skill ou agente.
 
 ## O arquivo
 
@@ -50,13 +60,15 @@ Use the test-design skill to map the test scenarios for: {files}.
 |---|---|
 | `label` | O nome na lista (obrigatório) |
 | `description`, `category`, `note` | Texto livre (a `note` é a dica mostrada para a observação da pessoa) |
-| `uses` | `skill:<nome>`, `agent:<nome>`, `workflow:<id>` (um workflow do `qa-orchestrator`) ou `operation:<id>` |
+| `uses` | Opcional: `skill:<nome>`, várias skills distintas separadas por vírgulas (`skill:requirements-review, skill:test-design`), `agent:<nome>`, `workflow:<id>` (um workflow do `qa-orchestrator`) ou `operation:<id>`. Omita para só texto; nesse caso, o pedido é obrigatório. Não é permitido misturar tipos |
 | `files` | `required`, `optional` ou `none` |
 | `tags` | Tags separadas por vírgula; vazio = todos os projetos |
 
 No pedido, `{files}` vira os arquivos da entrada escolhidos (uma linha com `{files}` some quando não há arquivos), uma linha que começa com `{no-files}` só fica quando não há arquivos, e `{project}` vira o id do projeto. Um pedido vazio pede a skill, o workflow ou o agente que a atividade usa. O app acrescenta o resto do pedido como em qualquer atividade: o projeto, a pasta vinculada, o agente, o contexto compartilhado, os arquivos deixados de fora, a sua observação e o idioma.
 
-O `npm run check` valida os arquivos de `activities/`: cada um precisa ser lido sem erro, ter um id que não seja de uma ação do Moki e apontar para uma skill, um workflow ou um agente do framework (uma operação vive num workspace, então só as suas atividades podem usar uma).
+Com várias skills, o pedido sempre inclui todas e preserva os procedimentos e pontos de aprovação de cada uma, mesmo com texto personalizado. Se alguma skill do framework estiver indisponível, a atividade não inicia. Os arquivos antigos com um único `uses` continuam válidos, sem migração.
+
+O `npm run check` valida os arquivos de `activities/`: cada um precisa ser lido sem erro, ter um id que não seja de uma ação do Moki e conter um pedido só de texto ou apontar para skills, workflow ou agente existentes no framework (uma operação vive num workspace, então só as suas atividades podem usar uma).
 
 ## Exceções
 

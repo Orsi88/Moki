@@ -27,6 +27,8 @@ import { ToolCatalog } from './ToolCatalog';
 import { TagPicker } from './TagPicker';
 import { flushEdits } from '../debounce';
 import { TABLE_ICON, useMarkdownEditing } from './useMarkdownEditing';
+import { confirmDialog } from '../dialogs';
+import { isTopModal, useModalLayer } from '../modal-layer';
 
 interface Props {
   project: string | null; // null: a loose note, which can be sent to a project from here
@@ -135,10 +137,10 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
       .then((c) => { const body = c.kind === 'markdown' || c.kind === 'text' ? c.text : ''; setText(body); setSaved(body); setLoaded(true); })
       .catch((e: Error) => setError(e.message));
   }, [project, path]);
-  const reloadNote = () => {
+  const reloadNote = async () => {
     if (!project || !curPath) return;
     const name = curPath.split('/').pop() ?? curPath;
-    if (text !== saved && !window.confirm(t('Reload {name}? Your unsaved edits in this file are dropped.', { name }))) return;
+    if (text !== saved && !await confirmDialog(t('Reload {name}? Your unsaved edits in this file are dropped.', { name }), { danger: true })) return;
     api.readFile(project, curPath)
       .then((c) => { const body = c.kind === 'markdown' || c.kind === 'text' ? c.text : ''; setText(body); setSaved(body); })
       .catch((e: Error) => setError(e.message));
@@ -263,6 +265,8 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
 
   // Closing saves first; if saving fails, the note stays open with the error.
   const close = () => { persist().then(() => onClose()).catch(() => { /* the error is shown */ }); };
+  // A notebook page is not an overlay: its tab bar must remain reachable by keyboard.
+  useModalLayer(container, close, active && !floating && !embedded && !inline);
 
   // From inside the app to the notebook window, saved first. A note that was
   // never saved is created then, so the button is there from the start.
@@ -415,6 +419,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!active || (inline && !container.current?.contains(document.activeElement))) return; // a hidden tab or an unfocused inline note
+      if (!isTopModal(container.current)) return; // a quick note or confirmation can cover another note
       if (e.key === 'Escape') { if (catalog || inline) return; close(); return; }
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
@@ -452,7 +457,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   );
 
   const dialog = (
-      <div ref={container} className={`modal note-dialog${embedded ? ' note-embedded' : ''}${inline ? ` note-inline${inlineTools ? '' : ' note-inline-minimized'}` : ''}`} role={inline ? 'region' : 'dialog'} aria-modal={inline ? undefined : !embedded} aria-labelledby={inline ? undefined : titleId} aria-label={inline ? t('Note') : undefined}
+      <div ref={container} className={`modal note-dialog${embedded ? ' note-embedded' : ''}${inline ? ` note-inline${inlineTools ? '' : ' note-inline-minimized'}` : ''}`} role={inline ? 'region' : 'dialog'} aria-modal={inline || floating ? undefined : !embedded} aria-labelledby={inline ? undefined : titleId} aria-label={inline ? t('Note') : undefined}
         style={floating || embedded ? undefined : { transform: `translate(${pos.x}px, ${pos.y}px)` }}>
         <header className="modal-head" onMouseDown={startDrag} onDoubleClick={() => { if (floating) window.qa?.noteMax(); }} title={embedded ? undefined : t('Drag to move')}>
           {inline ? <div className="note-inline-title">

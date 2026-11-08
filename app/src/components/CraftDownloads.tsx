@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { api, type CraftDownloadInfo } from '../api';
 import { t } from '../i18n';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 export function CraftDownloads({ onClose }: { onClose: () => void }) {
   const [apps, setApps] = useState<{ id: string; label: string }[]>([]);
@@ -16,11 +17,6 @@ export function CraftDownloads({ onClose }: { onClose: () => void }) {
   const [done, setDone] = useState('');
 
   useEffect(() => { api.craftApps().then(setApps).catch((e: Error) => setError(e.message)); }, []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, busy]);
 
   const check = async (id: string) => {
     setBusy(id); setError(''); setDone(''); setPick(0);
@@ -37,8 +33,7 @@ export function CraftDownloads({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="craft-title">
+    <Modal labelledBy="craft-title" onClose={onClose} busy={Boolean(busy)}>
         <header className="modal-head">
           <div>
             <h2 id="craft-title">{t('Download ArtCraft apps')}</h2>
@@ -86,7 +81,6 @@ export function CraftDownloads({ onClose }: { onClose: () => void }) {
             <button type="button" className="btn" disabled={Boolean(busy)} onClick={() => { void confirm(); }}>{busy ? t('Downloading…') : t('Download')}</button>
           </footer>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -9,7 +9,7 @@ import { parseFrontmatter } from './lib/frontmatter.mjs';
 import { validateSchema } from './lib/schema.mjs';
 import { findDrift } from './build.mjs';
 import { listAgents, listCategories, parseAgent, validateAgent } from './lib/agents.ts';
-import { builtinDir, isMokiActivity, parseActivity } from './lib/activities.ts';
+import { activitySkills, builtinDir, isMokiActivity, parseActivity } from './lib/activities.ts';
 
 // Agent Skills spec fields only, so skills load in every compatible tool.
 const ALLOWED_KEYS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
@@ -206,11 +206,11 @@ function validateActivities(root, skills, err) {
     errors.forEach((e) => err(where, e));
     if (!activity) continue;
     if (isMokiActivity(id)) err(where, `"${id}" is an action of the app: choose another id`);
-    const { kind, name } = activity.target;
-    if (kind === 'skill' && !skills.includes(name)) err(where, `uses the unknown skill "${name}"`);
-    if (kind === 'workflow' && !existsSync(join(root, 'skills', 'qa-orchestrator', 'references', 'workflows', `${name}.md`))) err(where, `uses the unknown workflow "${name}"`);
-    if (kind === 'agent' && !agents.has(name)) err(where, `uses the unknown agent "${name}"`);
-    if (kind === 'operation') err(where, 'an activity of the framework cannot use an operation (operations live in each workspace)');
+    for (const name of activitySkills(activity)) if (!skills.includes(name)) err(where, `uses the unknown skill "${name}"`);
+    const target = activity.target;
+    if (target.kind === 'workflow' && !existsSync(join(root, 'skills', 'qa-orchestrator', 'references', 'workflows', `${target.name}.md`))) err(where, `uses the unknown workflow "${target.name}"`);
+    if (target.kind === 'agent' && !agents.has(target.name)) err(where, `uses the unknown agent "${target.name}"`);
+    if (target.kind === 'operation') err(where, 'an activity of the framework cannot use an operation (operations live in each workspace)');
   }
 }
 

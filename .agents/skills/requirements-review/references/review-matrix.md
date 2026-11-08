@@ -72,7 +72,7 @@ The `.xlsx` must have filters, highlighted headers, frozen first row, text wrapp
 
 ### Producing the file
 
-1. Write the data to `review-matrix.json` in the run's `outputs/` folder: `{ "<sheet key>": [ { "<column key>": "value", ... } ] }` using the keys from the layout asset.
+1. Write the data to `review-matrix.json` in the run's `work/` folder (not a deliverable): `{ "<sheet key>": [ { "<column key>": "value", ... } ] }` using the keys from the layout asset.
 2. Run, from the framework root:
    `npm run xlsx -- write --layout skills/requirements-review/assets/review-matrix.layout.json --data <run>/outputs/review-matrix.json --lang <deliverable language: en | pt-BR> --out "<run>/outputs/<file name for that language, from the layout>"`
    (e.g. `--lang en` → `QA Review Matrix.xlsx`; `--lang pt-BR` → `Matriz de Revisão QA.xlsx`)

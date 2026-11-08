@@ -7,25 +7,31 @@
 // one to change it. Your own are edited here and saved in workspace/library/activities/.
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, type ActivityDetail, type ActivityDraft, type ActivityInfo } from '../api';
+import { api, activityTargetLabel, type ActivityDetail, type ActivityDraft, type ActivityInfo } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconStar } from './Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 import { TagField, useTagCatalog } from './TagField';
+import { BroughtMark, useUploads } from './BroughtMark';
 
 type Kind = 'all' | 'favorites' | 'moki' | 'builtin' | 'library';
 type Targets = { skills: string[]; agents: string[]; workflows: string[]; operations: { id: string; name: string }[] };
 
-const EMPTY: ActivityDraft = { label: '', description: '', category: '', kind: 'skill', target: '', files: 'optional', note: '', tags: [], template: '' };
+const EMPTY: ActivityDraft = { label: '', description: '', category: '', kind: 'prompt', target: '', skills: [], files: 'optional', note: '', tags: [], template: '' };
 const sourceLabel = (s: ActivityInfo['source']) => ({ moki: t('Moki action'), builtin: t('Comes with Moki'), library: t('Your activity') })[s];
 const filesLabel = (f: string) => ({ required: t('Needs inbox files'), optional: t('Inbox files optional'), none: t('No files') } as Record<string, string>)[f] ?? f;
-const kindLabel = (k: string) => ({ skill: t('Skill'), agent: t('Agent'), workflow: t('Workflow'), operation: t('Operation'), moki: t('Moki') } as Record<string, string>)[k] ?? k;
+const kindLabel = (k: string) => ({ prompt: t('Text only'), skills: t('Skills'), skill: t('Skill'), agent: t('Agent'), workflow: t('Workflow'), operation: t('Operation'), moki: t('Moki') } as Record<string, string>)[k] ?? k;
+const targetLabel = (a: ActivityInfo) => a.target.kind === 'prompt' ? t('Text only') : `${kindLabel(a.target.kind)}: ${activityTargetLabel(a.target)}`;
 const toDraft = (a: ActivityDetail): ActivityDraft => ({
   id: a.source === 'library' ? a.id : undefined, label: a.label, description: a.hint, category: a.category,
-  kind: a.target.kind === 'moki' ? 'skill' : a.target.kind, target: a.target.name, files: a.files, note: a.note, tags: a.tags, template: a.template,
+  kind: a.target.kind === 'moki' || a.target.kind === 'skill' ? 'skills' : a.target.kind,
+  target: a.target.kind === 'prompt' || a.target.kind === 'skills' ? '' : a.target.name,
+  skills: a.skills, files: a.files, note: a.note, tags: a.tags, template: a.template,
 });
 
 export function ActivitiesPage() {
+  const uploads = useUploads();
   const [list, setList] = useState<ActivityInfo[] | null>(null);
   const [kind, setKind] = useState<Kind>('all');
   const [query, setQuery] = useState('');
@@ -52,16 +58,17 @@ export function ActivitiesPage() {
   });
   const save = () => draft && act(async () => { const saved = await api.saveActivity(draft); const a = await api.activity(saved.id); setOpen(a); setDraft(toDraft(a)); }, t('Saved.'));
   const duplicate = (id: string) => act(async () => { const copy = await api.duplicateActivity(id); const a = await api.activity(copy.id); setOpen(a); setDraft(toDraft(a)); }, t('Copied to your activities.'));
-  const remove = (a: ActivityDetail) => {
-    if (!window.confirm(t('Delete the activity "{name}"?', { name: t(a.label) }))) return;
+  const remove = async (a: ActivityDetail) => {
+    if (!await confirmDialog(t('Delete the activity "{name}"?', { name: t(a.label) }), { danger: true })) return;
     void act(async () => { await api.deleteActivity(a.id); setOpen(null); setDraft(null); }, t('Deleted.'));
   };
 
   const all = list ?? [];
   const ofKind = (a: ActivityInfo, k: Kind) => k === 'all' || (k === 'favorites' ? a.favorite : a.source === k);
-  const shown = all.filter((a) => ofKind(a, kind) && matchesQuery(query, t(a.label), t(a.hint), a.category, a.target.name))
+  const shown = all.filter((a) => ofKind(a, kind) && matchesQuery(query, t(a.label), t(a.hint), a.category, activityTargetLabel(a.target)))
     .sort((a, b) => Number(b.favorite) - Number(a.favorite));
   const set = (patch: Partial<ActivityDraft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const canSave = draft && draft.label.trim() && (draft.kind === 'prompt' ? draft.template.trim() : draft.kind === 'skills' ? draft.skills?.length : draft.target);
   const options = (k: string): { id: string; name: string }[] => !targets ? [] : k === 'skill' ? targets.skills.map((n) => ({ id: n, name: n }))
     : k === 'agent' ? targets.agents.map((n) => ({ id: n, name: n })) : k === 'workflow' ? targets.workflows.map((n) => ({ id: n, name: n })) : targets.operations;
   const starButton = (a: { id: string; favorite: boolean; label: string }) => (
@@ -77,28 +84,38 @@ export function ActivitiesPage() {
       <label className="field"><span className="label">{t('Category')}</span><input value={d.category} maxLength={40} onChange={(e) => set({ category: e.target.value })} placeholder="QA" /></label>
       <div className="activity-uses">
         <label className="field"><span className="label">{t('It uses')}</span>
-          <select value={d.kind} onChange={(e) => set({ kind: e.target.value, target: '' })}>
-            {['skill', 'agent', 'workflow', 'operation'].map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
+          <select value={d.kind} onChange={(e) => set({ kind: e.target.value, target: '', skills: [] })}>
+            {['prompt', 'agent', 'skills', 'workflow', 'operation'].map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
           </select>
         </label>
-        <label className="field"><span className="label">{kindLabel(d.kind)}</span>
+        {d.kind !== 'prompt' && d.kind !== 'skills' && <label className="field"><span className="label">{kindLabel(d.kind)}</span>
           <select value={d.target} onChange={(e) => set({ target: e.target.value })} aria-label={t('What it uses')}>
             <option value="">{t('Choose…')}</option>
             {options(d.kind).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
-        </label>
+        </label>}
         <label className="field"><span className="label">{t('Inbox files')}</span>
           <select value={d.files} onChange={(e) => set({ files: e.target.value })}>
             {['required', 'optional', 'none'].map((f) => <option key={f} value={f}>{filesLabel(f)}</option>)}
           </select>
         </label>
       </div>
+      {d.kind === 'skills' && <div className="field">
+        <span className="label">{t('Choose one or more skills')}</span>
+        <div className="chips" role="group" aria-label={t('Skills')}>
+          {[...new Set([...(targets?.skills ?? []), ...(d.skills ?? [])])].map((name) => (
+            <button key={name} type="button" className={`chip-btn${d.skills?.includes(name) ? ' on' : ''}`}
+              aria-pressed={d.skills?.includes(name) ?? false} onClick={() => set({ skills: d.skills?.includes(name) ? d.skills.filter((s) => s !== name) : [...(d.skills ?? []), name] })}>{name}</button>
+          ))}
+        </div>
+      </div>}
+      {d.kind === 'agent' && <p className="muted small">{t('The agent uses its own instructions and any skills assigned to it. Skills are optional.')}</p>}
       {d.kind === 'operation' && <p className="muted small">{t('Picking it opens the start form of the operation.')}</p>}
       <label className="field">
         <span className="label">{t('Request sent to the AI')}</span>
         <textarea rows={6} value={d.template} maxLength={4000} onChange={(e) => set({ template: e.target.value })}
           placeholder={t('e.g. Use the test-design skill to map the test scenarios for: {files}.')} />
-        <span className="muted small">{t('{files} becomes the chosen inbox files (a line with it is left out when there are none); a line that starts with {no-files} is kept only when there are none; {project} is the project id. Empty: it asks for the skill, workflow or agent it uses.')}</span>
+        <span className="muted small">{t('{files} becomes the chosen inbox files (a line with it is left out when there are none); a line that starts with {no-files} is kept only when there are none; {project} is the project id. Text only: a request is required. Otherwise it can be left empty to use the selected skills, agent or workflow.')}</span>
       </label>
       <label className="field"><span className="label">{t('Hint for the note (optional)')}</span><input value={d.note} maxLength={200} onChange={(e) => set({ note: e.target.value })} /></label>
       <TagField value={d.tags} onChange={(tags) => set({ tags })} catalog={catalog} onCatalog={reloadCatalog} />
@@ -112,7 +129,7 @@ export function ActivitiesPage() {
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
         <section className="agent-card">{form(draft)}</section>
         <div className="agent-savebar"><span className="statusbar-spacer" />
-          <button type="button" className="btn" disabled={busy || !draft.label.trim() || !draft.target} onClick={() => { void save(); }}>{t('Save')}</button>
+          <button type="button" className="btn" disabled={busy || !canSave} onClick={() => { void save(); }}>{t('Save')}</button>
         </div>
       </div>
     );
@@ -126,7 +143,7 @@ export function ActivitiesPage() {
           <div className="title-row"><BackArrow label={t('Activities')} onBack={() => { setOpen(null); setDraft(null); setInfo(''); setError(''); }} /><h1>{t(open.label)}</h1>{starButton(open)}</div>
           <div className="agent-badges">
             <span className={`chip${open.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(open.source)}</span>
-            <span className="chip">{kindLabel(open.target.kind)}: {open.target.name}</span>
+            <span className="chip">{targetLabel(open)}</span>
             <span className="chip">{filesLabel(open.files)}</span>
             {!open.available && <span className="chip">{t('Not available yet')}</span>}
           </div>
@@ -139,7 +156,7 @@ export function ActivitiesPage() {
             <div className="agent-savebar">
               <span className="muted small">{open.path}</span><span className="statusbar-spacer" />
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => remove(open)}>{t('Delete')}</button>
-              <button type="button" className="btn" disabled={busy || !draft.label.trim() || !draft.target} onClick={() => { void save(); }}>{t('Save')}</button>
+              <button type="button" className="btn" disabled={busy || !canSave} onClick={() => { void save(); }}>{t('Save')}</button>
             </div>
           </>
         ) : (
@@ -170,7 +187,7 @@ export function ActivitiesPage() {
 
   return (
     <div className="list-page">
-      <ListHead title={t('Activities')} intro={t('The ready-made requests you pick in "Open in your AI tool": what to ask, of which skill, agent, workflow or operation, and with which files. Star the ones you use most: they come first.')}
+      <ListHead title={t('Activities')} intro={t('Reusable requests: text only, an agent, one or more skills, a workflow or an operation. Star the ones you use most: they come first.')}
         action={<button type="button" className="btn" onClick={() => { setOpen(null); setDraft({ ...EMPTY }); setError(''); }}>{t('New activity')}</button>} />
       <ListTabs label={t('Activities')} value={kind} onChange={setKind} tabs={[
         { id: 'all', label: t('All'), count: all.length },
@@ -185,11 +202,11 @@ export function ActivitiesPage() {
         {shown.map((a) => (
           <li key={a.id} className="activity-item">
             <button type="button" className="list-card" onClick={() => { void show(a.id); }}>
-              <span className="list-card-title">{t(a.label)}</span>
+              <span className="list-card-title">{t(a.label)}<BroughtMark uploads={uploads} kind="activity" name={a.id} /></span>
               <span className="list-card-desc">{t(a.hint)}</span>
               <span className="chips">
                 <span className={`chip${a.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(a.source)}</span>
-                <span className="chip">{kindLabel(a.target.kind)}: {a.target.name}</span>
+                <span className="chip">{targetLabel(a)}</span>
                 {!a.available && <span className="chip">{t('Not available yet')}</span>}
               </span>
             </button>

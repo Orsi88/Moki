@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { api, emptyContract, type AgentContract, type ProjectSummary, type ScopeAgents, type SkillScope, type ToolInfo } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck, IconInfo } from './Icons';
 import { AgentContractFields } from './AgentContractFields';
 
@@ -81,13 +82,12 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
   const missing = [
     !name.trim() && t('give the agent a name'),
     !description.trim() && t('describe what it does'),
-    !chosen.length && t('choose at least one skill'),
     notInstalled.length > 0 && t('remove {mentions}', { mentions: notInstalled.map((m) => `@${m}`).join(', ') }),
   ].filter(Boolean) as string[];
 
   const create = async () => {
     const toClaude = scope === 'project' && Boolean(project.repository);
-    if (toClaude && !window.confirm(t("Create the agent in {folder}?\n\nThis CHANGES {folder}/.claude: the agent is written to its agents folder (the current .claude is backed up to the project's backups/ first).", { folder: project.repository ?? '' }))) return;
+    if (toClaude && !await confirmDialog(t("Create the agent in {folder}?\n\nThis CHANGES {folder}/.claude: the agent is written to its agents folder (the current .claude is backed up to the project's backups/ first).", { folder: project.repository ?? '' }))) return;
     setBusy(true); setError(''); setCreated(null);
     try {
       setCreated(await api.createScopeAgent(project.id, { name, description, skills: chosen, scope, contract }, toClaude));
@@ -146,7 +146,7 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
       <div className="field">
         <span className="label">{t('Skills it may use ({n} of {total})', { n: chosen.length, total: usable.length })}</span>
         {data && !usable.length ? (
-          <p className="muted small">{t('No skills installed in this folder yet. Install them in')} {findSkills}{t(', then come back.')}</p>
+          <p className="muted small">{t('Skills are optional. You can create this agent using only its instructions.')}</p>
         ) : (
           <>
             {installed.length > 0 && <div className="chips" role="group" aria-label={t('Installed skills')}>{installed.map((s) => chip(s))}</div>}

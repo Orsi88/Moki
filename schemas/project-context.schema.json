@@ -49,6 +49,19 @@
       }
     },
     "linkedSkills": { "type": "array", "items": { "type": "string" }, "description": "Set by the desktop app's \"Set up project\": names of global skills (~/.claude/skills, ~/.agents/skills) this project uses; requests name them. Nothing is copied." },
+    "defaults": {
+      "type": "array",
+      "description": "Set by the desktop app's project settings: what an AI opened in the project without a choice starts with. One activity without files starts it; otherwise the AI takes the agents and skills set, says what is set up and waits. Operations are listed first when calling one.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["activity", "agent", "skill", "operation"] },
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9:-]{0,99}$" }
+        }
+      }
+    },
+    "startInstructions": { "type": "string", "maxLength": 2000, "description": "Set by the desktop app's project settings: sent to an AI opened in the project without a choice (with its defaults), never with an activity chosen at the time." },
     "environments": {
       "type": "array",
       "items": {

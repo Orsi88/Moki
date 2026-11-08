@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type ProjectSummary, type SkillScope, type TerminalRef, type ToolInfo } from '../api';
 import { preferredTool } from '../prefs';
 import { conversationLanguage, t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck, IconInfo } from './Icons';
 import { DEFAULT_SKILL_CAT, setSkillCat } from '../icons/cats';
 import { CatIcon } from './CatIcon';
@@ -46,7 +47,7 @@ export function SkillForm({ project, scope, tools, onTerminal }: Props) {
     const where = scope !== 'project' ? t('all projects (your user folder)')
       : toClaude ? t("the project {name}?\n\nThis CHANGES {folder}/.claude: the skill is written to its skills folder (the current .claude is backed up to the project's backups/ first)", { name: project.name, folder: project.repository })
       : t('the project {name}', { name: project.name });
-    if (!window.confirm(`${t('Install the proposal "{name}" for {where}', { name: n, where })}${toClaude ? '.' : '?'}\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
+    if (!await confirmDialog(`${t('Install the proposal "{name}" for {where}', { name: n, where })}${toClaude ? '.' : '?'}\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
     setBusy(n); setError(''); setInfo('');
     try {
       const r = await api.installProposal(project.id, n, scope, toClaude);

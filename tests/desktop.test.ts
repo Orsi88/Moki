@@ -1,12 +1,12 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync, utimesSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
 import { spawnSync } from 'node:child_process';
-import { callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
+import { CHANGED_OUTSIDE, callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
 import { PathError, resolveInside, isEditable, isOpenable } from '../desktop/fs-guard.ts';
 import { launchInTerminal, pluginArgs, scriptFor, windowsStartArgs, type LaunchResult } from '../desktop/launcher.ts';
 import type { TermSpec } from '../desktop/terminals.ts';
@@ -17,12 +17,13 @@ import { docxToMarkdown, readableInputs } from '../scripts/lib/docx.ts';
 import { frameworkTarget, syncFramework } from '../desktop/framework.ts';
 import { noteKey, noteQuery, parseNoteRequest } from '../desktop/notes.ts';
 import { remapPdfNotes, type PdfNote } from '../desktop/pdf-notes.ts';
+import { listActivities } from '../scripts/lib/activities.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { formatNumber } from '../scripts/lib/numfmt.mjs';
 import { zip } from '../scripts/lib/zip.mjs';
 import { buildXlsx } from '../scripts/xlsx.mjs';
 import { ROOT } from '../scripts/lib/repo.mjs';
-import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
+import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, projectSummary, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
 
 // Fixture: a framework root with a few skills, the project template and one project.
 const root = mkdtempSync(join(tmpdir(), 'qa-desktop-'));
@@ -174,6 +175,20 @@ test('editing is limited to existing Markdown/text files', () => {
   assert.throws(() => service.writeFile('acme', '../../../secret.txt', 'x'), ServiceError);
 });
 
+test('a save from the text it started from never overwrites a change made meanwhile (the AI writing the file)', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'context', 'glossary.md');
+  const opened = readFileSync(file, 'utf8');
+  // Still the text it started from: saved.
+  assert.match((service.writeFile('acme', 'context/glossary.md', `${opened}\nmine`, opened) as Extract<FileContent, { kind: 'markdown' }>).text, /mine$/);
+  // Someone else wrote the file meanwhile: refused, and their text stays.
+  writeFileSync(file, '# Glossary\n\nwritten by the AI\n');
+  assert.throws(() => service.writeFile('acme', 'context/glossary.md', 'my old view', `${opened}\nmine`), (e: unknown) => e instanceof ServiceError && e.message === CHANGED_OUTSIDE);
+  assert.equal(readFileSync(file, 'utf8'), '# Glossary\n\nwritten by the AI\n');
+  // Without a base (Keep mine), it is written.
+  service.writeFile('acme', 'context/glossary.md', opened);
+  assert.equal(readFileSync(file, 'utf8'), opened);
+});
+
 test('notes: the section is always listed and new notes get unique names', () => {
   assert.ok(service.tree('acme').some((n) => n.path === 'notes' && n.type === 'dir'));
   assert.equal(service.createNote('acme', 'Ideias de teste', 'a'), 'notes/ideias-de-teste.md');
@@ -317,6 +332,72 @@ test('a file moves between folders, and a drop can land in one; execution files 
   rmSync(join(project, 'inbox', 'historia-1.md'));
   rmSync(join(project, 'inbox', 'solto.md'));
   rmSync(join(project, 'context', 'solto.md'));
+});
+
+test('a file or folder is renamed in place, keeps its extension, tags and PDF notes; Moki’s own items keep their names', () => {
+  const project = join(root, 'workspace', 'projects', 'acme');
+  const tag = service.saveTag({ name: 'Renomear' });
+  const note = service.createNote('acme', 'Nota do PDF', 'n');
+  const entry: PdfNote = { id: 'b2222222-2222-4222-8222-222222222222', after: 1, note: { path: note } };
+
+  // A file: the name given is the new stem, the extension stays.
+  writeFileSync(join(project, 'inbox', 'rascunho.md'), '# rascunho');
+  service.setFileTags('acme', 'inbox/rascunho.md', [tag.id]);
+  assert.equal(service.renameEntry('acme', 'inbox/rascunho.md', 'cenarios de login'), 'inbox/cenarios de login.md');
+  assert.equal(existsSync(join(project, 'inbox', 'rascunho.md')), false);
+  assert.equal(readFileSync(join(project, 'inbox', 'cenarios de login.md'), 'utf8'), '# rascunho');
+  assert.deepEqual(service.fileTags('acme')['inbox/cenarios de login.md'], [tag.id]);
+  assert.equal(service.fileTags('acme')['inbox/rascunho.md'], undefined);
+  assert.equal(service.renameEntry('acme', 'inbox/cenarios de login.md', 'cenarios de login'), 'inbox/cenarios de login.md', 'same name: nothing to do');
+
+  // Only the letter case changes: allowed, even where the file system ignores case.
+  assert.equal(service.renameEntry('acme', 'inbox/cenarios de login.md', 'Cenarios de login'), 'inbox/Cenarios de login.md');
+  assert.ok(readdirSync(join(project, 'inbox')).includes('Cenarios de login.md'));
+
+  // A name already taken is refused and nothing moves.
+  writeFileSync(join(project, 'inbox', 'outro.md'), 'outro');
+  assert.throws(() => service.renameEntry('acme', 'inbox/outro.md', 'Cenarios de login'), /already exists/);
+  assert.equal(readFileSync(join(project, 'inbox', 'outro.md'), 'utf8'), 'outro');
+
+  // Names no system accepts, and paths outside the project.
+  for (const bad of ['', '  ', 'a/b', 'a\\b', 'x:y', 'nome?', '.oculto', 'ponto.', 'CON', 'x'.repeat(121)]) {
+    assert.throws(() => service.renameEntry('acme', 'inbox/outro.md', bad), /Use a name/, JSON.stringify(bad));
+  }
+  assert.throws(() => service.renameEntry('acme', '../fora.md', 'x'), ServiceError);
+  assert.throws(() => service.renameEntry('acme', 'inbox/nao-existe.md', 'x'), /not found/);
+
+  // A PDF keeps its page notes.
+  service.setPdfNotes('acme', 'inbox/report.pdf', [entry]);
+  assert.equal(service.renameEntry('acme', 'inbox/report.pdf', 'relatorio'), 'inbox/relatorio.pdf');
+  assert.deepEqual(service.pdfNotes('acme', 'inbox/relatorio.pdf'), [entry]);
+
+  // A folder: what is inside keeps its tags and PDF notes under the new path.
+  mkdirSync(join(project, 'context', 'fluxos'));
+  writeFileSync(join(project, 'context', 'fluxos', 'login.md'), 'login');
+  service.setFileTags('acme', 'context/fluxos/login.md', [tag.id]);
+  assert.equal(service.moveEntry('acme', 'inbox/relatorio.pdf', 'context/fluxos'), 'context/fluxos/relatorio.pdf');
+  assert.deepEqual(service.pdfNotes('acme', 'context/fluxos/relatorio.pdf'), [entry], 'moving a PDF also keeps its notes');
+  assert.equal(service.renameEntry('acme', 'context/fluxos', 'jornadas'), 'context/jornadas');
+  assert.equal(readFileSync(join(project, 'context', 'jornadas', 'login.md'), 'utf8'), 'login');
+  assert.deepEqual(service.fileTags('acme')['context/jornadas/login.md'], [tag.id]);
+  assert.deepEqual(service.pdfNotes('acme', 'context/jornadas/relatorio.pdf'), [entry]);
+
+  // Moki's own items keep their names; a note is renamed through its title (setNoteTitle), not its file.
+  for (const kept of ['project.json', 'README.md', 'activity-log.md', 'proposed-updates.md', 'context', 'inbox', 'notes', 'temporary', 'runs', note]) {
+    assert.throws(() => service.renameEntry('acme', kept, 'outro-nome'), /keeps its name/, kept);
+  }
+  mkdirSync(join(project, 'runs', 'r1'), { recursive: true });
+  writeFileSync(join(project, 'runs', 'r1', 'state.json'), '{}');
+  assert.throws(() => service.renameEntry('acme', 'runs/r1/state.json', 'x'), /keeps its name/);
+
+  rmSync(join(project, 'runs', 'r1'), { recursive: true });
+  rmSync(join(project, 'context', 'jornadas'), { recursive: true });
+  rmSync(join(project, 'inbox', 'Cenarios de login.md'));
+  rmSync(join(project, 'inbox', 'outro.md'));
+  rmSync(join(project, note));
+  writeFileSync(join(project, 'inbox', 'report.pdf'), '%PDF-1.4'); // later tests read it back
+  service.setPdfNotes('acme', 'inbox/report.pdf', []);
+  service.removeTag(tag.id);
 });
 
 test('open folder / open with default program are confined and filtered', () => {
@@ -596,12 +677,186 @@ test('activity tracking is optional, validated and never creates a run', () => {
   assert.doesNotMatch(service.launch(base).prompt, /solely for tracking/);
 });
 
+test('calling into a terminal uses the validated launch request without launching another tool', () => {
+  const pasted: { project: string; id: string; prompt: string }[] = [];
+  const svc = createService(root, {
+    launch: () => { throw new Error('must not start a tool'); },
+    openFolder: () => undefined,
+    openPath: () => undefined,
+    pasteRequest: (project, id, prompt) => { pasted.push({ project, id, prompt }); return id === 'ai-1'; },
+  });
+  const req = { project: 'acme', activity: 'review', tool: 'claude', files: ['us-1.md'], language: 'English', note: 'Check permissions', trackingId: 'b'.repeat(32) };
+  const runs = svc.activityRuns('acme');
+  const result = svc.invokeInTerminal(req, 'ai-1');
+  assert.equal(result.prepared, true);
+  assert.deepEqual(pasted, [{ project: 'acme', id: 'ai-1', prompt: result.prompt }]);
+  assert.match(result.prompt, /requirements-review skill/);
+  assert.match(result.prompt, /workspace\/projects\/acme\/inbox\/us-1.md/);
+  assert.match(result.prompt, /Check permissions/);
+  assert.match(result.prompt, /--activity review/);
+  assert.match(result.prompt, /moki-b{32}/);
+  assert.deepEqual(svc.activityRuns('acme'), runs);
+  assert.throws(() => svc.invokeInTerminal({ ...req, files: [] }, 'ai-1'), /needs at least one file/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, project: '../acme' }, 'ai-1'), /Unknown project/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, files: ['../../secret.txt'] }, 'ai-1'), /Not in the project inbox/);
+  assert.throws(() => svc.invokeInTerminal({ ...req, activity: 'skill', skill: 'missing' }, 'ai-1'), /Choose a skill that can run/);
+  assert.throws(() => svc.invokeInTerminal(req, null), /running AI terminal/);
+  assert.equal(pasted.length, 1, 'invalid choices never reach the terminal');
+  assert.throws(() => svc.invokeInTerminal(req, 'closed'), /running AI terminal/);
+  assert.throws(() => service.invokeInTerminal(req, 'ai-1'), /running AI terminal/);
+});
+
+test('a run records the activity it came from; the requests and the tree show it, and its scenario', () => {
+  // The request asks the AI to record the activity (with or without the app's tracking), but not when resuming.
+  const base = { project: 'acme', activity: 'review', tool: 'print', files: ['us-1.md'], language: 'English', note: '' };
+  assert.match(service.launch(base).prompt, /add --activity review to npm run new-run \(or write "activity": "review" in its state\.json\)/);
+  const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
+  const make = (id: string, extra: Record<string, unknown>) => {
+    mkdirSync(join(runs, id), { recursive: true });
+    writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', status: 'in-progress', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x', ...extra }));
+  };
+  make('20261108-1030-requirements-review-login-error', { skill: 'requirements-review', activity: 'review' });
+  make('20261108-1031-failure-analysis-checkout', { skill: 'failure-analysis' });
+  try {
+    const listed = service.activityRuns('acme');
+    const from = listed.find((r) => r.id === '20261108-1030-requirements-review-login-error');
+    assert.equal(from?.activity?.id, 'review');
+    assert.ok(from?.activity?.label);
+    assert.equal(from?.scenario, 'login error');
+    const free = listed.find((r) => r.id === '20261108-1031-failure-analysis-checkout');
+    assert.equal(free?.activity, null);
+    assert.equal(free?.scenario, 'checkout');
+    const node = service.tree('acme').find((n) => n.path === 'runs')?.children?.find((n) => n.name === '20261108-1030-requirements-review-login-error');
+    assert.deepEqual({ id: node?.run?.activity?.id, scenario: node?.run?.scenario }, { id: 'review', scenario: 'login error' });
+  } finally {
+    rmSync(join(runs, '20261108-1030-requirements-review-login-error'), { recursive: true });
+    rmSync(join(runs, '20261108-1031-failure-analysis-checkout'), { recursive: true });
+  }
+});
+
+test('project settings keep the name, the description\'s lines, the defaults and the instructions at start; a default agent is turned on', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
+  const before = readFileSync(file, 'utf8');
+  try {
+    const summary = service.setupProject('acme', {
+      name: 'Logs do pagamento', description: 'Linha um\nLinha dois', linkedSkills: [],
+      defaults: [{ kind: 'agent', id: 'failure-analyst' }, { kind: 'skill', id: 'failure-analysis' }, { kind: 'activity', id: 'failure' }],
+      startInstructions: 'Horário de Brasília.\nResponda em tópicos.',
+    });
+    assert.equal(summary.name, 'Logs do pagamento');
+    assert.equal(summary.description, 'Linha um\nLinha dois');
+    assert.deepEqual(summary.defaults.map((d) => `${d.kind}:${d.id}`), ['agent:failure-analyst', 'skill:failure-analysis', 'activity:failure']);
+    assert.equal(summary.startInstructions, 'Horário de Brasília.\nResponda em tópicos.');
+    assert.ok(service.projectAgents('acme').includes('failure-analyst'));
+    // Not available here: refused, and nothing is written.
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'nao-existe' }] }), /Not available as a default here: nao-existe/);
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'operation', id: 'nenhuma' }] }), /Not available as a default here/);
+    assert.throws(() => service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'robot', id: 'x' }] }), /Invalid project defaults/);
+    assert.throws(() => service.setupProject('acme', { name: '  ', description: '', linkedSkills: [] }), /Give the project a name/);
+    // An older caller that sends neither keeps them.
+    assert.equal(service.setupProject('acme', { description: 'Outra', linkedSkills: [] }).defaults.length, 3);
+  } finally { writeFileSync(file, before); }
+});
+
+test('an AI opened in the project starts with its defaults: one activity without files runs, anything else waits', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
+  const before = readFileSync(file, 'utf8');
+  service.saveActivity({ label: 'Resumo rápido', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [], template: 'Resuma o estado do projeto em três linhas.' });
+  const own = listActivities(root, 'acme').find((a) => a.label === 'Resumo rápido');
+  assert.ok(own);
+  try {
+    assert.deepEqual(service.startOf('acme', 'claude', 'English'), { prompt: '', label: '', several: false }); // nothing set
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'activity', id: own.id }], startInstructions: 'Seja breve.' });
+    const run = service.startOf('acme', 'claude', 'Portuguese (pt-BR)');
+    assert.match(run.prompt, /Resuma o estado do projeto em três linhas\./);
+    assert.match(run.prompt, /Additional instructions: Seja breve\./);
+    assert.match(run.prompt, new RegExp(`add --activity ${own.id} to npm run new-run`)); // its origin is recorded, as for any activity
+    assert.equal(run.label, 'Resumo rápido');
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'failure-analyst' }], startInstructions: '' });
+    const waits = service.startOf('acme', 'claude', 'English');
+    assert.match(waits.prompt, /Act as the failure-analyst agent/);
+    assert.match(waits.prompt, /wait for it: do not start any work before that/);
+    assert.deepEqual({ label: waits.label, several: waits.several }, { label: 'failure-analyst', several: false });
+    service.setupProject('acme', { description: '', linkedSkills: [], defaults: [{ kind: 'agent', id: 'failure-analyst' }, { kind: 'skill', id: 'failure-analysis' }] });
+    assert.deepEqual({ label: service.startOf('acme', 'claude', 'English').label, several: service.startOf('acme', 'claude', 'English').several }, { label: '', several: true });
+  } finally {
+    writeFileSync(file, before);
+    service.deleteActivity(own.id);
+  }
+});
+
+test('project settings and the workspace settings mirror each other through the project\'s own tag', () => {
+  const other = service.createProject('Mirror Other').id;
+  const third = service.createProject('Mirror Third').id; // so two projects are not every project
+  const own = service.saveActivity({ label: 'Checklist do log', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [`project:${other}`], template: 'Revise o log.' });
+  const style = service.saveTemplate({ name: 'Cliente', tags: [`project:${other}`], style: {} as never });
+  const tagsOf = () => listActivities(root).find((a) => a.id === own.id)!.tags;
+  const reach = () => service.projectLinks('acme');
+  try {
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'off');
+    assert.equal(reach().templates.find((t) => t.id === style.id)?.state, 'off');
+    // Checked in the project: the project's tag, as Settings › Activities and Templates show it; the template picked is in use.
+    service.setProjectLinks('acme', { activities: { [own.id]: true }, templates: { [style.id]: true }, template: style.id });
+    assert.deepEqual(tagsOf(), [`project:${other}`, 'project:acme']);
+    assert.deepEqual(service.templates().find((t) => t.id === style.id)?.tags, [`project:${other}`, 'project:acme']);
+    assert.deepEqual(reach().templates.filter((t) => t.inUse).map((t) => t.id), [style.id]);
+    // Tagged in the workspace's settings: the project sees it the same way.
+    service.saveActivity({ ...own, id: own.id, kind: 'prompt', target: '', files: 'none', template: 'Revise o log.', tags: [`project:${other}`] });
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'off');
+    service.saveActivity({ ...own, id: own.id, kind: 'prompt', target: '', files: 'none', template: 'Revise o log.', tags: [`project:${other}`, 'project:acme'] });
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'own');
+    // Unchecked here: only this project's tag goes, and the template goes back to the automatic choice.
+    service.setProjectLinks('acme', { activities: { [own.id]: false }, templates: { [style.id]: false }, template: null });
+    assert.deepEqual(tagsOf(), [`project:${other}`]);
+    assert.ok(!reach().templates.find((t) => t.id === style.id)?.inUse);
+    // The template for every project stays; a Moki activity cannot be linked here.
+    const general = service.templates().find((t) => !t.tags.length)!;
+    assert.throws(() => service.setProjectLinks('acme', { templates: { [general.id]: false } }), /template for every project stays/);
+    assert.throws(() => service.setProjectLinks('acme', { activities: { review: false } }), /Only your own activities/);
+    // MCP servers are only shown here.
+    assert.ok(Array.isArray(reach().mcp));
+  } finally {
+    service.deleteActivity(own.id);
+    service.removeTemplate(style.id);
+    service.deleteProject(other, 'delete');
+    service.deleteProject(third, 'delete');
+  }
+});
+
+test('npm run new-run records --activity, and refuses an activity the project does not see', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'qa-newrun-'));
+  try {
+    mkdirSync(join(ws, 'projects', 'loja'), { recursive: true });
+    writeFileSync(join(ws, 'projects', 'loja', 'project.json'), JSON.stringify({ project: 'loja', name: 'Loja' }));
+    const run = (...extra: string[]) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', 'carrinho', ...extra],
+      { cwd: ROOT, env: { ...process.env, QA_WORKSPACE: ws }, encoding: 'utf8' });
+    const ok = run('--activity', 'tests');
+    assert.equal(ok.status, 0, ok.stderr);
+    const dir = readdirSync(join(ws, 'projects', 'loja', 'runs'))[0];
+    assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).activity, 'tests');
+    for (const sub of ['inputs', 'outputs', 'evidence', 'logs', 'work']) assert.ok(existsSync(join(ws, 'projects', 'loja', 'runs', dir, sub)), sub); // work/: helper files, never deliverables
+    assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).terminal, undefined, 'outside a Moki terminal: no terminal');
+    // Inside a Moki terminal, the run records which one (QA_TERMINAL); anything else is ignored.
+    const inTerminal = (value: string, slug: string) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', slug],
+      { cwd: ROOT, env: { ...process.env, QA_WORKSPACE: ws, QA_TERMINAL: value }, encoding: 'utf8' });
+    assert.equal(inTerminal('t1-7', 'de-um-terminal').status, 0);
+    assert.equal(inTerminal('../x', 'nome-ruim').status, 0);
+    const stateOf = (slug: string) => JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', readdirSync(join(ws, 'projects', 'loja', 'runs')).find((d) => d.endsWith(slug))!, 'state.json'), 'utf8'));
+    assert.equal(stateOf('de-um-terminal').terminal, 't1-7');
+    assert.equal(stateOf('nome-ruim').terminal, undefined);
+    const bad = run('--activity', 'nao-existe');
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stderr, /Unknown activity "nao-existe"/);
+  } finally { rmSync(ws, { recursive: true, force: true }); }
+});
+
 test('launch builds the request; Word files are extracted', () => {
   const r = service.launch({ project: 'acme', activity: 'review', tool: 'claude', files: ['us-1.md', 'us-2.docx'], language: 'Portuguese (pt-BR)', note: 'line1\nline2' });
   assert.equal(r.opened, true);
   assert.equal(launched.length, 1);
   assert.match(r.prompt, /requirements-review skill .*inbox\/us-1\.md.*\.extracted\/us-2\.docx\.md/);
-  assert.match(r.prompt, /Additional instructions: line1 line2\. Talk to me in Portuguese \(pt-BR\)\.$/);
+  // The note and the language close the request; then, as the tracking slug, where a run made for it came from.
+  assert.match(r.prompt, /Additional instructions: line1 line2\. Talk to me in Portuguese \(pt-BR\)\. If this request creates a run, record the activity it came from: add --activity review /);
   const chat = service.launch({ project: 'acme', activity: 'resume', run: RUN, tool: 'chat', files: [], language: 'English', note: '' });
   assert.equal(chat.opened, false);
   assert.ok((chat as { upload: string[] }).upload.some((u) => u.endsWith('state.json')));
@@ -1353,6 +1608,14 @@ test('open a folder: the name is yours, the folder shows live in the tree as @fo
     assert.equal(readFileSync(join(folder, 'docs', 'us-1.md'), 'utf8'), '# US-1 v2');
     assert.equal(svc.createEntry('loja-virtual', '@folder/docs', 'us-2', 'file'), '@folder/docs/us-2.md');
     assert.ok(existsSync(join(folder, 'docs', 'us-2.md')));
+    // Renamed in place too, files and folders; the linked folder itself keeps its name.
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/docs/us-2.md', 'us-3'), '@folder/docs/us-3.md');
+    assert.ok(existsSync(join(folder, 'docs', 'us-3.md')) && !existsSync(join(folder, 'docs', 'us-2.md')));
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/docs', 'historias'), '@folder/historias');
+    assert.ok(existsSync(join(folder, 'historias', 'us-1.md')));
+    assert.equal(svc.renameEntry('loja-virtual', '@folder/historias', 'docs'), '@folder/docs');
+    assert.throws(() => svc.renameEntry('loja-virtual', '@folder', 'outra'), /keeps its name/);
+    assert.throws(() => svc.renameEntry('loja-virtual', '@folder/../fora.md', 'x'), ServiceError);
     for (const bad of ['@folder/../fora.md', '@folder/../../x']) assert.throws(() => svc.readFile('loja-virtual', bad), ServiceError, bad);
     assert.throws(() => svc.setFileTags('loja-virtual', '@folder/docs/us-1.md', []), /linked folder/);
     assert.throws(() => svc.readFile('acme', '@folder/x.md'), /no linked folder/);
@@ -1470,7 +1733,9 @@ test('agents created from Skills & agents only use skills installed in their own
   const req = { name: 'API Tester', description: 'Act as a senior API tester: use @lint.\nList breaking changes.', skills: ['lint'], scope: 'project' };
   assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: ['shared'] }), /"shared" is not installed in workspace\/projects\/acme\/skills/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: ['../skills/lint'] }), /not installed/);
-  assert.throws(() => svc.createScopeAgent('acme', { ...req, skills: [] }), /at least one skill/);
+  const plain = svc.createScopeAgent('acme', { ...req, name: 'instructions-only', description: 'Review the clarity of my writing.', skills: [] });
+  assert.match(readFileSync(plain.file, 'utf8'), /No skills are assigned\. Follow the role and instructions above/);
+  rmSync(plain.file);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, name: '!!' }), /name/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, scope: 'root' }), /Choose where/);
   assert.throws(() => svc.createScopeAgent('acme', { ...req, name: 'auto', skills: ['automation'] }), /not installed/, 'pending skills are not offered');
@@ -1804,6 +2069,103 @@ test('upload of skills and agents: preview writes nothing, blocks per item, inst
   for (const dir of [home, src, repo, join(root, 'workspace', 'projects', 'up-linked'), join(projectDir, 'skills'), join(projectDir, 'agents')]) rmSync(dir, { recursive: true, force: true });
 });
 
+test('leftovers: old scratch files and finished runs\' helper files go when the project opens; outputs not delivered are cleaned on request', async () => {
+  const dir = join(root, 'workspace', 'projects', 'acme');
+  const runs = join(dir, 'runs');
+  const make = (rel: string, text = 'x') => { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), text); };
+  const state = (id: string, status: string, artifacts: string[]) => writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: 1, id, project: 'acme', skill: 'test-design', status, artifacts }));
+  const done = '20261108-1100-test-design-done';
+  const going = '20261108-1101-test-design-going';
+  try {
+    make('temporary/request-old.md'); make('temporary/request-new.md');
+    const old = (Date.now() - 8 * 86_400_000) / 1000;
+    utimesSync(join(dir, 'temporary', 'request-old.md'), old, old);
+    make(`runs/${done}/work/data.json`); make(`runs/${done}/outputs/Test cases.xlsx`); make(`runs/${done}/outputs/Test cases.png`); make(`runs/${done}/outputs/extra/Test cases.csv`);
+    state(done, 'completed', [`workspace/projects/acme/runs/${done}/outputs/Test cases.xlsx`]);
+    make(`runs/${going}/work/review-matrix.json`); make(`runs/${going}/outputs/draft.md`);
+    state(going, 'awaiting-input', []);
+
+    // Opening the project: the old scratch file and the finished run's work/ go; the rest stays.
+    assert.deepEqual((await service.cleanProject('acme')).sort(), [`runs/${done}/work`, 'temporary/request-old.md']);
+    assert.ok(existsSync(join(dir, 'temporary', 'request-new.md')));
+    assert.ok(existsSync(join(runs, going, 'work', 'review-matrix.json')), 'a run still going keeps its working files');
+    // Leftovers: in outputs/ but not delivered. A run listing no deliverables has nothing to compare with.
+    assert.deepEqual(service.runLeftovers('acme', done), [`runs/${done}/outputs/Test cases.png`, `runs/${done}/outputs/extra/Test cases.csv`]);
+    assert.deepEqual(service.runLeftovers('acme', going), []);
+    await assert.rejects(service.cleanRun('acme', done, [`runs/${done}/outputs/Test cases.xlsx`]), /Not a leftover/);
+    await assert.rejects(service.cleanRun('acme', done, []), /Choose the files/);
+    assert.equal(await service.cleanRun('acme', done, [`runs/${done}/outputs/Test cases.png`, `runs/${done}/outputs/extra/Test cases.csv`]), 2);
+    assert.ok(existsSync(join(runs, done, 'outputs', 'Test cases.xlsx')), 'the deliverable stays');
+    assert.deepEqual(service.runLeftovers('acme', done), []);
+    assert.throws(() => service.runLeftovers('acme', 'nope'), /Unknown run/);
+    // Each terminal's deliverables: the artifacts of the runs it created that exist, never its leftovers or work files.
+    state(done, 'completed', [`workspace/projects/acme/runs/${done}/outputs/Test cases.xlsx`, `workspace/projects/acme/runs/${done}/outputs/gone.pdf`, '../outside.md']);
+    const withTerminal = JSON.parse(readFileSync(join(runs, done, 'state.json'), 'utf8'));
+    writeFileSync(join(runs, done, 'state.json'), JSON.stringify({ ...withTerminal, terminal: 't3-2' }));
+    writeFileSync(join(runs, going, 'state.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(runs, going, 'state.json'), 'utf8')), terminal: 'bad id' }));
+    assert.deepEqual(service.terminalDeliverables('acme'), { 't3-2': [`runs/${done}/outputs/Test cases.xlsx`] });
+  } finally {
+    for (const p of [join(runs, done), join(runs, going), join(dir, 'temporary', 'request-new.md')]) rmSync(p, { recursive: true, force: true });
+  }
+});
+
+test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace and links them to the project', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'qa-bring-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'qa-bring-src-'));
+  const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
+  put('kit/.claude/skills/log-reader/SKILL.md', '---\nname: log-reader\ndescription: Reads logs\n---\nBody');
+  put('kit/.claude/agents/log-scout.md', '---\nname: log-scout\ndescription: Finds the failing line\ntools: Read, Grep\nmodel: sonnet\n---\nLook at the log first.');
+  put('kit/activities/log-triage.md', '---\nlabel: "Triagem do log"\ndescription: ""\ncategory: "QA"\nfiles: required\nnote: ""\ntags: "project:outro"\n---\n\nSepare os erros do log.\n');
+  put('kit/activities/review.md', '---\nlabel: "Takes a Moki id"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nx\n');
+  put('kit/activities/broken.md', '---\nlabel: "No body"\nfiles: sometimes\n---\n');
+  put('one/checklist.md', '---\nlabel: "Checklist"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nRevise.\n');
+  const svc = createService(root, { ...noLaunch, home, pickFolder: async () => join(src, 'kit') });
+  const library = join(root, 'workspace', 'library');
+  try {
+    const view = await svc.claudeUploadPick('folder', 'acme', 'bring');
+    assert.ok(view);
+    const by = Object.fromEntries(view.items.map((i) => [`${i.kind}:${i.name}`, i]));
+    assert.deepEqual(Object.keys(by).sort(), ['activity:broken', 'activity:log-triage', 'activity:review', 'agent:log-scout', 'skill:log-reader']);
+    assert.equal(by['activity:log-triage'].description, 'Triagem do log');
+    assert.equal(by['activity:review'].blocked?.reason, 'moki-name');
+    assert.equal(by['activity:broken'].blocked?.reason, 'invalid-activity');
+    assert.equal(existsSync(join(home, '.claude')), false, 'the preview writes nothing');
+
+    svc.claudeUploadApply('acme', 'bring', ['skill:log-reader', 'agent:log-scout', 'activity:log-triage']);
+    // The skill for all projects, linked to acme.
+    assert.ok(existsSync(join(home, '.claude', 'skills', 'log-reader', 'SKILL.md')));
+    assert.ok(projectSummary('acme', root).linkedSkills.includes('log-reader'));
+    // The agent as one of the person's, in Moki's format (read-only: it had no editing tools), reaching acme by its tag.
+    const agent = readFileSync(join(library, 'agents', 'uploaded', 'log-scout.md'), 'utf8');
+    assert.match(agent, /^---\nname: log-scout\ndescription: "Finds the failing line"\ncategory: uploaded\naccess: read-only\nmodel: sonnet\nmetadata:\n {2}version: "1\.0\.0"\n {2}status: draft\n---\n\nLook at the log first\.\n$/);
+    assert.ok(svc.projectAgents('acme').includes('log-scout'));
+    assert.deepEqual(svc.agentTags()['log-scout'], ['project:acme']);
+    // The activity among the person's, with acme's tag only (the tag it came with belongs to another workspace).
+    assert.deepEqual(listActivities(root).find((a) => a.id === 'log-triage')?.tags, ['project:acme']);
+    // Remembered as brought from acme, for the workspace's lists.
+    const uploads = svc.uploads();
+    assert.deepEqual(Object.keys(uploads).sort(), ['activity:log-triage', 'agent:log-scout', 'skill:log-reader']);
+    assert.equal(uploads['agent:log-scout'].project, 'acme');
+    assert.equal(uploads['agent:log-scout'].projectName, projectSummary('acme', root).name);
+    // Bringing again: all three are already there.
+    const again = await svc.claudeUploadPick('folder', 'acme', 'bring');
+    assert.deepEqual(again?.items.filter((i) => i.blocked?.reason === 'installed').map((i) => i.name).sort(), ['log-reader', 'log-scout', 'log-triage']);
+    // One dropped .md: an activity, by its header.
+    const dropped = svc.claudeUploadPath(join(src, 'one', 'checklist.md'), 'acme', 'bring');
+    assert.deepEqual(dropped.items.map((i) => `${i.kind}:${i.name}`), ['activity:checklist']);
+    assert.throws(() => svc.claudeUploadPath('relative/x.md', 'acme', 'bring'), /Drop a folder/);
+    assert.throws(() => svc.claudeUploadPath(join(src, 'one', 'nope.md'), 'acme', 'bring'), /Not found/);
+    writeFileSync(join(src, 'notes.txt'), 'x');
+    assert.throws(() => svc.claudeUploadPath(join(src, 'notes.txt'), 'acme', 'bring'), /\.zip or \.md file/);
+  } finally {
+    try { svc.setAgentTags('log-scout', []); } catch { /* not created */ }
+    rmSync(join(library, 'agents', 'uploaded'), { recursive: true, force: true });
+    rmSync(join(library, 'activities', 'log-triage.md'), { force: true });
+    rmSync(join(library, 'uploads.json'), { force: true });
+    for (const dir of [home, src]) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('upload from a zip: layouts, limits, unsafe paths, and a failure undoes everything', async () => {
   const home = mkdtempSync(join(tmpdir(), 'qa-upz-home-'));
   const dir = mkdtempSync(join(tmpdir(), 'qa-upz-'));
@@ -1830,7 +2192,7 @@ test('upload from a zip: layouts, limits, unsafe paths, and a failure undoes eve
   await assert.rejects(pick([['SKILL.md', skill('big')], ['big.bin', 'x'.repeat(5 * 1024 * 1024 + 1)]]), /larger than 5 MB/);
   writeFileSync(file, 'not a zip');
   await assert.rejects(svc.claudeUploadPick('zip', '', 'global'), /Could not read the ZIP|not a ZIP/);
-  await assert.rejects(svc.claudeUploadPick('other', '', 'global'), /folder or a \.zip/);
+  await assert.rejects(svc.claudeUploadPick('other', '', 'global'), /folder, or a \.zip or \.md/);
   await assert.rejects(createService(root, { ...noLaunch, home }).claudeUploadPick('zip'), /not available here/);
 
   // A failure in the second skill removes the first one too (a file and a folder with the same name).
@@ -1957,12 +2319,12 @@ test('terminal tabs start only the chosen tool, in the framework root, with the 
   try {
     const specs: TermSpec[] = [];
     const r = launchInTerminal('claude', "it's $(rm -rf ~)\nação", '/home/u/qa', (spec) => { specs.push(spec); return 't7'; });
-    assert.deepEqual(r.terminal, { id: 't7', title: 'Claude Code' });
+    assert.deepEqual(r.terminal, { id: 't7', title: 'Claude Code', tool: 'claude' });
     const plugins = pluginArgs('claude', '/home/u/qa');
     // The prompt after "--" (never read as an option); the tab is named after the tool.
-    assert.deepEqual(specs, [{ file: 'claude', args: [...plugins, '--', "it's $(rm -rf ~) ação"], cwd: '/home/u/qa', title: 'Claude Code' }] as TermSpec[]);
+    assert.deepEqual(specs, [{ file: 'claude', args: [...plugins, '--', "it's $(rm -rf ~) ação"], cwd: '/home/u/qa', title: 'Claude Code', tool: 'claude' }] as TermSpec[]);
     launchInTerminal('claude', '', '/home/u/qa', (spec) => { specs.push(spec); return 't8'; }); // "+" menu: the tool alone
-    assert.deepEqual(specs[1], { file: 'claude', args: plugins, cwd: '/home/u/qa', title: 'Claude Code' });
+    assert.deepEqual(specs[1], { file: 'claude', args: plugins, cwd: '/home/u/qa', title: 'Claude Code', tool: 'claude' });
     assert.throws(() => launchInTerminal('vscode', 'x', '/home/u/qa', () => 'never'), /does not run in a terminal/);
   } finally {
     process.env.PATH = path;

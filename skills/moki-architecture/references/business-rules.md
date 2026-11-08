@@ -19,14 +19,16 @@ The domain rules of the framework and what no change may break. Each rule names 
 
 ### Agent — *who* does it
 
-- Role + instructions + the skills it uses + the access it asks for. An agent never replaces a skill: its "How to work" sends the AI to its skills. (`docs/agents.md`)
-- Built-in: `agents/<category>/<name>.md`, `name` = file name, `category` = folder and defined in `agents/categories.json`, at least one existing skill, sections Role, When to use, How to work, Boundaries. `validateAgent` in `scripts/lib/agents.ts` is shared by the validator and the app editor. Every built-in agent is listed in `AGENTS.md`. *validate*
+- Role + instructions + optional skills + the access it asks for. Without skills it follows its own instructions; declared skills retain their procedures and approval gates. (`docs/agents.md`)
+- Built-in: `agents/<category>/<name>.md`, `name` = file name, `category` = folder and defined in `agents/categories.json`, zero or more existing skills, sections Role, When to use, How to work, Boundaries. `validateAgent` in `scripts/lib/agents.ts` is shared by the validator and the app editor. Every built-in agent is listed in `AGENTS.md`. *validate*
 - Access levels (`ACCESS_LEVELS`): `read-only` (reads, writes nothing), `project-write` (only inside `workspace/projects/<project-id>/`), `repository-write` (may also change a linked repository, after an approved plan). They are instructions to the AI; in Claude Code, `read-only` agents are generated without the editing tools (`claudeSubagent`).
 - Only usable built-in agents become Claude Code subagents in `.claude/agents/`. *build*
 - Built-in agents are read-only in the app; the user's own agents live in `workspace/library/agents/<category>/` and can never shadow a built-in name (`listAgents`). A copy records `metadata.basedOn`.
 - Per project, `project.json` `agents` lists the enabled agents (absent = every usable agent); a launch with an agent requires it to be usable and enabled. *service.ts*
 
 ### Project, run, workflow
+
+- Activity = a reusable request in `activities/` or the workspace library. It can contain text alone, one agent (whose skills stay in its own definition), one or more skills, a workflow or an operation. `uses` is optional only with a non-empty request; multiple entries must all be distinct skills. Existing single-target files remain valid. *activities.ts, service.ts, validate*
 
 - Project = `workspace/projects/<project-id>/`: `project.json` (required `schemaVersion`, `project`, `name`; schema `schemas/project-context.schema.json`), `context/` (confirmed knowledge only), `proposed-updates.md` (unconfirmed, never treated as fact), `activity-log.md`, `inbox/`, `runs/`, `temporary/`, `tags.json`. Starters: `qa` (template context files) or `blank` (planned with the AI). Template: `templates/project-context/`.
 - Run id `YYYYMMDD-HHMM-<skill-or-workflow>-<slug>`; `state.json` per `schemas/execution-state.schema.json`; statuses `in-progress`, `awaiting-approval`, `awaiting-input`, `blocked`, `completed`, `cancelled`; resume from `currentStep`. `npm run runs` checks that `project` and artifacts stay inside the run's project.

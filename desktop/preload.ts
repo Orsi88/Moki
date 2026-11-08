@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('qa', {
     return () => { ipcRenderer.removeListener('qa:open-in-main', listener); };
   },
   term: {
-    create: (tool: string, project?: string) => ipcRenderer.invoke('qa:term-new', tool, project ?? ''),
+    create: (tool: string, project?: string, options?: { plain?: boolean; language?: string }) => ipcRenderer.invoke('qa:term-new', tool, project ?? '', options ?? {}),
     start: (id: string, cols: number, rows: number, project: string) => ipcRenderer.invoke('qa:term-start', id, cols, rows, project),
     input: (id: string, data: string) => ipcRenderer.send('qa:term-input', id, data),
     resize: (id: string, cols: number, rows: number) => ipcRenderer.send('qa:term-resize', id, cols, rows),

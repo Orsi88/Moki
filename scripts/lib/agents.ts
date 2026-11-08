@@ -93,7 +93,6 @@ export function validateAgent(agent: Agent, ctx: { skills: string[]; categories:
   if (!SLUG.test(agent.category)) errors.push(`invalid category "${agent.category}"`);
   else if (agent.category !== ctx.folder) errors.push(`category "${agent.category}" must match its folder "${ctx.folder}"`);
   if (agent.source === 'builtin' && !ctx.categories.includes(agent.category)) errors.push(`category "${agent.category}" is not defined in agents/categories.json`);
-  if (!agent.skills.length) errors.push('list at least one skill');
   for (const s of agent.skills) if (!ctx.skills.includes(s)) errors.push(`unknown skill "${s}"`);
   if (!(ACCESS_LEVELS as readonly string[]).includes(agent.access)) errors.push(`access must be one of ${ACCESS_LEVELS.join(', ')}`);
   if (agent.model && !(AGENT_MODELS as readonly string[]).includes(agent.model)) errors.push(`model must be one of ${AGENT_MODELS.join(', ')} (or left out)`);
@@ -179,7 +178,7 @@ export function withSkills(text: string, skills: string[]): string {
   const end = normalized.indexOf('\n---', 4);
   if (!normalized.startsWith('---\n') || end === -1) throw new Error('The file has no frontmatter.');
   const lines = normalized.slice(4, end).split('\n');
-  const line = `skills: ${skills.join(', ')}`;
+  const line = `skills: ${skills.length ? skills.join(', ') : '""'}`;
   const at = lines.findIndex((l) => /^skills:/.test(l));
   if (at >= 0) lines[at] = line;
   else lines.splice(Math.max(0, lines.findIndex((l) => /^access:/.test(l))), 0, line);
@@ -271,4 +270,25 @@ export function claudeSubagent(agent: Agent): string {
   const tools = agent.access === 'read-only' ? 'disallowedTools: Edit, Write, NotebookEdit\n' : '';
   const model = agent.model ? `model: ${agent.model}\n` : '';
   return `---\nname: ${agent.name}\ndescription: ${JSON.stringify(description)}\n${tools}${model}---\n${agent.body.trimEnd()}\n\n## Skills\n\n${skills}\n`;
+}
+
+// An agent brought from outside (a Claude Code subagent, or another Moki's agent) as one of the person's own:
+// the Moki header it needs to be listed and used (category, access, version, status), its text kept. A Claude
+// Code agent without the editing tools becomes read-only, so bringing it never widens what it may do.
+export function libraryAgentText(text: string, name: string): { text: string; category: string } {
+  const { data, body } = parseFrontmatter(text) as { data: Record<string, unknown> | null; body: string };
+  const d = data ?? {};
+  const meta = (typeof d.metadata === 'object' && d.metadata ? d.metadata : {}) as Record<string, unknown>;
+  const category = SLUG.test(String(d.category ?? '')) ? String(d.category) : 'uploaded';
+  const tools = typeof d.tools === 'string' ? d.tools : '';
+  const access = (ACCESS_LEVELS as readonly string[]).includes(String(d.access)) ? String(d.access)
+    : tools && !/\b(Edit|Write|NotebookEdit|Bash)\b/.test(tools) ? 'read-only' : 'project-write';
+  const model = (AGENT_MODELS as readonly string[]).includes(String(d.model)) ? String(d.model) : '';
+  const version = /^\d+\.\d+\.\d+$/.test(String(meta.version ?? '')) ? String(meta.version) : '1.0.0';
+  const description = String(d.description ?? '').replace(/\s+/g, ' ').trim().slice(0, 1024);
+  const skills = list(d.skills);
+  const lines = ['---', `name: ${name}`, `description: ${JSON.stringify(description)}`, `category: ${category}`,
+    ...(skills.length ? [`skills: ${skills.join(', ')}`] : []), `access: ${access}`, ...(model ? [`model: ${model}`] : []),
+    'metadata:', `  version: "${version}"`, '  status: draft', '---'];
+  return { text: `${lines.join('\n')}\n${body.startsWith('\n') ? '' : '\n'}${body.trimEnd()}\n`, category };
 }

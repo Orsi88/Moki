@@ -2,10 +2,11 @@
 // name has no extension) or text (.txt), in that folder. From New › File (ext): that type, added to
 // the name when missing, in a folder chosen here (folders).
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { t } from '../i18n';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 interface Props {
   project: string; parent: string; kind: 'file' | 'folder'; onClose: () => void; onCreated: (path: string) => void;
@@ -21,12 +22,6 @@ export function NewEntryDialog({ project, parent, kind, onClose, onCreated, ext,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError('');
@@ -35,14 +30,13 @@ export function NewEntryDialog({ project, parent, kind, onClose, onCreated, ext,
 
   const where = folders?.find((f) => f.path === folder)?.label ?? (folder || t('the project folder'));
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="modal compact" role="dialog" aria-modal="true" aria-labelledby="new-entry-title" onSubmit={(e) => { void submit(e); }}>
+    <Modal as="form" size="compact" labelledBy="new-entry-title" onClose={onClose} busy={busy} onSubmit={(e) => { void submit(e); }}>
         <header className="modal-head">
           <div>
             <h2 id="new-entry-title">{ext ? TITLES[ext]?.() ?? t('New file') : kind === 'file' ? t('New file') : t('New folder')}</h2>
             <p className="muted small">{t('In {folder}', { folder: where })}</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
         </header>
         <div className="modal-body">
           <label className="field">
@@ -63,10 +57,9 @@ export function NewEntryDialog({ project, parent, kind, onClose, onCreated, ext,
           {error && <p className="error small">{error}</p>}
         </div>
         <footer className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>{t('Cancel')}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('Cancel')}</button>
           <button type="submit" className="btn" disabled={busy || !name.trim()}>{busy ? t('Creating…') : t('Create')}</button>
         </footer>
-      </form>
-    </div>
+    </Modal>
   );
 }

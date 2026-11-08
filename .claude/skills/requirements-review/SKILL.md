@@ -130,8 +130,8 @@ Objective checks on deliverables (see [review matrix](references/review-matrix.m
 ## Output format
 
 - **Diagnosis and interview**: in the conversation, formats in the references.
-- **QA Review Matrix**: `workspace/projects/<project-id>/runs/<run-id>/outputs/QA Review Matrix.xlsx` (en, default) or `Matriz de Revisão QA.xlsx` (pt-BR), plus its source `review-matrix.json` in the same folder.
-- **Final Definitions Report**: `workspace/projects/<project-id>/runs/<run-id>/outputs/QA Final Definitions Report.pdf` (en, default) or `Relatório Final de Definições QA.pdf` (pt-BR), plus its Markdown source.
+- **QA Review Matrix**: `workspace/projects/<project-id>/runs/<run-id>/outputs/QA Review Matrix.xlsx` (en, default) or `Matriz de Revisão QA.xlsx` (pt-BR); its source stays in `workspace/projects/<project-id>/runs/<run-id>/work/review-matrix.json` (needed until the returned matrix is analyzed).
+- **Final Definitions Report**: `workspace/projects/<project-id>/runs/<run-id>/outputs/QA Final Definitions Report.pdf` (en, default) or `Relatório Final de Definições QA.pdf` (pt-BR); its Markdown source stays in `workspace/projects/<project-id>/runs/<run-id>/work/final-report.md`.
 - Labels, statuses, sheet and column names follow the deliverable language — English by default ([execution principles](references/core/execution-principles.md#language), [vocabulary](references/vocabulary.md)); pt-BR labels are exactly those of the original process.
 
 ## Human approval points

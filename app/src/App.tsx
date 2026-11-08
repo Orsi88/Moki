@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, hasBridge, pageParams, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from './api';
 import { t, useLang } from './i18n';
 import { hiddenIds, setMenuWorkspace } from './side-menu';
 import { Ribbon } from './components/Ribbon';
 import { UsageStatus } from './components/UsageStatus';
+import { NoteDialog } from './components/NoteDialog';
 import { Home } from './screens/Home';
 import { WorkspacePicker } from './screens/WorkspacePicker';
 import type { SettingsTab } from './screens/Settings';
@@ -40,11 +41,18 @@ export function App() {
   // The open workspace. null: the app starts on the workspace picker, like Obsidian's vault switcher.
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [search, setSearch] = useState(false); // the search panel replaces the left list
+  const [quickNote, setQuickNote] = useState(false);
+  const [homeNote, setHomeNote] = useState(0); // a new loose note asked on the start screen: it opens in its main area
+  const noteOpener = useRef<HTMLElement | null>(null);
+  const openQuickNote = useCallback(() => {
+    noteOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setQuickNote(true);
+  }, []);
   const [, setWorkspaceReady] = useState(false);
   useEffect(() => { void workspaceLoad.then(() => setWorkspaceReady(true)); }, []);
   const toggleSearch = useCallback(() => { void window.qa?.openSearchWindow?.(); }, []);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && (e.shiftKey || projectId) && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleSearch(); } };
+    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && !(document.activeElement as HTMLElement | null)?.closest('.note-dialog') && (e.ctrlKey || e.metaKey) && (e.shiftKey || projectId) && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleSearch(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleSearch, projectId]);
@@ -126,15 +134,27 @@ export function App() {
 
   if (!workspace) return <WorkspacePicker version={version} onOpen={openWorkspace} />;
 
+  // The quick note overlays either screen; its project and all open views stay mounted underneath.
+  const note = quickNote && <NoteDialog project={null} path={null}
+    projects={projects.filter((p) => !hiddenIds().includes(p.id)).map(({ id, name }) => ({ id, name }))}
+    onClose={() => { setQuickNote(false); noteOpener.current?.focus(); }} />;
   const project = projects.find((p) => p.id === projectId);
   if (!project) {
     return (
-      <div className="shell">
-        <Ribbon settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} searchOn={search} onSearch={toggleSearch} />
-        <Home projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onToolsChanged={loadTools} />
-        <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
-      </div>
+      <>
+        <div className="shell">
+          <Ribbon settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
+          <Home newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
+          <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
+        </div>
+        {note}
+      </>
     );
   }
-  return !WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onHome={home} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />;
+  return (
+    <>
+      {!WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onHome={home} onNewLooseNote={openQuickNote} noteProjects={projects.filter((p) => !hiddenIds().includes(p.id)).map(({ id, name }) => ({ id, name }))} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />}
+      {note}
+    </>
+  );
 }

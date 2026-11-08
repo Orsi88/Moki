@@ -3,6 +3,8 @@
 
 import { lang, t } from './i18n';
 
+// A project's default (project.json defaults): several of each kind may be set.
+export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
   id: string; name: string; description: string; onboardingStatus: string; deliverableLanguage: string; runs: number; openRuns: number;
   repository: string; // folder linked to the project ('' when none)
@@ -10,6 +12,8 @@ export interface ProjectSummary {
   starter: Starter;
   tags: string[]; // tag ids
   plugins: string[]; // app plugins turned on for this project (caveman, superpowers)
+  defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with
+  startInstructions: string; // sent with that start only
 }
 // A tag shares context between projects: the context of the projects with it and the files marked with it.
 export interface Tag { id: string; name: string; color: string; description: string }
@@ -36,14 +40,20 @@ export interface ToolInfo {
 // Settings › My AIs: where a tool is, its version and, in an editor, the Moki extension's version ('' = unknown or none).
 export interface AiToolStatus { id: string; available: boolean; path: string; version: string; extension: string }
 // An activity (scripts/lib/activities.ts): the app's own (moki), one that comes with Moki (builtin) or the person's (library).
-export type ActivityTarget = { kind: 'moki' | 'skill' | 'agent' | 'workflow' | 'operation'; name: string };
+export type ActivityTarget =
+  | { kind: 'prompt' }
+  | { kind: 'skills'; names: string[] }
+  | { kind: 'moki' | 'skill' | 'agent' | 'workflow' | 'operation'; name: string };
 export interface ActivityInfo {
-  id: string; label: string; hint: string; skill: string; needsFiles: boolean; available: boolean; status: string;
+  id: string; label: string; hint: string; skill: string; skills: string[]; needsFiles: boolean; available: boolean; status: string;
   category: string; source: 'moki' | 'builtin' | 'library'; target: ActivityTarget; files: 'required' | 'optional' | 'none'; note: string; tags: string[]; favorite: boolean;
 }
 export interface ActivityDetail extends ActivityInfo { template: string; path: string }
 export type FavoriteKind = 'activities' | 'agents' | 'operations' | 'templates' | 'skills';
-export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; files: string; note: string; tags: string[]; template: string }
+export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; skills?: string[]; files: string; note: string; tags: string[]; template: string }
+// The activity's chosen role or procedures, for badges and search in the renderer.
+export const activityTargetLabel = (target: ActivityTarget): string => target.kind === 'prompt' ? t('Text only')
+  : target.kind === 'skills' ? target.names.join(', ') : target.name;
 // "Open with" (Excel, Word and PDF files): the programs the system offers; dialog = the system shows its own list instead (Windows).
 export interface OpenWithApps { dialog: boolean; apps: { id: string; name: string; isDefault: boolean }[] }
 // PDF comments and page edits, written by PdfCraft (desktop/pdfcraft.ts). Quads: 8 numbers, points from the page's top-left.
@@ -65,11 +75,13 @@ export interface CraftOption { file: string; size: number; url: string }
 export interface CraftDownloadInfo { id: string; label: string; tag: string; page: string; options: CraftOption[] } // options[0] is the recommended file
 export interface InboxFile { name: string; size: number; modified: string }
 export interface OpenRun { id: string; status: string; currentStep: string }
-export interface ActivityRun extends OpenRun { skill: string; workflow: string }
+// activity: the activity the request came from (null: a request made directly to the AI); scenario: the words of its slug.
+export interface RunOrigin { activity: { id: string; label: string } | null; scenario: string }
+export interface ActivityRun extends OpenRun, RunOrigin { skill: string; workflow: string }
 
 export interface TreeNode {
   name: string; path: string; type: 'dir' | 'file'; size?: number; mtime?: number; children?: TreeNode[];
-  run?: { status: string; skill: string; currentStep: string };
+  run?: { status: string; skill: string; currentStep: string } & RunOrigin;
   mcp?: string; // MCP server row: where it is configured
   linked?: string; // the linked folder (path "@folder", shown live): its full path on this computer
 }
@@ -157,6 +169,14 @@ export interface Category { id: string; label: string; description: string; sour
 // {project}, {title}, {date}, {page}, {pages}.
 // Tags say which projects an item applies to (scripts/lib/tags.mjs): none = every project,
 // "project:<id>" = that project, any other = the projects that carry it.
+// How a workspace item reaches one project (scripts/lib/tags.mjs reachOf): no tag, a tag the project carries (named), its own tag, or not at all.
+export interface Reach { state: 'all' | 'shared' | 'own' | 'off'; via?: string }
+export interface ProjectLinks {
+  agents: Record<string, Reach>;
+  activities: (Reach & { id: string; name: string })[];
+  templates: (Reach & { id: string; name: string; inUse: boolean; chosen: boolean })[];
+  mcp: { id: string; name: string; state: 'all' | 'own' | 'off' }[];
+}
 export interface TagCatalog { tags: Tag[]; projects: { id: string; project: string; name: string; tags: string[] }[] }
 // A template (Settings › Templates): a named document style and the projects it applies to.
 export interface DocumentTemplate {
@@ -176,7 +196,9 @@ export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Ver
 
 export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
-export interface TerminalRef { id: string; title: string }
+export interface TerminalRef { id: string; title: string; tool?: string }
+export type Invocation = { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string; label: string };
+export interface LaunchPreset { activity?: string; run?: string; skipActivity?: boolean; tool?: string; agent?: string; skill?: string; startAtTool?: boolean; terminal?: TerminalRef }
 
 // Skills & agents dialog: skills installed from the SkillMD registry and Claude Code agents, per project or for all projects.
 export interface RegistrySkill {
@@ -185,10 +207,12 @@ export interface RegistrySkill {
 export interface SkillSearchPage { items: RegistrySkill[]; page: number; pages: number; total: number; capped: boolean }
 export interface InstallResult { name: string; files: number; folders: string[]; unverified: string[]; backup?: string }
 export type SkillScope = 'project' | 'global';
-// Upload of skills and agents from a .claude folder or a .zip (desktop/claude-import.ts). reason: why an item cannot be installed.
-export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed';
+// Where an upload goes: a scope, or 'bring' (a project's settings: into the workspace, linked to the project).
+export type UploadTarget = SkillScope | 'bring';
+// Upload of skills, agents and activities from a .claude folder, a .zip or a .md (desktop/claude-import.ts). reason: why an item cannot be installed.
+export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
 export interface UploadItem {
-  kind: 'skill' | 'agent'; name: string; description: string; files: number; bytes: number; discarded: string[];
+  kind: 'skill' | 'agent' | 'activity'; name: string; description: string; files: number; bytes: number; discarded: string[];
   blocked?: { reason: UploadBlock; detail?: string; file?: string };
 }
 export interface UploadPreview {
@@ -246,7 +270,8 @@ export interface Bridge {
   onShowTerminal?(callback: (project: string, terminal: TerminalRef) => void): () => void;
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
-    create(tool: string, project?: string): Promise<{ terminal?: TerminalRef; error?: string }>; // tool '' = the user's shell; a project brings its plugins
+    // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
+    create(tool: string, project?: string, options?: { plain?: boolean; language?: string }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
     start(id: string, cols: number, rows: number, project: string): Promise<string>;
     input(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
@@ -263,6 +288,9 @@ declare global { interface Window { qa?: Bridge } }
 
 export const hasBridge = (): boolean => Boolean(window.qa);
 export const pageParams = (): URLSearchParams => new URLSearchParams(window.qa?.query ?? window.location.search);
+
+// writeFile refused: the file no longer holds the text the tab started from (the same text as CHANGED_OUTSIDE in desktop/service.ts).
+export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   if (!window.qa) throw new Error(t('Moki must be opened with the qa command.'));
@@ -316,13 +344,16 @@ export const api = {
   installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
   tree: (project: string) => call<TreeNode[]>('tree', project),
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
-  writeFile: (project: string, path: string, text: string) => call<FileContent>('writeFile', project, path, text),
+  // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.
+  writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
   templates: () => call<DocumentTemplate[]>('templates'),
   saveTemplate: (template: Partial<DocumentTemplate> & { name: string; style: DocumentStyle }) => call<DocumentTemplate>('saveTemplate', template),
   removeTemplate: (id: string) => call<boolean>('removeTemplate', id),
   setProjectTemplate: (project: string, id: string | null) => call<boolean>('setProjectTemplate', project, id),
+  projectLinks: (project: string) => call<ProjectLinks>('projectLinks', project),
+  setProjectLinks: (project: string, req: { activities?: Record<string, boolean>; templates?: Record<string, boolean>; template?: string | null }) => call<boolean>('setProjectLinks', project, req),
   tagCatalog: () => call<TagCatalog>('tagCatalog'),
   agentTags: () => call<Record<string, string[]>>('agentTags'),
   setAgentTags: (name: string, tags: string[]) => call<string[]>('setAgentTags', name, tags),
@@ -333,9 +364,13 @@ export const api = {
   writeNoteIfUnchanged: (project: string, path: string, text: string, expected: string) => call<boolean>('writeNoteIfUnchanged', project, path, text, expected),
   exportNote: (project: string, path: string, format: 'pdf' | 'md' | 'txt') => call<string | null>('exportNote', project, path, format),
   run: (project: string, runId: string) => call<RunState>('run', project, runId),
+  runLeftovers: (project: string, runId: string) => call<string[]>('runLeftovers', project, runId),
+  terminalDeliverables: (project: string) => call<Record<string, string[]>>('terminalDeliverables', project),
+  cleanRun: (project: string, runId: string, paths: string[]) => call<number>('cleanRun', project, runId, paths),
   inbox: (project: string) => call<InboxFile[]>('inbox', project),
   importFiles: (project: string, paths: string[], into?: string) => call<{ saved: string[]; skipped: string[] }>('importFiles', project, paths, into),
   moveEntry: (project: string, from: string, toDir: string) => call<string>('moveEntry', project, from, toDir),
+  renameEntry: (project: string, path: string, name: string) => call<string>('renameEntry', project, path, name),
   openRuns: (project: string) => call<OpenRun[]>('openRuns', project),
   activityRuns: (project: string) => call<ActivityRun[]>('activityRuns', project),
   openFolder: (project: string, path = '') => call<boolean>('openFolder', project, path),
@@ -344,6 +379,7 @@ export const api = {
   deleteEntry: (project: string, path: string) => call<boolean>('deleteEntry', project, path),
   revealPath: (project: string, path: string) => call<boolean>('revealPath', project, path),
   copyPath: (project: string, path: string) => call<string>('copyPath', project, path),
+  copyText: (text: string) => call<boolean>('copyText', text),
   openWithApps: (project: string, path: string) => call<OpenWithApps>('openWithApps', project, path),
   openWith: (project: string, path: string, app: string) => call<boolean>('openWith', project, path, app),
   pdfcraftStatus: () => call<{ available: boolean; platform: string }>('pdfcraftStatus'),
@@ -355,6 +391,7 @@ export const api = {
   linkRepository: (project: string) => call<(ProjectSummary & { backup?: string }) | null>('linkRepository', project),
   openLinkedFolder: (project: string) => call<boolean>('openLinkedFolder', project),
   launch: (req: LaunchRequest) => call<LaunchResult>('launch', req),
+  invokeInTerminal: (req: LaunchRequest, terminalId: string) => call<{ prepared: boolean; prompt: string }>('invokeInTerminal', req, terminalId),
   categories: () => call<Category[]>('categories'),
   agents: () => call<AgentInfo[]>('agents'),
   agent: (name: string) => call<AgentDetail>('agent', name),
@@ -402,9 +439,11 @@ export const api = {
   craftApps: () => call<{ id: string; label: string }[]>('craftApps'),
   craftDownloadInfo: (id: string) => call<CraftDownloadInfo>('craftDownloadInfo', id),
   craftDownload: (id: string, tag: string, file: string) => call<{ path: string; sha256: string } | null>('craftDownload', id, tag, file),
-  claudeUploadPick: (source: 'folder' | 'zip', project: string, scope: SkillScope) => call<UploadPreview | null>('claudeUploadPick', source, project, scope),
-  claudeUploadPreview: (project: string, scope: SkillScope) => call<UploadPreview>('claudeUploadPreview', project, scope),
-  claudeUploadApply: (project: string, scope: SkillScope, selected: string[], allowClaudeWrite = false) =>
+  claudeUploadPick: (source: 'folder' | 'zip' | 'file', project: string, scope: UploadTarget) => call<UploadPreview | null>('claudeUploadPick', source, project, scope),
+  claudeUploadPath: (path: string, project: string, scope: UploadTarget) => call<UploadPreview>('claudeUploadPath', path, project, scope),
+  claudeUploadPreview: (project: string, scope: UploadTarget) => call<UploadPreview>('claudeUploadPreview', project, scope),
+  uploads: () => call<Record<string, { project: string; projectName: string; at: string }>>('uploads'),
+  claudeUploadApply: (project: string, scope: UploadTarget, selected: string[], allowClaudeWrite = false) =>
     call<{ installed: { kind: string; name: string; folders: string[] }[]; backup?: string }>('claudeUploadApply', project, scope, selected, allowClaudeWrite),
   proposeSkill: (project: string, req: { name: string; prompt: string; tool: string; language: string }) => call<LaunchResult>('proposeSkill', project, req),
   skillProposals: (project: string) => call<{ name: string; description: string }[]>('skillProposals', project),
@@ -414,7 +453,8 @@ export const api = {
   projectItems: (project: string) => call<ProjectItems>('projectItems', project),
   removeProjectItem: (project: string, kind: 'skill' | 'agent', name: string, allowClaudeWrite = false) => call<{ backup?: string }>('removeProjectItem', project, kind, name, allowClaudeWrite),
   globalItems: () => call<GlobalItems>('globalItems'),
-  setupProject: (project: string, req: { description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[] }) => call<ProjectSummary>('setupProject', project, req),
+  // name, defaults and startInstructions are written only when given.
+  setupProject: (project: string, req: { name?: string; description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[]; defaults?: ProjectDefault[]; startInstructions?: string }) => call<ProjectSummary>('setupProject', project, req),
   readPlan: (project: string) => call<Plan | null>('readPlan', project),
   globalAgent: (name: string) => call<GlobalAgentDetail>('globalAgent', name),
   saveGlobalAgent: (name: string, text: string) => call<boolean>('saveGlobalAgent', name, text),

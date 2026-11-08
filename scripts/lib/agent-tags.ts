@@ -7,15 +7,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { ROOT, workspaceDir } from './repo.mjs';
-import { appliesTo, cleanTags, isProjectTag, projectTag } from './tags.mjs';
+import { NOWHERE, appliesTo, cleanTags, isProjectTag, projectTag } from './tags.mjs';
 import { listProjects, projectsDir } from './core.ts';
 import { isUsableAgent, listAgents } from './agents.ts';
 
 const tagsFile = (root: string) => join(workspaceDir(root), 'library', 'agent-tags.json');
 const readJson = (file: string): Record<string, unknown> | null => { try { return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>; } catch { return null; } };
 const usable = (root: string): string[] => listAgents(root).filter(isUsableAgent).map((a) => a.name);
-// An agent turned off in its last project: no project has this tag (no tag at all would mean every project).
-const NOWHERE = projectTag('none');
 
 function write(map: Record<string, string[]>, root: string): void {
   const file = tagsFile(root);

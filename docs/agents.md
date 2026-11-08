@@ -1,6 +1,6 @@
 # Agents
 
-A **skill** says *how* a QA activity is done (steps, rules, approval gates, outputs). An **agent** says *who* does it: a role with instructions, the skills it uses and the access it asks for. Agents never replace skills — an agent's "How to work" section always sends the AI to its skills.
+A **skill** says *how* a QA activity is done (steps, rules, approval gates, outputs). An **agent** says *who* does it: a role with instructions, optional skills and the access it asks for. An agent without skills follows its own instructions; when it declares skills, their procedures and approval gates still apply.
 
 ## Where agents live
 
@@ -46,7 +46,7 @@ Rules (checked by `npm run validate` for built-in agents and by the app when you
 
 - `name`: lowercase letters, digits and single hyphens; equal to the file name.
 - `category`: equal to the folder name.
-- `skills`: comma-separated names of existing skills (at least one).
+- `skills`: optional, comma-separated names of existing skills. Omit it or write `skills: ""` for an agent that follows only its own instructions.
 - `access`: `read-only` (reads the project, writes nothing), `project-write` (writes only inside `workspace/projects/<project-id>/`) or `repository-write` (may also change a linked code repository, after an approved plan).
 - `metadata.status`: `stable`, `draft`, `pending-migration` or `planned`. Only `stable` and `draft` agents can be used; the description of the others starts with `[PENDING MIGRATION]` or `[PLANNED]`.
 - The four sections `Role`, `When to use`, `How to work` and `Boundaries` are required.

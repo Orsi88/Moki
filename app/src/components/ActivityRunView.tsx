@@ -1,9 +1,10 @@
 // An activity run, in the main area of the project — the same place an operation
-// run opens. The right panel stays on the project. The run folder is not rewritten.
+// run opens. The right panel stays on the project. The run folder is not rewritten, except for
+// "Clean": files in outputs/ that the run does not list as deliverables go to the trash when the user says so.
 import { useEffect, useState } from 'react';
 import { api, describeRun, statusLabel, type RunState } from '../api';
 import { t } from '../i18n';
-import { IconFolder, IconPlay, IconX } from './Icons';
+import { IconFolder, IconPlay, IconTrash, IconX } from './Icons';
 
 interface Props {
   project: string;
@@ -33,7 +34,19 @@ export function ActivityRunView({ project, run, onOpenFile, onResume, onClose }:
   const [state, setState] = useState<RunState | null>(null);
   const [error, setError] = useState('');
 
+  const [leftovers, setLeftovers] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [cleaned, setCleaned] = useState(0);
+
   useEffect(() => { api.run(project, run).then(setState).catch((e: Error) => setError(e.message)); }, [project, run]);
+  useEffect(() => { api.runLeftovers(project, run).then((l) => { setLeftovers(l); setChosen(l); }).catch(() => setLeftovers([])); }, [project, run]);
+  const clean = async () => {
+    try {
+      const n = await api.cleanRun(project, run, chosen);
+      const rest = leftovers.filter((p) => !chosen.includes(p));
+      setLeftovers(rest); setChosen(rest); setCleaned(n);
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
 
   if (!state) return <div className="ops-run" role="region" aria-label={t('Activity')}>{error ? <p className="error">{error}</p> : <p className="muted">…</p>}</div>;
   const info = describeRun(state.id || run);
@@ -86,6 +99,26 @@ export function ActivityRunView({ project, run, onOpenFile, onResume, onClose }:
           </ul>
         </section>
       )}
+      {leftovers.length > 0 && (
+        <section className="panel-section run-leftovers" aria-label={t('Leftovers')}>
+          <h3>{t('Leftovers ({n})', { n: leftovers.length })}</h3>
+          <p className="muted small">{t('In the outputs folder, but not among the files this run delivered. Choose what goes to the trash.')}</p>
+          <ul className="panel-list">
+            {leftovers.map((p) => (
+              <li key={p}>
+                <label className="check-row">
+                  <input type="checkbox" checked={chosen.includes(p)} onChange={() => setChosen((c) => (c.includes(p) ? c.filter((x) => x !== p) : [...c, p]))} />
+                  <span title={p}>{p.split('/').pop()}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="row-actions">
+            <button type="button" className="btn btn-ghost btn-sm" disabled={!chosen.length} onClick={() => { void clean(); }}><IconTrash size={14} /> {t('Send to the trash ({n})', { n: chosen.length })}</button>
+          </div>
+        </section>
+      )}
+      {cleaned > 0 && !leftovers.length && <p className="muted small" role="status">{t('{n} file(s) sent to the trash.', { n: cleaned })}</p>}
     </div>
   );
 }

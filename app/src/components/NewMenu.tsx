@@ -21,7 +21,8 @@ export const NEW_FILE_TYPES = [
 interface Props {
   at: { left: number; top: number };
   tools: ToolInfo[];
-  onTerminal: (tool: string) => void; // '' = the user's shell
+  onTerminal: (tool: string, plain?: boolean) => void; // '' = the user's shell; plain: an AI without the project's defaults
+  withDefaults?: boolean; // the project has defaults: the AI list offers to open one without them
   onFile: (ext: string) => void;
   onCraft: () => void;
   onClose: () => void;
@@ -35,8 +36,9 @@ const moveFocus = (e: KeyboardEvent<HTMLUListElement>, step: number) => {
   e.preventDefault();
 };
 
-export function NewMenu({ at, tools, onTerminal, onFile, onCraft, onClose }: Props) {
+export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, onCraft, onClose }: Props) {
   const [category, setCategory] = useState<Category | null>(null);
+  const [plain, setPlain] = useState(false); // the next AI opens without the project's defaults
 
   const categories: { id: Category; icon: ReactNode; label: string }[] = [
     { id: 'terminal', icon: <IconTerminal size={15} />, label: t('Terminal') },
@@ -53,9 +55,18 @@ export function NewMenu({ at, tools, onTerminal, onFile, onCraft, onClose }: Pro
   const options = (): ReactNode[] => {
     if (category === 'terminal') return [item('shell', <IconTerminal size={15} />, t('Terminal'), () => onTerminal(''), <span className="muted small">{t('your shell')}</span>, false, true)];
     if (category === 'ai') {
-      return tools.filter((ai) => ai.kind === 'terminal').map((ai, i) => item(ai.id, <IconPlay size={15} />, ai.label, () => onTerminal(ai.id),
+      const ais = tools.filter((ai) => ai.kind === 'terminal').map((ai, i) => item(ai.id, <IconPlay size={15} />, ai.label, () => onTerminal(ai.id, plain),
         <span className="muted small">{ai.available ? ai.command : ai.installable ? t('not installed · click to install') : t('not installed')}</span>,
         !ai.available && !ai.installable, i === 0));
+      if (!withDefaults) return ais;
+      // Only where the project has defaults: for the times an AI should start with none of them.
+      return [...ais, <li key="sep" className="ws-menu-sep" />, (
+        <li key="plain">
+          <button type="button" role="menuitemcheckbox" aria-checked={plain} className="new-menu-plain" onClick={() => setPlain((v) => !v)}>
+            <span className={`new-menu-check${plain ? ' on' : ''}`} aria-hidden="true">{plain ? '✓' : ''}</span> {t('Without the project defaults')}
+          </button>
+        </li>
+      )];
     }
     if (category === 'file') return NEW_FILE_TYPES.map((f, i) => item(f.ext, <FileIcon name={`x${f.ext}`} size={15} />, f.label(), () => onFile(f.ext), undefined, false, i === 0));
     return [item('download', <IconExternal size={15} />, t('Download ArtCraft apps…'), onCraft, undefined, false, true)];

@@ -40,6 +40,11 @@ export const touchRecentFile = (project: string, path: string): void => {
   remember(RECENT_FILES + scope, JSON.stringify(next));
 };
 
+// A file or folder renamed or moved: the recent files under it keep their place in the list.
+export const renameRecentFile = (project: string, from: string, to: string): void => {
+  const moved = (path: string) => (path === from ? to : path.startsWith(`${from}/`) ? to + path.slice(from.length) : path);
+  remember(RECENT_FILES + scope, JSON.stringify(recentFiles().map((file) => (file.project === project ? { project, path: moved(file.path) } : file))));
+};
 export const pinnedIds = (): string[] => readList(PINS_KEY()).filter((id): id is string => typeof id === 'string');
 
 export const togglePin = (id: string): string[] => {
@@ -91,6 +96,22 @@ export const saveLooseNote = (note: { id?: string | null; title: string; text: s
   return saved;
 };
 
+// A note renamed where it is listed: the new title, in the same place (renaming is not opening it).
+// A project note missing from the recent list joins it at the end, so the start screen shows its title.
+export const retitleNote = (note: NoteRef, title: string): void => {
+  if ('loose' in note) {
+    const next = looseNotes().map((n) => (n.id === note.loose ? { ...n, title: title.trim() } : n));
+    try { window.localStorage.setItem(LOOSE, JSON.stringify(next)); } catch { throw new Error('Could not save the note on this computer.'); }
+    return;
+  }
+  const list = recentNotes();
+  const known = list.some((n) => n.project === note.project && n.path === note.path);
+  const next = known
+    ? list.map((n) => (n.project === note.project && n.path === note.path ? { ...n, title: title.trim() } : n))
+    : [...list, { project: note.project, path: note.path, title: title.trim(), at: 0 }].slice(0, NOTE_LIMIT);
+  remember(NOTES_KEY(), JSON.stringify(next));
+};
+
 // A project note that was deleted: out of the recent list and the favorites.
 export const forgetNote = (project: string, path: string): void => {
   remember(NOTES_KEY(), JSON.stringify(recentNotes().filter((n) => !(n.project === project && n.path === path))));
@@ -140,3 +161,14 @@ export const touchNote = (project: string, path: string, title: string): void =>
     ...recentNotes().filter((n) => !(n.project === project && n.path === path))].slice(0, NOTE_LIMIT);
   remember(NOTES_KEY(), JSON.stringify(next));
 };
+
+// The tag field's suggestions on this computer: the tags added most recently and the
+// projects worked on most recently (opened, or a file of it opened), newest first.
+const RECENT_TAGS = 'qa-recent-tags';
+const RECENT_PROJECTS = 'qa-recent-projects';
+const strings = (key: string): string[] => readList(key + scope).filter((id): id is string => typeof id === 'string');
+const pushFront = (key: string, id: string, limit: number) => remember(key + scope, JSON.stringify([id, ...strings(key).filter((x) => x !== id)].slice(0, limit)));
+export const recentTags = (): string[] => strings(RECENT_TAGS);
+export const touchRecentTag = (id: string): void => pushFront(RECENT_TAGS, id, 12);
+export const touchRecentProject = (id: string): void => pushFront(RECENT_PROJECTS, id, 12);
+export const recentProjects = (): string[] => [...new Set([...strings(RECENT_PROJECTS), ...recentFiles().map((file) => file.project)])];

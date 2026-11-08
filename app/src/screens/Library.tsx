@@ -16,6 +16,8 @@ import { TagField, TagFilter, matchesTag, useTagCatalog } from '../components/Ta
 import { SkillsField } from '../components/SkillsField';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from '../components/ListPage';
 import { StarButton, useFavorites } from '../components/Favorites';
+import { BroughtMark, useUploads } from '../components/BroughtMark';
+import { confirmDialog } from '../dialogs';
 
 // The sections every agent's instructions keep (scripts/lib/agents.ts AGENT_SECTIONS).
 const AGENT_SECTIONS = ['Role', 'When to use', 'How to work', 'Boundaries'];
@@ -54,6 +56,7 @@ const statusText = (status: string): string => ({ stable: t('Stable'), draft: t(
 
 export function Library({ onBack, backLabel, embedded = false, onCreate, creating = false, onBrowse, create, project = null, installedTick = 0 }: Props) {
   const fav = useFavorites('agents'); // an agent of the user folder is starred as ~<name>
+  const uploads = useUploads();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [sel, setSel] = useState<Sel | null>(null);
@@ -117,13 +120,13 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   const profileDirty = profile !== null && detail !== null && JSON.stringify(profile) !== JSON.stringify(fromDetail(detail));
   const dirty = (editing && detail !== null && draft !== detail.text) || profileDirty;
   const missing = profile ? AGENT_SECTIONS.filter((h) => !new RegExp(`^## ${h}\\s*$`, 'm').test(profile.body)) : [];
-  const back = () => {
+  const back = async () => {
     if (creating) { onBrowse?.(); return; }
-    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return;
+    if (dirty && !await confirmDialog(t('Discard unsaved changes?'), { danger: true })) return;
     setError(''); setSel(null);
   };
-  const choose = (next: Sel) => {
-    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return;
+  const choose = async (next: Sel) => {
+    if (dirty && !await confirmDialog(t('Discard unsaved changes?'), { danger: true })) return;
     setError('');
     setSel(next);
     if (creating) onBrowse?.();
@@ -157,7 +160,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   });
 
   const remove = () => run(async () => {
-    if (!detail || !window.confirm(t('Delete the agent "{name}"? This removes its file from your library.', { name: detail.name }))) return;
+    if (!detail || !await confirmDialog(t('Delete the agent "{name}"? This removes its file from your library.', { name: detail.name }), { danger: true })) return;
     await api.deleteAgent(detail.name);
     await load(agents.find((a) => a.name !== detail.name)?.name);
   });
@@ -173,7 +176,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   const shownGlobal = kind === 'all' || kind === 'global' ? globalAgents.filter((a) => !filter && !category && matchesQuery(query, a.name, a.description)) : [];
   const tagName = (id: string) => (id.startsWith('project:') ? `📁 ${catalog?.projects.find((p) => p.id === id)?.name ?? id.slice(8)}` : `# ${catalog?.tags.find((tg) => tg.id === id)?.name ?? id}`);
 
-  const leave = () => { if (!dirty || window.confirm(t('Discard unsaved changes?'))) onBack(); };
+  const leave = async () => { if (!dirty || await confirmDialog(t('Discard unsaved changes?'), { danger: true })) onBack(); };
 
   const scopeAgent = sel?.kind === 'project' ? projectAgents.find((a) => a.name === sel.name)
     : sel?.kind === 'global' ? globalAgents.find((a) => a.name === sel.name) : undefined;
@@ -184,10 +187,10 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
       const where = project.repository
         ? t("the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).", { folder: project.repository })
         : t('the project {name}?', { name: project.name });
-      if (!window.confirm(`${t('Remove the agent "{name}" from', { name: sel.name })} ${where} ${t('It goes to the trash.')}`)) return;
+      if (!await confirmDialog(`${t('Remove the agent "{name}" from', { name: sel.name })} ${where} ${t('It goes to the trash.')}`, { danger: true })) return;
       await api.removeProjectItem(project.id, 'agent', sel.name, Boolean(project.repository));
     } else {
-      if (!window.confirm(t('Remove the agent "{name}" from all projects? It goes to the trash.', { name: sel.name }))) return;
+      if (!await confirmDialog(t('Remove the agent "{name}" from all projects? It goes to the trash.', { name: sel.name }), { danger: true })) return;
       await api.removeGlobal('agent', sel.name);
     }
     setSel(null);
@@ -214,7 +217,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                 <TagFilter catalog={catalog} value={filter} onChange={setFilter} />
                 <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t('Category')}>
                   <option value="">{t('All categories')}</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  {categories.map((c) => <option key={c.id} value={c.id}>{t(c.label)}</option>)}
                 </select>
               </ListTools>
               {categories.map((c) => {
@@ -222,12 +225,12 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                 if (!group.length) return null;
                 return (
                   <section key={c.id} className="list-group">
-                    <h2 className="list-group-head" title={c.description}>{c.label}</h2>
+                    <h2 className="list-group-head" title={c.description}>{t(c.label)}</h2>
                     <ul className="list-cards">
                       {fav.first(group, (a) => a.name).map((a) => (
                         <li key={a.name} className="fav-item">
                           <button type="button" className="list-card library-item" onClick={() => choose({ kind: 'library', name: a.name })}>
-                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{a.name}</span>
+                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{a.name}<BroughtMark uploads={uploads} kind="agent" name={a.name} /></span>
                             <span className="list-card-desc">{a.description}</span>
                             <span className="chips">
                               {a.source === 'custom' && <span className="chip chip-accent">{t('yours')}</span>}
@@ -288,7 +291,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
               <div>
                 <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{detail.name}</h1></div>
                 <div className="agent-badges">
-                  <span className="chip">{categories.find((c) => c.id === detail.category)?.label ?? detail.category}</span>
+                  <span className="chip">{t(categories.find((c) => c.id === detail.category)?.label ?? detail.category)}</span>
                   <span className="chip"><span className={`dot ${detail.usable ? 'dot-ok' : 'dot-muted'}`} /> {statusText(detail.status)}</span>
                   <span className="chip">{detail.source === 'builtin' ? t('Built-in (read-only)') : detail.basedOn ? t('Yours, based on {agent}', { agent: detail.basedOn }) : t('Yours')}</span>
                 </div>

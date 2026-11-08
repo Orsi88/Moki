@@ -46,6 +46,14 @@ export function setPdfNotes(dir: string, pdf: string, notes: PdfNote[]): void {
   write(dir, entries);
 }
 
+// A PDF (or a folder of PDFs) moved or renamed inside the project keeps its notes.
+export function movePdfNotes(dir: string, from: string, to: string): void {
+  const entries = read(dir);
+  const moved = (pdf: string) => (pdf === from ? to : pdf.startsWith(`${from}/`) ? to + pdf.slice(from.length) : null);
+  if (!entries.some((e) => moved(e.pdf) !== null)) return;
+  write(dir, entries.map((e) => ({ ...e, pdf: moved(e.pdf) ?? e.pdf })));
+}
+
 // Associations follow their page through edits made in Moki. If its page is
 // deleted, keep the note after the previous surviving page (0 = before page 1).
 export function remapPdfNotes(notes: PdfNote[], change: PdfChange): PdfNote[] {

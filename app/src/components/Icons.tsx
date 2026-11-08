@@ -34,6 +34,9 @@ export const IconBroom = ({ size }: IconProps) => (
 export const IconLink = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>
 );
+export const IconLock = ({ size }: IconProps) => (
+  <svg {...base(size)}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+);
 export const IconInfo = ({ size }: IconProps) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
 );
@@ -139,6 +142,9 @@ export const IconEyeOff = ({ size }: IconProps) => (
 );
 export const IconExternal = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>
+);
+export const IconUpload = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M12 15V4" /><path d="M7 9l5-5 5 5" /><path d="M5 20h14" /></svg>
 );
 export const IconDownload = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M12 4v11" /><path d="M7 10l5 5 5-5" /><path d="M5 20h14" /></svg>

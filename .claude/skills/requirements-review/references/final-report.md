@@ -123,8 +123,8 @@ If a non-blocking point remains undefined and the user chooses to formalize anyw
 
 ### Producing the file
 
-1. Write the report as Markdown in the run's `outputs/` folder (`final-report.md`).
-2. Run from the framework root: `npm run pdf -- <run>/outputs/final-report.md "<run>/outputs/QA Final Definitions Report.pdf"` (pt-BR deliverables: `Relatório Final de Definições QA.pdf`).
+1. Write the report as Markdown in the run's `work/` folder (`final-report.md`): the PDF is the deliverable.
+2. Run from the framework root: `npm run pdf -- <run>/work/final-report.md "<run>/outputs/QA Final Definitions Report.pdf"` (pt-BR deliverables: `Relatório Final de Definições QA.pdf`).
 3. Fallback: deliver the Markdown (or HTML) and ask the user to export it to PDF. Never claim the PDF exists if it was not generated.
 
 **The process is only formally closed after the final PDF is generated.** Then set `state.json` status `completed`, and offer general system definitions to `project-context` as proposals.

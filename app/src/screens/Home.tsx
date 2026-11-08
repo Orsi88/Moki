@@ -8,14 +8,18 @@ import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
 import { SearchPanel } from '../components/SearchPanel';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
-import { IconCheck, IconChevron, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPin, IconStar, IconTrash, IconX } from '../components/Icons';
+import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPin, IconStar, IconTrash, IconX } from '../components/Icons';
 import { NoteDialog } from '../components/NoteDialog';
-import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, setFavorite, showProject, togglePin } from '../side-menu';
+import { RenameField } from '../components/RenameField';
+import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, retitleNote, setFavorite, showProject, togglePin } from '../side-menu';
 import { Settings, type SettingsTab } from './Settings';
 import { featuredWorkspaces, homeSectionLayout, recordWorkspaceUse, saveHomeSectionLayout } from '../prefs';
 import { resizedWeights, type HomeSectionId, type HomeSectionLayout } from '../home-sections';
+import { confirmDialog } from '../dialogs';
+import { Modal } from '../components/Modal';
 
 interface Props {
+  newNote?: number; // the rail's New note was pressed (a counter): a new loose note opens in the main area
   projects: ProjectSummary[];
   tools: ToolInfo[];
   version: string;
@@ -33,6 +37,7 @@ interface Props {
   onSearch?: () => void;
   onFound?: (project: string, path?: string) => void;
   onDeleted?: () => void; // a project was deleted for good: reload the list
+  onRenamed?: () => void; // a project got a new name: reload the list
   onToolsChanged: () => void; // Settings › My AIs: read the AI tools again
 }
 
@@ -40,9 +45,9 @@ const onboarding = (status: string): string => ({
   'not-started': t('Context not started'), partial: t('Context in progress'), complete: t('Context complete'),
 } as Record<string, string>)[status] ?? status;
 
-interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean }
+interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean; shortcut?: string }
 
-export function Home({ projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onToolsChanged }: Props) {
+export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
   const [switching, setSwitching] = useState<WorkspaceInfo[] | null>(null); // the workspace menu, open
   const switcherRef = useRef<HTMLDivElement>(null);
   const [switcherBox, setSwitcherBox] = useState<{ left: number; width: number; bottom: number } | null>(null);
@@ -65,8 +70,9 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   const [pins, setPins] = useState<string[]>(pinnedIds);
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
-  // A note opened here, inside the app ({ loose: null }: a new loose note). The icon beside it opens the notebook window.
-  const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null);
+  // A saved note opened here, inside the app. New loose notes are created from the fixed icon rail.
+  const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null); // { loose: null }: a new loose note
+  useEffect(() => { if (newNote) setOpenNote({ loose: null }); }, [newNote]);
   // The actions of a row (pin, hide, open in the notebook, delete…) show only on a right click.
   const [sections, setSections] = useState<HomeSectionLayout>(homeSectionLayout);
   const sectionsRef = useRef(sections);
@@ -79,13 +85,51 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   // A loose note leaves this computer; a project note goes to the trash.
   const deleteNoteItem = (ref: NoteRef, title: string): MenuItem => ({
     label: t('Delete the note'), icon: <IconTrash size={15} />, danger: true,
-    run: () => {
-      if (!window.confirm(t('Delete the note "{title}"?', { title }))) return;
+    run: async () => {
+      if (!await confirmDialog(t('Delete the note "{title}"?', { title }), { danger: true })) return;
       if ('loose' in ref) { removeLooseNote(ref.loose); setNoteTick((n) => n + 1); return; }
       api.deleteNote(ref.project, ref.path).then(() => { forgetNote(ref.project, ref.path); setNoteTick((n) => n + 1); }).catch((e: Error) => setError(e.message));
     },
   });
   const [noteTick, setNoteTick] = useState(0);
+  // Rename in place (the menu's Rename, or F2 on a row). A row is "project:<id>", "note:<loose id | project/path>"
+  // or, in Favorites, "fav:note:…" (the same note can be listed twice).
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null); // the row that takes the focus back once renamed or cancelled
+  useEffect(() => {
+    if (!focusKey) return;
+    document.querySelector<HTMLElement>(`[data-rename-key="${CSS.escape(focusKey)}"]`)?.focus();
+    setFocusKey(null);
+  });
+  const noteKey = (ref: NoteRef) => ('loose' in ref ? `note:${ref.loose}` : `note:${ref.project}/${ref.path}`);
+  // The row keeps the height it had: the field must not move the list (a name cut with … is a little taller than a plain one).
+  const rowHeight = useRef(0);
+  const startRename = (key: string) => {
+    rowHeight.current = document.querySelector(`[data-rename-key="${CSS.escape(key)}"]`)?.getBoundingClientRect().height ?? 0;
+    setRenaming(key);
+  };
+  const renameItem = (key: string): MenuItem => ({ label: t('Rename'), icon: <IconEdit size={15} />, shortcut: 'F2', run: () => startRename(key) });
+  const onF2 = (key: string) => (e: ReactKeyboardEvent) => { if (e.key === 'F2') { e.preventDefault(); startRename(key); } };
+  const endRename = (key: string) => { setRenaming(null); setFocusKey(key); };
+  // A note gets a new title where it is listed; a project note's file stays, so links to it keep working.
+  const renameNote = async (ref: NoteRef, title: string) => {
+    if (!('loose' in ref)) await api.setNoteTitle(ref.project, ref.path, title);
+    retitleNote(ref, title);
+    if (!('loose' in ref)) window.qa?.notesChanged();
+    setNoteTick((n) => n + 1);
+  };
+  // A project's name is only what is shown: its id and folder stay.
+  const renameProject = async (p: ProjectSummary, name: string) => {
+    await api.setProjectName(p.id, name);
+    onRenamed?.();
+  };
+  const nameCell = (key: string, label: string, onRename: (name: string) => Promise<void>, meta: ReactNode) => (
+    <div className="home-project renaming" style={rowHeight.current ? { height: rowHeight.current } : undefined}>
+      <RenameField label={label} initial={label} onRename={onRename} onEnd={() => endRename(key)} />
+      {meta}
+      <IconChevron size={16} />
+    </div>
+  );
   useEffect(() => api.onNotesChanged(() => setNoteTick((n) => n + 1)), []);
   const notes = useMemo(() => recentNotes(), [noteTick]);
   const loose = useMemo(() => looseNotes(), [noteTick]);
@@ -108,8 +152,11 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
     setNoteTick((n) => n + 1);
   };
 
-  const hide = (p: ProjectSummary) => {
-    if (!window.confirm(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: p.name }))) return;
+  const refOf = (n: { kind: 'loose'; id: string } | { kind: 'project'; project: string; path: string }): NoteRef => (n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path });
+  const noteMeta = (n: { kind: 'loose' } | { kind: 'project'; project: string }) => (n.kind === 'project' ? <span className="home-project-meta">{projects.find((p) => p.id === n.project)?.name}</span> : null);
+
+  const hide = async (p: ProjectSummary) => {
+    if (!await confirmDialog(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: p.name }))) return;
     setHidden(hideProject(p.id));
     setPins(pinnedIds());
   };
@@ -120,20 +167,26 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
     onDeleted?.();
   };
 
+  const projectMeta = (p: ProjectSummary) => (
+    <span className="home-project-meta">
+      {onboarding(p.onboardingStatus)} · {p.runs} {p.runs === 1 ? t('activity') : t('activities')}
+      {p.openRuns > 0 && <span className="dot dot-warn" title={t('{n} open', { n: p.openRuns })} />}
+    </span>
+  );
   const projectRow = (p: ProjectSummary, pinnedRow: boolean) => (
     <li key={p.id} className="home-row" onContextMenu={menuOn([
+      renameItem(`project:${p.id}`),
       { label: pinnedRow ? t('Unpin') : t('Pin'), icon: <IconPin size={15} />, run: () => setPins(togglePin(p.id)) },
       { label: t('Hide from Moki'), icon: <IconEyeOff size={15} />, run: () => hide(p) },
       { label: t('Delete for good'), icon: <IconTrash size={15} />, danger: true, run: () => setDeleting(p) },
     ])}>
-      <button type="button" className="home-project" onClick={() => onOpen(p.id)}>
-        <span className="home-project-name">{p.name}</span>
-        <span className="home-project-meta">
-          {onboarding(p.onboardingStatus)} · {p.runs} {p.runs === 1 ? t('activity') : t('activities')}
-          {p.openRuns > 0 && <span className="dot dot-warn" title={t('{n} open', { n: p.openRuns })} />}
-        </span>
-        <IconChevron size={16} />
-      </button>
+      {renaming === `project:${p.id}` ? nameCell(`project:${p.id}`, p.name, (name) => renameProject(p, name), projectMeta(p)) : (
+        <button type="button" className="home-project" data-rename-key={`project:${p.id}`} onClick={() => onOpen(p.id)} onKeyDown={onF2(`project:${p.id}`)}>
+          <span className="home-project-name">{p.name}</span>
+          {projectMeta(p)}
+          <IconChevron size={16} />
+        </button>
+      )}
     </li>
   );
 
@@ -279,14 +332,17 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
         {favorites.length > 0 && block('favorites', t('Favorites'), <ul className="home-favorites">
           {favorites.map((f) => (
             <li key={f.kind === 'loose' ? f.id : `${f.project}:${f.path}`} className="home-row" onContextMenu={menuOn([
-              notebookItem(f.kind === 'loose' ? { loose: f.id } : { project: f.project, path: f.path }),
+              notebookItem(refOf(f)),
+              renameItem(`fav:${noteKey(refOf(f))}`),
               { label: t('Remove from favorites'), icon: <IconStar size={15} />, run: () => unstar(f) },
             ])}>
-              <button type="button" className="home-project" onClick={() => setOpenNote(f.kind === 'loose' ? { loose: f.id } : { project: f.project, path: f.path })}>
-                <span className="home-project-name">{f.title}</span>
-                {f.kind === 'project' && <span className="home-project-meta">{projects.find((p) => p.id === f.project)?.name}</span>}
-                <IconChevron size={16} />
-              </button>
+              {renaming === `fav:${noteKey(refOf(f))}` ? nameCell(`fav:${noteKey(refOf(f))}`, f.title, (title) => renameNote(refOf(f), title), noteMeta(f)) : (
+                <button type="button" className="home-project" data-rename-key={`fav:${noteKey(refOf(f))}`} onClick={() => setOpenNote(refOf(f))} onKeyDown={onF2(`fav:${noteKey(refOf(f))}`)}>
+                  <span className="home-project-name">{f.title}</span>
+                  {noteMeta(f)}
+                  <IconChevron size={16} />
+                </button>
+              )}
             </li>
           ))}
         </ul>)}
@@ -296,24 +352,27 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
           <ul>
             {notesShown.map((n) => (
               <li key={n.kind === 'loose' ? n.id : `${n.project}:${n.path}`} className="home-row" onContextMenu={menuOn([
-                notebookItem(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path }),
-                deleteNoteItem(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path }, n.title),
+                notebookItem(refOf(n)),
+                renameItem(noteKey(refOf(n))),
+                deleteNoteItem(refOf(n), n.title),
               ])}>
-                <button type="button" className="home-project" onClick={() => setOpenNote(n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path })}>
-                  <span className="home-project-name">{n.title}</span>
-                  {n.kind === 'project' && <span className="home-project-meta">{projects.find((p) => p.id === n.project)?.name}</span>}
-                  <IconChevron size={16} />
-                </button>
+                {renaming === noteKey(refOf(n)) ? nameCell(noteKey(refOf(n)), n.title, (title) => renameNote(refOf(n), title), noteMeta(n)) : (
+                  <button type="button" className="home-project" data-rename-key={noteKey(refOf(n))} onClick={() => setOpenNote(refOf(n))} onKeyDown={onF2(noteKey(refOf(n)))}>
+                    <span className="home-project-name">{n.title}</span>
+                    {noteMeta(n)}
+                    <IconChevron size={16} />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
-        </>, <AddButton size="sm" title={t('New note')} onClick={() => setOpenNote({ loose: null })} />)}
+        </>)}
         {rowMenu && (
           <div className="menu-backdrop" onMouseDown={() => setRowMenu(null)} onContextMenu={(e) => { e.preventDefault(); setRowMenu(null); }}>
             <ul className="term-menu item-menu" role="menu" style={{ left: rowMenu.left, top: rowMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setRowMenu(null); }}>
               {rowMenu.items.map((item, i) => (
                 <li key={item.label}>
-                  <button type="button" role="menuitem" autoFocus={i === 0} className={item.danger ? 'danger' : ''} onClick={() => { setRowMenu(null); item.run(); }}>{item.icon} {item.label}</button>
+                  <button type="button" role="menuitem" autoFocus={i === 0} className={item.danger ? 'danger' : ''} onClick={() => { setRowMenu(null); item.run(); }}>{item.icon} {item.label}{item.shortcut && <kbd className="menu-key">{item.shortcut}</kbd>}</button>
                 </li>
               ))}
             </ul>
@@ -359,7 +418,7 @@ ${workspace.path}`}>
           looseId={'loose' in openNote ? openNote.loose : null}
           projects={visible.map((p) => ({ id: p.id, name: p.name }))}
           onSaved={() => setNoteTick((n) => n + 1)}
-          onClose={() => { setOpenNote(null); setNoteTick((n) => n + 1); }}
+          onClose={() => { const fresh = 'loose' in openNote && openNote.loose === null; setOpenNote(null); setNoteTick((n) => n + 1); if (fresh) document.querySelector<HTMLElement>('.ribbon .ribbon-note')?.focus(); }}
         />
       </main>
       ) : (
@@ -369,7 +428,6 @@ ${workspace.path}`}>
         <p className="muted">{t('Version {version}', { version })}</p>
 
         <div className="home-actions">
-          {!quick && (
             <div className="home-action">
               <div>
                 <strong>{t('Create a new project')}</strong>
@@ -377,7 +435,6 @@ ${workspace.path}`}>
               </div>
               <AddButton size="lg" title={t('Create')} onClick={() => { setQuick(true); setError(''); }} />
             </div>
-          )}
           <div className="home-action">
             <div>
               <strong>{t('Open a project')}</strong>
@@ -388,8 +445,7 @@ ${workspace.path}`}>
         </div>
         {!quick && error && <p className="error small home-error">{error}</p>}
         {quick && (
-          <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) closeQuick(); }}>
-            <form className="modal quick-project project-create-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-project-title" onSubmit={(e) => { void submitQuick(e); }}>
+          <Modal as="form" className="quick-project project-create-dialog" labelledBy="quick-project-title" busy={busy} onClose={closeQuick} onSubmit={(e) => { void submitQuick(e); }}>
               <header className="modal-head">
                 <div className="project-create-heading">
                   <span className="project-create-icon" aria-hidden="true"><IconFolder size={23} /></span>
@@ -418,8 +474,7 @@ ${workspace.path}`}>
                 <button type="button" className="btn btn-ghost" onClick={closeQuick} disabled={busy}>{t('Cancel')}</button>
                 <button type="submit" className="btn" disabled={busy || !name.trim()}>{busy ? t('Creating…') : t('Create project')}</button>
               </footer>
-            </form>
-          </div>
+          </Modal>
         )}
 
         <p className="muted small home-tools">

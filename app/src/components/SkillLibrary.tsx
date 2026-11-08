@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ProjectSummary, type SkillInfo, type SkillScope } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { SkillCat } from './SkillCat';
 
 interface Props {
@@ -41,7 +42,7 @@ export function SkillLibrary({ project, scope }: Props) {
     const target = scope !== 'project' ? t('all projects (your user folder)')
       : toClaude ? t("the project {name}?\n\nThis CHANGES {folder}/.claude: the skill is written to its skills folder (the current .claude is backed up to the project's backups/ first)", { name: project.name, folder: project.repository })
       : t('the project {name}', { name: project.name });
-    if (!window.confirm(`${t('Install the proposal "{name}" for {where}', { name, where: target })}${toClaude ? '.' : '?'}\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
+    if (!await confirmDialog(`${t('Install the proposal "{name}" for {where}', { name, where: target })}${toClaude ? '.' : '?'}\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
     setBusy(name); setError(''); setInfo('');
     try {
       const r = await api.installProposal(project.id, name, scope, toClaude);

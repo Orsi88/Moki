@@ -16,7 +16,7 @@ import { unzip } from '../scripts/lib/zip.mjs';
 import { checkPreAnalysis, checkMissingInfo, checkTestCases, checkReviewMatrix } from '../scripts/check-output.mjs';
 import { markdownToHtml } from '../scripts/pdf.mjs';
 import { buildPrompt, cleanPath, copyToInbox, isUsable } from '../scripts/lib/core.ts';
-import { listActivities } from '../scripts/lib/activities.ts';
+import { activitySkills, listActivities } from '../scripts/lib/activities.ts';
 import { claudeSubagent, isUsableAgent, listAgents } from '../scripts/lib/agents.ts';
 
 // A temporary copy of the framework with one skill, to mutate safely.
@@ -87,6 +87,20 @@ test('validator checks workflows', async (t) => {
       } finally { rmSync(root, { recursive: true, force: true }); }
     });
   }
+});
+
+test('validator accepts text-only activities and checks every skill of a combined activity', () => {
+  const root = fixture();
+  try {
+    const dir = join(root, 'activities');
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'summary.md'), '---\nlabel: Summary\n---\nSummarize the supplied text.\n');
+    assert.deepEqual(errorsOf(root), []);
+    writeFileSync(join(dir, 'combined.md'), '---\nlabel: Combined\nuses: skill:failure-analysis, skill:unknown\n---\n');
+    assert.ok(errorsOf(root).some((e) => e.includes('uses the unknown skill "unknown"')));
+    writeFileSync(join(dir, 'summary.md'), '---\nlabel: Summary\n---\n');
+    assert.ok(errorsOf(root).some((e) => e.includes('a text-only activity needs a request')));
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('build drift is detected', () => {
@@ -238,8 +252,7 @@ test('output checks', () => {
 
 test('qa assistant: activities, prompts, paths, inbox copies', () => {
   for (const a of listActivities(ROOT)) {
-    const skill = a.target.kind === 'workflow' ? 'qa-orchestrator' : a.target.name;
-    assert.ok(existsSync(join(ROOT, 'skills', skill, 'SKILL.md')), `${a.id}: ${skill}`);
+    for (const skill of activitySkills(a)) assert.ok(existsSync(join(ROOT, 'skills', skill, 'SKILL.md')), `${a.id}: ${skill}`);
   }
   assert.equal(isUsable('requirements-review'), true);
   assert.equal(isUsable('automation'), false);

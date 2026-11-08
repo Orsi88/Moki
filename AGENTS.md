@@ -11,8 +11,9 @@ This repository is a portable library of **QA skills** (Agent Skills format). Yo
 5. **No shared memory.** Continuity comes only from files you read explicitly (`state.json`, project context).
 6. **Language.** Talk to the user in their language. Deliverables are in **English** by default, or in the project's `deliverableLanguage`, or in the language the user explicitly asks for. Quoted source content (documented messages, log lines) stays in its original language.
 7. **No secrets, no external sharing** of project data without configuration and authorization.
+8. **Deliverables only.** Produce only the files asked for, in the format asked; when the format is not given, ask. No copies in other formats, no screenshots of a deliverable, no helper files next to it: those go to the run's `work/` folder and are deleted when the run is completed. List only the deliverables in `state.json` `artifacts`.
 
-Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md).
+Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md) (deliverables only).
 
 ## Skill catalog
 
@@ -41,7 +42,7 @@ Status meaning: **draft** = usable, procedure complete, not yet validated in two
 
 ## Agents
 
-An **agent** is a role with instructions that uses one or more skills and asks for an access level. Built-in agents are in `agents/<category>/<name>.md` (Claude Code also gets them as subagents in `.claude/agents/`); the user's own agents are in `workspace/library/agents/<category>/<name>.md`. When the user asks you to act as an agent, read its file and follow it; its skills define how the work is done.
+An **agent** is a role with instructions, optional skills and an access level. Built-in agents are in `agents/<category>/<name>.md` (Claude Code also gets them as subagents in `.claude/agents/`); the user's own agents are in `workspace/library/agents/<category>/<name>.md`. When the user asks you to act as an agent, read its file and follow it; any skills it declares define their procedures and approval gates.
 
 | Agent | Category | Status | Uses skills | Access |
 |---|---|---|---|---|
@@ -90,7 +91,7 @@ workspace/projects/<project-id>/
 ├── project.json, context/, proposed-updates.md, activity-log.md   # project knowledge (confirmed only in context/)
 ├── tags.json                                                      # tags of the project's files
 ├── inbox/                                                         # files the user provides
-└── runs/<run-id>/{state.json, inputs/, outputs/, evidence/, logs/}  # each execution
+└── runs/<run-id>/{state.json, inputs/, outputs/, evidence/, logs/, work/}  # each execution (work/: helper files, deleted when completed)
 ```
 
 **Workspaces.** `workspace/` is the default workspace. The desktop app can open others (folders with the same layout, like Obsidian vaults). When the request names a workspace folder, every `workspace/...` path in this file and in the skills means that folder; paths written inside `state.json` and project files keep the `workspace/...` form, and the npm helper commands need `QA_WORKSPACE=<folder>`. Never read or write another workspace.
@@ -109,7 +110,7 @@ Exception: an authorized change to a **target repository** (e.g. automation code
 | Command | Purpose |
 |---|---|
 | `npm run new-project -- <id> "<name>" [--blank]` | Create a project folder from the template (`--blank`: without the QA context files, planned with the user) |
-| `npm run new-run -- --project <id> --skill <name> --slug <slug>` | Create a run with `state.json` |
+| `npm run new-run -- --project <id> --skill <name> --slug <slug> [--activity <id>]` | Create a run with `state.json` (`--activity`: the Moki activity the request came from) |
 | `npm run runs [-- <id>]` | List runs and validate their state |
 | `npm run xlsx -- write/read/fill/inspect ...` | Build or read xlsx deliverables from a skill's layout, or fill the user's own xlsx model |
 | `npm run pdf -- <report.md> <report.pdf>` | Render a Markdown report to PDF (Edge/Chrome) |

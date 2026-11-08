@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type GlobalItems, type ProjectItems, type ProjectSummary } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconFolder } from './Icons';
 import { SkillCat } from './SkillCat';
 
@@ -29,7 +30,7 @@ export function InstalledSkills({ projects }: Props) {
     const where = project.repository
       ? t("the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).", { folder: project.repository })
       : t('the project {name}?', { name: project.name });
-    if (!window.confirm(`${t('Remove the skill "{name}" from', { name })} ${where} ${t('It goes to the trash.')}`)) return;
+    if (!await confirmDialog(`${t('Remove the skill "{name}" from', { name })} ${where} ${t('It goes to the trash.')}`, { danger: true })) return;
     setBusy(`project:${project.id}:${name}`); setError(''); setBackup('');
     try { setBackup((await api.removeProjectItem(project.id, 'skill', name, Boolean(project.repository))).backup ?? ''); load(); }
     catch (e) { setError(message(e)); } finally { setBusy(''); }
@@ -37,7 +38,7 @@ export function InstalledSkills({ projects }: Props) {
 
   const removeGlobal = async (name: string, linkedBy: string[]) => {
     const used = linkedBy.length ? `\n\n${t('Linked by: {projects}. Those projects stop naming it in their requests.', { projects: linkedBy.join(', ') })}` : '';
-    if (!window.confirm(`${t('Remove the skill "{name}" from all projects? It goes to the trash.', { name })}${used}`)) return;
+    if (!await confirmDialog(`${t('Remove the skill "{name}" from all projects? It goes to the trash.', { name })}${used}`, { danger: true })) return;
     setBusy(`global:${name}`); setError('');
     try { await api.removeGlobal('skill', name); load(); } catch (e) { setError(message(e)); } finally { setBusy(''); }
   };

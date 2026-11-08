@@ -9,7 +9,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  CRAFT_APPS, LANGUAGES, TOOLS, agentFiles, contextChoice, fileTags, listTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
+  CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildStartPrompt, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
   listRuns, listSkills, openRuns, projectAgentsDir, projectRepository, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
@@ -18,7 +18,8 @@ import { pathReady } from './tool-path.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
 import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
-import { LIMITS, readFolder, readZip, scan, type Scan } from './claude-import.ts';
+import { LIMITS, readFolder, readMarkdown, readZip, scan, type Scan } from './claude-import.ts';
+import { listUploads, recordUploads } from '../scripts/lib/uploads.ts';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
 import { setWorkspaceDir, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
@@ -28,23 +29,26 @@ import { checkOperation, cleanOperation, formatMessage, listOperations, removeOp
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favorites.ts';
-import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, favorites, getActivity, isPickable, listActivities, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
+import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
-import { appliesTo as reaches, projectTag } from '../scripts/lib/tags.mjs';
+import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
 import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
+import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
+import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, type ProbeResult } from './mcp-probe.ts';
-import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
+import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
+// writeFile with a base the file no longer holds (the app offers to see the new version or keep its own).
+export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
 
 export interface Deps {
   // plugins: the project's own (project.json); extra: more arguments for the tool (Claude Code's --mcp-config)
@@ -58,7 +62,7 @@ export interface Deps {
   pickFolder?: () => Promise<string | null>; // native folder dialog; the UI never sends paths
   saveFile?: (name: string, extension: string, title?: string) => Promise<string | null>; // native save dialog (exporting a note, downloading an app); the UI never sends paths
   craftSystem?: { platform: string; arch: string; family?: string }; // which release files fit this computer; family = 'rpm' | 'deb' | '' (tests fake it)
-  pickFile?: () => Promise<string | null>; // native dialog for a .zip (an uploaded .claude); the UI never sends paths
+  pickFile?: () => Promise<string | null>; // native dialog for a .zip or a .md (an upload); the UI never sends paths
   parse?: ParseClient; // Word and spreadsheet previews on a worker thread (desktop/parse-pool.ts); without it they parse inline
   home?: string; // user folder for skills and agents for all projects (tests point it elsewhere)
   fetch?: typeof fetch;
@@ -71,6 +75,7 @@ export interface Deps {
   killTerminal?: (id: string) => void; // stops what runs in a terminal tab of the app (cancelling an operation)
   terminalAlive?: (id: string) => boolean; // whether a terminal tab exists in this session (a step's terminal is gone after a restart)
   writeTerminal?: (id: string, data: string) => void; // types into a terminal tab (an answer to the agent waiting there)
+  pasteRequest?: (project: string, id: string, prompt: string) => boolean; // plain input in a running AI terminal of this project, without submitting
   probe?: (server: McpServer) => Promise<ProbeResult>; // MCP server test (tests pass a fake)
 }
 
@@ -82,7 +87,7 @@ export interface TreeNode {
   mtime?: number; // files: last change (ms); with size, tells the app whether a PDF/image tab must be read again
   children?: TreeNode[];
   linked?: string; // the linked folder's node (path "@folder"): its full path on this computer
-  run?: { status: string; skill: string; currentStep: string };
+  run?: { status: string; skill: string; currentStep: string } & RunOrigin; // a run folder: also the activity it came from and its scenario
   mcp?: string; // MCP server row: where it is configured
 }
 
@@ -148,6 +153,20 @@ export const servedFile = (content: unknown): string | undefined => (typeof cont
 const SKIP_LINKED = new Set(['node_modules', '.git', '.moki-backup', 'dist', 'build', '__pycache__']); // not listed from a linked folder
 const TOP_ORDER = ['context', 'inbox', 'runs', 'notes', PROPOSALS, 'proposed-updates.md', 'activity-log.md', 'project.json', 'README.md', 'temporary'];
 const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);
+// Scratch files in a project's temporary/ untouched for this many days go to the trash when the project opens.
+export const TEMPORARY_DAYS = 7;
+const DONE_STATUSES = new Set(['completed', 'cancelled']);
+// Root files Moki itself keeps up to date or reads by name: they keep their name.
+const KEPT_NAMES = new Set(['project.json', 'tags.json', 'README.md', 'activity-log.md', 'proposed-updates.md']);
+// A file or folder name a project may hold on any system (Windows is the strictest).
+function validName(value: unknown): string {
+  const entry = String(value ?? '').trim();
+  if (!entry || entry.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/.test(entry) || entry.startsWith('.') || /[. ]$/.test(entry)
+    || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(entry)) {
+    throw new ServiceError('Use a name without / \\ : * ? " < > |, not starting or ending with a dot.');
+  }
+  return entry;
+}
 
 const posix = (p: string): string => p.split(sep).join('/');
 const isWithin = (dir: string, p: string): boolean => { const r = relative(dir, p); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
@@ -211,6 +230,7 @@ export function createService(root: string, deps: Deps) {
   // Execution files belong to the app. The linked folder is the repository, shown live, not a drop target.
   const runsFolder = (rel: string) => rel === 'runs' || rel.startsWith('runs/');
   const sealedFolder = (rel: string) => rel === LINKED || rel.startsWith(`${LINKED}/`) || rel.startsWith('.');
+  const activityLabels = (project: string) => new Map(listActivities(root, project).map((a) => [a.id, a.label]));
   const uniqueName = (folder: string, dest: string, fileName: string) => {
     const ext = extname(fileName);
     const stem = basename(fileName, ext);
@@ -326,6 +346,21 @@ export function createService(root: string, deps: Deps) {
     .filter((n) => isUsable(n, root)).sort();
   const linkableSkills = () => new Set([...globalSkillDirs.flatMap(skillFolders), ...artcraftSkills()]);
 
+  // A project's defaults: activities it sees (not the app's own actions), usable agents and skills, operations that exist.
+  const checkDefaults = (project: string, value: unknown): ProjectDefault[] => {
+    const list = parseDefaults(value);
+    if (!Array.isArray(value) || list.length !== value.length) throw new ServiceError('Invalid project defaults.');
+    const known: Record<ProjectDefault['kind'], Set<string>> = {
+      activity: new Set(listActivities(root, project).filter((a) => a.source !== 'moki').map((a) => a.id)),
+      agent: new Set(listAgents(root).filter(isUsableAgent).map((a) => a.name)),
+      skill: new Set([...listSkills(root).filter((sk) => isUsable(sk.name, root)).map((sk) => sk.name), ...linkableSkills()]),
+      operation: new Set(listOperations(root).map((o) => o.id)),
+    };
+    const unknown = list.filter((d) => !known[d.kind].has(d.id));
+    if (unknown.length) throw new ServiceError(`Not available as a default here: ${unknown.map((d) => d.id).join(', ')}`);
+    return list;
+  };
+
   // Agent names accepted for a project: usable agents of the library only.
   const checkAgents = (names: unknown): string[] => {
     const usable = new Set(listAgents(root).filter(isUsableAgent).map((a) => a.name));
@@ -422,17 +457,63 @@ export function createService(root: string, deps: Deps) {
     return repo;
   };
 
+  // The files under a run's outputs/ (paths relative to the project) that its state.json does not list as deliverables.
+  const leftoversOf = (project: string, runId: unknown): string[] => {
+    const run = listRuns(project, root).find((r) => r.id === runId);
+    if (!run) throw new ServiceError('Unknown run.');
+    const listed = (Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''));
+    if (!listed.length) return [];
+    const base = `runs/${run.id}/outputs`;
+    const out: string[] = [];
+    const walk = (abs: string, rel: string) => {
+      for (const e of readdirSync(abs, { withFileTypes: true })) {
+        const r = `${rel}/${e.name}`;
+        if (e.isDirectory()) walk(join(abs, e.name), r);
+        else if (e.isFile() && !listed.includes(r)) out.push(r);
+      }
+    };
+    const abs = join(projectDir(project), 'runs', run.id, 'outputs');
+    if (existsSync(abs)) walk(abs, base);
+    return out.sort();
+  };
+
   // An upload read from the user's computer, waiting for the user to choose items and confirm (see claudeUploadPick).
   let upload: Scan | null = null;
+  // A folder, a .zip or one .md, read and scanned; nothing is written.
+  const readUpload = (chosen: string, project: unknown, scope: unknown) => {
+    if (!existsSync(chosen)) throw new ServiceError('Not found.');
+    const st = statSync(chosen);
+    const ext = extname(chosen).toLowerCase();
+    if (st.isFile() && (!['.zip', '.md'].includes(ext) || st.size > LIMITS.maxTotalBytes)) throw new ServiceError(`Choose a folder, or a .zip or .md file of up to ${LIMITS.maxTotalBytes / 1048576} MB.`);
+    if (!st.isFile() && !st.isDirectory()) throw new ServiceError('Choose a folder, or a .zip or .md file.');
+    upload = failing(() => scan(st.isDirectory() ? readFolder(chosen) : ext === '.zip' ? readZip(readFileSync(chosen)) : readMarkdown(basename(chosen), readFileSync(chosen)), reservedNames()));
+    return uploadPreview(project, scope);
+  };
   // Moki's own skills and agents: an upload may not take their names.
-  const reservedNames = () => ({ skills: new Set(listSkills(root).map((x) => x.name)), agents: new Set(listAgents(root).filter((a) => a.source === 'builtin').map((a) => a.name)) });
+  const reservedNames = () => ({
+    skills: new Set(listSkills(root).map((x) => x.name)),
+    agents: new Set(listAgents(root).filter((a) => a.source === 'builtin').map((a) => a.name)),
+    activities: new Set(listActivities(root).filter((a) => a.source !== 'library').map((a) => a.id)),
+  });
+  // "bring" (a project's settings): everything goes where the workspace keeps it - skills for all projects, the
+  // person's agents and activities - linked to the project (its tag, its linked skills), so both settings show it.
+  const uploadFolders = (id: string, scope: unknown) => {
+    if (scope !== 'bring') return scopeFolders(id, scope);
+    projectDir(id);
+    return { skills: globalSkillDirs, agents: libraryDir(root), label: globalSkillDirs[0], agentsLabel: libraryDir(root) };
+  };
+  const uploadTaken = (e: Scan['entries'][number], f: { skills: string[]; agents: string }, scope: unknown): boolean => {
+    if (e.kind === 'activity') return Boolean(getActivity(e.name, root));
+    if (e.kind === 'skill') return f.skills.some((d) => existsSync(join(d, e.name)));
+    return scope === 'bring' ? listAgents(root).some((a) => a.name === e.name) : existsSync(join(f.agents, `${e.name}.md`));
+  };
   const uploadPreview = (project: unknown, scope: unknown) => {
     if (!upload) throw new ServiceError('Choose what to upload first.');
     const id = typeof project === 'string' ? project : '';
-    const f = scopeFolders(id, scope);
+    const f = uploadFolders(id, scope);
     const repo = scope === 'project' ? projectRepository(id, root) : '';
     const items = upload.entries.map((e) => {
-      const taken = !e.blocked && (e.kind === 'skill' ? f.skills.some((d) => existsSync(join(d, e.name))) : existsSync(join(f.agents, `${e.name}.md`)));
+      const taken = !e.blocked && uploadTaken(e, f, scope);
       return {
         kind: e.kind, name: e.name, description: e.description.slice(0, 300), files: e.files.length, bytes: e.files.reduce((n, x) => n + x.data.length, 0),
         discarded: e.discarded, blocked: e.blocked ?? (taken ? { reason: 'installed' as const } : undefined),
@@ -456,6 +537,7 @@ export function createService(root: string, deps: Deps) {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
     const runs = new Map(listRuns(project, root).map((r) => [r.id, r]));
+    const labels = runs.size ? activityLabels(project) : new Map<string, string>();
     let count = 0;
     const walk = (dir: string, depth: number, from = base, prefix = ''): TreeNode[] => {
       const entries = readdirSync(dir, { withFileTypes: true })
@@ -469,7 +551,7 @@ export function createService(root: string, deps: Deps) {
         if (e.isDirectory()) {
           const node: TreeNode = { name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] };
           const run = path.startsWith('runs/') && path.split('/').length === 2 ? runs.get(e.name) : undefined;
-          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? '') };
+          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...runOrigin(run, labels) };
           nodes.push(node);
         } else if (e.isFile()) {
           const st = statSync(full);
@@ -509,16 +591,19 @@ export function createService(root: string, deps: Deps) {
   // An activity as the app shows it: what it points to, whether it can run, whether it is a favorite.
   const frameworkSkill = (name: string) => existsSync(join(root, 'skills', name, 'SKILL.md'));
   const activityInfo = (a: ActivityDef, project: string | undefined, stars: string[]) => {
-    const skill = a.target.kind === 'moki' || a.target.kind === 'skill' ? a.target.name : a.target.kind === 'workflow' ? 'qa-orchestrator' : '';
-    const agent = a.target.kind === 'agent' ? listAgents(root).find((x) => x.name === a.target.name) : undefined;
+    const target = a.target;
+    const skills = activitySkills(a);
+    const skill = skills[0] ?? '';
+    const agent = target.kind === 'agent' ? listAgents(root).find((x) => x.name === target.name) : undefined;
+    const unavailableSkill = skills.find((s) => frameworkSkill(s) && !isUsable(s, root));
     const available = a.id === 'resume' ? true
       : a.target.kind === 'agent' ? Boolean(agent && isUsableAgent(agent))
-      : a.target.kind === 'operation' ? listOperations(root).some((o) => o.id === a.target.name)
-      : !frameworkSkill(skill) || isUsable(skill, root); // a skill installed by the person (not in the framework) is theirs to use
+      : target.kind === 'operation' ? listOperations(root).some((o) => o.id === target.name)
+      : skills.every((s) => !frameworkSkill(s) || isUsable(s, root)); // installed skills outside the framework remain usable
     return {
       id: a.id, label: a.label, hint: a.description, category: a.category, source: a.source, target: a.target, files: a.files,
-      needsFiles: a.files === 'required', note: a.note, tags: a.tags, skill, favorite: stars.includes(a.id),
-      available, status: skill && frameworkSkill(skill) ? skillStatus(skill, root) : available ? 'ready' : 'unavailable',
+      needsFiles: a.files === 'required', note: a.note, tags: a.tags, skill, skills, favorite: stars.includes(a.id),
+      available, status: unavailableSkill ? skillStatus(unavailableSkill, root) : skill && frameworkSkill(skill) ? skillStatus(skill, root) : available ? 'ready' : 'unavailable',
     };
   };
   // What the person typed for an activity of their own: checked like a file of activities/, and its target must exist.
@@ -526,8 +611,19 @@ export function createService(root: string, deps: Deps) {
     const r = (raw ?? {}) as Record<string, unknown>;
     const kind = String(r.kind ?? '') as TargetKind;
     const name = String(r.target ?? '').trim();
-    if (!TARGET_KINDS.includes(kind)) throw new ServiceError('Choose what the activity uses: a skill, an agent, a workflow or an operation.');
-    if (!/^[a-z0-9][a-z0-9:-]{0,99}$/.test(name)) throw new ServiceError('Choose the skill, agent, workflow or operation it uses.');
+    if (!TARGET_KINDS.includes(kind)) throw new ServiceError('Choose text only, skills, an agent, a workflow or an operation.');
+    let target: ActivityTarget;
+    if (kind === 'prompt') target = { kind: 'prompt' };
+    else if (kind === 'skills') {
+      const names = Array.isArray(r.skills) ? r.skills.filter((s): s is string => typeof s === 'string').map((s) => s.trim()) : [];
+      if (!names.length || names.length !== (Array.isArray(r.skills) ? r.skills.length : 0) || new Set(names).size !== names.length) throw new ServiceError('Choose one or more different skills.');
+      const offered = new Set(listSkills(root).filter((s) => isUsable(s.name, root)).map((s) => s.name));
+      if (names.some((s) => !offered.has(s))) throw new ServiceError('Choose skills that are available in the list.');
+      target = names.length === 1 ? { kind: 'skill', name: names[0] } : { kind: 'skills', names };
+    } else {
+      if (!/^[a-z0-9][a-z0-9:-]{0,99}$/.test(name)) throw new ServiceError('Choose the skill, agent, workflow or operation it uses.');
+      target = { kind, name };
+    }
     if (kind === 'agent' && !listAgents(root).some((a) => a.name === name)) throw new ServiceError(`There is no agent "${name}".`);
     if (kind === 'workflow' && !existsSync(join(root, 'skills', 'qa-orchestrator', 'references', 'workflows', `${name}.md`))) throw new ServiceError(`There is no workflow "${name}".`);
     if (kind === 'operation' && !listOperations(root).some((o) => o.id === name)) throw new ServiceError(`There is no operation "${name}".`);
@@ -536,8 +632,9 @@ export function createService(root: string, deps: Deps) {
     if (!label) throw new ServiceError('Give the activity a name.');
     const tags = Array.isArray(r.tags) ? r.tags.map(String) : [];
     const template = String(r.template ?? '').replace(/\r\n/g, '\n').slice(0, 4000);
+    if (target.kind === 'prompt' && !template.trim()) throw new ServiceError('Write the request for this text-only activity.');
     if (/^---/m.test(template)) throw new ServiceError('The text of the request cannot have a line with ---.');
-    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target: { kind, name }, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template }) };
+    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template }) };
   };
   const knownOperation = (id: unknown) => {
     const op = listOperations(root).find((o) => o.id === id);
@@ -709,6 +806,71 @@ export function createService(root: string, deps: Deps) {
       try { return { kind: 'json', path, text: JSON.stringify(JSON.parse(text), null, 2) }; } catch { return { kind: 'json', path, text }; }
     }
     return { kind: 'text', path, text, editable: isEditable(file) };
+  }
+
+  // Prepare once: opening another AI and calling into a conversation use the same validation and context.
+  function prepareLaunch(req: LaunchRequest) {
+    const project = isProject(req?.project, root) ? req.project : null;
+    if (!project) throw new ServiceError('Unknown project.');
+    const activity = String(req.activity ?? '');
+    const trackingId = req.trackingId;
+    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
+    const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
+    if (!def) throw new ServiceError('Unknown activity.');
+    if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
+    const skillName = activity === 'skill' ? String(req.skill ?? '').trim() : '';
+    if (activity === 'skill' && !isUsable(skillName, root)) throw new ServiceError('Choose a skill that can run.');
+    if (def.target.kind === 'operation') throw new ServiceError(`The activity "${def.label}" starts the operation ${def.target.name}: start it from the Operations panel.`);
+    if (!activityInfo(def, project, []).available) throw new ServiceError(`The activity "${def.label}" is not available yet.`);
+    const tool = String(req.tool ?? '');
+    if (!isTool(tool)) throw new ServiceError('Unknown tool.');
+    const language = LANGUAGES.includes(String(req.language)) ? String(req.language) : 'English';
+    const note = cleanPrompt(String(req.note ?? '')).slice(0, 2000);
+    const dir = projectDir(project);
+    const available = new Set(inboxFiles(dir).map((f) => f.name));
+    const names = Array.isArray(req.files) ? req.files.map(String) : [];
+    const unknown = names.filter((n) => !available.has(n));
+    if (unknown.length) throw new ServiceError(`Not in the project inbox: ${unknown.join(', ')}`);
+    if (def.files === 'required' && !names.length) throw new ServiceError('This activity needs at least one file from the inbox.');
+    const files = names.map((n) => `${workspaceLabel(root)}/projects/${project}/inbox/${n}`);
+    let run = '';
+    if (activity === 'resume') {
+      run = String(req.run ?? '');
+      if (!openRuns(project, root).some((r) => r.id === run)) throw new ServiceError('Choose an open activity to resume.');
+    }
+    let agent: { name: string; path: string } | undefined;
+    if (req.agent) {
+      const chosen = findAgent(String(req.agent));
+      if (!isUsableAgent(chosen)) throw new ServiceError(`The ${chosen.name} agent is not available yet.`);
+      if (!enabledAgents(project).includes(chosen.name)) throw new ServiceError(`The ${chosen.name} agent is not enabled in this project.`);
+      agent = { name: chosen.name, path: chosen.path };
+    } else if (def.target.kind === 'agent') {
+      // An activity of an agent: that agent, unless the person chose another.
+      const name = def.target.name;
+      const own = listAgents(root).find((a) => a.name === name);
+      if (!own || !isUsableAgent(own)) throw new ServiceError(`The ${name} agent is not available yet.`);
+      agent = { name: own.name, path: own.path };
+    }
+    // Shared context is worked out here again from the tags; the UI only says what to leave out.
+    const exclude = new Set(Array.isArray(req.exclude) ? req.exclude.map(String) : []);
+    const choice = activity === 'resume' ? { own: [], shared: [] } : contextChoice(project, root);
+    const offered = new Set([...choice.own, ...choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths))]);
+    const stray = [...exclude].filter((p) => !offered.has(p));
+    if (stray.length) throw new ServiceError(`Not in this project's context: ${stray.join(', ')}`);
+    const seen = new Set<string>();
+    const shared = choice.shared.flatMap((g) => g.sources.map((s) => ({
+      tag: g.tag.name, project: s.project,
+      paths: s.paths.filter((p) => !exclude.has(p) && !seen.has(p) && Boolean(seen.add(p))),
+    }))).filter((s) => s.paths.length);
+    const excluded = choice.own.filter((p) => exclude.has(p));
+    const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, workspace: workspaceLabel(root),
+      skills: installedSkills(project, root), agents: installedAgents(project, root),
+      description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
+      available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
+    // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
+    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
+    const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
+    return { project, dir, files, run, shared, prompt, tool };
   }
 
   return {
@@ -967,11 +1129,14 @@ export function createService(root: string, deps: Deps) {
 
     readFile: (project: string, rel: string) => readFile(project, rel),
 
-    writeFile: (project: string, rel: string, text: unknown) => {
+    // `base`: the text the editor started from. When given, the file is written only if it still holds that text, so a
+    // change made meanwhile by someone else (the AI writing the file) is never overwritten by an automatic save.
+    writeFile: (project: string, rel: string, text: unknown, base?: unknown) => {
       const file = projectPath(project, rel);
       if (!isEditable(file)) throw new ServiceError('Only Markdown and text files can be edited here.');
       if (!existsSync(file)) throw new ServiceError('File not found.');
       if (typeof text !== 'string' || text.length > TEXT_LIMIT) throw new ServiceError('Invalid content.');
+      if (typeof base === 'string' && readFileSync(file, 'utf8') !== base) throw new ServiceError(CHANGED_OUTSIDE);
       writeFileSync(file, text, 'utf8');
       return readFile(project, rel);
     },
@@ -1519,13 +1684,33 @@ export function createService(root: string, deps: Deps) {
       const folder = projectPath(project, dest);
       if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
       const destRel = uniqueName(folder, dest, basename(source));
-      const tags = fileTags(project, root)[source];
       renameSync(fromPath, projectPath(project, destRel));
-      if (tags?.length) {
-        setFileTags(project, destRel, tags, root);
-        setFileTags(project, source, [], root);
-      }
+      moveFileTags(project, source, destRel, root);
+      failing(() => movePdfNotes(projectDir(project), source, destRel));
       return destRel;
+    },
+
+    // A file or folder renamed where it is (the tree's Rename). A file keeps its extension: the name
+    // given is the new stem. Notes keep their file (their title is renamed instead, so links to them
+    // stay valid); the fixed folders, the activities (their state and checks use these names), the
+    // linked folder itself and Moki's own files keep theirs. What is inside the linked folder can be renamed.
+    renameEntry: (project: string, rel: unknown, name: unknown) => {
+      const source = String(rel ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+      if (!source || KEPT_NAMES.has(source) || FIXED_FOLDERS.has(source) || runsFolder(source) || source === LINKED || source.startsWith('.')
+        || /^notes\/[^/]+\.md$/.test(source)) throw new ServiceError('This item keeps its name.');
+      const fromPath = projectPath(project, source);
+      if (!existsSync(fromPath)) throw new ServiceError('File not found.');
+      const entry = validName(name) + (statSync(fromPath).isFile() ? extname(source) : '');
+      const parent = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : '';
+      const target = parent ? `${parent}/${entry}` : entry;
+      if (target === source) return source;
+      // Only the letter case changes: on Windows and macOS the "existing" file is this very one.
+      const caseOnly = target.toLowerCase() === source.toLowerCase();
+      if (!caseOnly && existsSync(projectPath(project, target))) throw new ServiceError('A file or folder with this name already exists here.');
+      renameSync(fromPath, projectPath(project, target));
+      moveFileTags(project, source, target, root);
+      failing(() => movePdfNotes(projectDir(project), source, target));
+      return target;
     },
 
     openRuns: (project: string) => {
@@ -1535,7 +1720,8 @@ export function createService(root: string, deps: Deps) {
 
     activityRuns: (project: string) => {
       projectDir(project);
-      return listRuns(project, root).filter((r) => !r.operation).map((r) => ({ id: r.id, status: r.status, currentStep: r.currentStep ?? '', skill: r.skill ?? '', workflow: r.workflow ?? '' }));
+      const labels = activityLabels(project);
+      return listRuns(project, root).filter((r) => !r.operation).map((r) => ({ id: r.id, status: r.status, currentStep: r.currentStep ?? '', skill: r.skill ?? '', workflow: r.workflow ?? '', ...runOrigin(r, labels) }));
     },
 
     openFolder: (project: string, rel = '') => {
@@ -1554,11 +1740,7 @@ export function createService(root: string, deps: Deps) {
       if (rel === 'notes') mkdirSync(inside(dir, 'notes'), { recursive: true }); // listed before the first note exists
       const folder = projectPath(project, rel);
       if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
-      let entry = String(name ?? '').trim();
-      if (!entry || entry.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/.test(entry) || entry.startsWith('.') || /[. ]$/.test(entry)
-        || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(entry)) {
-        throw new ServiceError('Use a name without / \\ : * ? " < > |, not starting or ending with a dot.');
-      }
+      let entry = validName(name);
       if (kind === 'file') {
         if (!extname(entry)) entry += '.md';
         if (!isEditable(entry) && !BLANK_FILES[extname(entry).toLowerCase()]) throw new ServiceError('Only Markdown (.md), text (.txt), spreadsheet (.xlsx) and Word (.docx) files can be created here.');
@@ -1572,6 +1754,54 @@ export function createService(root: string, deps: Deps) {
 
     // A file or folder goes to the trash. A fixed project folder is emptied and stays (the tree
     // recreates it if it is missing). project.json and the linked folder itself stay.
+    // What a project no longer needs, to the trash (recoverable), when it opens: scratch files in temporary/ untouched
+    // for TEMPORARY_DAYS days, and the work/ folder (helper files) of each completed or cancelled run. Returns what went.
+    cleanProject: async (project: string, now: unknown = Date.now()) => {
+      const dir = projectDir(project);
+      const at = typeof now === 'number' ? now : Date.now();
+      const trashed: string[] = [];
+      const tmp = join(dir, 'temporary');
+      if (existsSync(tmp)) {
+        for (const name of readdirSync(tmp)) {
+          try { if (at - statSync(join(tmp, name)).mtimeMs > TEMPORARY_DAYS * 86_400_000) { await trash(join(tmp, name)); trashed.push(`temporary/${name}`); } } catch { /* in use or gone: next time */ }
+        }
+      }
+      for (const run of listRuns(project, root)) {
+        const work = join(dir, 'runs', run.id, 'work');
+        if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
+        try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
+      }
+      return trashed;
+    },
+
+    // The deliverables of the runs each terminal created (state.json terminal + artifacts), as paths relative to the
+    // project, existing files only: the app opens them in that terminal's group. Never every file the AI touched.
+    terminalDeliverables: (project: string) => {
+      const dir = projectDir(project);
+      const out: Record<string, string[]> = {};
+      for (const run of listRuns(project, root)) {
+        const terminal = (run as { terminal?: unknown }).terminal;
+        if (typeof terminal !== 'string' || !/^t[\w-]{1,40}$/.test(terminal)) continue;
+        const files = (Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''))
+          .filter((rel) => !rel.startsWith('/') && !/^[a-z]:/i.test(rel) && !rel.split('/').includes('..') && existsSync(join(dir, rel)) && statSync(join(dir, rel)).isFile());
+        if (files.length) out[terminal] = [...new Set([...(out[terminal] ?? []), ...files])];
+      }
+      return out;
+    },
+
+    // Files in a run's outputs/ that are not among its deliverables (state.json artifacts): leftovers to clean.
+    // A run that lists no deliverables has none to compare with, so nothing is called a leftover.
+    runLeftovers: (project: string, runId: unknown) => leftoversOf(project, runId),
+    cleanRun: async (project: string, runId: unknown, paths: unknown) => {
+      const leftovers = new Set(leftoversOf(project, runId));
+      const chosen = Array.isArray(paths) ? [...new Set(paths.map(String))] : [];
+      if (!chosen.length) throw new ServiceError('Choose the files to clean.');
+      const bad = chosen.find((p) => !leftovers.has(p));
+      if (bad) throw new ServiceError(`Not a leftover of this run: ${bad}`);
+      for (const p of chosen) await trash(projectPath(project, p));
+      return chosen.length;
+    },
+
     deleteEntry: async (project: string, rel: unknown) => {
       const path = String(rel ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
       if (!path || path === 'project.json' || path === LINKED) throw new ServiceError('This file stays. Delete the project from the project list.');
@@ -1590,6 +1820,13 @@ export function createService(root: string, deps: Deps) {
       const path = projectPath(project, rel);
       if (!existsSync(path)) throw new ServiceError('File not found.');
       if (deps.reveal) deps.reveal(path); else deps.openFolder(statSync(path).isDirectory() ? path : dirname(path));
+      return true;
+    },
+    // A text the user copies (the Markdown source's Copy all), through the system clipboard: it works whether or not the window has the focus.
+    copyText: (text: unknown) => {
+      if (typeof text !== 'string' || text.length > TEXT_LIMIT) throw new ServiceError('Invalid content.');
+      if (!deps.copy) throw new ServiceError('Copying is not available here.');
+      deps.copy(text);
       return true;
     },
     copyPath: (project: string, rel: unknown) => {
@@ -1780,17 +2017,24 @@ export function createService(root: string, deps: Deps) {
     // The source is chosen in the native dialog and read here; nothing is written until claudeUploadApply, after the
     // user marked items and confirmed. Destinations are the existing install scopes (scopeFolders).
     claudeUploadPick: async (source: unknown, project: unknown = '', scope: unknown = 'global') => {
-      if (source !== 'folder' && source !== 'zip') throw new ServiceError('Choose a folder or a .zip file.');
-      const pick = source === 'zip' ? deps.pickFile : deps.pickFolder;
+      if (source !== 'folder' && source !== 'zip' && source !== 'file') throw new ServiceError('Choose a folder, or a .zip or .md file.');
+      const pick = source === 'folder' ? deps.pickFolder : deps.pickFile;
       if (!pick) throw new ServiceError('Choosing a file or folder is not available here.');
       const chosen = await pick();
       if (!chosen) return null;
-      if (!existsSync(chosen)) throw new ServiceError('Not found.');
-      const st = statSync(chosen);
-      if (source === 'zip' && (!st.isFile() || st.size > LIMITS.maxTotalBytes)) throw new ServiceError(`Choose a .zip file of up to ${LIMITS.maxTotalBytes / 1048576} MB.`);
-      if (source === 'folder' && !st.isDirectory()) throw new ServiceError('Choose a folder.');
-      upload = failing(() => scan(source === 'zip' ? readZip(readFileSync(chosen)) : readFolder(chosen), reservedNames()));
-      return uploadPreview(project, scope);
+      return readUpload(chosen, project, scope);
+    },
+    // A folder or file dropped on the upload area: the window gives its path (preload filePath); it is only read here.
+    claudeUploadPath: (path: unknown, project: unknown = '', scope: unknown = 'global') => {
+      const p = String(path ?? '');
+      if (!p || !isAbsolute(p)) throw new ServiceError('Drop a folder, or a .zip or .md file.');
+      return readUpload(p, project, scope);
+    },
+
+    // What was brought from a project's settings: "<kind>:<name>" → the project (its name) and when.
+    uploads: () => {
+      const names = Object.fromEntries(listProjects(root).map((p) => [p, projectSummary(p, root).name]));
+      return Object.fromEntries(Object.entries(listUploads(root)).map(([k, v]) => [k, { ...v, projectName: names[v.project] ?? v.project }]));
     },
 
     // The same upload seen for another destination (the user changed the scope): items already installed there are blocked.
@@ -1805,8 +2049,11 @@ export function createService(root: string, deps: Deps) {
       const bad = items.find((i) => i?.blocked);
       if (bad) throw new ServiceError(`"${bad.name}" cannot be installed (${bad.blocked?.reason}).`);
       const id = typeof project === 'string' ? project : '';
-      const repo = linkedWrite(id, scope, allowClaudeWrite, 'install');
-      const f = scopeFolders(id, scope);
+      const bring = scope === 'bring';
+      const repo = bring ? '' : linkedWrite(id, scope, allowClaudeWrite, 'install');
+      const f = uploadFolders(id, scope);
+      // An activity brought to (or uploaded for) a project gets its tag; one for all projects gets none.
+      const activityTags = scope === 'global' ? [] : [projectTag(id)];
       const entries = (upload as Scan).entries.filter((e) => keys.includes(`${e.kind}:${e.name}`));
       const backup = repo ? backupAiConfig(backupsDir(id), repo, 'claude', ['.claude']) : undefined;
       // Everything is new (installed names are blocked), so undoing a failure is removing what was created.
@@ -1827,6 +2074,20 @@ export function createService(root: string, deps: Deps) {
                 writeFileSync(target, file.data);
               }
             }
+          } else if (e.kind === 'activity') {
+            const { activity } = parseActivity(e.files[0].data.toString('utf8'), e.name, 'library');
+            if (!activity) throw new Error(`${e.name} is not a valid activity`);
+            const saved = saveLibraryActivity(e.name, activityMarkdown({ ...activity, tags: activityTags }), root);
+            if (saved.path) { created.push(saved.path); folders.push(saved.path); }
+          } else if (bring) {
+            // One of the person's agents, in Moki's format, reaching this project by its tag.
+            const { text, category } = libraryAgentText(e.files[0].data.toString('utf8'), e.name);
+            const dir = join(f.agents, category);
+            make(dir);
+            const target = inside(dir, `${e.name}.md`);
+            writeFileSync(target, text);
+            created.push(target);
+            folders.push(target);
           } else {
             make(f.agents);
             const target = inside(f.agents, `${e.name}.md`);
@@ -1841,6 +2102,18 @@ export function createService(root: string, deps: Deps) {
         throw new ServiceError(`Could not install: ${e instanceof Error ? e.message : String(e)}. Nothing was installed.`);
       }
       upload = null;
+      if (bring) {
+        // Linked to the project, as its settings would do: agents by its tag, skills by name; then remembered as brought.
+        for (const i of installed.filter((x) => x.kind === 'agent')) setAgentTags(i.name, [projectTag(id)], root);
+        const skills = installed.filter((x) => x.kind === 'skill').map((x) => x.name);
+        if (skills.length) {
+          const file = join(projectDir(id), 'project.json');
+          const data = JSON.parse(readFileSync(file, 'utf8')) as { linkedSkills?: unknown };
+          const linked = Array.isArray(data.linkedSkills) ? data.linkedSkills.map(String) : [];
+          writeFileSync(file, `${JSON.stringify({ ...data, linkedSkills: [...new Set([...linked, ...skills])].sort() }, null, 2)}\n`);
+        }
+        recordUploads(installed.map((i) => ({ kind: i.kind as 'skill' | 'agent' | 'activity', name: i.name })), id, root);
+      }
       return { installed, backup };
     },
 
@@ -1863,7 +2136,6 @@ export function createService(root: string, deps: Deps) {
       if (!description) throw new ServiceError('Describe what the agent does.');
       if (description.length > AGENT_TEXT_LIMIT) throw new ServiceError(`Keep the description under ${AGENT_TEXT_LIMIT} characters.`);
       const wanted = Array.isArray(req?.skills) ? [...new Set(req.skills.map(String))] : [];
-      if (!wanted.length) throw new ServiceError('Choose at least one skill.');
       // A repository agent runs outside the framework, so it gets absolute paths to the framework's skills.
       const builtin = req.scope === 'project' ? frameworkSkills().map((s) => s.name) : [];
       const skills = wanted.map((n) => {
@@ -1926,28 +2198,107 @@ export function createService(root: string, deps: Deps) {
     // "Set up the project": its goal, the global and ArtCraft skills it uses (by reference, nothing is copied) and,
     // when given, its agents. Only skills installed globally or Moki's ArtCraft skills can be linked. When the AI left a plan.json,
     // contextFiles approves it with the files the user kept.
-    setupProject: (project: string, req: { description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown }) => {
+    // The project's settings. name, defaults and startInstructions are written only when given (older callers leave them).
+    // What the workspace's settings give this project, as its settings show it (the same tags, seen from here):
+    // agents, the person's activities, templates (with the one in use) and MCP servers (read-only here).
+    projectLinks: (project: string) => {
+      projectDir(project);
+      const names = Object.fromEntries(listTags(root).map((t) => [t.id, t.name]));
+      const reach = (tags: string[]) => { const r = reachOf(tags, project, root); return r.via ? { state: r.state, via: names[r.via] ?? r.via } : { state: r.state }; };
+      const agentMap = agentTags(root);
+      const inUse = templateFor(project, root)?.id ?? '';
+      const chosen = (JSON.parse(readFileSync(join(projectDir(project), 'project.json'), 'utf8')) as { template?: unknown }).template;
+      return {
+        agents: Object.fromEntries(listAgents(root).filter(isUsableAgent).map((a) => [a.name, reach(agentMap[a.name] ?? [])])),
+        activities: listActivities(root).filter((a) => a.source === 'library').map((a) => ({ id: a.id, name: a.label, ...reach(a.tags) })),
+        templates: listTemplates(root).map((t) => ({ id: t.id, name: t.name, ...reach(t.tags), inUse: t.id === inUse, chosen: t.id === chosen })),
+        mcp: listServers(root).filter((s) => s.id !== MOKI_SERVER).map((s) => ({ id: s.id, name: s.name, state: !s.projects.length ? 'all' : s.projects.includes(project) ? 'own' : 'off' })),
+      };
+    },
+    // Turns the person's activities and the templates on or off in this project through its own tag (the workspace's
+    // settings then show that tag), and picks the template in use (null: the automatic choice). A template for every
+    // project stays: it is the one used when nothing else applies.
+    setProjectLinks: (project: string, req: { activities?: unknown; templates?: unknown; template?: unknown }) => {
+      projectDir(project);
+      const projects = listProjects(root);
+      const flags = (v: unknown): [string, boolean][] => (v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>).map(([k, on]) => [k, on === true]) : []);
+      for (const [id, on] of flags(req?.activities)) {
+        const a = getActivity(id, root);
+        if (!a || a.source !== 'library') throw new ServiceError('Only your own activities can be linked here.');
+        const tags = failing(() => withProject(a.tags, project, on, projects, root));
+        if (tags.join() !== a.tags.join()) failing(() => saveLibraryActivity(a.id, activityMarkdown({ ...a, tags }), root));
+      }
+      for (const [id, on] of flags(req?.templates)) {
+        const t = listTemplates(root).find((x) => x.id === id);
+        if (!t) throw new ServiceError('Unknown template.');
+        if (!on && !t.tags.length) throw new ServiceError('The template for every project stays: it is used when no other applies.');
+        const tags = failing(() => withProject(t.tags, project, on, projects, root));
+        if (tags.join() !== t.tags.join()) failing(() => saveTemplate({ ...t, tags }, root));
+      }
+      if (req?.template !== undefined) failing(() => setProjectTemplate(project, req.template ? String(req.template) : null, root));
+      return true;
+    },
+
+    setupProject: (project: string, req: { name?: unknown; description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown; defaults?: unknown; startInstructions?: unknown }) => {
       const file = join(projectDir(project), 'project.json');
-      const description = cleanPrompt(String(req?.description ?? '')).slice(0, 2000);
-      const wanted = Array.isArray(req?.linkedSkills) ? [...new Set(req.linkedSkills.map(String))] : [];
+      // The description keeps its lines, as when it is edited on its own (setProjectDescription); requests clean it when they quote it.
+      const description = String(req?.description ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 2000);
+      const name = req?.name === undefined ? undefined : String(req.name).trim();
+      if (name !== undefined && !name) throw new ServiceError('Give the project a name.');
+      const defaults = req?.defaults === undefined ? undefined : checkDefaults(project, req.defaults);
+      // The instructions keep their lines (they are read and edited here); control characters other than line breaks go.
+      const startInstructions = req?.startInstructions === undefined ? undefined
+        : String(req.startInstructions).replace(/\r\n/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim().slice(0, START_INSTRUCTIONS_LIMIT);
       const linkable = linkableSkills();
+      const wanted = Array.isArray(req?.linkedSkills) ? [...new Set(req.linkedSkills.map(String))] : [];
       const missing = wanted.filter((n) => !linkable.has(n));
       if (missing.length) throw new ServiceError(`Not installed for all projects: ${missing.join(', ')}`);
-      const agents = req?.agents === undefined ? undefined : checkAgents(req.agents);
+      // A default skill installed for all projects is linked, so requests from here name it.
+      const linked = [...new Set([...wanted, ...(defaults ?? []).filter((d) => d.kind === 'skill' && linkable.has(d.id)).map((d) => d.id)])];
+      const chosen = req?.agents === undefined ? undefined : checkAgents(req.agents);
+      // A default agent is turned on in the project.
+      const needed = (defaults ?? []).filter((d) => d.kind === 'agent').map((d) => d.id);
+      const base = chosen ?? enabledAgents(project);
+      const agents = needed.some((n) => !base.includes(n)) ? [...new Set([...base, ...needed])] : chosen;
       const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-      writeFileSync(file, `${JSON.stringify({ ...data, description, linkedSkills: wanted.sort() }, null, 2)}\n`);
+      writeFileSync(file, `${JSON.stringify({
+        ...data, ...(name !== undefined ? { name } : {}), description, linkedSkills: linked.sort(),
+        ...(defaults !== undefined ? { defaults } : {}), ...(startInstructions !== undefined ? { startInstructions } : {}),
+      }, null, 2)}\n`);
+      if (name !== undefined) projectsScan = null; // see setProjectName
       if (agents) failing(() => setAgentsOfProject(project, agents, root));
       const plan = readPlan(project);
       if (plan && Array.isArray(req?.contextFiles)) {
         const kept = new Set(req.contextFiles.map(String));
         const keptFolders = new Set(Array.isArray(req.folders) ? req.folders.map(String) : []);
-        const approved = { ...plan, approved: true, skills: wanted, agents: enabledAgents(project), contextFiles: plan.contextFiles.filter((f) => kept.has(f.path)), folders: plan.folders.filter((f) => keptFolders.has(f.path)) };
+        const approved = { ...plan, approved: true, skills: linked, agents: enabledAgents(project), contextFiles: plan.contextFiles.filter((f) => kept.has(f.path)), folders: plan.folders.filter((f) => keptFolders.has(f.path)) };
         writeFileSync(join(projectDir(project), 'plan.json'), `${JSON.stringify(approved, null, 2)}\n`);
       }
       return projectSummary(project, root);
     },
 
     readPlan: (project: string) => readPlan(project),
+
+    // What an AI opened in this project without a choice starts with: its request ('' = nothing set) and what its
+    // tab names (the default's name, or several). One activity without files starts like any activity (its own
+    // request, its origin recorded); anything else asks the AI to take the role and skills set and wait.
+    startOf: (project: string, tool: string, language: unknown) => {
+      const summary = projectSummary(project, root);
+      const lang = LANGUAGES.includes(String(language)) ? String(language) : 'English';
+      const set = summary.defaults.filter((d) => d.kind !== 'operation');
+      const only = set.length === 1 && set[0].kind === 'activity' ? listActivities(root, project).find((a) => a.id === set[0].id) : undefined;
+      if (only && only.files === 'none' && only.target.kind !== 'operation') {
+        try {
+          const prepared = prepareLaunch({ project, activity: only.id, tool, files: [], language: lang, note: summary.startInstructions } as LaunchRequest);
+          return { prompt: prepared.prompt, label: only.label, several: false };
+        } catch { /* not available now: start as the other defaults do */ }
+      }
+      const prompt = buildStartPrompt({ project, defaults: summary.defaults, instructions: summary.startInstructions, language: lang,
+        repository: projectRepository(project, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(project), root });
+      if (!prompt) return { prompt: '', label: '', several: false };
+      const names = set.map((d) => (d.kind === 'activity' ? listActivities(root, project).find((a) => a.id === d.id)?.label ?? d.id : d.id));
+      return { prompt, label: names.length === 1 ? names[0] : '', several: names.length !== 1 };
+    },
 
     openGlobal: (kind: unknown, name: unknown) => {
       if (kind === 'skill') deps.openFolder(globalSkill(name)[0]);
@@ -2010,64 +2361,15 @@ export function createService(root: string, deps: Deps) {
       return true;
     },
 
+    invokeInTerminal: (req: LaunchRequest, terminalId: unknown) => {
+      if (typeof terminalId !== 'string') throw new ServiceError('Choose a running AI terminal in this project.');
+      const prepared = prepareLaunch({ ...req, tool: 'print' });
+      if (!deps.pasteRequest?.(prepared.project, terminalId, prepared.prompt)) throw new ServiceError('Choose a running AI terminal in this project.');
+      return { prepared: true, prompt: prepared.prompt };
+    },
+
     launch: (req: LaunchRequest) => {
-      const project = isProject(req?.project, root) ? req.project : null;
-      if (!project) throw new ServiceError('Unknown project.');
-      const activity = String(req.activity ?? '');
-      const trackingId = req.trackingId;
-      if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
-      const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
-      if (!def) throw new ServiceError('Unknown activity.');
-      if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
-      const skillName = activity === 'skill' ? String(req.skill ?? '').trim() : '';
-      if (activity === 'skill' && !isUsable(skillName, root)) throw new ServiceError('Choose a skill that can run.');
-      if (def.target.kind === 'operation') throw new ServiceError(`The activity "${def.label}" starts the operation ${def.target.name}: start it from the Operations panel.`);
-      if (!activityInfo(def, project, []).available) throw new ServiceError(`The activity "${def.label}" is not available yet.`);
-      const tool = String(req.tool ?? '');
-      if (!isTool(tool)) throw new ServiceError('Unknown tool.');
-      const language = LANGUAGES.includes(String(req.language)) ? String(req.language) : 'English';
-      const note = cleanPrompt(String(req.note ?? '')).slice(0, 2000);
-      const dir = projectDir(project);
-      const available = new Set(inboxFiles(dir).map((f) => f.name));
-      const names = Array.isArray(req.files) ? req.files.map(String) : [];
-      const unknown = names.filter((n) => !available.has(n));
-      if (unknown.length) throw new ServiceError(`Not in the project inbox: ${unknown.join(', ')}`);
-      if (def.files === 'required' && !names.length) throw new ServiceError('This activity needs at least one file from the inbox.');
-      const files = names.map((n) => `${workspaceLabel(root)}/projects/${project}/inbox/${n}`);
-      let run = '';
-      if (activity === 'resume') {
-        run = String(req.run ?? '');
-        if (!openRuns(project, root).some((r) => r.id === run)) throw new ServiceError('Choose an open activity to resume.');
-      }
-      let agent: { name: string; path: string } | undefined;
-      if (req.agent) {
-        const chosen = findAgent(String(req.agent));
-        if (!isUsableAgent(chosen)) throw new ServiceError(`The ${chosen.name} agent is not available yet.`);
-        if (!enabledAgents(project).includes(chosen.name)) throw new ServiceError(`The ${chosen.name} agent is not enabled in this project.`);
-        agent = { name: chosen.name, path: chosen.path };
-      } else if (def.target.kind === 'agent') {
-        // An activity of an agent: that agent, unless the person chose another.
-        const own = listAgents(root).find((a) => a.name === def.target.name);
-        if (!own || !isUsableAgent(own)) throw new ServiceError(`The ${def.target.name} agent is not available yet.`);
-        agent = { name: own.name, path: own.path };
-      }
-      // Shared context is worked out here again from the tags; the UI only says what to leave out.
-      const exclude = new Set(Array.isArray(req.exclude) ? req.exclude.map(String) : []);
-      const choice = activity === 'resume' ? { own: [], shared: [] } : contextChoice(project, root);
-      const offered = new Set([...choice.own, ...choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths))]);
-      const stray = [...exclude].filter((p) => !offered.has(p));
-      if (stray.length) throw new ServiceError(`Not in this project's context: ${stray.join(', ')}`);
-      const seen = new Set<string>();
-      const shared = choice.shared.flatMap((g) => g.sources.map((s) => ({
-        tag: g.tag.name, project: s.project,
-        paths: s.paths.filter((p) => !exclude.has(p) && !seen.has(p) && Boolean(seen.add(p))),
-      }))).filter((s) => s.paths.length);
-      const excluded = choice.own.filter((p) => exclude.has(p));
-      const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, workspace: workspaceLabel(root),
-        skills: installedSkills(project, root), agents: installedAgents(project, root),
-        description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
-        available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
-      const prompt = trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request;
+      const { project, dir, files, run, shared, prompt, tool } = prepareLaunch(req);
       const t = TOOLS[tool];
       if (t.print || t.chat) {
         const upload = t.chat ? [

@@ -18,6 +18,7 @@ import { IconAgent, IconCollapse, IconExpand, IconLanes, IconTrash, IconX } from
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from '../components/ListPage';
 import { StarButton, useFavorites } from '../components/Favorites';
 import { arrowPath, BOARD_H, BOARD_W, CARD_H, CARD_W, cardHeight, dotOffset, dotsFor, LANE_HEAD } from '../components/opsBoard';
+import { confirmDialog } from '../dialogs';
 
 const BOARD_MIN = 180; // px: the board's height can be dragged between this and what leaves room for the panels below
 const PANELS_MIN = 220; // px: the panels below the board keep at least this
@@ -124,9 +125,9 @@ export function Operations({ tools }: Props) {
     return () => clearTimeout(timer);
   }, [draft]);
 
-  const leave = () => !dirty || window.confirm(t('Discard the changes to this operation?'));
-  const open = (op: OperationDraft | null) => {
-    if (!leave()) return;
+  const leave = async () => !dirty || await confirmDialog(t('Discard the changes to this operation?'), { danger: true });
+  const open = async (op: OperationDraft | null) => {
+    if (!await leave()) return;
     const next = op ? fields(op) : empty();
     setDraft(next); setSaved(op ? snapshot(next) : ''); setSel(null); setError(''); setNotice(''); setAdding(!op);
   };
@@ -200,7 +201,7 @@ export function Operations({ tools }: Props) {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
   const remove = async () => {
-    if (!draft?.id || !window.confirm(t('Delete the operation "{name}"?', { name: draft.name }))) return;
+    if (!draft?.id || !await confirmDialog(t('Delete the operation "{name}"?', { name: draft.name }), { danger: true })) return;
     try { await api.deleteOperation(draft.id); setDraft(null); setSaved(''); load(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -279,7 +280,7 @@ export function Operations({ tools }: Props) {
   const selectedStep = sel?.kind === 'step' ? steps.find((s) => s.id === sel.id) : undefined;
   const stateOf = (op: Operation) => (op.check.errors.length ? 'err' : op.check.warnings.length ? 'warn' : 'ready');
   const listed = list.filter((op) => (kind === 'all' || stateOf(op) === kind) && matchesQuery(find, op.name, op.description));
-  const back = () => { if (leave()) { setDraft(null); setSaved(''); setError(''); setNotice(''); setExpanded(false); } };
+  const back = async () => { if (await leave()) { setDraft(null); setSaved(''); setError(''); setNotice(''); setExpanded(false); } };
 
   return (
     <div className="library library-single operations">
