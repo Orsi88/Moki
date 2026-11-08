@@ -2789,6 +2789,10 @@ test('Moki call pastes into the current AI terminal and waits for Enter', async 
     await expect(pane).toContainText('meu contexto:');
     await expect(pane).not.toContainText('[submitted]');
     await expect(pane.locator('textarea')).toBeFocused();
+    // The note about it says what to do next, then goes away by itself (no bar left on screen).
+    const pasted = page.getByRole('status').filter({ hasText: 'Pedido colado' });
+    await expect(pasted).toBeVisible();
+    await expect(pasted).toBeHidden({ timeout: 10_000 });
     const phases = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('qa-activity-launches:')).flatMap(k => JSON.parse(localStorage.getItem(k)!)).map((r: { phase: string }) => r.phase));
     expect(phases).toContain('prepared');
     await page.screenshot({ path: test.info().outputPath('call-pasted.png') });

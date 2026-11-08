@@ -116,6 +116,8 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(startNotice);
+  // A notice about something done that shows on its own (a request pasted into the conversation): it goes away by itself.
+  const flash = (message: string) => { setNotice(message); setTimeout(() => setNotice((cur) => (cur === message ? '' : cur)), 6000); };
   const [terms, setTerms] = useState<TermTab[]>([]);
   const [activeTerm, setActiveTerm] = useState<string | null>(null);
   const activeAiTerminal = terms.find((term) => term.id === activeTerm && term.running && term.tool);
@@ -907,7 +909,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
         onPrepared={(terminal) => {
           setLaunch(null); setGraphFocus(false); setActiveTerm(terminal.id);
-          setNotice(t('Request pasted. Add context and press Enter when ready.'));
+          flash(t('Request pasted. Add context and press Enter when ready.'));
           requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.term-pane:not([hidden]) textarea')?.focus());
         }} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onOperation={startOperationForm} onMyAis={() => { setLaunch(null); onSettings('ai'); }} />}
     </div>
