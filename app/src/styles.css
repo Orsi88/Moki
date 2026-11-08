@@ -1946,7 +1946,6 @@ span.mcp-row-main { cursor: default; }
 .invoke-row .answer-text { min-width: 0; }
 .invoke-row .chip { flex-shrink: 0; }
 .invoke-operation { color: var(--muted); font-size: 0.78rem; }
-.terminal-callbar { display: flex; justify-content: flex-end; padding: 4px 10px; border-bottom: 1px solid var(--border); }
 @media (max-width: 700px) { .activity-uses { grid-template-columns: minmax(0, 1fr); } }
 
 /* The ⓘ of a field (InfoTip): the explanation shows on hover or focus, opening leftward (the ⓘ sits at the end of a line). */
@@ -2000,3 +1999,63 @@ span.mcp-row-main { cursor: default; }
 
 /* A run's leftovers (ActivityRunView): files in outputs/ the run did not deliver, offered for the trash. */
 .run-leftovers .row-actions { margin-top: 8px; }
+
+/* ---- Tab groups and split views (components/TabGroups.tsx, tab-groups.ts) */
+/* Group colors, as a browser's tab groups: soft shades on the dark theme, strong ones on the light. -ink: text on them. */
+:root {
+  --group-blue: #8ab4f8; --group-red: #f28b82; --group-yellow: #fdd663; --group-green: #81c995; --group-pink: #ff8bcb;
+  --group-purple: #d7aefb; --group-cyan: #78d9ec; --group-orange: #fcad70; --group-grey: #dadce0;
+  --group-blue-ink: #202124; --group-red-ink: #202124; --group-yellow-ink: #202124; --group-green-ink: #202124; --group-pink-ink: #202124;
+  --group-purple-ink: #202124; --group-cyan-ink: #202124; --group-orange-ink: #202124; --group-grey-ink: #202124;
+}
+:root[data-theme="light"] {
+  --group-blue: #1a73e8; --group-red: #d93025; --group-yellow: #f9ab00; --group-green: #188038; --group-pink: #d01884;
+  --group-purple: #a142f4; --group-cyan: #007b83; --group-orange: #e8710a; --group-grey: #5f6368;
+  --group-blue-ink: #fff; --group-red-ink: #fff; --group-yellow-ink: #202124; --group-green-ink: #fff; --group-pink-ink: #fff;
+  --group-purple-ink: #fff; --group-cyan-ink: #fff; --group-orange-ink: #fff; --group-grey-ink: #fff;
+}
+/* A group chip in a view's row (before its tabs when it is the shown one). */
+.pane-tabs .group-chip { align-self: center; margin: 0 4px 4px 2px; }
+.group-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; height: 22px; padding: 0 10px; border: 0; border-radius: 7px;
+  background: var(--group, var(--bg-3)); color: var(--group-ink, var(--text)); font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+.group-chip.general { background: var(--bg-3); color: var(--muted); }
+.group-chip.on { box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 3.5px var(--group, var(--muted)); }
+.group-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-chip-new { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--group-ink, var(--accent)); color: var(--group, var(--accent-text)); font-size: 0.68rem; line-height: 16px; text-align: center; }
+/* The layout and New buttons, at the end of the top-right view's row. */
+.pane-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; padding-bottom: 4px; flex-shrink: 0; position: sticky; right: 0; background: var(--bg-2); }
+.layout-menu button svg { flex-shrink: 0; }
+/* The views: a grid; the dividers are dragged (their positions are --split-x / --split-y). */
+.panes { position: relative; display: grid; flex: 1; min-height: 0; grid-template: 1fr / 1fr; }
+.panes.arr-2 { grid-template-columns: var(--split-x) 1fr; }
+.panes.arr-2r { grid-template-rows: var(--split-y) 1fr; }
+.panes.arr-3, .panes.arr-4 { grid-template-columns: var(--split-x) 1fr; grid-template-rows: var(--split-y) 1fr; }
+.panes.arr-3 .pane-0 { grid-row: 1 / 3; }
+.pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.panes:not(.arr-1) .pane { border: 1px solid var(--border); margin: -0.5px; }
+.panes:not(.arr-1) .pane.focused { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); }
+.pane-body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pane-empty { padding: 16px; }
+.split { position: absolute; z-index: 6; background: transparent; touch-action: none; }
+.split:hover, .split:active { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.split-x { top: 0; bottom: 0; left: calc(var(--split-x) - 3px); width: 6px; cursor: col-resize; }
+.split-y { left: 0; right: 0; top: calc(var(--split-y) - 3px); height: 6px; cursor: row-resize; }
+.panes.arr-3 .split-y { left: var(--split-x); }
+/* A view's head: its group (with several views) and its tabs; a tab of a group has its color under it, the active one outlined. */
+.pane-tabs { align-items: flex-end; }
+.pane-tabs.drop-over { background: var(--accent-soft); }
+.tab.in-group { box-shadow: inset 0 -2px 0 var(--group); }
+.tab.active.in-group { box-shadow: inset 0 0 0 1.5px var(--group); }
+.tab-new { width: 7px; height: 7px; border-radius: 50%; background: var(--group, var(--accent)); flex-shrink: 0; }
+/* Group and tab menus. */
+.group-menu { display: flex; flex-direction: column; gap: 8px; width: 236px; padding: 10px; }
+.group-name { width: 100%; }
+.group-colors { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+.group-swatch { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: var(--group); cursor: pointer; }
+.group-swatch.on, .group-swatch:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.group-menu-item { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; font-size: 0.85rem; }
+.group-menu-item:hover { background: var(--bg-3); }
+.group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--group, var(--muted)); flex-shrink: 0; }
+.term-menu .menu-head { padding: 4px 10px; color: var(--muted); font-size: 0.72rem; letter-spacing: .04em; text-transform: uppercase; }
+.pane-tabs { scrollbar-width: thin; }
+.pane-tabs::-webkit-scrollbar { height: 3px; }

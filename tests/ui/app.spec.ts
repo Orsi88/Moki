@@ -2835,8 +2835,9 @@ test('Moki call pastes into the current AI terminal and waits for Enter', async 
     await page.screenshot({ path: test.info().outputPath('call-pasted.png') });
     await page.keyboard.press('Enter');
     await expect(pane).toContainText('[submitted]');
-    // The same list is available from its terminal button.
-    await page.locator('.terminal-callbar').getByRole('button', { name: 'Chamar…', exact: true }).click();
+    // The same list opens from the keyboard while the AI terminal is in front (no extra bar on the screen).
+    await expect(page.locator('.terminal-callbar')).toHaveCount(0);
+    await page.keyboard.press('Control+Shift+K');
     await expect(page.getByRole('dialog').getByRole('tab', { name: 'Atividades', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
   } finally {
@@ -3047,5 +3048,97 @@ test.describe.serial('Moki project defaults', () => {
     await dp.getByRole('tab', { name: 'Atividades' }).click();
     await expect(dp.locator('.list-card', { hasText: 'Triagem do log' }).getByRole('img', { name: 'Trazido de Acme Library' })).toBeVisible();
     await dp.keyboard.press('Escape');
+  });
+});
+
+test.describe.serial('Moki tab groups and split views', () => {
+  let gApp: ElectronApplication;
+  let gp: Page;
+  let project = '';
+  const dirs: string[] = [];
+  const chips = () => gp.locator('.pane-0 .group-chip');
+  const newAi = async () => {
+    await gp.getByRole('button', { name: 'Novo: terminal, IA ou arquivo', exact: true }).click();
+    await gp.getByRole('menuitem', { name: 'IA', exact: true }).click();
+    await gp.getByRole('menuitem', { name: /Claude Code/ }).click();
+    await expect(gp.locator('.term-pane:not([hidden])').last()).toContainText('[ready]');
+  };
+  // The terminals' ids, as the board saved them (the tab of each group's terminal).
+  const terminalIds = () => gp.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('qa-tab-board:'));
+    const board = JSON.parse(localStorage.getItem(key ?? '') ?? '{}') as { order?: string[] };
+    return (board.order ?? []).filter((k) => k.startsWith('term:')).map((k) => k.slice(5));
+  });
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    project = join(root, 'workspace', 'projects', 'acme');
+    ({ app: gApp, page: gp } = await openApp(root, userData, 'acme', { QA_FAKE_TOOLS: '1' }));
+  });
+
+  test.afterAll(async () => {
+    await gApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('every AI opens its own group; a group is renamed and colored like a browser tab group', async () => {
+    await newAi();
+    await newAi();
+    await expect(chips()).toHaveCount(2);
+    const [a, b] = await chips().evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+    expect(a).not.toBe(b);
+    await expect(chips().nth(1)).toHaveAttribute('aria-pressed', 'true');
+    // The view shows only its group's tabs.
+    await expect(gp.locator('.pane-0 [role="tab"]')).toHaveCount(1);
+    await chips().first().click({ button: 'right' });
+    const menu = gp.getByRole('dialog', { name: /^Grupo / });
+    await menu.getByRole('textbox', { name: 'Nome do grupo' }).fill('Triagem');
+    await menu.getByRole('radio', { name: 'Rosa' }).click();
+    await expect(menu.getByRole('radio', { name: 'Rosa' })).toHaveAttribute('aria-checked', 'true');
+    await menu.getByRole('textbox', { name: 'Nome do grupo' }).press('Enter');
+    await expect(chips().first()).toHaveText('Triagem');
+  });
+
+  test('a deliverable of a terminal\'s run opens in its group by itself, marked new, without taking the screen', async () => {
+    const [first] = await terminalIds();
+    const run = join(project, 'runs', '20261108-1500-failure-analysis-log');
+    mkdirSync(join(run, 'outputs'), { recursive: true });
+    writeFileSync(join(run, 'outputs', 'pre-analysis.txt'), 'Falha no passo 3.');
+    writeFileSync(join(run, 'outputs', 'print.png'), 'not a deliverable');
+    writeFileSync(join(run, 'state.json'), JSON.stringify({ id: '20261108-1500-failure-analysis-log', status: 'in-progress', skill: 'failure-analysis', terminal: first, artifacts: ['workspace/projects/acme/runs/20261108-1500-failure-analysis-log/outputs/pre-analysis.txt'] }));
+    // The second group stays on screen; the first one says it has something new.
+    await expect(chips().first().locator('.group-chip-new')).toHaveText('1');
+    await expect(chips().nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await chips().first().click();
+    const tabs = gp.locator('.pane-0 [role="tab"]');
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(1)).toContainText('pre-analysis.txt');
+    await expect(gp.locator('.pane-0 [role="tab"]', { hasText: 'print.png' })).toHaveCount(0);
+    await tabs.nth(1).click();
+    await expect(chips().first().locator('.group-chip-new')).toHaveCount(0);
+  });
+
+  test('the screen splits: each view has its group and its own tabs; a tab is dragged to the other view', async () => {
+    await gp.getByRole('button', { name: 'Dividir a tela' }).click();
+    await gp.getByRole('menuitemradio', { name: 'Duas lado a lado' }).click();
+    await expect(gp.locator('.pane')).toHaveCount(2);
+    // Different groups side by side.
+    // No bar above the views: each one has its own row of groups and tabs.
+    await expect(gp.getByRole('toolbar', { name: 'Grupos de abas' })).toHaveCount(0);
+    await expect(gp.locator('.pane-1 .group-chip[aria-pressed="true"]')).not.toHaveText('Triagem');
+    // The same group in both: the terminal on the left, the file on the right.
+    await gp.locator('.pane-1 .group-chip', { hasText: 'Triagem' }).click();
+    await expect(gp.locator('.pane-1 .group-chip[aria-pressed="true"]')).toHaveText('Triagem');
+    await gp.locator('.pane-0 [role="tab"]', { hasText: 'pre-analysis.txt' }).dragTo(gp.locator('.pane-1 .pane-tabs'));
+    await expect(gp.locator('.pane-1 [role="tab"]')).toHaveText(['pre-analysis.txt']);
+    await expect(gp.locator('.pane-0 [role="tab"]')).toHaveCount(1);
+    await expect(gp.locator('.pane-1')).toContainText('Falha no passo 3.');
+    await expect(gp.locator('.pane-0 .term-pane:not([hidden])')).toBeVisible();
+    // Back to one view: the tabs return to their group.
+    await gp.getByRole('button', { name: 'Dividir a tela' }).click();
+    await gp.getByRole('menuitemradio', { name: 'Uma divisão' }).click();
+    await expect(gp.locator('.pane')).toHaveCount(1);
   });
 });

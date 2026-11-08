@@ -1,8 +1,10 @@
 // Project workspace, Obsidian-style: ribbon, file tree, tabs with documents
 // (view and edit) and terminals (AI tools or a shell), and a side panel with
-// the activity or project details.
+// the activity or project details. Tabs live in groups (one per terminal, where
+// the deliverables of its runs open) and the main area splits into up to 4 views,
+// each with a group and its own tabs (tab-groups.ts, components/TabGroups.tsx).
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
 import { api, CHANGED_OUTSIDE, type FileContent, type LaunchPreset, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, recall, remember } from '../prefs';
@@ -33,6 +35,12 @@ import { flushEdits } from '../debounce';
 import { needsReread, stampOf, type Stamp } from '../tab-refresh';
 import { throttle } from '../throttle';
 import { parseActivityLaunches, type ActivityLaunch, type ActivityLaunchPhase } from '../activity-launches';
+import {
+  GRAPH, addTerminal as boardTerminal, arrange, close as boardClose, colorGroup, dropGroup, fileKey, focus as focusPane, focusedKey, freshIn,
+  groupOf, moveToGroup, moveToPane, newGroup, open as boardOpen, parseBoard, prune, rename as boardRename, renameGroup, setSplit, show, showGroup,
+  tabsOfGroup, tabsOfPane, termKey, type Board, type TabKey,
+} from '../tab-groups';
+import { GroupMenu, LayoutButton, PaneHead, TabMenu, groupStyle, type PaneTab } from '../components/TabGroups';
 
 interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
@@ -82,7 +90,15 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [active, setActive] = useState<string | null>(null);
+  // Where tabs show (groups, views); kept per project on this computer. "Active" is the focused view's tab.
+  const boardKey = `qa-tab-board:${workspaceId}:${project.id}`;
+  const [board, setBoard] = useState<Board>(() => parseBoard(recall(boardKey)));
+  const apply = useCallback((fn: (b: Board) => Board) => setBoard((b) => fn(b)), []);
+  useEffect(() => { remember(boardKey, JSON.stringify(board)); }, [boardKey, board]);
+  const focusKey = focusedKey(board);
+  const active = focusKey?.startsWith('file:') ? focusKey.slice(5) : null;
+  const [groupMenu, setGroupMenu] = useState<{ id: string; left: number; top: number } | null>(null);
+  const [tabMenu, setTabMenu] = useState<{ key: TabKey; left: number; top: number } | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => recall('qa-sidebar') === 'closed');
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() => {
     const saved = recall('qa-sidebar-width');
@@ -120,8 +136,10 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   // A notice about something done that shows on its own (a request pasted into the conversation): it goes away by itself.
   const flash = (message: string) => { setNotice(message); setTimeout(() => setNotice((cur) => (cur === message ? '' : cur)), 6000); };
   const [terms, setTerms] = useState<TermTab[]>([]);
-  const [activeTerm, setActiveTerm] = useState<string | null>(null);
-  const activeAiTerminal = terms.find((term) => term.id === activeTerm && term.running && term.tool);
+  const termsRef = useRef(terms);
+  termsRef.current = terms;
+  const [termsReady, setTermsReady] = useState(false); // the terminals still running for this project came back
+  const activeTerm = focusKey?.startsWith('term:') ? focusKey.slice(5) : null;
   const openCall = useCallback((preset: LaunchPreset = {}) => {
     const current = terms.find((term) => term.id === activeTerm && term.running && term.tool);
     setLaunch({ ...preset, ...(current ? { terminal: current } : {}) });
@@ -135,10 +153,9 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     return () => window.removeEventListener('keydown', onKey, true);
   }, [openCall, launch, settings]);
   // Graph view is a placeholder tab. The rail button under the AI icon opens it.
-  const [graphOpen, setGraphOpen] = useState(false);
-  const [graphFocus, setGraphFocus] = useState(false);
-  const openGraph = () => { setGraphOpen(true); setGraphFocus(true); setActiveTerm(null); };
-  const closeGraph = () => { setGraphOpen(false); setGraphFocus(false); };
+  const graphFocus = focusKey === GRAPH;
+  const openGraph = () => apply((b) => boardOpen(b, GRAPH));
+  const closeGraph = () => apply((b) => boardClose(b, GRAPH));
   const toggleGraph = () => { if (graphFocus) closeGraph(); else openGraph(); };
   const openedTerm = useRef<string | null>(null);
   const [showSetup, setShowSetup] = useState(startSetup && project.starter !== 'blank'); // after creating the project or linking a folder
@@ -217,6 +234,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
       flushEdits(); // a text typed a moment ago counts as an edit: the tab is dirty and is not read over
       setOpsTick((n) => n + 1);
       advanceRef.current(); // a step may have just delivered its work
+      deliverRef.current(); // a run of a terminal may have listed a new deliverable
       const fresh = loadTree();
       setRefreshKey((k) => k + 1);
       summary(); // the project summary re-reads every project: at most once per 5 s while the files keep changing
@@ -241,21 +259,49 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     setOpView(null);
     if (/^notes\/[^/]+\.md$/.test(path)) { setNote({ path }); return; } // notes open in the main area, over the tabs
     setNote(null);
-    setGraphFocus(false);
-    setActiveTerm(null);
-    if (tabsRef.current.some((t) => t.path === path)) { touchRecentFile(project.id, path); setActive(path); return; }
+    if (tabsRef.current.some((t) => t.path === path)) { touchRecentFile(project.id, path); apply((b) => show(b, fileKey(path))); return; }
     const node = findFile(treeRef.current, path); // taken before the read: it can only be older than the content
     const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
     api.readFile(project.id, path).then((content) => {
       touchRecentFile(project.id, path);
       const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
       const view: DocMode = content.kind !== 'markdown' ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
-      setTabs((all) => [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]);
-      setActive(path);
+      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      apply((b) => boardOpen(b, fileKey(path)));
       // Reveal the file in the tree.
       setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
     }).catch((e: Error) => setError(e.message));
-  }, [project.id]);
+  }, [project.id, apply]);
+
+  // A deliverable an AI just wrote: it joins its terminal's group without taking the screen, marked new.
+  const openInGroup = useCallback((path: string, group: string) => {
+    if (tabsRef.current.some((t) => t.path === path)) return;
+    const node = findFile(treeRef.current, path);
+    const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
+    api.readFile(project.id, path).then((content) => {
+      const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
+      const view: DocMode = content.kind !== 'markdown' || !content.editable || large ? 'preview' : 'edit';
+      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      apply((b) => boardOpen(b, fileKey(path), { group, background: true }));
+    }).catch(() => { /* not readable yet: the next change tries again */ });
+  }, [project.id, apply]);
+  // Each terminal's deliverables (the artifacts of the runs it created) open once in its group; a tab closed stays closed.
+  const deliveredKey = `qa-delivered:${workspaceId}:${project.id}`;
+  const openDeliverables = useCallback(() => {
+    api.terminalDeliverables(project.id).then((byTerminal) => {
+      let done: string[] = [];
+      try { const v: unknown = JSON.parse(recall(deliveredKey) ?? '[]'); if (Array.isArray(v)) done = v.filter((x): x is string => typeof x === 'string'); } catch { /* start over */ }
+      const known = new Set(done);
+      const live = new Set(termsRef.current.map((x) => x.id));
+      for (const [terminal, paths] of Object.entries(byTerminal)) {
+        if (!live.has(terminal)) continue;
+        for (const path of paths) { if (known.has(path)) continue; known.add(path); openInGroup(path, `g-${terminal}`); }
+      }
+      if (known.size !== done.length) remember(deliveredKey, JSON.stringify([...known].slice(-500)));
+    }).catch(() => { /* nothing to open */ });
+  }, [project.id, deliveredKey, openInGroup]);
+  const deliverRef = useRef(openDeliverables);
+  deliverRef.current = openDeliverables;
 
   // tabsRef follows at once: a visual editor's pending text is flushed (flushEdits) right before save/close read it.
   const update = (path: string, patch: Partial<Tab>) => {
@@ -350,24 +396,35 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     const tab = tabsRef.current.find((t) => t.path === path);
     if (tab && isDirty(tab) && autosaves(tab) && !tab.conflict) save(path); // it saves on its own: closing saves now
     else if (tab && isDirty(tab) && !window.confirm(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }))) return;
-    setTabs((all) => {
-      const i = all.findIndex((t) => t.path === path);
-      const next = all.filter((t) => t.path !== path);
-      setActive((cur) => (cur === path ? next[Math.min(i, next.length - 1)]?.path ?? null : cur));
-      return next;
-    });
-  }, [save]);
+    setTabs((all) => all.filter((t) => t.path !== path));
+    apply((b) => boardClose(b, fileKey(path)));
+  }, [save, apply]);
 
-  const addTerminal = useCallback((t: TerminalRef) => { setTerms((all) => (all.some((x) => x.id === t.id) ? all : [...all, { ...t, running: true }])); setGraphFocus(false); setActiveTerm(t.id); }, []);
+  // Every terminal opens its own group (its name, the next color), shown in the focused view.
+  const addTerminal = useCallback((t: TerminalRef) => { setTerms((all) => (all.some((x) => x.id === t.id) ? all : [...all, { ...t, running: true }])); apply((b) => boardTerminal(b, t.id, t.title)); }, [apply]);
 
   // Terminals outlive the project's screen: the ones still running for it come back as tabs, with what they printed meanwhile.
   useEffect(() => {
-    void api.term()?.list?.(project.id).then((running) => {
-      if (!running.length) return;
+    const listing = api.term()?.list?.(project.id);
+    if (!listing) { setTermsReady(true); return; }
+    void listing.then((running) => {
       setTerms((all) => [...all, ...running.filter((r) => !all.some((x) => x.id === r.id)).map((r) => ({ ...r, running: true }))]);
-      setActiveTerm((cur) => cur ?? running[running.length - 1].id);
-    }).catch(() => { /* no terminals to bring back */ });
-  }, [project.id]);
+      // Their groups come back as they were (the saved board); a terminal the board does not know gets a new group.
+      apply((b) => running.reduce((acc, r) => (acc.tabs[termKey(r.id)] ? acc : boardTerminal(acc, r.id, r.title)), b));
+    }).catch(() => { /* no terminals to bring back */ }).finally(() => { setTermsReady(true); deliverRef.current(); });
+  }, [project.id, apply]);
+
+  // The board keeps only tabs that exist (a saved board, a terminal closed elsewhere) and knows every open one.
+  useEffect(() => {
+    if (!termsReady) return;
+    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : [])]);
+    const known = Object.keys(board.tabs);
+    if (known.length === alive.size && known.every((k) => alive.has(k))) return;
+    apply((b) => [...alive].filter((k) => !b.tabs[k]).reduce((acc, k) => {
+      const opened = boardOpen(acc, k, { background: true });
+      return { ...opened, tabs: { ...opened.tabs, [k]: { ...opened.tabs[k], fresh: false } } };
+    }, prune(b, alive)));
+  }, [tabs, terms, termsReady, board.tabs, apply]);
 
   // Operations move on when a step's files are there: the next step starts in a terminal tab (or waits for approval).
   const advancing = useRef(false);
@@ -424,12 +481,9 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const closeTerm = (id: string) => {
     if (terms.find((t) => t.id === id)?.running && !window.confirm(t('Close this terminal? What is running in it will stop.'))) return;
     api.term()?.kill(id);
-    setTerms((all) => {
-      const i = all.findIndex((t) => t.id === id);
-      const next = all.filter((t) => t.id !== id);
-      setActiveTerm((cur) => (cur === id ? next[Math.min(i, next.length - 1)]?.id ?? null : cur));
-      return next;
-    });
+    setTerms((all) => all.filter((t) => t.id !== id));
+    // Its group stays while it still has files open.
+    apply((b) => { const group = b.tabs[termKey(id)]?.group; const next = boardClose(b, termKey(id)); return group ? dropGroup(next, group) : next; });
   };
 
   // Where a tree item is on this computer: shown selected in the file manager, or its full path copied.
@@ -461,7 +515,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         loadTree();
         setExpanded((s) => new Set(s).add(folder));
         setTabs((all) => all.map((tab) => (tab.path === from ? { ...tab, path, content: { ...tab.content, path } } : tab)));
-        setActive((cur) => (cur === from ? path : cur));
+        apply((b) => boardRename(b, fileKey(from), fileKey(path)));
         if (note?.path === from && !/^notes\/[^/]+\.md$/.test(path)) openPath(path);
         setNote((cur) => (cur?.path === from ? (/^notes\/[^/]+\.md$/.test(path) ? { path } : null) : cur));
         if (isFavorite({ project: project.id, path: from })) {
@@ -529,7 +583,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     api.deleteEntry(project.id, path).then(() => {
       loadTree();
       setTabs((all) => all.filter((tab) => tab.path !== path && !tab.path.startsWith(`${path}/`)));
-      setActive((cur) => (cur === path || cur?.startsWith(`${path}/`) ? null : cur));
+      apply((b) => b.order.filter((k) => k === fileKey(path) || k.startsWith(`${fileKey(path)}/`)).reduce(boardClose, b));
     }).catch((e: Error) => setError(e.message));
   };
   // The new file opens to be written; a new folder shows open in the tree.
@@ -560,7 +614,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     const moved = (p: string) => (p === path ? to : p.startsWith(`${path}/`) ? to + p.slice(path.length) : p);
     flushEdits(); // the tabs are renamed below: text typed a moment ago must reach them under the old path
     setTabs((all) => all.map((tab) => { const p = moved(tab.path); return p === tab.path ? tab : { ...tab, path: p, content: { ...tab.content, path: p } }; }));
-    setActive((cur) => (cur ? moved(cur) : cur));
+    apply((b) => b.order.filter((k) => k.startsWith('file:')).reduce((acc, k) => boardRename(acc, k, fileKey(moved(k.slice(5)))), b));
     setExpanded((all) => new Set([...all].map(moved)));
     renameRecentFile(project.id, path, to);
     // The row comes back under its new name, with the focus, so F2 or the arrows go on from it.
@@ -667,12 +721,94 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
     }).catch((err: Error) => setError(t(err.message)));
   };
 
-  const onLink = (href: string) => {
+  const onLinkFrom = (from: string, href: string) => {
     if (/^https?:\/\//.test(href)) { void api.openLink(href); return; }
-    if (!tab) return;
-    const target = resolveLink(tab.path, href);
+    const target = resolveLink(from, href);
     if (target) openPath(target);
   };
+
+  const renderDoc = (doc: Tab) => (
+    <DocView
+      key={doc.path}
+      content={doc.content}
+      tags={doc.path !== 'project.json' && doc.path !== 'tags.json' && !doc.path.startsWith('@folder') ? <TagPicker catalog={catalog} value={fileTags[doc.path] ?? []} onChange={(ids) => tagFile(doc.path, ids)} onCatalog={setCatalog} compact /> : undefined}
+      project={project.id}
+      mode={doc.mode}
+      draft={doc.draft}
+      dirty={isDirty(doc)}
+      saving={doc.saving}
+      onDraft={(draft) => update(doc.path, { draft })}
+      onMode={(mode) => update(doc.path, { mode })}
+      onQuiet={() => update(doc.path, { why: undefined, quiet: true })}
+      why={doc.why}
+      autosave={autosaves(doc)}
+      savedAt={doc.savedAt}
+      conflict={doc.conflict}
+      onTakeTheirs={() => takeTheirs(doc.path)}
+      onKeepMine={() => keepMine(doc.path)}
+      onRewrite={doc.quiet ? undefined : (kind) => update(doc.path, kind === 'loss' ? { mode: 'preview', why: 'loss' } : { why: 'format' })}
+      onSave={() => save(doc.path)}
+      onCommit={(text) => commit(doc.path, text)}
+      onOpenExternal={() => openExternal(doc.path)}
+      onReload={() => reloadFile(doc.path)}
+      onLink={(href) => onLinkFrom(doc.path, href)}
+      onPdfSaved={(path) => {
+        if (path !== doc.path) { openPath(path); return; }
+        api.readFile(project.id, path).then((content) => update(path, { content, draft: textOf(content), seen: stampOf(content, doc.seen) })).catch((e: Error) => setError(e.message));
+      }}
+      openWith={{
+        kept: kept[extOf(doc.path)] ?? null,
+        apps: () => api.openWithApps(project.id, doc.path).catch((e: Error) => { setError(e.message); return null; }),
+        open: (app, always) => {
+          if (app && always) keep(extOf(doc.path), app);
+          api.openWith(project.id, doc.path, app?.id ?? '').catch((e: Error) => setError(e.message));
+        },
+        reset: () => keep(extOf(doc.path), null),
+      }}
+    />
+  );
+  // ---- groups and views
+  const titleOf = (key: TabKey): PaneTab => {
+    if (key.startsWith('term:')) {
+      const term = terms.find((x) => x.id === key.slice(5));
+      const title = term?.title ?? t('Terminal');
+      return { key, term: true, label: title, title: term?.running === false ? t('{title} (finished)', { title }) : title, icon: <IconTerminal size={13} />, exited: term?.running === false };
+    }
+    if (key === GRAPH) return { key, label: t('Graph view'), title: t('Graph view'), icon: <IconGraph size={14} /> };
+    const path = key.slice(5);
+    const doc = tabs.find((x) => x.path === path);
+    return { key, label: path.split('/').pop() ?? path, title: path, icon: <FileIcon name={path} size={14} />, dirty: doc ? isDirty(doc) : false, fresh: board.tabs[key]?.fresh };
+  };
+  const selectTab = (key: TabKey) => { if (key.startsWith('file:')) touchRecentFile(project.id, key.slice(5)); apply((b) => show(b, key)); };
+  const closeTab = (key: TabKey) => { if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
+  const closeGroupFiles = (group: string) => {
+    for (const key of tabsOfGroup(board, group)) if (key.startsWith('file:')) close(key.slice(5));
+    apply((b) => dropGroup(b, group));
+  };
+  const newGroupFor = (key: TabKey, at: { left: number; top: number }) => {
+    const made = newGroup(board, t('Group {n}', { n: board.groups.length }));
+    setBoard(moveToGroup(made.board, key, made.id));
+    setGroupMenu({ id: made.id, ...at }); // named and colored right away
+  };
+  // Dragging a divider: its position in % of the views' area.
+  const panesBox = useRef<HTMLDivElement>(null);
+  const dragSplit = (axis: 'x' | 'y') => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const r = panesBox.current?.getBoundingClientRect();
+      if (!r) return;
+      apply((b) => (axis === 'x' ? setSplit(b, ((ev.clientX - r.left) / r.width) * 100, b.split.y) : setSplit(b, b.split.x, ((ev.clientY - r.top) / r.height) * 100)));
+    };
+    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  };
+  const views = board.panes.length;
+  // The view at the top right holds the layout and New buttons.
+  const TOP_RIGHT: Record<Board['arrangement'], number> = { 1: 0, 2: 1, '2r': 0, 3: 1, 4: 1 };
 
   return (
     <div
@@ -748,95 +884,50 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
               onSaved={(saved) => { if ('path' in saved && saved.path !== note.path) loadTree(); }} onClose={() => { setNote(null); loadTree(); }} />
           </div>
         )}
-        <div className="tabs" role="tablist">
-          {graphOpen && (
-            <div role="tab" aria-selected={graphFocus} className={`tab${graphFocus ? ' active' : ''}`} onClick={openGraph} title={t('Graph view')}>
-              <IconGraph size={14} />
-              <span className="tab-name">{t('Graph view')}</span>
-              <button type="button" className="tab-close" onClick={(e) => { e.stopPropagation(); closeGraph(); }} title={t('Close')}><IconX size={13} /></button>
-            </div>
-          )}
-          {tabs.map((doc) => {
-            const on = !activeTerm && !graphFocus && doc.path === active;
+        {notice && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
+        {error && <div className="error-bar">{error}<button type="button" className="icon-btn" onClick={() => setError('')}><IconX size={14} /></button></div>}
+        <div ref={panesBox} className={`panes arr-${board.arrangement}`} style={{ '--split-x': `${board.split.x}%`, '--split-y': `${board.split.y}%` } as CSSProperties}>
+          {board.panes.map((pane, i) => {
+            const keys = tabsOfPane(board, i);
+            const group = groupOf(board, pane.group);
+            const doc = pane.active?.startsWith('file:') ? tabs.find((x) => x.path === pane.active!.slice(5)) : undefined;
             return (
-              <div key={doc.path} role="tab" aria-selected={on} className={`tab${on ? ' active' : ''}`} onClick={() => { touchRecentFile(project.id, doc.path); setGraphFocus(false); setActive(doc.path); setActiveTerm(null); }} title={doc.path}
-                onAuxClick={(e) => { if (e.button === 1) close(doc.path); }}>
-                <FileIcon name={doc.path} size={14} />
-                <span className="tab-name">{doc.path.split('/').pop()}</span>
-                {isDirty(doc) && <span className="tab-dirty" title={t('Unsaved changes')}>●</span>}
-                <button type="button" className="tab-close" onClick={(e) => { e.stopPropagation(); close(doc.path); }} title={t('Close (Ctrl+W)')}><IconX size={13} /></button>
-              </div>
+              <section key={i} className={`pane pane-${i}${views > 1 && board.focus === i ? ' focused' : ''}`} style={groupStyle(group)} aria-label={t('View {n}', { n: i + 1 })}
+                onMouseDownCapture={() => { if (board.focus !== i) apply((b) => focusPane(b, i)); }}>
+                <PaneHead groups={board.groups} shown={pane.group} counts={(id) => tabsOfGroup(board, id).length} fresh={(id) => freshIn(board, id)}
+                  tabs={keys.map(titleOf)} active={pane.active} onSelect={selectTab} onClose={closeTab}
+                  onShowGroup={(id) => apply((b) => showGroup(b, id, i))} onGroupMenu={(id, at) => setGroupMenu({ id, ...at })}
+                  onTabMenu={(key, at) => setTabMenu({ key, ...at })} onDropTab={(key) => apply((b) => moveToPane(b, key, i))}
+                  actions={i === TOP_RIGHT[board.arrangement] ? <>
+                    <LayoutButton arrangement={board.arrangement} onArrange={(a) => apply((b) => arrange(b, a))} />
+                    <AddButton size="sm" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
+                  </> : undefined}
+                />
+                <div className="pane-body">
+                  {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
+                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
+                  ))}
+                  {pane.active === GRAPH ? (
+                    <div className="welcome">
+                      <h1>{t('Graph view')}</h1>
+                      <p className="muted">{t('Under construction.')}</p>
+                    </div>
+                  ) : doc ? renderDoc(doc) : pane.active?.startsWith('term:') ? null : i === 0 && keys.length === 0 ? (
+                    <div className="welcome">
+                      <img className="hero" src={THINKING_CAT} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <h1>{project.name}</h1>
+                      <p className="muted">{t('Open or drop a file to get started.')}</p>
+                    </div>
+                  ) : (
+                    <div className="welcome pane-empty"><p className="muted">{t('Choose a group above, or drag a tab here.')}</p></div>
+                  )}
+                </div>
+              </section>
             );
           })}
-          {terms.map((term) => (
-            <div key={term.id} role="tab" aria-selected={term.id === activeTerm} className={`tab tab-term${term.id === activeTerm ? ' active' : ''}${term.running ? '' : ' exited'}`}
-              onClick={() => { setGraphFocus(false); setActiveTerm(term.id); }} title={term.running ? term.title : t('{title} (finished)', { title: term.title })} onAuxClick={(e) => { if (e.button === 1) closeTerm(term.id); }}>
-              <IconTerminal size={13} />
-              <span className="tab-name">{term.title}</span>
-              <button type="button" className="tab-close" onClick={(e) => { e.stopPropagation(); closeTerm(term.id); }} title={t('Close the terminal')}><IconX size={13} /></button>
-            </div>
-          ))}
-          <AddButton size="sm" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
+          {(board.arrangement === '2' || board.arrangement === '3' || board.arrangement === '4') && <div className="split split-x" role="separator" aria-orientation="vertical" aria-label={t('Resize the views')} onPointerDown={dragSplit('x')} />}
+          {(board.arrangement === '2r' || board.arrangement === '3' || board.arrangement === '4') && <div className="split split-y" role="separator" aria-orientation="horizontal" aria-label={t('Resize the views')} onPointerDown={dragSplit('y')} />}
         </div>
-        {notice && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
-        {activeAiTerminal && <div className="terminal-callbar">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => openCall()} title={t('Call… (Ctrl+Shift+K / ⌘⇧K)')}>{t('Call…')}</button>
-        </div>}
-        {error && <div className="error-bar">{error}<button type="button" className="icon-btn" onClick={() => setError('')}><IconX size={14} /></button></div>}
-        {terms.map((t) => (
-          <TerminalView key={t.id} id={t.id} project={project.id} active={t.id === activeTerm} onExit={() => setTerms((all) => all.map((x) => (x.id === t.id ? { ...x, running: false } : x)))} />
-        ))}
-        {graphFocus ? (
-          <div className="welcome">
-            <h1>{t('Graph view')}</h1>
-            <p className="muted">{t('Under construction.')}</p>
-          </div>
-        ) : activeTerm ? null : tab ? (<>
-          <DocView
-            key={tab.path}
-            content={tab.content}
-            tags={tab.path !== 'project.json' && tab.path !== 'tags.json' && !tab.path.startsWith('@folder') ? <TagPicker catalog={catalog} value={fileTags[tab.path] ?? []} onChange={(ids) => tagFile(tab.path, ids)} onCatalog={setCatalog} compact /> : undefined}
-            project={project.id}
-            mode={tab.mode}
-            draft={tab.draft}
-            dirty={isDirty(tab)}
-            saving={tab.saving}
-            onDraft={(draft) => update(tab.path, { draft })}
-            onMode={(mode) => update(tab.path, { mode })}
-            onQuiet={() => update(tab.path, { why: undefined, quiet: true })}
-            why={tab.why}
-            autosave={autosaves(tab)}
-            savedAt={tab.savedAt}
-            conflict={tab.conflict}
-            onTakeTheirs={() => takeTheirs(tab.path)}
-            onKeepMine={() => keepMine(tab.path)}
-            onRewrite={tab.quiet ? undefined : (kind) => update(tab.path, kind === 'loss' ? { mode: 'preview', why: 'loss' } : { why: 'format' })}
-            onSave={() => save(tab.path)}
-            onCommit={(text) => commit(tab.path, text)}
-            onOpenExternal={() => openExternal(tab.path)}
-            onReload={() => reloadFile(tab.path)}
-            onLink={onLink}
-            onPdfSaved={(path) => {
-              if (path !== tab.path) { openPath(path); return; }
-              api.readFile(project.id, path).then((content) => update(path, { content, draft: textOf(content), seen: stampOf(content, tab.seen) })).catch((e: Error) => setError(e.message));
-            }}
-            openWith={{
-              kept: kept[extOf(tab.path)] ?? null,
-              apps: () => api.openWithApps(project.id, tab.path).catch((e: Error) => { setError(e.message); return null; }),
-              open: (app, always) => {
-                if (app && always) keep(extOf(tab.path), app);
-                api.openWith(project.id, tab.path, app?.id ?? '').catch((e: Error) => setError(e.message));
-              },
-              reset: () => keep(extOf(tab.path), null),
-            }}
-          />
-        </>) : (
-          <div className="welcome">
-            <img className="hero" src={THINKING_CAT} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            <h1>{project.name}</h1>
-            <p className="muted">{t('Open or drop a file to get started.')}</p>
-          </div>
-        )}
       </main>
 
       <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onOpenRun={openListedRun} onSetup={() => setShowSetup(true)} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
@@ -856,7 +947,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         {tab && isDirty(tab) && <span className="warn-text">{t('unsaved')}</span>}
         <span className="statusbar-spacer" />
         {words !== null && <span className="muted">{t('{n} words', { n: words })}</span>}
-        <UsageStatus names={{ [project.id]: project.name }} terminals={terms} onTerminal={(id) => { setGraphFocus(false); setActiveTerm(id); }} />
+        <UsageStatus names={{ [project.id]: project.name }} terminals={terms} onTerminal={(id) => apply((b) => show(b, termKey(id)))} />
       </footer>
 
       {termMenu && (
@@ -874,6 +965,15 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         </div>
       )}
       {craftOpen && <CraftDownloads onClose={() => setCraftOpen(false)} />}
+      {groupMenu && groupOf(board, groupMenu.id) && (
+        <GroupMenu group={groupOf(board, groupMenu.id)!} at={groupMenu} onClose={() => setGroupMenu(null)}
+          onRename={(name) => apply((b) => renameGroup(b, groupMenu.id, name))} onColor={(c) => apply((b) => colorGroup(b, groupMenu.id, c))}
+          onCloseFiles={() => closeGroupFiles(groupMenu.id)} />
+      )}
+      {tabMenu && board.tabs[tabMenu.key] && !tabMenu.key.startsWith('term:') && (
+        <TabMenu at={tabMenu} groups={board.groups} current={board.tabs[tabMenu.key].group} onClose={() => setTabMenu(null)}
+          onMove={(group) => apply((b) => moveToGroup(b, tabMenu.key, group))} onNewGroup={() => newGroupFor(tabMenu.key, tabMenu)} />
+      )}
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
           <ul className="term-menu item-menu" role="menu" style={{ left: itemMenu.left, top: itemMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setItemMenu(null); }}>
@@ -919,7 +1019,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
         onPrepared={(terminal) => {
-          setLaunch(null); setGraphFocus(false); setActiveTerm(terminal.id);
+          setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
           flash(t('Request pasted. Add context and press Enter when ready.'));
           requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.term-pane:not([hidden]) textarea')?.focus());
         }} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onOperation={startOperationForm} onMyAis={() => { setLaunch(null); onSettings('ai'); }} />}
