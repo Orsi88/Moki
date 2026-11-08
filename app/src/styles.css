@@ -701,6 +701,14 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .setup-section > p { margin: 0; }
 .setup-section .field { margin: 0; }
 .setup-section .agent-toggles li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* What the workspace settings bring and this project cannot drop alone (a shared tag, the template for every project). */
+.setup-locked { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 0.74rem; }
+.setup-locked svg { flex-shrink: 0; }
+.setup-section .agent-toggles input:disabled + span { color: var(--muted); }
+.setup-use { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 0.78rem; cursor: pointer; }
+.setup-use input { accent-color: var(--accent); }
+.setup-readonly { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; }
+.setup-readonly li { display: flex; justify-content: space-between; gap: 8px; }
 .setup-star { color: var(--faint); }
 .setup-star.on { color: var(--accent); }
 .setup-star.on svg { fill: currentColor; }

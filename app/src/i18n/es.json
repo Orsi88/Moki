@@ -1662,5 +1662,16 @@
   "Recent projects": "Proyectos recientes",
   "Suggested tags": "Etiquetas sugeridas",
   "How tags work": "Cómo funcionan las etiquetas",
-  "Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.": "Las etiquetas indican a qué proyectos se aplica. Sin etiqueta, se aplica a todos. Para vincular un proyecto, escribe su nombre. Una etiqueta compartida vincula todos los proyectos que la tienen."
+  "Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.": "Las etiquetas indican a qué proyectos se aplica. Sin etiqueta, se aplica a todos. Para vincular un proyecto, escribe su nombre. Una etiqueta compartida vincula todos los proyectos que la tienen.",
+  "Comes through the tag \"{tag}\". Change it in the workspace settings.": "Viene por la etiqueta \"{tag}\". Cámbialo en la configuración general.",
+  "tag {tag}": "etiqueta {tag}",
+  "Your activities in this project": "Tus actividades en este proyecto",
+  "Checking one gives it this project's tag, also in Settings › Activities. The Moki activities are in every project.": "Marcar una le da la etiqueta de este proyecto, que también aparece en Configuración › Actividades. Las actividades de Moki están en todos los proyectos.",
+  "The document styles of this project's deliverables. Checking one gives it this project's tag, also in Settings › Templates; the one in use styles them.": "Los estilos de documento de las entregas de este proyecto. Marcar uno le da la etiqueta de este proyecto, que también aparece en Configuración › Plantillas; el que está en uso les da formato.",
+  "For every project: used when no other applies.": "Para todos los proyectos: se usa cuando ninguna otra se aplica.",
+  "every project": "todos los proyectos",
+  "In use": "En uso",
+  "The servers the AIs opened here get. Change them in Settings › MCP servers.": "Los servidores que reciben las IA abiertas aquí. Cámbialos en Configuración › Servidores MCP.",
+  "this project": "este proyecto",
+  "No MCP server for this project.": "Ningún servidor MCP para este proyecto."
 }

@@ -1662,5 +1662,16 @@
   "Recent projects": "Projetos recentes",
   "Suggested tags": "Tags sugeridas",
   "How tags work": "Como as tags funcionam",
-  "Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.": "As tags dizem a que projetos isto vale. Sem tag, vale para todos. Para ligar a um projeto, escreva o nome dele. Uma tag compartilhada liga todos os projetos que a têm."
+  "Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.": "As tags dizem a que projetos isto vale. Sem tag, vale para todos. Para ligar a um projeto, escreva o nome dele. Uma tag compartilhada liga todos os projetos que a têm.",
+  "Comes through the tag \"{tag}\". Change it in the workspace settings.": "Vem pela tag \"{tag}\". Mude isso nas configurações gerais.",
+  "tag {tag}": "tag {tag}",
+  "Your activities in this project": "Suas atividades neste projeto",
+  "Checking one gives it this project's tag, also in Settings › Activities. The Moki activities are in every project.": "Marcar uma dá a ela a tag deste projeto, que aparece também em Configurações › Atividades. As atividades do Moki estão em todos os projetos.",
+  "The document styles of this project's deliverables. Checking one gives it this project's tag, also in Settings › Templates; the one in use styles them.": "Os estilos de documento das entregas deste projeto. Marcar um dá a ele a tag deste projeto, que aparece também em Configurações › Templates; o que está em uso formata as entregas.",
+  "For every project: used when no other applies.": "Para todos os projetos: usado quando nenhum outro se aplica.",
+  "every project": "todos os projetos",
+  "In use": "Em uso",
+  "The servers the AIs opened here get. Change them in Settings › MCP servers.": "Os servidores que as IAs abertas aqui recebem. Mude em Configurações › Servidores MCP.",
+  "this project": "este projeto",
+  "No MCP server for this project.": "Nenhum servidor MCP para este projeto."
 }

@@ -785,6 +785,44 @@ test('an AI opened in the project starts with its defaults: one activity without
   }
 });
 
+test('project settings and the workspace settings mirror each other through the project\'s own tag', () => {
+  const other = service.createProject('Mirror Other').id;
+  const third = service.createProject('Mirror Third').id; // so two projects are not every project
+  const own = service.saveActivity({ label: 'Checklist do log', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [`project:${other}`], template: 'Revise o log.' });
+  const style = service.saveTemplate({ name: 'Cliente', tags: [`project:${other}`], style: {} as never });
+  const tagsOf = () => listActivities(root).find((a) => a.id === own.id)!.tags;
+  const reach = () => service.projectLinks('acme');
+  try {
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'off');
+    assert.equal(reach().templates.find((t) => t.id === style.id)?.state, 'off');
+    // Checked in the project: the project's tag, as Settings › Activities and Templates show it; the template picked is in use.
+    service.setProjectLinks('acme', { activities: { [own.id]: true }, templates: { [style.id]: true }, template: style.id });
+    assert.deepEqual(tagsOf(), [`project:${other}`, 'project:acme']);
+    assert.deepEqual(service.templates().find((t) => t.id === style.id)?.tags, [`project:${other}`, 'project:acme']);
+    assert.deepEqual(reach().templates.filter((t) => t.inUse).map((t) => t.id), [style.id]);
+    // Tagged in the workspace's settings: the project sees it the same way.
+    service.saveActivity({ ...own, id: own.id, kind: 'prompt', target: '', files: 'none', template: 'Revise o log.', tags: [`project:${other}`] });
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'off');
+    service.saveActivity({ ...own, id: own.id, kind: 'prompt', target: '', files: 'none', template: 'Revise o log.', tags: [`project:${other}`, 'project:acme'] });
+    assert.equal(reach().activities.find((a) => a.id === own.id)?.state, 'own');
+    // Unchecked here: only this project's tag goes, and the template goes back to the automatic choice.
+    service.setProjectLinks('acme', { activities: { [own.id]: false }, templates: { [style.id]: false }, template: null });
+    assert.deepEqual(tagsOf(), [`project:${other}`]);
+    assert.ok(!reach().templates.find((t) => t.id === style.id)?.inUse);
+    // The template for every project stays; a Moki activity cannot be linked here.
+    const general = service.templates().find((t) => !t.tags.length)!;
+    assert.throws(() => service.setProjectLinks('acme', { templates: { [general.id]: false } }), /template for every project stays/);
+    assert.throws(() => service.setProjectLinks('acme', { activities: { review: false } }), /Only your own activities/);
+    // MCP servers are only shown here.
+    assert.ok(Array.isArray(reach().mcp));
+  } finally {
+    service.deleteActivity(own.id);
+    service.removeTemplate(style.id);
+    service.deleteProject(other, 'delete');
+    service.deleteProject(third, 'delete');
+  }
+});
+
 test('npm run new-run records --activity, and refuses an activity the project does not see', () => {
   const ws = mkdtempSync(join(tmpdir(), 'qa-newrun-'));
   try {

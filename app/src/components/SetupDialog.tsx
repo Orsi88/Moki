@@ -7,11 +7,11 @@
 // dialog then opens with the plan's skills, agents and context files checked, for the user to approve.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectSummary } from '../api';
+import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectLinks, type ProjectSummary, type Reach } from '../api';
 import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload } from './ClaudeUpload';
-import { IconCheck, IconSearch, IconStar, IconX } from './Icons';
+import { IconCheck, IconLock, IconSearch, IconStar, IconX } from './Icons';
 
 interface Props {
   project: ProjectSummary;
@@ -46,6 +46,11 @@ function DefaultList({ label, items, chosen, onAdd, onRemove }: {
   );
 }
 
+// Why an item cannot be turned off in this project alone: what brings it here, said in the workspace's settings.
+const lockedWhy = (r: Reach | undefined): string => (r?.state === 'shared' ? t('Comes through the tag "{tag}". Change it in the workspace settings.', { tag: r.via ?? '' }) : '');
+const Locked = ({ reach }: { reach: Reach | undefined }) => (reach?.state === 'shared'
+  ? <span className="setup-locked" title={lockedWhy(reach)}><IconLock size={12} /> {t('tag {tag}', { tag: reach.via ?? '' })}</span> : null);
+
 // One kind of setting: a frame with its title and a line saying what it is for.
 const Section = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
   <fieldset className="setup-section">
@@ -70,6 +75,11 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const [skills, setSkills] = useState<string[]>([]);
   const [operations, setOperations] = useState<Operation[]>([]);
   const [plugins, setPlugins] = useState<string[]>(project.plugins);
+  // The workspace's items as this project sees them (the same tags), and what was changed here.
+  const [links, setLinks] = useState<ProjectLinks | null>(null);
+  const [activityOn, setActivityOn] = useState<Record<string, boolean>>({});
+  const [templateOn, setTemplateOn] = useState<Record<string, boolean>>({});
+  const [templateUse, setTemplateUse] = useState<string | null | undefined>(undefined);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [files, setFiles] = useState<string[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
@@ -87,6 +97,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
     api.activities(project.id).then((r) => setActivities(r.activities.filter((a) => a.source !== 'moki' && a.available))).catch(() => setActivities([]));
     api.skills().then((list) => setSkills(list.filter((s) => s.status === 'draft' || s.status === 'stable').map((s) => s.name))).catch(() => setSkills([]));
     api.operations().then(setOperations).catch(() => setOperations([]));
+    api.projectLinks(project.id).then(setLinks).catch(() => setLinks(null));
   }, [project.id]);
 
   // A plan waiting for approval preselects what the AI recommended.
@@ -112,6 +123,14 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
 
   const flip = (list: string[], item: string) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
   const pending = Boolean(plan && !plan.approved);
+  const isOn = (r: Reach, changed: boolean | undefined) => changed ?? r.state !== 'off';
+  const templates = (links?.templates ?? []).map((tp) => ({ ...tp, on: isOn(tp, templateOn[tp.id]) }));
+  // The template in use: the one picked here, else the project's choice while it still applies, else the automatic one.
+  const usedTemplate = (() => {
+    if (templateUse) { const picked = templates.find((tp) => tp.id === templateUse && tp.on); if (picked) return picked.id; }
+    const auto = templates.find((tp) => tp.on && tp.state === 'all') ?? templates.find((tp) => tp.on);
+    return (templateUse === null ? auto : templates.find((tp) => tp.chosen && tp.on) ?? auto)?.id ?? '';
+  })();
   const suggested = (list: string[] | undefined, item: string) => pending && list?.includes(item) ? <span className="chip">{t('suggested by the AI')}</span> : null;
 
   // Defaults, kind by kind. A default agent is turned on in the project.
@@ -151,6 +170,10 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
         ...(pending || agentsChanged ? { agents: enabled } : {}),
         ...(pending ? { contextFiles: files, folders } : {}),
       });
+      const some = <T,>(o: Record<string, T>) => (Object.keys(o).length ? o : undefined);
+      if (Object.keys(activityOn).length || Object.keys(templateOn).length || templateUse !== undefined) {
+        await api.setProjectLinks(project.id, { activities: some(activityOn), templates: some(templateOn), ...(templateUse !== undefined ? { template: templateUse } : {}) });
+      }
       await api.setProjectPlugins(project.id, plugins);
       onSaved(asking ? next.activity : null);
     } catch (e) { setError(e instanceof Error ? t(e.message) : String(e)); } finally { setBusy(false); }
@@ -209,8 +232,9 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
                 return (
                   <li key={a.name}>
                     <label title={a.description}>
-                      <input type="checkbox" checked={enabled.includes(a.name)} disabled={isDefault} onChange={() => { setEnabled((s) => flip(s, a.name)); setAgentsChanged(true); }} />
+                      <input type="checkbox" checked={enabled.includes(a.name)} disabled={isDefault || links?.agents[a.name]?.state === 'shared'} onChange={() => { setEnabled((s) => flip(s, a.name)); setAgentsChanged(true); }} />
                       <span>{a.name}</span>
+                      <Locked reach={links?.agents[a.name]} />
                       {a.source === 'custom' && <span className="chip">{t('yours')}</span>}
                       {suggested(plan?.agents, a.name)}
                     </label>
@@ -254,11 +278,62 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
           <Section title={t('Activities')} hint={t('Default activities. Just one that needs no files starts by itself; otherwise the AI says what it can do and waits.')}>
             <DefaultList label={t('Default activities')} items={activities.map((a) => ({ id: a.id, name: t(a.label) }))} chosen={chosen('activity')}
               onAdd={(id) => addDefault('activity', id)} onRemove={(id) => removeDefault('activity', id)} />
+            {Boolean(links?.activities.length) && (
+              <div className="field">
+                <span className="label">{t('Your activities in this project')}</span>
+                <span className="muted small">{t("Checking one gives it this project's tag, also in Settings › Activities. The Moki activities are in every project.")}</span>
+                <ul className="agent-toggles" aria-label={t('Your activities in this project')}>
+                  {links!.activities.map((a) => (
+                    <li key={a.id}>
+                      <label title={lockedWhy(a)}>
+                        <input type="checkbox" checked={isOn(a, activityOn[a.id])} disabled={a.state === 'shared'} onChange={(e) => { const on = e.target.checked; setActivityOn((o) => ({ ...o, [a.id]: on })); }} />
+                        <span>{a.name}</span>
+                        <Locked reach={a} />
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Section>
 
           <Section title={t('Operations')} hint={t('Default operations come first when you call one. Each step runs in its own terminal.')}>
             <DefaultList label={t('Default operations')} items={operations.map((o) => ({ id: o.id, name: o.name }))} chosen={chosen('operation')}
               onAdd={(id) => addDefault('operation', id)} onRemove={(id) => removeDefault('operation', id)} />
+          </Section>
+
+          {templates.length > 0 && (
+            <Section title={t('Templates')} hint={t("The document styles of this project's deliverables. Checking one gives it this project's tag, also in Settings › Templates; the one in use styles them.")}>
+              <ul className="agent-toggles setup-templates" aria-label={t('Templates')}>
+                {templates.map((tp) => (
+                  <li key={tp.id}>
+                    <label title={tp.state === 'all' ? t('For every project: used when no other applies.') : lockedWhy(tp)}>
+                      <input type="checkbox" checked={tp.on} disabled={tp.state === 'all' || tp.state === 'shared'}
+                        onChange={(e) => { const on = e.target.checked; setTemplateOn((o) => ({ ...o, [tp.id]: on })); if (!on && usedTemplate === tp.id) setTemplateUse(null); }} />
+                      <span>{tp.name}</span>
+                      {tp.state === 'all' && <span className="setup-locked"><IconLock size={12} /> {t('every project')}</span>}
+                      <Locked reach={tp} />
+                    </label>
+                    {tp.on && (
+                      <label className="setup-use">
+                        <input type="radio" name="template-in-use" checked={usedTemplate === tp.id} onChange={() => setTemplateUse(tp.id)} />
+                        <span>{t('In use')}</span>
+                      </label>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          <Section title={t('MCP servers')} hint={t('The servers the AIs opened here get. Change them in Settings › MCP servers.')}>
+            {(links?.mcp ?? []).some((m) => m.state !== 'off')
+              ? <ul className="setup-readonly" aria-label={t('MCP servers')}>
+                  {links!.mcp.filter((m) => m.state !== 'off').map((m) => (
+                    <li key={m.id}><span>{m.name}</span><span className="muted small">{m.state === 'all' ? t('every project') : t('this project')}</span></li>
+                  ))}
+                </ul>
+              : <p className="muted small">{t('No MCP server for this project.')}</p>}
           </Section>
 
           <Section title={t('Plugins')} hint={t('ponytail and rtk are always on. These load only in the sessions opened from this project.')}>

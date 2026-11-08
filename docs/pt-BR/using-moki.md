@@ -21,6 +21,8 @@ As **Configurações do projeto** (o ícone ao lado do nome do projeto, o menu �
 - **Ao abrir uma IA aqui**: instruções opcionais, enviadas junto com os padrões abaixo para toda IA aberta sem escolher nada.
 - **Agentes**: os habilitados no projeto; a estrela torna um deles padrão.
 - **Skills**, **Atividades**, **Operações**: os padrões de cada tipo, quantos você quiser.
+- **Suas atividades**, **Templates**: marcar um aqui dá a ele a tag do projeto, a mesma que as Configurações mostram (e vice-versa); o que chega por uma tag compartilhada, ou vale para todos os projetos, fica travado com o motivo. O template em uso formata as entregas.
+- **Servidores MCP**: os que o projeto recebe, só leitura (mude nas Configurações).
 
 Uma IA aberta no projeto (Novo › IA) começa com eles: se o único padrão for uma atividade que não pede arquivos, ela começa na hora; senão, a IA assume o papel do agente padrão, usa as skills padrão, diz em uma ou duas linhas o que está configurado e o que precisa, e espera. A aba mostra isso ("Claude Code · failure-analyst"). Uma atividade escolhida em **Chamar…** vai sem os padrões e sem as instruções, e o **Chamar…** lista os padrões primeiro. Em Novo › IA, *Sem o padrão do projeto* abre uma IA sem nada disso.
 

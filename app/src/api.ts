@@ -169,6 +169,14 @@ export interface Category { id: string; label: string; description: string; sour
 // {project}, {title}, {date}, {page}, {pages}.
 // Tags say which projects an item applies to (scripts/lib/tags.mjs): none = every project,
 // "project:<id>" = that project, any other = the projects that carry it.
+// How a workspace item reaches one project (scripts/lib/tags.mjs reachOf): no tag, a tag the project carries (named), its own tag, or not at all.
+export interface Reach { state: 'all' | 'shared' | 'own' | 'off'; via?: string }
+export interface ProjectLinks {
+  agents: Record<string, Reach>;
+  activities: (Reach & { id: string; name: string })[];
+  templates: (Reach & { id: string; name: string; inUse: boolean; chosen: boolean })[];
+  mcp: { id: string; name: string; state: 'all' | 'own' | 'off' }[];
+}
 export interface TagCatalog { tags: Tag[]; projects: { id: string; project: string; name: string; tags: string[] }[] }
 // A template (Settings › Templates): a named document style and the projects it applies to.
 export interface DocumentTemplate {
@@ -342,6 +350,8 @@ export const api = {
   saveTemplate: (template: Partial<DocumentTemplate> & { name: string; style: DocumentStyle }) => call<DocumentTemplate>('saveTemplate', template),
   removeTemplate: (id: string) => call<boolean>('removeTemplate', id),
   setProjectTemplate: (project: string, id: string | null) => call<boolean>('setProjectTemplate', project, id),
+  projectLinks: (project: string) => call<ProjectLinks>('projectLinks', project),
+  setProjectLinks: (project: string, req: { activities?: Record<string, boolean>; templates?: Record<string, boolean>; template?: string | null }) => call<boolean>('setProjectLinks', project, req),
   tagCatalog: () => call<TagCatalog>('tagCatalog'),
   agentTags: () => call<Record<string, string[]>>('agentTags'),
   setAgentTags: (name: string, tags: string[]) => call<string[]>('setAgentTags', name, tags),

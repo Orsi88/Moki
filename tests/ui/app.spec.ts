@@ -2858,6 +2858,19 @@ test.describe.serial('Moki project defaults', () => {
     const library = join(root, 'workspace', 'library', 'activities');
     mkdirSync(library, { recursive: true });
     writeFileSync(join(library, 'resumo-rapido.md'), '---\nlabel: "Resumo rápido"\ndescription: ""\ncategory: "QA"\nfiles: none\nnote: ""\ntags: ""\n---\n\nResuma o estado do projeto em três linhas.\n');
+    // For the mirror: another project, a workspace tag acme carries, an activity and a template of the other project,
+    // and an activity that reaches acme through the shared tag.
+    addProject(root, 'beta', 'Beta Store');
+    addProject(root, 'gamma', 'Gamma'); // so acme and beta are not every project
+    writeFileSync(join(root, 'workspace', 'tags.json'), JSON.stringify({ tags: [{ id: 'pagamentos', name: 'Pagamentos', color: '#3b82f6', description: '' }] }));
+    const acmeFile = join(project, 'project.json');
+    writeFileSync(acmeFile, JSON.stringify({ ...JSON.parse(readFileSync(acmeFile, 'utf8')), tags: ['pagamentos'] }, null, 2));
+    writeFileSync(join(library, 'triagem-de-log.md'), '---\nlabel: "Triagem de log"\ndescription: ""\ncategory: "QA"\nfiles: required\nnote: ""\ntags: "project:beta"\n---\n\nSepare os erros do log.\n');
+    writeFileSync(join(library, 'conciliacao.md'), '---\nlabel: "Conciliação"\ndescription: ""\ncategory: "QA"\nfiles: required\nnote: ""\ntags: "pagamentos"\n---\n\nConcilie os pagamentos.\n');
+    const templates = join(root, 'workspace', 'templates');
+    mkdirSync(templates, { recursive: true });
+    writeFileSync(join(templates, 'default.json'), JSON.stringify({ name: 'Default', tags: [], style: {} }));
+    writeFileSync(join(templates, 'cliente.json'), JSON.stringify({ name: 'Cliente', tags: ['project:beta'], style: {} }));
     ({ app: defApp, page: dp } = await openApp(root, userData, 'acme', { QA_FAKE_TOOLS: '1' }));
   });
 
@@ -2870,7 +2883,7 @@ test.describe.serial('Moki project defaults', () => {
     await dp.getByRole('button', { name: 'Opções da pasta do projeto' }).click();
     await dp.getByRole('menuitem', { name: 'Configurações do projeto' }).click();
     const settings = dp.getByRole('dialog', { name: /^Configurações de / });
-    for (const section of ['Projeto', 'Ao abrir uma IA aqui', 'Agentes', 'Skills', 'Atividades', 'Operações', 'Plugins']) {
+    for (const section of ['Projeto', 'Ao abrir uma IA aqui', 'Agentes', 'Skills', 'Atividades', 'Operações', 'Templates', 'Servidores MCP', 'Plugins']) {
       await expect(settings.getByRole('group', { name: section, exact: true })).toBeVisible();
     }
     await expect(settings.getByRole('status')).toHaveText('Uma IA aberta aqui começa sem nada configurado.');
@@ -2929,5 +2942,45 @@ test.describe.serial('Moki project defaults', () => {
     await expect(call.locator('.invoke-row').first()).toContainText('Resumo rápido');
     await expect(call.locator('.invoke-row').first()).toContainText('Padrão');
     await dp.keyboard.press('Escape');
+  });
+
+  test('activities and templates are linked here or in the workspace settings, the same tags seen from both sides', async () => {
+    const root = join(project, '..', '..', '..');
+    const openSettings = async () => {
+      await dp.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
+      return dp.getByRole('dialog', { name: /^Configurações de / });
+    };
+    let settings = await openSettings();
+    const mine = settings.getByRole('list', { name: 'Suas atividades neste projeto' });
+    await expect(mine.getByRole('checkbox', { name: 'Resumo rápido' })).toBeChecked(); // no tag: every project
+    await expect(mine.getByRole('checkbox', { name: 'Triagem de log' })).not.toBeChecked();
+    // A shared tag brings it: checked, locked, and the tag named.
+    const shared = mine.getByRole('checkbox', { name: /Conciliação/ });
+    await expect(shared).toBeChecked();
+    await expect(shared).toBeDisabled();
+    await expect(mine.locator('li', { hasText: 'Conciliação' })).toContainText('tag Pagamentos');
+    // Templates: the one for every project is locked; another can be linked and put in use.
+    const templates = settings.getByRole('list', { name: 'Templates' });
+    await expect(templates.getByRole('checkbox', { name: /Default/ })).toBeDisabled();
+    await expect(templates.getByRole('radio', { name: 'Em uso' })).toHaveCount(1);
+    await expect(settings.getByRole('group', { name: 'Servidores MCP' })).toContainText('Nenhum servidor MCP para este projeto.');
+
+    await mine.getByRole('checkbox', { name: 'Triagem de log' }).check();
+    await templates.getByRole('checkbox', { name: 'Cliente' }).check();
+    await templates.locator('li', { hasText: 'Cliente' }).getByRole('radio', { name: 'Em uso' }).check();
+    await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(settings).toBeHidden();
+    // Written as the project's tag, where Settings › Activities and Templates read it.
+    expect(readFileSync(join(root, 'workspace', 'library', 'activities', 'triagem-de-log.md'), 'utf8')).toContain('tags: "project:beta, project:acme"');
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'templates', 'cliente.json'), 'utf8')).tags).toEqual(['project:beta', 'project:acme']);
+    expect(JSON.parse(readFileSync(join(project, 'project.json'), 'utf8')).template).toBe('cliente');
+
+    // The workspace side drops the tag: the project's settings show it unchecked.
+    const file = join(root, 'workspace', 'library', 'activities', 'triagem-de-log.md');
+    writeFileSync(file, readFileSync(file, 'utf8').replace('project:beta, project:acme', 'project:beta'));
+    settings = await openSettings();
+    await expect(settings.getByRole('list', { name: 'Suas atividades neste projeto' }).getByRole('checkbox', { name: 'Triagem de log' })).not.toBeChecked();
+    await expect(settings.getByRole('list', { name: 'Templates' }).locator('li', { hasText: 'Cliente' }).getByRole('radio', { name: 'Em uso' })).toBeChecked();
+    await settings.getByRole('button', { name: 'Cancelar' }).click();
   });
 });

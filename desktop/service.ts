@@ -31,7 +31,7 @@ import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favo
 import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
-import { appliesTo as reaches, projectTag } from '../scripts/lib/tags.mjs';
+import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
 import { cleanPrompt, type LaunchResult } from './launcher.ts';
@@ -2065,6 +2065,46 @@ export function createService(root: string, deps: Deps) {
     // when given, its agents. Only skills installed globally or Moki's ArtCraft skills can be linked. When the AI left a plan.json,
     // contextFiles approves it with the files the user kept.
     // The project's settings. name, defaults and startInstructions are written only when given (older callers leave them).
+    // What the workspace's settings give this project, as its settings show it (the same tags, seen from here):
+    // agents, the person's activities, templates (with the one in use) and MCP servers (read-only here).
+    projectLinks: (project: string) => {
+      projectDir(project);
+      const names = Object.fromEntries(listTags(root).map((t) => [t.id, t.name]));
+      const reach = (tags: string[]) => { const r = reachOf(tags, project, root); return r.via ? { state: r.state, via: names[r.via] ?? r.via } : { state: r.state }; };
+      const agentMap = agentTags(root);
+      const inUse = templateFor(project, root)?.id ?? '';
+      const chosen = (JSON.parse(readFileSync(join(projectDir(project), 'project.json'), 'utf8')) as { template?: unknown }).template;
+      return {
+        agents: Object.fromEntries(listAgents(root).filter(isUsableAgent).map((a) => [a.name, reach(agentMap[a.name] ?? [])])),
+        activities: listActivities(root).filter((a) => a.source === 'library').map((a) => ({ id: a.id, name: a.label, ...reach(a.tags) })),
+        templates: listTemplates(root).map((t) => ({ id: t.id, name: t.name, ...reach(t.tags), inUse: t.id === inUse, chosen: t.id === chosen })),
+        mcp: listServers(root).filter((s) => s.id !== MOKI_SERVER).map((s) => ({ id: s.id, name: s.name, state: !s.projects.length ? 'all' : s.projects.includes(project) ? 'own' : 'off' })),
+      };
+    },
+    // Turns the person's activities and the templates on or off in this project through its own tag (the workspace's
+    // settings then show that tag), and picks the template in use (null: the automatic choice). A template for every
+    // project stays: it is the one used when nothing else applies.
+    setProjectLinks: (project: string, req: { activities?: unknown; templates?: unknown; template?: unknown }) => {
+      projectDir(project);
+      const projects = listProjects(root);
+      const flags = (v: unknown): [string, boolean][] => (v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>).map(([k, on]) => [k, on === true]) : []);
+      for (const [id, on] of flags(req?.activities)) {
+        const a = getActivity(id, root);
+        if (!a || a.source !== 'library') throw new ServiceError('Only your own activities can be linked here.');
+        const tags = failing(() => withProject(a.tags, project, on, projects, root));
+        if (tags.join() !== a.tags.join()) failing(() => saveLibraryActivity(a.id, activityMarkdown({ ...a, tags }), root));
+      }
+      for (const [id, on] of flags(req?.templates)) {
+        const t = listTemplates(root).find((x) => x.id === id);
+        if (!t) throw new ServiceError('Unknown template.');
+        if (!on && !t.tags.length) throw new ServiceError('The template for every project stays: it is used when no other applies.');
+        const tags = failing(() => withProject(t.tags, project, on, projects, root));
+        if (tags.join() !== t.tags.join()) failing(() => saveTemplate({ ...t, tags }, root));
+      }
+      if (req?.template !== undefined) failing(() => setProjectTemplate(project, req.template ? String(req.template) : null, root));
+      return true;
+    },
+
     setupProject: (project: string, req: { name?: unknown; description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown; defaults?: unknown; startInstructions?: unknown }) => {
       const file = join(projectDir(project), 'project.json');
       // The description keeps its lines, as when it is edited on its own (setProjectDescription); requests clean it when they quote it.
