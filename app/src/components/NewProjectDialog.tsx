@@ -2,12 +2,13 @@
 // starts (empty, growing with the activities, or planned with the AI), in one window.
 // An empty project opens directly; an AI-planned project opens its setup.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Starter, Tag } from '../api';
 import { recall, remember } from '../prefs';
 import { t } from '../i18n';
 import { TagPicker } from './TagPicker';
 import { IconX } from './Icons';
+import { Modal } from './Modal';
 
 interface Props {
   name: string; // typed on the start screen; editable here
@@ -29,12 +30,6 @@ export function NewProjectDialog({ name: typed, catalog, onCatalog, onCreate, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError('');
@@ -43,14 +38,13 @@ export function NewProjectDialog({ name: typed, catalog, onCatalog, onCreate, on
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="modal new-project" role="dialog" aria-modal="true" aria-labelledby="new-project-title" onSubmit={(e) => { void submit(e); }}>
+    <Modal as="form" className="new-project" labelledBy="new-project-title" onClose={onClose} busy={busy} onSubmit={(e) => { void submit(e); }}>
         <header className="modal-head">
           <div>
             <h2 id="new-project-title">{t('Customize the project')}</h2>
             {starter === 'blank' && <p className="muted small">{t('Choose your AI after creating the project to plan it together.')}</p>}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
         </header>
         <div className="modal-body">
           <label className="field">
@@ -75,10 +69,9 @@ export function NewProjectDialog({ name: typed, catalog, onCatalog, onCreate, on
           {error && <p className="error small">{error}</p>}
         </div>
         <footer className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>{t('Cancel')}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('Cancel')}</button>
           <button type="submit" className="btn" disabled={busy || !name.trim()}>{busy ? t('Creating…') : starter === 'minimal' ? t('Create project') : t('Create and plan with AI')}</button>
         </footer>
-      </form>
-    </div>
+    </Modal>
   );
 }

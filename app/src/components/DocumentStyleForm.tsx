@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, DOCUMENT_FONTS, type DocumentStyle, type DocumentTemplate } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { TagField, TagFilter, matchesTag, useTagCatalog } from './TagField';
 import { ListBack, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 import { StarButton, useFavorites } from './Favorites';
@@ -96,12 +97,12 @@ export function DocumentStyleForm() {
   const save = () => draft && act(async () => { const r = await api.saveTemplate(draft); load(r.id); }, t('Saved. New files of the projects it applies to use it.'));
   const add = () => { const general = templates.find((x) => !x.tags.length); setDraft({ id: '', name: t('New template'), tags: [], style: general?.style ?? DEFAULT }); setSaved(''); setInfo(''); };
   const duplicate = () => { if (draft) { setDraft({ ...draft, id: '', name: t('{name} (copy)', { name: draft.name }) }); setSaved(''); setInfo(''); } };
-  const remove = () => {
-    if (!current || !window.confirm(t('Delete the template {name}? The projects that use it go back to the automatic choice.', { name: current.name }))) return;
+  const remove = async () => {
+    if (!current || !await confirmDialog(t('Delete the template {name}? The projects that use it go back to the automatic choice.', { name: current.name }), { danger: true })) return;
     void act(async () => { await api.removeTemplate(current.id); load(); });
   };
   const makeDefault = () => current && defaultFor && act(async () => { await api.setProjectTemplate(defaultFor, current.id); load(current.id); }, t('Default template of {project}.', { project: projectName(defaultFor) }));
-  const back = () => { if (!dirty || window.confirm(t('Discard unsaved changes?'))) { setDraft(null); setError(''); setInfo(''); } };
+  const back = async () => { if (!dirty || await confirmDialog(t('Discard unsaved changes?'), { danger: true })) { setDraft(null); setError(''); setInfo(''); } };
   const reset = () => { set('font', DEFAULT.font); setDraft((d) => (d ? { ...d, style: DEFAULT } : d)); };
 
   const pickLogo = async (file: File | undefined) => {

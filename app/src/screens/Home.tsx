@@ -15,8 +15,11 @@ import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, 
 import { Settings, type SettingsTab } from './Settings';
 import { featuredWorkspaces, homeSectionLayout, recordWorkspaceUse, saveHomeSectionLayout } from '../prefs';
 import { resizedWeights, type HomeSectionId, type HomeSectionLayout } from '../home-sections';
+import { confirmDialog } from '../dialogs';
+import { Modal } from '../components/Modal';
 
 interface Props {
+  newNote?: number; // the rail's New note was pressed (a counter): a new loose note opens in the main area
   projects: ProjectSummary[];
   tools: ToolInfo[];
   version: string;
@@ -44,7 +47,7 @@ const onboarding = (status: string): string => ({
 
 interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean; shortcut?: string }
 
-export function Home({ projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
+export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
   const [switching, setSwitching] = useState<WorkspaceInfo[] | null>(null); // the workspace menu, open
   const switcherRef = useRef<HTMLDivElement>(null);
   const [switcherBox, setSwitcherBox] = useState<{ left: number; width: number; bottom: number } | null>(null);
@@ -68,7 +71,8 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   // A saved note opened here, inside the app. New loose notes are created from the fixed icon rail.
-  const [openNote, setOpenNote] = useState<NoteRef | null>(null);
+  const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null); // { loose: null }: a new loose note
+  useEffect(() => { if (newNote) setOpenNote({ loose: null }); }, [newNote]);
   // The actions of a row (pin, hide, open in the notebook, delete…) show only on a right click.
   const [sections, setSections] = useState<HomeSectionLayout>(homeSectionLayout);
   const sectionsRef = useRef(sections);
@@ -81,8 +85,8 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   // A loose note leaves this computer; a project note goes to the trash.
   const deleteNoteItem = (ref: NoteRef, title: string): MenuItem => ({
     label: t('Delete the note'), icon: <IconTrash size={15} />, danger: true,
-    run: () => {
-      if (!window.confirm(t('Delete the note "{title}"?', { title }))) return;
+    run: async () => {
+      if (!await confirmDialog(t('Delete the note "{title}"?', { title }), { danger: true })) return;
       if ('loose' in ref) { removeLooseNote(ref.loose); setNoteTick((n) => n + 1); return; }
       api.deleteNote(ref.project, ref.path).then(() => { forgetNote(ref.project, ref.path); setNoteTick((n) => n + 1); }).catch((e: Error) => setError(e.message));
     },
@@ -151,8 +155,8 @@ export function Home({ projects, tools, version, onOpen, onCreate, settings, onS
   const refOf = (n: { kind: 'loose'; id: string } | { kind: 'project'; project: string; path: string }): NoteRef => (n.kind === 'loose' ? { loose: n.id } : { project: n.project, path: n.path });
   const noteMeta = (n: { kind: 'loose' } | { kind: 'project'; project: string }) => (n.kind === 'project' ? <span className="home-project-meta">{projects.find((p) => p.id === n.project)?.name}</span> : null);
 
-  const hide = (p: ProjectSummary) => {
-    if (!window.confirm(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: p.name }))) return;
+  const hide = async (p: ProjectSummary) => {
+    if (!await confirmDialog(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: p.name }))) return;
     setHidden(hideProject(p.id));
     setPins(pinnedIds());
   };
@@ -414,7 +418,7 @@ ${workspace.path}`}>
           looseId={'loose' in openNote ? openNote.loose : null}
           projects={visible.map((p) => ({ id: p.id, name: p.name }))}
           onSaved={() => setNoteTick((n) => n + 1)}
-          onClose={() => { setOpenNote(null); setNoteTick((n) => n + 1); }}
+          onClose={() => { const fresh = 'loose' in openNote && openNote.loose === null; setOpenNote(null); setNoteTick((n) => n + 1); if (fresh) document.querySelector<HTMLElement>('.ribbon .ribbon-note')?.focus(); }}
         />
       </main>
       ) : (
@@ -424,7 +428,6 @@ ${workspace.path}`}>
         <p className="muted">{t('Version {version}', { version })}</p>
 
         <div className="home-actions">
-          {!quick && (
             <div className="home-action">
               <div>
                 <strong>{t('Create a new project')}</strong>
@@ -432,7 +435,6 @@ ${workspace.path}`}>
               </div>
               <AddButton size="lg" title={t('Create')} onClick={() => { setQuick(true); setError(''); }} />
             </div>
-          )}
           <div className="home-action">
             <div>
               <strong>{t('Open a project')}</strong>
@@ -443,8 +445,7 @@ ${workspace.path}`}>
         </div>
         {!quick && error && <p className="error small home-error">{error}</p>}
         {quick && (
-          <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) closeQuick(); }}>
-            <form className="modal quick-project project-create-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-project-title" onSubmit={(e) => { void submitQuick(e); }}>
+          <Modal as="form" className="quick-project project-create-dialog" labelledBy="quick-project-title" busy={busy} onClose={closeQuick} onSubmit={(e) => { void submitQuick(e); }}>
               <header className="modal-head">
                 <div className="project-create-heading">
                   <span className="project-create-icon" aria-hidden="true"><IconFolder size={23} /></span>
@@ -473,8 +474,7 @@ ${workspace.path}`}>
                 <button type="button" className="btn btn-ghost" onClick={closeQuick} disabled={busy}>{t('Cancel')}</button>
                 <button type="submit" className="btn" disabled={busy || !name.trim()}>{busy ? t('Creating…') : t('Create project')}</button>
               </footer>
-            </form>
-          </div>
+          </Modal>
         )}
 
         <p className="muted small home-tools">

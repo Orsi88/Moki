@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, activityTargetLabel, type ActivityDetail, type ActivityDraft, type ActivityInfo } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconStar } from './Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 import { TagField, useTagCatalog } from './TagField';
@@ -57,8 +58,8 @@ export function ActivitiesPage() {
   });
   const save = () => draft && act(async () => { const saved = await api.saveActivity(draft); const a = await api.activity(saved.id); setOpen(a); setDraft(toDraft(a)); }, t('Saved.'));
   const duplicate = (id: string) => act(async () => { const copy = await api.duplicateActivity(id); const a = await api.activity(copy.id); setOpen(a); setDraft(toDraft(a)); }, t('Copied to your activities.'));
-  const remove = (a: ActivityDetail) => {
-    if (!window.confirm(t('Delete the activity "{name}"?', { name: t(a.label) }))) return;
+  const remove = async (a: ActivityDetail) => {
+    if (!await confirmDialog(t('Delete the activity "{name}"?', { name: t(a.label) }), { danger: true })) return;
     void act(async () => { await api.deleteActivity(a.id); setOpen(null); setDraft(null); }, t('Deleted.'));
   };
 

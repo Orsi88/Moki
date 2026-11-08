@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type ProjectSummary, type TerminalRef, type ToolInfo } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { skillCat } from '../icons/cats';
 import { CatIcon } from './CatIcon';
 import { IconFolder } from './Icons';
@@ -95,20 +96,20 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
   const removePlace = (s: Skill, pl: Place) => act(`rm:${pl.kind === 'project' ? pl.project.id : 'global'}`, async () => {
     if (pl.kind === 'global') {
       const used = pl.linkedBy.length ? `\n\n${t('Linked by: {projects}. Those projects stop naming it in their requests.', { projects: pl.linkedBy.join(', ') })}` : '';
-      if (!window.confirm(`${t('Remove the skill "{name}" from all projects? It goes to the trash.', { name: s.name })}${used}`)) return;
+      if (!await confirmDialog(`${t('Remove the skill "{name}" from all projects? It goes to the trash.', { name: s.name })}${used}`, { danger: true })) return;
       await api.removeGlobal('skill', s.name);
     } else {
       const p = pl.project;
       const target = p.repository
         ? t("the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).", { folder: p.repository })
         : t('the project {name}?', { name: p.name });
-      if (!window.confirm(`${t('Remove the skill "{name}" from', { name: s.name })} ${target} ${t('It goes to the trash.')}`)) return;
+      if (!await confirmDialog(`${t('Remove the skill "{name}" from', { name: s.name })} ${target} ${t('It goes to the trash.')}`, { danger: true })) return;
       const r = await api.removeProjectItem(p.id, 'skill', s.name, Boolean(p.repository));
       return r.backup ? `${t('Backup of the previous .claude:')} ${r.backup}` : undefined;
     }
   });
   const installProposal = (s: Skill, from: ProjectSummary) => act('install', async () => {
-    if (!window.confirm(`${t('Install the proposal "{name}" for {where}', { name: s.name, where: t('all projects (your user folder)') })}?\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
+    if (!await confirmDialog(`${t('Install the proposal "{name}" for {where}', { name: s.name, where: t('all projects (your user folder)') })}?\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
     const r = await api.installProposal(from.id, s.name, 'global');
     return t('Installed {name} in {folders}', { name: r.name, folders: r.folders.join(', ') });
   });

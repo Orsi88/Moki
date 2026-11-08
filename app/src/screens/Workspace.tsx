@@ -42,8 +42,9 @@ import {
 } from '../tab-groups';
 import { GroupMenu, LayoutButton, PaneHead, TabMenu, groupStyle, type PaneTab } from '../components/TabGroups';
 import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
+import { confirmDialog } from '../dialogs';
 
-interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
+interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
 // A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is read and copied;
@@ -87,7 +88,7 @@ export const linkedNotice = (r: ProjectSummary & { backup?: string }): string =>
   ? t('Linked {folder}. Its AI settings were backed up to {backup}', { folder: r.repository, backup: r.backup })
   : t('Linked {folder}. It has no AI settings (.claude, AGENTS.md…) to back up.', { folder: r.repository }));
 
-export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote, settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged }: Props) {
+export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote, noteProjects = [], settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged }: Props) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -112,7 +113,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   useEffect(() => { if (search) setSidebarOpen(true); }, [search]);
   useEffect(() => { touchRecentProject(project.id); }, [project.id]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') setSidebarOpen(true); };
+    // A note being written keeps its shortcuts (on top or in the main area).
+    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && !(document.activeElement as HTMLElement | null)?.closest('.note-dialog') && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') setSidebarOpen(true); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -160,7 +162,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const toggleGraph = () => { if (graphFocus) closeGraph(); else openGraph(); };
   const openedTerm = useRef<string | null>(null);
   const [showSetup, setShowSetup] = useState(startSetup && project.starter !== 'blank'); // after creating the project or linking a folder
-  const [note, setNote] = useState<{ path: string | null } | null>(null); // open note (main area); path null = new note
+  const [note, setNote] = useState<{ path: string | null; loose?: boolean } | null>(null); // open note (main area); path null = new note; loose: of no project yet
   // A multi-agent operation in the main area: its start screen, or one of its runs.
   const [opView, setOpView] = useState<{ kind: 'launch' | 'run'; id: string } | null>(null);
   // An activity run, in the same place. The right panel stays on the project.
@@ -385,11 +387,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     }
     scrollPositions.current = next;
   };
-  const reloadFile = (path: string) => {
+  const reloadFile = async (path: string) => {
     flushEdits();
     const current = tabsRef.current.find((item) => item.path === path);
     const name = path.split('/').pop() ?? path;
-    if (current && isDirty(current) && !window.confirm(t('Reload {name}? Your unsaved edits in this file are dropped.', { name }))) return;
+    if (current && isDirty(current) && !await confirmDialog(t('Reload {name}? Your unsaved edits in this file are dropped.', { name }), { danger: true })) return;
     api.readFile(project.id, path).then((content) => update(path, { content, draft: textOf(content), saving: false, seen: stampOf(content, current?.seen) })).catch((e: Error) => setError(e.message));
   };
 
@@ -468,11 +470,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     if (tab) write(path, tab.draft);
   };
 
-  const close = useCallback((path: string) => {
+  const close = useCallback(async (path: string) => {
     flushEdits();
     const tab = tabsRef.current.find((t) => t.path === path);
     if (tab && isDirty(tab) && autosaves(tab) && !tab.conflict) save(path); // it saves on its own: closing saves now
-    else if (tab && isDirty(tab) && !window.confirm(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }))) return;
+    else if (tab && isDirty(tab) && !await confirmDialog(t('Discard unsaved changes in {file}?', { file: path.split('/').pop() ?? path }), { danger: true })) return;
     scrollPositions.current.delete(path);
     setTabs((all) => all.filter((t) => t.path !== path));
     apply((b) => boardClose(b, fileKey(path)));
@@ -556,8 +558,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
 
   // Closing the tab stops what runs in it (leaving the project does not: the terminal comes back when it opens again).
   // When it ran a step of an operation, the main process tells the run.
-  const closeTerm = (id: string) => {
-    if (terms.find((t) => t.id === id)?.running && !window.confirm(t('Close this terminal? What is running in it will stop.'))) return;
+  const closeTerm = async (id: string) => {
+    if (terms.find((t) => t.id === id)?.running && !await confirmDialog(t('Close this terminal? What is running in it will stop.'), { danger: true })) return;
     api.term()?.kill(id);
     setTerms((all) => all.filter((t) => t.id !== id));
     // Its group stays while it still has files open.
@@ -651,13 +653,13 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   };
   const startCreate = (parent: string, kind: 'file' | 'folder') => { setItemMenu(null); setCreating({ parent, kind }); };
   const FIXED = new Set(['context', 'inbox', 'notes', 'temporary', 'runs']);
-  const removeItem = (path: string) => {
+  const removeItem = async (path: string) => {
     setItemMenu(null);
     const name = friendlyName(path.split('/').pop() ?? path);
     const ask = FIXED.has(path)
       ? t('Empty "{name}"? Everything inside goes to the trash. The folder stays.', { name })
       : t('Delete "{name}"? It goes to the trash.', { name });
-    if (!window.confirm(ask)) return;
+    if (!await confirmDialog(ask, { danger: true })) return;
     api.deleteEntry(project.id, path).then(() => {
       for (const file of scrollPositions.current.keys()) if (file === path || file.startsWith(path + '/')) scrollPositions.current.delete(file);
       loadTree();
@@ -711,21 +713,21 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   };
 
   // Leaving the workspace keeps its terminals running (they come back with it); only unsaved changes ask first.
-  const canLeave = () => {
+  const canLeave = async () => {
     flushEdits();
     for (const tab of tabsRef.current) if (isDirty(tab) && autosaves(tab) && !tab.conflict) save(tab.path);
-    return !(tabsRef.current.some((tab) => isDirty(tab) && (!autosaves(tab) || tab.conflict)) && !window.confirm(t('There are unsaved changes. Leave anyway?')));
+    return !tabsRef.current.some((tab) => isDirty(tab) && (!autosaves(tab) || tab.conflict)) || await confirmDialog(t('There are unsaved changes. Leave anyway?'), { danger: true });
   };
 
-  const goHome = () => { if (canLeave()) onHome(); };
-  const hideThis = () => {
-    if (!window.confirm(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: project.name }))) return;
-    if (!canLeave()) return;
+  const goHome = async () => { if (await canLeave()) onHome(); };
+  const hideThis = async () => {
+    if (!await confirmDialog(t('Hide {name} from Moki? The files stay on this computer. You can show it again under Hidden.', { name: project.name }))) return;
+    if (!await canLeave()) return;
     hideProject(project.id);
     onHome();
   };
 
-  const toggleSettings = () => { if (settings) onSettings(null); else if (canLeave()) onSettings('agents'); };
+  const toggleSettings = async () => { if (settings) onSettings(null); else if (await canLeave()) onSettings('agents'); };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -902,7 +904,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         project={project}
         settingsOn={settings !== null}
         onHome={goHome}
-        onNewNote={onNewLooseNote}
+        onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
         onSettings={toggleSettings}
         onPlay={() => setLaunch({ activity: 'open' })}
         onTerminal={openTermMenu}
@@ -963,8 +965,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         )}
         {note && (
           <div className="note-host">
-            <NoteDialog key={note.path ?? 'new'} embedded project={project.id} path={note.path} onMyAis={() => onSettings('ai')}
-              onSaved={(saved) => { if ('path' in saved && saved.path !== note.path) loadTree(); }} onClose={() => { setNote(null); loadTree(); }} />
+            <NoteDialog key={note.loose ? 'loose' : note.path ?? 'new'} embedded project={note.loose ? null : project.id} path={note.path} onMyAis={() => onSettings('ai')}
+              projects={note.loose ? noteProjects : undefined}
+              onSaved={(saved) => { if ('path' in saved && saved.path !== note.path) loadTree(); }}
+              onClose={() => { const loose = note.loose; setNote(null); loadTree(); if (loose) document.querySelector<HTMLElement>('.ribbon .ribbon-note')?.focus(); }} />
           </div>
         )}
         {notice && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}

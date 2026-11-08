@@ -9,11 +9,13 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type InstallResult, type ProjectSummary, type RegistrySkill, type SkillScope, type SkillSearchPage, type TerminalRef, type ToolInfo } from '../api';
 import { recall, remember } from '../prefs';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck, IconExternal, IconSearch, IconX } from './Icons';
 import { InstalledSkills } from './InstalledSkills';
 import { SkillLibrary } from './SkillLibrary';
 import { SkillForm } from './SkillForm';
 import { ClaudeUpload } from './ClaudeUpload';
+import { Modal } from './Modal';
 
 export type SkillDialogTab = 'installed' | 'library' | 'add' | 'plugins';
 type Tab = SkillDialogTab;
@@ -123,18 +125,13 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
   const [installed, setInstalled] = useState<{ project: string[]; global: string[] }>({ project: [], global: [] });
   const [busy, setBusy] = useState('');
   const [loadingPage, setLoadingPage] = useState(1);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const writing = uploadBusy || Boolean(busy && busy !== 'search');
   const [done, setDone] = useState<InstallResult | null>(null);
   const [error, setError] = useState('');
 
   const loadInstalled = useCallback(() => { api.installedSkills(project.id).then(setInstalled).catch(() => { /* keep */ }); }, [project.id]);
   useEffect(loadInstalled, [loadInstalled]);
-
-  useEffect(() => {
-    if (embedded) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, embedded]);
 
   // The current page stays visible while the next one loads; status and errors show above the list.
   const search = async (q: string, category: string, page = 1) => {
@@ -155,7 +152,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
       : toClaude ? t("the project {name}?\n\nThis CHANGES {folder}/.claude: the skill is written to its skills folder (the current .claude is backed up to the project's backups/ first)", { name: project.name, folder: project.repository })
       : t('the project {name}', { name: project.name });
     const warning = s.verdict === 'pass' ? '' : `\n\n${s.verdict ? t('The registry flagged this skill ({verdict}).', { verdict: s.verdict }) : t('The registry has not audited this skill.')} ${t('A skill can instruct the AI to run commands — review it before using it.')}`;
-    if (!window.confirm(`${t('Install "{title}" ({slug}) for {where}', { title: s.title, slug: s.slug, where })}${toClaude ? '.' : '?'}${warning}`)) return;
+    if (!await confirmDialog(`${t('Install "{title}" ({slug}) for {where}', { title: s.title, slug: s.slug, where })}${toClaude ? '.' : '?'}${warning}`)) return;
     setBusy(s.slug); setError(''); setDone(null);
     try { setDone(await api.installSkill(project.id, s.slug, scope, toClaude)); loadInstalled(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   };
@@ -172,22 +169,22 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
             <h2 id="skills-title">{t('Skills')}</h2>
             <p className="muted small">{current.intro}</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} title={t('Close (Esc)')}><IconX size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={writing} title={t('Close (Esc)')}><IconX size={18} /></button>
         </header>
         )}
 
         {!embedded && <div className="dialog-tabs" role="tablist" aria-label={t('Skills')}>
           {tabs.map((tb) => (
-            <button key={tb.id} type="button" role="tab" aria-selected={tab === tb.id} className={`dialog-tab${tab === tb.id ? ' on' : ''}`} onClick={() => openTab(tb.id)}>
+            <button key={tb.id} type="button" role="tab" disabled={writing} aria-selected={tab === tb.id} className={`dialog-tab${tab === tb.id ? ' on' : ''}`} onClick={() => openTab(tb.id)}>
               {tb.label}
             </button>
           ))}
         </div>}
         {tab === 'add' && (
           <div className="dialog-tabs" role="tablist" aria-label={t('Add a skill')}>
-            <button type="button" role="tab" aria-selected={addMode === 'find'} className={`dialog-tab${addMode === 'find' ? ' on' : ''}`} onClick={() => setAddMode('find')}>{t('Find skills')}</button>
-            {canCreate && <button type="button" role="tab" aria-selected={addMode === 'create'} className={`dialog-tab${addMode === 'create' ? ' on' : ''}`} onClick={() => setAddMode('create')}>{t('Create skill')}</button>}
-            <button type="button" role="tab" aria-selected={addMode === 'upload'} className={`dialog-tab${addMode === 'upload' ? ' on' : ''}`} onClick={() => setAddMode('upload')}>{t('Upload')}</button>
+            <button type="button" role="tab" disabled={writing} aria-selected={addMode === 'find'} className={`dialog-tab${addMode === 'find' ? ' on' : ''}`} onClick={() => setAddMode('find')}>{t('Find skills')}</button>
+            {canCreate && <button type="button" role="tab" disabled={writing} aria-selected={addMode === 'create'} className={`dialog-tab${addMode === 'create' ? ' on' : ''}`} onClick={() => setAddMode('create')}>{t('Create skill')}</button>}
+            <button type="button" role="tab" disabled={writing} aria-selected={addMode === 'upload'} className={`dialog-tab${addMode === 'upload' ? ' on' : ''}`} onClick={() => setAddMode('upload')}>{t('Upload')}</button>
           </div>
         )}
 
@@ -202,7 +199,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
                 ['global', t('All projects'), t('your user folder, every AI tool')],
               ] as const).map(([id, title, hint]) => (
                 <label key={id} className={`choice${scope === id ? ' on' : ''}`}>
-                  <input type="radio" name="scope" checked={scope === id} onChange={() => { setScope(id); remember('qa-skill-scope', id); }} />
+                  <input type="radio" name="scope" disabled={writing} checked={scope === id} onChange={() => { setScope(id); remember('qa-skill-scope', id); }} />
                   <span className="choice-title">{title}</span>
                   <span className="choice-hint">{hint}</span>
                 </label>
@@ -213,7 +210,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
           {tab === 'installed' ? <InstalledSkills projects={projects} />
             : tab === 'plugins' ? <PluginsPanel projects={projects} />
             : tab === 'library' ? <SkillLibrary project={project} scope={scope} />
-            : tab === 'add' && addMode === 'upload' ? <ClaudeUpload key={scope} project={project} scopes={[scope]} onInstalled={loadInstalled} />
+            : tab === 'add' && addMode === 'upload' ? <ClaudeUpload key={scope} project={project} scopes={[scope]} onInstalled={loadInstalled} onBusyChange={setUploadBusy} />
             : tab === 'add' && addMode === 'create' && canCreate && tools && onTerminal ? <SkillForm project={project} scope={scope} tools={tools} onTerminal={onTerminal} /> : (<>
           <form className="skill-search" onSubmit={submit}>
             <input type="search" value={query} maxLength={200} autoFocus onChange={(e) => setQuery(e.target.value)} placeholder={t('e.g. skills to help me write code')} />
@@ -286,7 +283,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
 
         {!embedded && (
         <footer className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>{t('Close')}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={writing}>{t('Close')}</button>
         </footer>
         )}
     </>
@@ -295,10 +292,8 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
   if (embedded) return <div className="skills-embedded">{panel}</div>;
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="skills-title">
+    <Modal labelledBy="skills-title" onClose={onClose} busy={writing}>
         {panel}
-      </div>
-    </div>
+    </Modal>
   );
 }

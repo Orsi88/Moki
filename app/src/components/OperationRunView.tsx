@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react';
 import { api, statusLabel, type OperationRun, type OperationVisit, type ToolInfo } from '../api';
 import { conversationLanguage, t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { recall, remember } from '../prefs';
 import { IconPause, IconPlay, IconStop, IconTerminal, IconX } from './Icons';
 import { hasBoard, OperationRunBoard, visitText } from './OperationRunBoard';
@@ -75,8 +76,8 @@ export function OperationRunView({ project, run, tick, tools, hasTerminal, onTer
     setReply('');
     setMessage(r.sent === 'terminal' ? t('Sent to its terminal.') : t('The step starts again in a new terminal, with your answer.'));
   });
-  const reopen = (v: OperationVisit) => {
-    if (!v.terminal && !window.confirm(t('This step was started outside Moki and may still be running there. Start it again in Moki?'))) return;
+  const reopen = async (v: OperationVisit) => {
+    if (!v.terminal && !await confirmDialog(t('This step was started outside Moki and may still be running there. Start it again in Moki?'))) return;
     void act(() => api.reopenOperationStep(project, run));
   };
   const show = (v: 'board' | 'list') => { setView(v); remember('qa-ops-run-view', v); };
@@ -170,7 +171,7 @@ export function OperationRunView({ project, run, tick, tools, hasTerminal, onTer
                 <div className="row-actions">
                   {prev && <button type="button" className="btn btn-sm" disabled={busy || !state.canRedo} title={state.canRedo ? '' : t('{agent} already ran as many times as this operation allows.', { agent: stepName(prev.step) })}
                     onClick={() => { void sendReject(true); }}>{t('Send back to {agent}', { agent: stepName(prev.step) })}</button>}
-                  <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { if (window.confirm(t('End this operation? The steps already done stay in its folder.'))) void sendReject(false); }}>{t('End the operation')}</button>
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={async () => { if (await confirmDialog(t('End this operation? The steps already done stay in its folder.'), { danger: true })) await sendReject(false); }}>{t('End the operation')}</button>
                   <button type="button" className="link small" onClick={() => { setRejecting(false); setNotes(''); }}>{t('Cancel')}</button>
                 </div>
               </div>
@@ -257,7 +258,7 @@ export function OperationRunView({ project, run, tick, tools, hasTerminal, onTer
           {!ended && (state.paused
             ? <button type="button" className="icon-btn" disabled={busy} title={t('Resume')} aria-label={t('Resume')} onClick={() => { void act(() => api.pauseOperation(project, run, false)); }}><IconPlay size={16} /></button>
             : <button type="button" className="icon-btn" disabled={busy} title={t('Pause')} aria-label={t('Pause')} onClick={() => { void act(() => api.pauseOperation(project, run, true)); }}><IconPause size={16} /></button>)}
-          {!ended && <button type="button" className="icon-btn" disabled={busy} title={t('Cancel operation')} aria-label={t('Cancel operation')} onClick={() => { if (window.confirm(t('Cancel this operation? The steps already done stay in its folder.'))) void act(() => api.cancelOperation(project, run)); }}><IconStop size={15} /></button>}
+          {!ended && <button type="button" className="icon-btn" disabled={busy} title={t('Cancel operation')} aria-label={t('Cancel operation')} onClick={async () => { if (await confirmDialog(t('Cancel this operation? The steps already done stay in its folder.'), { danger: true })) await act(() => api.cancelOperation(project, run)); }}><IconStop size={15} /></button>}
           <button type="button" className="icon-btn" onClick={onClose} title={t('Close')} aria-label={t('Close')}><IconX size={18} /></button>
         </div>
       </header>

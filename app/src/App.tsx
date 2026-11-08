@@ -42,6 +42,7 @@ export function App() {
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [search, setSearch] = useState(false); // the search panel replaces the left list
   const [quickNote, setQuickNote] = useState(false);
+  const [homeNote, setHomeNote] = useState(0); // a new loose note asked on the start screen: it opens in its main area
   const noteOpener = useRef<HTMLElement | null>(null);
   const openQuickNote = useCallback(() => {
     noteOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -51,7 +52,7 @@ export function App() {
   useEffect(() => { void workspaceLoad.then(() => setWorkspaceReady(true)); }, []);
   const toggleSearch = useCallback(() => { void window.qa?.openSearchWindow?.(); }, []);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && (e.ctrlKey || e.metaKey) && (e.shiftKey || projectId) && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleSearch(); } };
+    const onKey = (e: KeyboardEvent) => { if (!document.querySelector('[aria-modal="true"]') && !(document.activeElement as HTMLElement | null)?.closest('.note-dialog') && (e.ctrlKey || e.metaKey) && (e.shiftKey || projectId) && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleSearch(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleSearch, projectId]);
@@ -142,8 +143,8 @@ export function App() {
     return (
       <>
         <div className="shell">
-          <Ribbon settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={openQuickNote} searchOn={search} onSearch={toggleSearch} />
-          <Home projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
+          <Ribbon settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
+          <Home newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
           <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
         </div>
         {note}
@@ -152,7 +153,7 @@ export function App() {
   }
   return (
     <>
-      {!WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onHome={home} onNewLooseNote={openQuickNote} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />}
+      {!WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onHome={home} onNewLooseNote={openQuickNote} noteProjects={projects.filter((p) => !hiddenIds().includes(p.id)).map(({ id, name }) => ({ id, name }))} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />}
       {note}
     </>
   );

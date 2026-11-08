@@ -6,9 +6,10 @@
 // workspace's settings show it too. Used by Settings › Skills › Add a skill, by the project settings ("Bring to
 // this project") and by the start screen.
 
-import { useState, type DragEvent } from 'react';
+import { useLayoutEffect, useState, type DragEvent } from 'react';
 import { api, type ProjectSummary, type UploadBlock, type UploadItem, type UploadPreview, type UploadTarget } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck, IconUpload } from './Icons';
 
 export interface UploadDone { installed: { kind: string; name: string; folders: string[] }[]; backup?: string }
@@ -17,6 +18,7 @@ interface Props {
   project: ProjectSummary | null; // none: only every project can be chosen
   scopes: UploadTarget[]; // the destinations offered; the first is the starting one
   onInstalled?: (done: UploadDone) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const KINDS: UploadItem['kind'][] = ['skill', 'agent', 'activity'];
@@ -47,12 +49,16 @@ const ignoredText = (reason: 'config' | 'symlink' | 'other'): string => ({
 
 const kindTitle = (k: UploadItem['kind']): string => ({ skill: t('Skills'), agent: t('Agents'), activity: t('Activities') })[k];
 
-export function ClaudeUpload({ project, scopes, onInstalled }: Props) {
+export function ClaudeUpload({ project, scopes, onInstalled, onBusyChange }: Props) {
   const [scope, setScope] = useState<UploadTarget>(scopes[0]);
   const [over, setOver] = useState(false); // something is dragged over the drop area
   const [view, setView] = useState<UploadPreview | null>(null);
   const [marked, setMarked] = useState<string[]>([]);
   const [busy, setBusy] = useState('');
+  useLayoutEffect(() => {
+    onBusyChange?.(Boolean(busy));
+    return () => onBusyChange?.(false);
+  }, [busy, onBusyChange]);
   const [error, setError] = useState('');
   const [done, setDone] = useState<UploadDone | null>(null);
   const bring = scope === 'bring';
@@ -86,7 +92,7 @@ export function ClaudeUpload({ project, scopes, onInstalled }: Props) {
       : scope === 'global' ? t('all projects (your user folder)')
       : repo ? t("the repository {folder}. This CHANGES {folder}/.claude (the current .claude is backed up to the project's backups/ first)", { folder: repo })
       : t('the project {name}', { name: project?.name ?? '' });
-    if (!window.confirm(`${t('Install {n} item(s) for {where}?', { n: marked.length, where })}\n\n${t('A skill can instruct the AI to run commands — review what you upload before using it.')}`)) return;
+    if (!await confirmDialog(`${t('Install {n} item(s) for {where}?', { n: marked.length, where })}\n\n${t('A skill can instruct the AI to run commands — review what you upload before using it.')}`)) return;
     setBusy('apply'); setError('');
     try {
       const result = await api.claudeUploadApply(id, scope, marked, Boolean(repo));

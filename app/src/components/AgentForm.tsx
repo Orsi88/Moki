@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { api, emptyContract, type AgentContract, type ProjectSummary, type ScopeAgents, type SkillScope, type ToolInfo } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconCheck, IconInfo } from './Icons';
 import { AgentContractFields } from './AgentContractFields';
 
@@ -86,7 +87,7 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
 
   const create = async () => {
     const toClaude = scope === 'project' && Boolean(project.repository);
-    if (toClaude && !window.confirm(t("Create the agent in {folder}?\n\nThis CHANGES {folder}/.claude: the agent is written to its agents folder (the current .claude is backed up to the project's backups/ first).", { folder: project.repository ?? '' }))) return;
+    if (toClaude && !await confirmDialog(t("Create the agent in {folder}?\n\nThis CHANGES {folder}/.claude: the agent is written to its agents folder (the current .claude is backed up to the project's backups/ first).", { folder: project.repository ?? '' }))) return;
     setBusy(true); setError(''); setCreated(null);
     try {
       setCreated(await api.createScopeAgent(project.id, { name, description, skills: chosen, scope, contract }, toClaude));

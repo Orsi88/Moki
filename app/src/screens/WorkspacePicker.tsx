@@ -8,6 +8,8 @@ import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
 import { IconArrowLeft, IconChevron, IconEdit, IconOpenProject, IconSettings, IconStar, IconTrash, IconX } from '../components/Icons';
 import { featuredWorkspaces, recordWorkspaceUse, setWorkspaceFavorite, workspaceFavorites, workspaceUsage } from '../prefs';
+import { confirmDialog } from '../dialogs';
+import { Modal } from '../components/Modal';
 
 interface Props { version: string; onOpen: (workspace: WorkspaceInfo) => void }
 
@@ -45,7 +47,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
     try { await api.renameWorkspace(renaming.id, renaming.name); setRenaming(null); await load(); } catch (err) { setError(message(err)); }
   };
   const forget = async (w: WorkspaceInfo) => {
-    if (!window.confirm(t('Remove {name} from the list? Its folder and files stay on this computer: {path}', { name: w.name, path: w.path }))) return;
+    if (!await confirmDialog(t('Remove {name} from the list? Its folder and files stay on this computer: {path}', { name: w.name, path: w.path }))) return;
     try { await api.forgetWorkspace(w.id); await load(); } catch (e) { setError(message(e)); }
   };
   const pickLocation = () => { api.chooseWorkspaceLocation().then((p) => { if (p) setLocation(p); }).catch((e) => setError(message(e))); };
@@ -60,8 +62,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
   const closeManager = () => { setManaging(false); setRenaming(null); setWorkspaceSearch(''); };
   const closeAll = () => { setListingAll(false); setWorkspaceSearch(''); };
   const createDialog = (
-    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) closeCreate(); }}>
-      <form className="modal quick-project" role="dialog" aria-modal="true" aria-labelledby="workspace-title" onSubmit={create}>
+    <Modal as="form" className="quick-project" labelledBy="workspace-title" busy={busy} onClose={closeCreate} onSubmit={create}>
         <header className="modal-head">
           <div>
             <h2 id="workspace-title">{t('Create a new workspace')}</h2>
@@ -88,8 +89,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
           <button type="button" className="btn btn-ghost" onClick={closeCreate} disabled={busy}>{t('Cancel')}</button>
           <button type="submit" className="btn" disabled={busy || !name.trim()}>{busy ? t('Creating…') : t('Create workspace')}</button>
         </footer>
-      </form>
-    </div>
+    </Modal>
   );
 
   if (managing) return (
@@ -206,8 +206,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
         )}
         {creating && createDialog}
         {listingAll && (
-          <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) closeAll(); }}>
-            <section className="modal workspace-manager" role="dialog" aria-modal="true" aria-labelledby="workspace-list-title">
+          <Modal className="workspace-manager" labelledBy="workspace-list-title" onClose={closeAll}>
               <header className="modal-head">
                 <div><h2 id="workspace-list-title">{t('All workspaces')}</h2></div>
                 <button type="button" className="icon-btn" onClick={closeAll} title={t('Close (Esc)')}><IconX size={18} /></button>
@@ -223,8 +222,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
                 ))}
                 {allVisible.length === 0 && <p className="muted small">{t('No workspaces found.')}</p>}
               </div>
-            </section>
-          </div>
+          </Modal>
         )}
       </main>
     </div>

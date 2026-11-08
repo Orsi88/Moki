@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ProjectItems, type ProjectSummary } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { SkillCat } from './SkillCat';
 
 interface Props { project: ProjectSummary }
@@ -24,7 +25,7 @@ export function ProjectPanel({ project }: Props) {
     const what = kind === 'skill' ? t('Remove the skill "{name}" from', { name }) : t('Remove the agent "{name}" from', { name });
     const where = project.repository ? t("the repository {folder}?\n\nThis CHANGES its .claude (the current .claude is backed up to the project's backups/ first).", { folder: project.repository })
       : t('the project {name}?', { name: project.name });
-    if (!window.confirm(`${what} ${where} ${t('It goes to the trash.')}`)) return;
+    if (!await confirmDialog(`${what} ${where} ${t('It goes to the trash.')}`, { danger: true })) return;
     setBusy(`${kind}:${name}`); setError(''); setBackup('');
     try { setBackup((await api.removeProjectItem(project.id, kind, name, Boolean(project.repository))).backup ?? ''); load(); } catch (e) { setError(message(e)); } finally { setBusy(''); }
   };

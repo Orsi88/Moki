@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type GlobalItems } from '../api';
 import { t } from '../i18n';
+import { confirmDialog } from '../dialogs';
 import { IconFolder, IconPlus, IconSearch } from './Icons';
 import { SkillCat } from './SkillCat';
 
@@ -25,7 +26,7 @@ export function GlobalPanel({ onFindSkills, onCreateAgent }: Props) {
   const remove = async (kind: 'skill' | 'agent', name: string, linkedBy: string[] = []) => {
     const used = linkedBy.length ? `\n\n${t('Linked by: {projects}. Those projects stop naming it in their requests.', { projects: linkedBy.join(', ') })}` : '';
     const ask = kind === 'skill' ? t('Remove the skill "{name}" from all projects? It goes to the trash.', { name }) : t('Remove the agent "{name}" from all projects? It goes to the trash.', { name });
-    if (!window.confirm(`${ask}${used}`)) return;
+    if (!await confirmDialog(`${ask}${used}`, { danger: true })) return;
     setBusy(`${kind}:${name}`); setError('');
     try { await api.removeGlobal(kind, name); load(); } catch (e) { setError(message(e)); } finally { setBusy(''); }
   };
