@@ -1752,5 +1752,9 @@
   "Group shown in this view": "Grupo mostrado nesta divisão",
   "Choose a group above, or drag a tab here.": "Escolha um grupo acima ou arraste uma aba para cá.",
   "Resize the views": "Redimensionar as divisões",
-  "{name} (right click: name and color)": "{name} (botão direito: nome e cor)"
+  "{name} (right click: name and color)": "{name} (botão direito: nome e cor)",
+  "OAuth sign-in (optional)": "Login OAuth (opcional)",
+  "Client id": "Client id",
+  "Callback port": "Porta de callback",
+  "For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.": "Para servidores que fazem login com o seu próprio registro de app (Azure DevOps remoto no Claude Code). Só um client id público, nunca um segredo. Escrito só para o Claude Code."
 }

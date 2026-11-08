@@ -14,6 +14,7 @@
     ] },
     { "title": "Tools", "pages": [
       { "file": "mcp-servers.md", "page": "MCP servers" },
+      { "file": "trackers.md", "page": "Azure DevOps and Jira", "pt": { "file": "pt-BR/trackers.md", "page": "Azure DevOps e Jira" } },
       { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } }
     ] },
     { "title": "Help", "pages": [

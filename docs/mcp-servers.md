@@ -31,6 +31,10 @@ A server can also be switched **off**: it stays in the list and no project gets 
 
 Moki never stores credential values. In Environment and Headers, write `${VARIABLE}` (for example `Authorization=Bearer ${GITHUB_TOKEN}`) and set the variable on the computer. Values that look like a token, password or key, written as is, are refused; an imported configuration that has them gets `${VARIABLE}` names instead, which Moki lists so you can set them. The variables are read only when a server starts or is tested, and are never written to Moki's files or logs.
 
+## OAuth sign-in
+
+An HTTP server can carry an optional **OAuth client** (Headers tab: client id and callback port) for servers that sign in with your own app registration, such as the Azure DevOps remote server in Claude Code. A client id is public; a client secret is never accepted, and one in an imported configuration is left out. The block is written only into Claude Code's configuration (Cursor and Codex do not get it; Codex lists it as skipped). Setup of Azure DevOps and Jira: [trackers.md](trackers.md).
+
 ## Testing
 
 **Test** starts the server once (stdio, without a shell) or calls it (HTTP), asks for its tools and stops it. The result is kept in `workspace/mcp-status.json` and every action in `workspace/logs/mcp.log`, without values. A failure says why: command not found, a variable not set, credentials refused, no answer in 15 seconds.

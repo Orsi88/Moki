@@ -1559,6 +1559,29 @@ test.describe.serial('Moki MCP servers list', () => {
     await expect(global).toHaveAttribute('aria-checked', 'true');
     await expect(mcpPage.locator('.mcp-chip')).toHaveCount(0);
   });
+
+  test('an HTTP server takes an optional OAuth client (id and callback port) under Headers, saved without any secret', async () => {
+    const saved = () => (JSON.parse(readFileSync(catalog, 'utf8')) as { servers: { name: string; oauth?: unknown }[] }).servers.find((x) => x.name === 'Azure DevOps')?.oauth;
+    await mcpPage.getByRole('button', { name: 'Adicionar servidor', exact: true }).click();
+    await mcpPage.getByRole('textbox', { name: 'Nome do servidor', exact: true }).fill('Azure DevOps');
+    await mcpPage.getByRole('button', { name: 'HTTP', exact: true }).click();
+    await mcpPage.getByRole('textbox', { name: 'URL', exact: true }).fill('https://mcp.dev.azure.com/acme');
+    await mcpPage.getByRole('tab', { name: 'Cabeçalhos' }).click();
+    await expect(mcpPage.getByText('Login OAuth (opcional)')).toBeVisible();
+    await mcpPage.getByRole('textbox', { name: 'Client id' }).fill('0f1e2d3c-aaaa-bbbb-cccc-1234567890ab');
+    await mcpPage.getByRole('textbox', { name: 'Porta de callback' }).fill('3118');
+    for (const mode of ['light', 'dark']) {
+      await mcpPage.evaluate((m) => document.documentElement.setAttribute('data-theme', m), mode);
+      await mcpPage.locator('.mcp-form').screenshot({ path: test.info().outputPath(`mcp-oauth-${mode}.png`) });
+    }
+    await mcpPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(saved).toEqual({ clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: 3118 });
+    // stdio servers have no OAuth fields.
+    await mcpPage.getByRole('tab', { name: 'Configuração' }).click();
+    await mcpPage.getByRole('button', { name: 'stdio', exact: true }).click();
+    await mcpPage.getByRole('tab', { name: 'Ambiente' }).click();
+    await expect(mcpPage.getByText('Login OAuth (opcional)')).toHaveCount(0);
+  });
 });
 
 // A small PDF with one line of text per page, its xref offsets computed (pdf.js reads it as is).
