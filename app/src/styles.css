@@ -2025,7 +2025,7 @@ span.mcp-row-main { cursor: default; }
   --group-grey: #9a9184; --group-grey-soft: #ebe6dd; --group-grey-ink: #4d473f;
 }
 /* A group chip in a view's row (before its tabs when it is the shown one). */
-.pane-tabs .group-chip { align-self: center; margin: 0 4px 4px 2px; }
+.pane-tabs .group-chip { align-self: center; margin: 0 4px 0 2px; }
 .group-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; height: 22px; padding: 0 10px; border: 0; border-radius: 6px;
   background: var(--group-soft, var(--bg-3)); color: var(--group-ink, var(--muted)); font-size: 0.76rem; font-weight: 600; cursor: pointer; }
 .group-chip:hover { filter: brightness(0.97); }
@@ -2033,11 +2033,18 @@ span.mcp-row-main { cursor: default; }
 .group-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-chip-new { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--group, var(--accent)); color: var(--bg); font-size: 0.68rem; line-height: 16px; text-align: center; }
 /* The shown group: its chip and its tabs over one continuous line in its color. */
-.tab-group { display: flex; align-items: flex-end; gap: 2px; flex-shrink: 0; border-bottom: 2px solid var(--group, transparent); }
-.tab-group.general { border-bottom-color: transparent; }
-.tab-group .group-chip { margin-bottom: 4px; }
-/* The layout and New buttons, at the end of the top-right view's row. */
-.pane-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; padding-bottom: 4px; flex-shrink: 0; position: sticky; right: 0; background: var(--bg-2); }
+.tab-group { position: relative; display: flex; align-items: flex-end; gap: 2px; flex-shrink: 0; height: 100%; }
+.tab-group::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--group, transparent); pointer-events: none; }
+.tab-group.general::after { background: transparent; }
+/* A view's row: the tabs, the only part that scrolls; then (top-right view) the layout and New buttons, fixed at the end. */
+/* One fixed height whatever the row holds (groups or not, one view or four): nothing in it may change it. */
+.pane-row { display: flex; align-items: stretch; flex-shrink: 0; height: 38px; min-width: 0; box-sizing: border-box; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.pane-row > .tabs { flex: 1; min-width: 0; height: 100%; box-sizing: border-box; padding: 5px 8px 0; border-bottom: 0; overflow-y: hidden; scrollbar-width: none; }
+.pane-row > .tabs::-webkit-scrollbar { display: none; }
+.pane-row .tab { box-sizing: border-box; height: 32px; padding: 0 6px 0 12px; flex-shrink: 0; }
+.pane-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; align-self: stretch; padding: 0 6px; }
+.pane-actions .icon-btn, .pane-actions .add-btn { width: 26px; height: 26px; margin: 0; border-radius: 6px; }
+.pane-actions .add-btn-ghost:hover:not(:disabled), .pane-actions .icon-btn:hover:not(:disabled) { background: var(--bg-3); color: var(--text); }
 .layout-menu button svg { flex-shrink: 0; }
 /* The views: a grid; the dividers are dragged (their positions are --split-x / --split-y). */
 .panes { position: relative; display: grid; flex: 1; min-height: 0; grid-template: 1fr / 1fr; }

@@ -899,7 +899,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
                   onTabMenu={(key, at) => setTabMenu({ key, ...at })} onDropTab={(key) => apply((b) => moveToPane(b, key, i))}
                   actions={i === TOP_RIGHT[board.arrangement] ? <>
                     <LayoutButton arrangement={board.arrangement} onArrange={(a) => apply((b) => arrange(b, a))} />
-                    <AddButton size="sm" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
+                    <AddButton size="md" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
                   </> : undefined}
                 />
                 <div className="pane-body">

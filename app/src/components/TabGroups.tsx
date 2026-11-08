@@ -1,9 +1,9 @@
 // The pieces of the tab groups and split views (state in tab-groups.ts). Each view has one row, like a browser
 // window: a colored chip per group and, after the chip of the group it shows, that group's tabs (dragged between
-// views); a click on another chip shows that group there. The layout button and New sit at the end of the top-right
-// view's row. Menus: a group's (name, color, close its files) and a tab's (move it to another group).
+// views); a click on another chip shows that group there. The layout button and New sit fixed at the end of the
+// top-right view's row, outside the part that scrolls, so many tabs never cover them. Menus: a group's (name, color, close its files) and a tab's (move it to another group).
 
-import { useEffect, useState, type CSSProperties, type DragEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { ARRANGEMENTS, GENERAL, GROUP_COLORS, type Arrangement, type Group, type GroupColor, type TabKey } from '../tab-groups';
 import { IconX } from './Icons';
@@ -15,7 +15,7 @@ export const groupStyle = (g: Group | undefined): CSSProperties | undefined => (
 const COLOR_NAMES: Record<GroupColor, string> = { blue: 'Blue', red: 'Red', yellow: 'Yellow', green: 'Green', pink: 'Pink', purple: 'Purple', cyan: 'Cyan', orange: 'Orange', grey: 'Grey' };
 
 // The layout picker's icons: the views as boxes.
-function LayoutIcon({ arrangement }: { arrangement: Arrangement }) {
+function LayoutIcon({ arrangement, size = 18 }: { arrangement: Arrangement; size?: number }) {
   const box = (x: number, y: number, w: number, h: number) => <rect key={`${x}${y}${w}${h}`} x={x} y={y} width={w} height={h} rx="1" />;
   const shapes: Record<Arrangement, ReactNode[]> = {
     1: [box(3, 4, 18, 16)],
@@ -24,7 +24,7 @@ function LayoutIcon({ arrangement }: { arrangement: Arrangement }) {
     3: [box(3, 4, 8.5, 16), box(12.5, 4, 8.5, 7.5), box(12.5, 12.5, 8.5, 7.5)],
     4: [box(3, 4, 8.5, 7.5), box(12.5, 4, 8.5, 7.5), box(3, 12.5, 8.5, 7.5), box(12.5, 12.5, 8.5, 7.5)],
   };
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">{shapes[arrangement]}</svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">{shapes[arrangement]}</svg>;
 }
 const LAYOUT_NAMES: Record<Arrangement, string> = { 1: 'One view', 2: 'Two side by side', '2r': 'Two stacked', 3: 'Three', 4: 'Four' };
 
@@ -34,7 +34,7 @@ export function LayoutButton({ arrangement, onArrange }: { arrangement: Arrangem
   return (<>
     <button type="button" className="icon-btn" aria-haspopup="menu" title={t('Split the screen')} aria-label={t('Split the screen')}
       onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAt({ left: Math.min(r.left, window.innerWidth - 200), top: r.bottom + 4 }); }}>
-      <LayoutIcon arrangement={arrangement} />
+      <LayoutIcon arrangement={arrangement} size={16} />
     </button>
     {at && (
       <div className="menu-backdrop" onMouseDown={() => setAt(null)}>
@@ -52,7 +52,7 @@ export function LayoutButton({ arrangement, onArrange }: { arrangement: Arrangem
 
 export interface PaneTab { key: TabKey; label: string; title: string; icon: ReactNode; dirty?: boolean; fresh?: boolean; exited?: boolean; term?: boolean }
 
-// The row of one view: the groups' chips, the shown group's tabs right after its chip, and (top-right view) actions.
+// The row of one view: the groups' chips with the shown group's tabs right after its chip, then (top-right view) the fixed actions.
 // Groups only show when there is more than General; General shows then too, when it has tabs.
 export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGroup, onGroupMenu, onSelect, onClose, onTabMenu, onDropTab, actions }: {
   groups: Group[]; shown: string; counts: (id: string) => number; fresh: (id: string) => number; tabs: PaneTab[]; active: TabKey | null;
@@ -62,6 +62,9 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
 }) {
   const [over, setOver] = useState(false);
   const accepts = (e: DragEvent) => Array.from(e.dataTransfer.types).includes(TAB_DRAG);
+  // The active tab comes into view when it changes (many tabs scroll).
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => { row.current?.querySelector('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [active]);
   const grouped = groups.some((g) => g.id !== GENERAL && counts(g.id) > 0);
   const chips = grouped ? groups.filter((g) => counts(g.id) > 0 || g.id === shown) : [];
   const tabRow = tabs.map((tab) => (
@@ -90,13 +93,16 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
     );
   };
   return (
-    <div className={`tabs pane-tabs${over ? ' drop-over' : ''}`} role="tablist"
-      onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
-      onDrop={(e) => { if (!accepts(e)) return; e.preventDefault(); setOver(false); onDropTab(e.dataTransfer.getData(TAB_DRAG)); }}>
-      {chips.length ? chips.map((g) => (g.id === shown
-        ? <span key={`seg-${g.id}`} className={`tab-group${g.id === GENERAL ? ' general' : ''}`} style={groupStyle(g)}>{chip(g)}{tabRow}</span>
-        : chip(g))) : tabRow}
-      {actions && <span className="pane-actions">{actions}</span>}
+    <div className="pane-row">
+      <div ref={row} className={`tabs pane-tabs${over ? ' drop-over' : ''}`} role="tablist"
+        onWheel={(e) => { const el = e.currentTarget; if (e.deltaY && el.scrollWidth > el.clientWidth) el.scrollLeft += e.deltaY; }}
+        onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
+        onDrop={(e) => { if (!accepts(e)) return; e.preventDefault(); setOver(false); onDropTab(e.dataTransfer.getData(TAB_DRAG)); }}>
+        {chips.length ? chips.map((g) => (g.id === shown
+          ? <span key={`seg-${g.id}`} className={`tab-group${g.id === GENERAL ? ' general' : ''}`} style={groupStyle(g)}>{chip(g)}{tabRow}</span>
+          : chip(g))) : tabRow}
+      </div>
+      {actions && <div className="pane-actions">{actions}</div>}
     </div>
   );
 }

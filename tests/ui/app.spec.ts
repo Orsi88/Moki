@@ -3080,6 +3080,8 @@ test.describe.serial('Moki tab groups and split views', () => {
   });
 
   test('every AI opens its own group; a group is renamed and colored like a browser tab group', async () => {
+    const rowHeight = () => gp.locator('.pane-row').first().evaluate((el) => el.getBoundingClientRect().height);
+    const plain = await rowHeight(); // no group yet
     await newAi();
     await newAi();
     await expect(chips()).toHaveCount(2);
@@ -3095,6 +3097,7 @@ test.describe.serial('Moki tab groups and split views', () => {
     await expect(menu.getByRole('radio', { name: 'Rosa' })).toHaveAttribute('aria-checked', 'true');
     await menu.getByRole('textbox', { name: 'Nome do grupo' }).press('Enter');
     await expect(chips().first()).toHaveText('Triagem');
+    expect(await rowHeight()).toBe(plain); // groups do not change the row's height
   });
 
   test('a deliverable of a terminal\'s run opens in its group by itself, marked new, without taking the screen', async () => {
@@ -3120,6 +3123,8 @@ test.describe.serial('Moki tab groups and split views', () => {
     await gp.getByRole('button', { name: 'Dividir a tela' }).click();
     await gp.getByRole('menuitemradio', { name: 'Duas lado a lado' }).click();
     await expect(gp.locator('.pane')).toHaveCount(2);
+    const heights = await gp.locator('.pane-row').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+    expect(new Set(heights).size).toBe(1); // every view's row has the same height
     // Different groups side by side.
     // No bar above the views: each one has its own row of groups and tabs.
     await expect(gp.getByRole('toolbar', { name: 'Grupos de abas' })).toHaveCount(0);
@@ -3136,5 +3141,24 @@ test.describe.serial('Moki tab groups and split views', () => {
     await gp.getByRole('button', { name: 'Dividir a tela' }).click();
     await gp.getByRole('menuitemradio', { name: 'Uma divisão' }).click();
     await expect(gp.locator('.pane')).toHaveCount(1);
+  });
+
+  test('with many tabs, only the tabs scroll: the split and New buttons stay fixed at the end, same size', async () => {
+    for (let n = 1; n <= 14; n++) writeFileSync(join(project, 'inbox', `caso-de-teste-numero-${n}.md`), `# Caso ${n}\n`);
+    await gp.getByRole('navigation').getByRole('button', { name: 'Atualizar', exact: true }).click();
+    await gp.locator('.tree-row[title="inbox"]').click();
+    for (let n = 1; n <= 14; n++) await gp.locator(`.tree-row[title="inbox/caso-de-teste-numero-${n}.md"]`).click();
+    await expect(gp.locator('.pane-0 [role="tab"]', { hasText: 'caso-de-teste-numero-14.md' })).toBeVisible();
+    await expect(gp.locator('.pane-0 [role="tab"]', { hasText: 'caso-de-teste-numero-14.md' })).toBeInViewport(); // the active tab scrolls into view
+    const actions = gp.locator('.pane-0 .pane-actions');
+    const split = actions.getByRole('button', { name: 'Dividir a tela' });
+    const add = actions.getByRole('button', { name: 'Novo: terminal, IA ou arquivo' });
+    const [a, b, row] = await Promise.all([split.boundingBox(), add.boundingBox(), gp.locator('.pane-0 .pane-tabs').boundingBox()]);
+    expect([a!.width, a!.height]).toEqual([b!.width, b!.height]);
+    expect(a!.x).toBeGreaterThanOrEqual(row!.x + row!.width); // the buttons sit after the tabs, never under them
+    expect(await gp.locator('.pane-0 .pane-tabs').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    await split.click(); // still reachable with the tabs scrolled
+    await expect(gp.getByRole('menu', { name: 'Dividir a tela' })).toBeVisible();
+    await gp.keyboard.press('Escape');
   });
 });
