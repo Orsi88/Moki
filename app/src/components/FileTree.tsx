@@ -112,7 +112,11 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
     </div></li>;
   }
   const section = depth === 0 && isDir && isSectionIconName(node.name) ? node.name : null;
-  const label = run ? run.title : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.path.startsWith('notes/') ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : node.name;
+  const origin = node.run?.activity ? t(node.run.activity.label) : '';
+  // A run's folder: the tree is narrow, so its row says what tells it apart (the scenario); the whole name
+  // (activity · scenario, as in the Requests card) is in its tooltip.
+  const runName = !run ? '' : origin ? (node.run?.scenario ? `${origin} · ${node.run.scenario}` : origin) : node.run?.scenario || run.title;
+  const label = run ? node.run?.scenario || runName : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.path.startsWith('notes/') ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : node.name;
   const menu = node.path.startsWith('.') ? undefined : onMenu; // a group of the sidebar, not a folder: nothing to create, reveal or copy
   const noteDrag = !isDir && /^notes\/[^/]+\.md$/.test(node.path);
   const movable = !isDir && canMove(node.path);
@@ -157,7 +161,7 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         onMouseLeave={() => setHover(false)}
         onKeyDown={onRenameStart && menu ? (e) => { if (e.key === 'F2') { e.preventDefault(); onRenameStart(node.path); } } : undefined}
         onContextMenu={menu ? (e) => { e.preventDefault(); e.stopPropagation(); menu(node, { left: e.clientX, top: e.clientY }); } : undefined}
-        title={node.run ? `${node.name}\n${statusLabel(node.run.status)}${node.run.currentStep ? ` · ${node.run.currentStep}` : ''}` : node.linked ?? node.path}
+        title={node.run ? `${runName}\n${node.name}\n${statusLabel(node.run.status)}${node.run.currentStep ? ` · ${node.run.currentStep}` : ''}` : node.linked ?? node.path}
       >
         {icons}
         <span className="tree-label">{label}</span>

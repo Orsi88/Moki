@@ -65,11 +65,13 @@ export interface CraftOption { file: string; size: number; url: string }
 export interface CraftDownloadInfo { id: string; label: string; tag: string; page: string; options: CraftOption[] } // options[0] is the recommended file
 export interface InboxFile { name: string; size: number; modified: string }
 export interface OpenRun { id: string; status: string; currentStep: string }
-export interface ActivityRun extends OpenRun { skill: string; workflow: string }
+// activity: the activity the request came from (null: a request made directly to the AI); scenario: the words of its slug.
+export interface RunOrigin { activity: { id: string; label: string } | null; scenario: string }
+export interface ActivityRun extends OpenRun, RunOrigin { skill: string; workflow: string }
 
 export interface TreeNode {
   name: string; path: string; type: 'dir' | 'file'; size?: number; mtime?: number; children?: TreeNode[];
-  run?: { status: string; skill: string; currentStep: string };
+  run?: { status: string; skill: string; currentStep: string } & RunOrigin;
   mcp?: string; // MCP server row: where it is configured
   linked?: string; // the linked folder (path "@folder", shown live): its full path on this computer
 }

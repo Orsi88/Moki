@@ -678,7 +678,7 @@ test.describe.serial('Moki project tree', () => {
     await expect(ops.getByText('Execuções', { exact: true })).toHaveCount(0);
     await expect(treePage.locator('.panel').getByText('Assistente de IA', { exact: true })).toHaveCount(0);
     await expect(ops.getByRole('button', { name: 'Vincular operações a este projeto' })).toHaveCount(0);
-    await ops.getByRole('tab', { name: 'Atividades', exact: true }).click();
+    await ops.getByRole('tab', { name: 'Pedidos', exact: true }).click();
     await expect(ops.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
     await ops.getByRole('tab', { name: 'Operações', exact: true }).click();
     const order = await treePage.locator('.sidebar-scroll > *').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.className));
@@ -1893,7 +1893,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await aiPage.locator('.catalog-card').filter({ hasText: 'Começa na hora' }).first().click();
     await panel.getByRole('button', { name: 'Iniciar atividade' }).click();
     const side = aiPage.getByRole('region', { name: 'Execuções' });
-    await expect(side.getByRole('tab', { name: 'Atividades', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(side.getByRole('tab', { name: 'Pedidos', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(side.getByText('Aguardando registro da execução')).toBeVisible();
     const token = await aiPage.evaluate(() => {
       const key = Object.keys(localStorage).find((item) => item.startsWith('qa-activity-launches:'))!;
@@ -1958,7 +1958,7 @@ test.describe('Moki run details panel', () => {
       await card.getByRole('tab', { name: 'Concluídas' }).click();
       await expect(card.locator('.ops-side-row')).toHaveCount(7);
       await expect(card.getByText('Operação 1', { exact: true })).toBeAttached();
-      await card.getByRole('tab', { name: 'Atividades', exact: true }).click();
+      await card.getByRole('tab', { name: 'Pedidos', exact: true }).click();
       await expect(card.locator('.activity-launch-row')).toHaveCount(1);
       await card.getByRole('tab', { name: 'Concluídas' }).click();
       await expect(card.locator('.activity-launch-row')).toHaveCount(7);
@@ -1989,12 +1989,12 @@ test.describe('Moki run details panel', () => {
       const opened = await openApp(root, userData); window = opened.app;
       const page = opened.page;
       await page.locator('.tree-row[title="runs"]').click();
-      await page.locator(`.tree-row[title^="${activity}"]`).click();
+      await page.locator(`.tree-row[title*="${activity}"]`).click(); // the tooltip names the run first, then its folder
       await page.locator(`.tree-row[title="runs/${activity}/state.json"]`).click();
       await expect(page.locator('.panel.run-detail')).toHaveCount(0);
       await expect(page.locator('.panel.pp')).toBeVisible();
       const card = page.getByRole('region', { name: 'Execuções' });
-      await card.getByRole('tab', { name: 'Atividades', exact: true }).click();
+      await card.getByRole('tab', { name: 'Pedidos', exact: true }).click();
       await card.locator(`[title="${activity}"]`).click();
       const details = page.locator('main .ops-run');
       await expect(details).toHaveAttribute('aria-label', 'Atividade');
@@ -2008,7 +2008,7 @@ test.describe('Moki run details panel', () => {
       await expect(files.nth(0)).toContainText('outputs/s1');
       await expect(files.nth(1)).toContainText('outputs/s2');
       await details.getByRole('button', { name: 'Fechar' }).click();
-      await page.locator(`.tree-row[title^="${operation}"]`).click();
+      await page.locator(`.tree-row[title*="${operation}"]`).click();
       await page.locator(`.tree-row[title="runs/${operation}/state.json"]`).click();
       const operationDetails = page.locator('.panel.run-detail');
       await expect(operationDetails).toHaveAttribute('aria-label', 'Operação');
@@ -2667,5 +2667,67 @@ test.describe.serial('Moki tables in the editor', () => {
     await expect(bar()).toBeHidden();
     await expect.poll(() => saved().length).toBe(0);
     expect(readFileSync(file, 'utf8')).toContain('# Casos');
+  });
+});
+
+test.describe.serial('Moki requests', () => {
+  let reqApp: ElectronApplication;
+  let qp: Page;
+  let runs = '';
+  const dirs: string[] = [];
+  const card = () => qp.getByRole('region', { name: 'Execuções' });
+  const make = (id: string, extra: Record<string, unknown>) => {
+    mkdirSync(join(runs, id), { recursive: true });
+    writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x', ...extra }));
+  };
+
+  test.beforeAll(async () => {
+    const root = fixture();
+    const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
+    dirs.push(root, userData);
+    runs = join(root, 'workspace', 'projects', 'acme', 'runs');
+    make('20261108-1030-failure-analysis-erro-no-login', { skill: 'failure-analysis', activity: 'failure', status: 'in-progress' });
+    make('20261108-1100-failure-analysis-checkout-lento', { skill: 'failure-analysis', activity: 'failure', status: 'completed' });
+    make('20261108-1200-test-design-carrinho', { skill: 'test-design', status: 'in-progress' }); // asked straight to the AI
+    ({ app: reqApp, page: qp } = await openApp(root, userData));
+  });
+
+  test.afterAll(async () => {
+    await reqApp?.close();
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('each request shows the activity it came from and its scenario, or that it was a free request', async () => {
+    await card().getByRole('tab', { name: 'Pedidos', exact: true }).click();
+    await expect(card().getByRole('tab', { name: 'Atividades', exact: true })).toHaveCount(0); // executions are not activities
+    const fromActivity = card().locator('.ops-side-row', { hasText: '· erro no login' });
+    await expect(fromActivity).toBeVisible();
+    await expect(fromActivity.locator('.ops-free')).toHaveCount(0);
+    const free = card().locator('.ops-side-row', { hasText: 'carrinho' });
+    await expect(free.locator('.ops-free')).toHaveText('Pedido livre');
+    await card().getByRole('tab', { name: 'Concluídas' }).click();
+    await expect(card().locator('.ops-side-row', { hasText: '· checkout lento' })).toBeVisible();
+    await card().getByRole('tab', { name: 'Em andamento' }).click();
+    // The tree's run folders have the same names.
+    await qp.locator('.tree-row[title="runs"]').click();
+    const tree = qp.locator('.sidebar');
+    // The tree is narrow: its rows say the scenario; the whole name is in the tooltip.
+    await expect(tree.locator('.tree-row', { hasText: 'erro no login' })).toHaveAttribute('title', /· erro no login/);
+    await expect(tree.locator('.tree-row', { hasText: 'checkout lento' })).toBeVisible();
+    await expect(tree.locator('.tree-row', { hasText: 'carrinho' })).toBeVisible();
+  });
+
+  test('the requests are filtered by activity, and the filter is there only when they come from more than one place', async () => {
+    const filter = card().getByRole('combobox', { name: 'Mostrar os pedidos de' });
+    await expect(filter).toBeVisible();
+    await filter.selectOption({ label: 'Pedido livre' });
+    await expect(card().locator('.ops-side-row', { hasText: 'carrinho' })).toBeVisible();
+    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toHaveCount(0);
+    await filter.selectOption({ label: 'Todas' });
+    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toBeVisible();
+    // Only one place left: no filter.
+    rmSync(join(runs, '20261108-1200-test-design-carrinho'), { recursive: true });
+    await expect(filter).toHaveCount(0);
+    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toBeVisible();
   });
 });

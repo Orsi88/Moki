@@ -109,7 +109,7 @@ Exception: an authorized change to a **target repository** (e.g. automation code
 | Command | Purpose |
 |---|---|
 | `npm run new-project -- <id> "<name>" [--blank]` | Create a project folder from the template (`--blank`: without the QA context files, planned with the user) |
-| `npm run new-run -- --project <id> --skill <name> --slug <slug>` | Create a run with `state.json` |
+| `npm run new-run -- --project <id> --skill <name> --slug <slug> [--activity <id>]` | Create a run with `state.json` (`--activity`: the Moki activity the request came from) |
 | `npm run runs [-- <id>]` | List runs and validate their state |
 | `npm run xlsx -- write/read/fill/inspect ...` | Build or read xlsx deliverables from a skill's layout, or fill the user's own xlsx model |
 | `npm run pdf -- <report.md> <report.pdf>` | Render a Markdown report to PDF (Edge/Chrome) |

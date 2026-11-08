@@ -1510,7 +1510,6 @@
   "Execution files": "Archivos de ejecuciones",
   "Could not load executions: {error}": "No se pudieron cargar las ejecuciones: {error}",
   "Execution type": "Tipo de ejecución",
-  "Activity executions": "Ejecuciones de actividades",
   "Sending request": "Enviando solicitud",
   "Waiting for run registration": "Esperando el registro de la ejecución",
   "Request prepared; waiting for you": "Solicitud preparada; esperando tu acción",
@@ -1602,5 +1601,9 @@
   "Add a column to the right": "Añadir columna a la derecha",
   "Delete the column": "Eliminar la columna",
   "Delete the table": "Eliminar la tabla",
-  "the first row is the table's header": "la primera fila es el encabezado de la tabla"
+  "the first row is the table's header": "la primera fila es el encabezado de la tabla",
+  "Requests": "Solicitudes",
+  "Free request": "Solicitud libre",
+  "All activities": "Todas",
+  "Show the requests of": "Mostrar las solicitudes de"
 }

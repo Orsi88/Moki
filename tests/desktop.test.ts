@@ -676,12 +676,58 @@ test('activity tracking is optional, validated and never creates a run', () => {
   assert.doesNotMatch(service.launch(base).prompt, /solely for tracking/);
 });
 
+test('a run records the activity it came from; the requests and the tree show it, and its scenario', () => {
+  // The request asks the AI to record the activity (with or without the app's tracking), but not when resuming.
+  const base = { project: 'acme', activity: 'review', tool: 'print', files: ['us-1.md'], language: 'English', note: '' };
+  assert.match(service.launch(base).prompt, /add --activity review to npm run new-run \(or write "activity": "review" in its state\.json\)/);
+  const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
+  const make = (id: string, extra: Record<string, unknown>) => {
+    mkdirSync(join(runs, id), { recursive: true });
+    writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', status: 'in-progress', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x', ...extra }));
+  };
+  make('20261108-1030-requirements-review-login-error', { skill: 'requirements-review', activity: 'review' });
+  make('20261108-1031-failure-analysis-checkout', { skill: 'failure-analysis' });
+  try {
+    const listed = service.activityRuns('acme');
+    const from = listed.find((r) => r.id === '20261108-1030-requirements-review-login-error');
+    assert.equal(from?.activity?.id, 'review');
+    assert.ok(from?.activity?.label);
+    assert.equal(from?.scenario, 'login error');
+    const free = listed.find((r) => r.id === '20261108-1031-failure-analysis-checkout');
+    assert.equal(free?.activity, null);
+    assert.equal(free?.scenario, 'checkout');
+    const node = service.tree('acme').find((n) => n.path === 'runs')?.children?.find((n) => n.name === '20261108-1030-requirements-review-login-error');
+    assert.deepEqual({ id: node?.run?.activity?.id, scenario: node?.run?.scenario }, { id: 'review', scenario: 'login error' });
+  } finally {
+    rmSync(join(runs, '20261108-1030-requirements-review-login-error'), { recursive: true });
+    rmSync(join(runs, '20261108-1031-failure-analysis-checkout'), { recursive: true });
+  }
+});
+
+test('npm run new-run records --activity, and refuses an activity the project does not see', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'qa-newrun-'));
+  try {
+    mkdirSync(join(ws, 'projects', 'loja'), { recursive: true });
+    writeFileSync(join(ws, 'projects', 'loja', 'project.json'), JSON.stringify({ project: 'loja', name: 'Loja' }));
+    const run = (...extra: string[]) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', 'carrinho', ...extra],
+      { cwd: ROOT, env: { ...process.env, QA_WORKSPACE: ws }, encoding: 'utf8' });
+    const ok = run('--activity', 'tests');
+    assert.equal(ok.status, 0, ok.stderr);
+    const dir = readdirSync(join(ws, 'projects', 'loja', 'runs'))[0];
+    assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).activity, 'tests');
+    const bad = run('--activity', 'nao-existe');
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stderr, /Unknown activity "nao-existe"/);
+  } finally { rmSync(ws, { recursive: true, force: true }); }
+});
+
 test('launch builds the request; Word files are extracted', () => {
   const r = service.launch({ project: 'acme', activity: 'review', tool: 'claude', files: ['us-1.md', 'us-2.docx'], language: 'Portuguese (pt-BR)', note: 'line1\nline2' });
   assert.equal(r.opened, true);
   assert.equal(launched.length, 1);
   assert.match(r.prompt, /requirements-review skill .*inbox\/us-1\.md.*\.extracted\/us-2\.docx\.md/);
-  assert.match(r.prompt, /Additional instructions: line1 line2\. Talk to me in Portuguese \(pt-BR\)\.$/);
+  // The note and the language close the request; then, as the tracking slug, where a run made for it came from.
+  assert.match(r.prompt, /Additional instructions: line1 line2\. Talk to me in Portuguese \(pt-BR\)\. If this request creates a run, record the activity it came from: add --activity review /);
   const chat = service.launch({ project: 'acme', activity: 'resume', run: RUN, tool: 'chat', files: [], language: 'English', note: '' });
   assert.equal(chat.opened, false);
   assert.ok((chat as { upload: string[] }).upload.some((u) => u.endsWith('state.json')));

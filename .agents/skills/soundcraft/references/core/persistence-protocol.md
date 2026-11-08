@@ -18,7 +18,7 @@ Keep these separate: activity results never go into `context/`, and context is n
 
 Run id format: `YYYYMMDD-HHMM-<skill-or-workflow>-<short-slug>` (lowercase, hyphens), for example `20261020-0930-requirements-review-login-mfa`.
 
-Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug>` (or `--workflow <id>`) when a shell is available. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
+Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug>` (or `--workflow <id>`; add `--activity <id>` when the request names the Moki activity it came from) when a shell is available. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
 
 ## state.json
 
@@ -29,6 +29,7 @@ Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `creat
 - `inputs`: every input actually used, with path and a short description. Never list a document you did not read.
 - `artifacts`: paths of every file produced, relative to the framework root (starting with `workspace/projects/<project-id>/`) or to a target repository (`<target-repo>/...`).
 - `pending`: open questions and missing information, each with an id.
+- `activity` (optional): the id of the Moki activity the request came from, when the request names one (the desktop app says it). It is how the app shows each run under its activity; a request that did not come from an activity has none.
 
 Update `state.json` at the end of every step and before every approval gate. Keep it small: store decisions and paths, not full document contents.
 

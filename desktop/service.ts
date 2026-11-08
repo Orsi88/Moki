@@ -40,6 +40,7 @@ import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
 import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
+import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, type ProbeResult } from './mcp-probe.ts';
 import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
@@ -84,7 +85,7 @@ export interface TreeNode {
   mtime?: number; // files: last change (ms); with size, tells the app whether a PDF/image tab must be read again
   children?: TreeNode[];
   linked?: string; // the linked folder's node (path "@folder"): its full path on this computer
-  run?: { status: string; skill: string; currentStep: string };
+  run?: { status: string; skill: string; currentStep: string } & RunOrigin; // a run folder: also the activity it came from and its scenario
   mcp?: string; // MCP server row: where it is configured
 }
 
@@ -224,6 +225,7 @@ export function createService(root: string, deps: Deps) {
   // Execution files belong to the app. The linked folder is the repository, shown live, not a drop target.
   const runsFolder = (rel: string) => rel === 'runs' || rel.startsWith('runs/');
   const sealedFolder = (rel: string) => rel === LINKED || rel.startsWith(`${LINKED}/`) || rel.startsWith('.');
+  const activityLabels = (project: string) => new Map(listActivities(root, project).map((a) => [a.id, a.label]));
   const uniqueName = (folder: string, dest: string, fileName: string) => {
     const ext = extname(fileName);
     const stem = basename(fileName, ext);
@@ -469,6 +471,7 @@ export function createService(root: string, deps: Deps) {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
     const runs = new Map(listRuns(project, root).map((r) => [r.id, r]));
+    const labels = runs.size ? activityLabels(project) : new Map<string, string>();
     let count = 0;
     const walk = (dir: string, depth: number, from = base, prefix = ''): TreeNode[] => {
       const entries = readdirSync(dir, { withFileTypes: true })
@@ -482,7 +485,7 @@ export function createService(root: string, deps: Deps) {
         if (e.isDirectory()) {
           const node: TreeNode = { name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] };
           const run = path.startsWith('runs/') && path.split('/').length === 2 ? runs.get(e.name) : undefined;
-          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? '') };
+          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...runOrigin(run, labels) };
           nodes.push(node);
         } else if (e.isFile()) {
           const st = statSync(full);
@@ -1571,7 +1574,8 @@ export function createService(root: string, deps: Deps) {
 
     activityRuns: (project: string) => {
       projectDir(project);
-      return listRuns(project, root).filter((r) => !r.operation).map((r) => ({ id: r.id, status: r.status, currentStep: r.currentStep ?? '', skill: r.skill ?? '', workflow: r.workflow ?? '' }));
+      const labels = activityLabels(project);
+      return listRuns(project, root).filter((r) => !r.operation).map((r) => ({ id: r.id, status: r.status, currentStep: r.currentStep ?? '', skill: r.skill ?? '', workflow: r.workflow ?? '', ...runOrigin(r, labels) }));
     },
 
     openFolder: (project: string, rel = '') => {
@@ -2106,7 +2110,9 @@ export function createService(root: string, deps: Deps) {
         skills: installedSkills(project, root), agents: installedAgents(project, root),
         description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
         available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
-      const prompt = trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request;
+      // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
+      const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
+      const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
       const t = TOOLS[tool];
       if (t.print || t.chat) {
         const upload = t.chat ? [

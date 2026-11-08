@@ -10,6 +10,7 @@
     "project": { "type": "string", "minLength": 1 },
     "skill": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
     "workflow": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "activity": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,59}$", "description": "The Moki activity the run was started from (activities/ or the workspace library). Absent when the request did not come from one." },
     "tool": { "type": "string", "description": "AI tool that last updated the run (informational only)." },
     "createdAt": { "type": "string", "minLength": 10 },
     "updatedAt": { "type": "string", "minLength": 10 },

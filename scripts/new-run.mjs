@@ -1,16 +1,18 @@
 // Creates a run folder inside a project, with an initial state.json, and logs
 // it in the project's activity-log.md (see core/persistence-protocol.md).
-// Usage: npm run new-run -- --project <project-id> (--skill <name> | --workflow <id>) --slug <short-slug>
+// Usage: npm run new-run -- --project <project-id> (--skill <name> | --workflow <id>) --slug <short-slug> [--activity <id>]
+// --activity: the Moki activity the request came from (recorded in state.json, shown by the app under that activity).
 
 import { mkdirSync, writeFileSync, existsSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, SLUG, listSkillDirs, parseArgs, nowStamp, workspaceDir } from './lib/repo.mjs';
+import { listActivities } from './lib/activities.ts';
 
 const args = parseArgs(process.argv.slice(2));
 const fail = (msg) => { console.error(msg); process.exit(1); };
 const kind = args.skill ? 'skill' : args.workflow ? 'workflow' : null;
 if (!kind || !args.project || !args.slug) {
-  fail('Usage: npm run new-run -- --project <project-id> (--skill <name> | --workflow <id>) --slug <short-slug>');
+  fail('Usage: npm run new-run -- --project <project-id> (--skill <name> | --workflow <id>) --slug <short-slug> [--activity <id>]');
 }
 const name = args[kind];
 if (kind === 'skill' && !listSkillDirs().includes(name)) fail(`Unknown skill "${name}". Available: ${listSkillDirs().join(', ')}`);
@@ -24,6 +26,9 @@ const projectDir = join(workspaceDir(), 'projects', args.project); // QA_WORKSPA
 if (!existsSync(join(projectDir, 'project.json'))) {
   fail(`Project "${args.project}" does not exist. Create it first: npm run new-project -- ${args.project}`);
 }
+if (args.activity !== undefined && !listActivities(ROOT, args.project).some((a) => a.id === args.activity)) {
+  fail(`Unknown activity "${args.activity}" for project "${args.project}".`);
+}
 
 const id = `${nowStamp()}-${name}-${args.slug}`;
 const runDir = join(projectDir, 'runs', id);
@@ -36,6 +41,7 @@ const state = {
   id,
   project: args.project,
   [kind]: name,
+  ...(args.activity ? { activity: args.activity } : {}),
   createdAt: now,
   updatedAt: now,
   status: 'in-progress',
