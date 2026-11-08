@@ -76,7 +76,7 @@ Access levels: **read-only** (reads the project or the framework, writes nothing
 ## How to handle a request
 
 1. **Classify**: single activity, composite, resume, or context management. Composite or unclear → follow `qa-orchestrator`.
-2. **Project**: identify it (ask if ambiguous). Load context with `project-context`; if the project is new, create it and run the progressive onboarding interview — only what the activity needs.
+2. **Project**: identify it (ask if ambiguous). Load context with `project-context`; if the project is new, create it and run the progressive onboarding interview — only what the activity needs. If the activity relies on tracker items, check them for changes first (`dispatch` freshness check; ask for the item number or URL when none was given).
 3. **Run**: create a run (`npm run new-run -- --project <id> --skill <name> --slug <slug>`, or manually per the persistence protocol). Load the skill's `SKILL.md`; open its `references/` files only when the procedure step needs them.
 4. **Gate**: at each approval point, stop, summarize, ask, update `state.json`.
 5. **Close**: record results and artifacts in `state.json`, update `activity-log.md`, offer confirmed general definitions to `project-context` as proposals.
@@ -90,7 +90,7 @@ Workflows: `skills/qa-orchestrator/references/workflows/` — `requirements-to-t
 ## Interrupting and resuming
 
 - The user may stop at any time. Persist `state.json` with `currentStep`, `pending` and the last approval; tell the user the run id.
-- To resume: `npm run runs -- <project-id>` (or list `workspace/projects/<project-id>/runs/`), read the run's `state.json`, reload only the context the current step needs, summarize status, continue from `currentStep`.
+- To resume: `npm run runs -- <project-id>` (or list `workspace/projects/<project-id>/runs/`), read the run's `state.json`, reload only the context the current step needs, check its tracker items for changes (`dispatch` freshness check), summarize status, continue from `currentStep`.
 
 ## Where results go
 

@@ -41,10 +41,10 @@ Update `state.json` at the end of every step and before every approval gate. Kee
 When the user asks to resume (for example "resume run 20261020-0930-..." or "continue the review"):
 
 1. Identify the project. Read `workspace/projects/<project-id>/runs/<run-id>/state.json`. If the run id is unknown, list the project's runs (`npm run runs -- <project-id>` or the folder listing) and ask which one.
-2. Load the project context the current step needs (see the `project-context` skill), not all of it.
+2. Load the project context the current step needs (see the `project-context` skill), not all of it. If the run relies on tracker items (`sources` in `state.json`), run the freshness check (`dispatch` skill) before continuing: report what changed since the adopted version and its impact, or that the update could not be verified and when it was last checked.
 3. Read only the artifacts needed for the current step.
 4. Summarize to the user: current step, completed steps, pending items, last approval.
-5. Continue from `currentStep`. Do not redo completed steps unless the user asks or their inputs changed.
+5. Continue from `currentStep`. Do not redo completed steps unless the user asks or their inputs changed (a tracker change the user decided to adopt counts: redo only the affected parts).
 
 ## Chat-only environments
 

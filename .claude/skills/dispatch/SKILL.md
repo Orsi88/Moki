@@ -22,6 +22,7 @@ Give every skill one safe, traceable way to talk to Azure DevOps and Jira. Reads
 - Discover, per project and session, which tracker tools are really available, and the project's **tracker map**; record both as proposals for the user to confirm.
 - Publish (create, edit, comment, attach, link, change state) with the [publication protocol](references/publication.md): exact preview → approval → journal → execution → result per action.
 - Recover from partial failures and uncertain results without repeating or undoing.
+- Run the [freshness check](references/freshness.md) at the start and resume of activities that rely on tracker items: what changed since the adopted version, its impact, and the user's decision.
 - When the MCP is missing, lacks a capability or fails: ask the user to send the documentation (paste, attach or export) for reads, and hand over prepared content with manual instructions for writes.
 
 Does **not**: delete anything (items, comments, attachments, links), change fields the user did not approve, write to a tracker or project the project's context does not name, store credentials, or decide content (the calling skill owns what is written).

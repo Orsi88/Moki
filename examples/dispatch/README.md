@@ -46,3 +46,28 @@ Input: [journal-uncertain.json](journal-uncertain.json) (A1 left `running`); req
 The project's context has no tracker map; Lestrade needs item types.
 
 - [ ] Reads the item types and fields from the tracker metadata and writes them as `PU-###` proposals; asks for confirmation; no type or field is assumed from general knowledge.
+
+## Freshness check (start and resume)
+
+Fixture: [mf-1234-rev15.md](mf-1234-rev15.md) is the **adopted** snapshot of a previous review run (its `sources` entry says revision 15, adopted). The tester plays the tracker's current answer for each variant. Request: "Resume the review of MF 1234."
+
+### Case 7 — no changes
+Tracker answers revision 15, same comments and attachments.
+- [ ] One line: unchanged, revision 15, date of the check; `lastCheck` `unchanged`. The work continues with no further questions.
+
+### Case 8 — acceptance criterion changed
+Tracker answers revision 18: criterion 3 is now "up to 2 times" (changed by Ana on 2026-11-08).
+- [ ] Reports the change quoting old and new text, with revision, author and date.
+- [ ] Impact names the earlier work that depends on it (for example a REV item about the renewal limit) as contradicted or needing review, and lists what stays valid.
+- [ ] Asks the user to decide; the earlier definition is **not** replaced silently. After the decision, a new `sources` entry is adopted and the old one kept.
+
+### Case 9 — new comment and edited comment
+Tracker answers: a new comment by Rui (2026-11-08 16:20, "Renewal blocked when there is a fine") and Ana's comment edited to "Staff renewals have no limit."
+- [ ] Both are reported (added / changed) with author, date and link; the edited comment shows old and new text.
+- [ ] "No limit for staff" is flagged as a possible contradiction with criterion 3 for the user to decide; a comment is not adopted as a definition by itself.
+
+### Case 10 — MCP unavailable at resume
+Every tracker call fails.
+- [ ] Says the update **could not be verified** and gives the last successful check (2026-11-07, revision 15); `lastCheck` `failed` with the reason.
+- [ ] Asks the user to send the current item; offers to continue on the adopted version only as the user's choice.
+- [ ] Never says "no changes".

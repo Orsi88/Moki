@@ -61,6 +61,8 @@ Optional:
 2. Using the [retrieval map](references/context-files.md#retrieval-map), load only the files (or sections) relevant to the requested activity.
 3. If the request lists **shared context** (files of other projects shared through tags), read only the listed files that matter for the activity, as read-only reference, following the [isolation policy](references/core/isolation-policy.md#shared-context-through-tags). If it says some files of this project must not be used, skip them.
 4. Report briefly what was loaded (shared files with their source project), the `onboardingStatus`, and gaps that matter for this activity (for example, "no permission model recorded"). Offer to fill critical gaps with a few questions; do not force a full onboarding.
+5. **Tracker items of the activity**: if the activity relies on items of a tracker (an MF, a story, a bug, a test case), run the freshness check of the `dispatch` skill (its `references/freshness.md`) before the activity starts or resumes: ask for the item number or URL when none was named, compare with the adopted version, report changes and impact, and leave decisions to the user. Without a usable MCP, say the update could not be verified (with the last successful check) and ask the user to send the current item.
+6. **Names of item types** (MF, US, história, bug…) follow this project's glossary and tracker map; never treat them as equivalent across projects, and keep each item's real type and links in the tracker.
 
 ### 2b. New project — onboard
 
