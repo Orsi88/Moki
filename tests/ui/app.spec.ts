@@ -216,6 +216,24 @@ test.describe.serial('Moki settings', () => {
     await page.getByRole('listbox').getByText('Acme Library').click();
     await expect(page.locator('.library-detail .tag-field .tag-chip')).toHaveText('Acme Library');
 
+    // Before typing, the field suggests what was linked or worked on last; the ⓘ explains how tags work.
+    await page.locator('.library-detail .tag-field .tag-chip').getByRole('button', { name: 'Remover tag' }).click();
+    await expect(page.locator('.library-detail .tag-field .tag-chip')).toHaveCount(0);
+    const field = page.locator('.library-detail .tag-field').getByRole('textbox', { name: 'Adicionar uma tag' });
+    await field.focus();
+    const suggested = page.getByRole('listbox', { name: 'Tags sugeridas' });
+    await expect(suggested.locator('.tag-options-head')).toHaveText(['Projetos recentes']);
+    await expect(suggested.getByRole('option')).toContainText(['Acme Library']);
+    await field.press('Escape');
+    await expect(suggested).toHaveCount(0);
+    const tip = page.locator('.library-detail .tag-field').getByRole('button', { name: 'Como as tags funcionam' });
+    await expect(page.getByRole('tooltip')).toBeHidden();
+    await tip.hover();
+    await expect(page.getByRole('tooltip')).toHaveText(/Para ligar a um projeto, escreva o nome dele/);
+    await field.click(); // still focused: a click opens the suggestions again
+    await suggested.getByRole('option', { name: 'Acme Library' }).click();
+    await expect(page.locator('.library-detail .tag-field .tag-chip')).toHaveText('Acme Library');
+
     const [root] = readFileSync(join(scratch, 'root.txt'), 'utf8').trim().split('\n');
     const file = readFileSync(join(root, 'workspace', 'library', 'agents', 'quality', 'test-designer-custom.md'), 'utf8');
     expect(file).toMatch(/skills: .*requirements-review/);
@@ -372,6 +390,15 @@ test.describe.serial('Moki tags', () => {
     await input.fill('Pag');
     await tagsPage.getByRole('listbox').getByText('Pagamentos').click();
     await expect(tagsPage.locator('.sidebar-tags .tag-chip')).toHaveText('Pagamentos');
+
+    // The tag added last is suggested first, before anything is typed.
+    await tagsPage.locator('.sidebar-tags .tag-chip').getByRole('button', { name: 'Remover tag' }).click();
+    await input.focus();
+    const suggested = tagsPage.getByRole('listbox', { name: 'Tags sugeridas' });
+    await expect(suggested.locator('.tag-options-head')).toHaveText(['Tags recentes']);
+    await suggested.getByRole('option', { name: 'Pagamentos' }).click();
+    await expect(tagsPage.locator('.sidebar-tags .tag-chip')).toHaveText('Pagamentos');
+    await expect(suggested).toHaveCount(0); // closes once chosen: nothing left to suggest
 
     await tagsPage.getByRole('button', { name: 'Abrir na sua ferramenta de IA' }).click();
     await tagsPage.getByRole('button', { name: /Só abrir o projeto/ }).click();

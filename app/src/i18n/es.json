@@ -1657,5 +1657,10 @@
   "Default activities": "Actividades predeterminadas",
   "Default operations come first when you call one. Each step runs in its own terminal.": "Las operaciones predeterminadas aparecen primero al llamar una. Cada paso se ejecuta en su propio terminal.",
   "Default operations": "Operaciones predeterminadas",
-  "project defaults": "predeterminado del proyecto"
+  "project defaults": "predeterminado del proyecto",
+  "Recent tags": "Etiquetas recientes",
+  "Recent projects": "Proyectos recientes",
+  "Suggested tags": "Etiquetas sugeridas",
+  "How tags work": "Cómo funcionan las etiquetas",
+  "Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.": "Las etiquetas indican a qué proyectos se aplica. Sin etiqueta, se aplica a todos. Para vincular un proyecto, escribe su nombre. Una etiqueta compartida vincula todos los proyectos que la tienen."
 }

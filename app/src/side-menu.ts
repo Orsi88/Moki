@@ -161,3 +161,14 @@ export const touchNote = (project: string, path: string, title: string): void =>
     ...recentNotes().filter((n) => !(n.project === project && n.path === path))].slice(0, NOTE_LIMIT);
   remember(NOTES_KEY(), JSON.stringify(next));
 };
+
+// The tag field's suggestions on this computer: the tags added most recently and the
+// projects worked on most recently (opened, or a file of it opened), newest first.
+const RECENT_TAGS = 'qa-recent-tags';
+const RECENT_PROJECTS = 'qa-recent-projects';
+const strings = (key: string): string[] => readList(key + scope).filter((id): id is string => typeof id === 'string');
+const pushFront = (key: string, id: string, limit: number) => remember(key + scope, JSON.stringify([id, ...strings(key).filter((x) => x !== id)].slice(0, limit)));
+export const recentTags = (): string[] => strings(RECENT_TAGS);
+export const touchRecentTag = (id: string): void => pushFront(RECENT_TAGS, id, 12);
+export const touchRecentProject = (id: string): void => pushFront(RECENT_PROJECTS, id, 12);
+export const recentProjects = (): string[] => [...new Set([...strings(RECENT_PROJECTS), ...recentFiles().map((file) => file.project)])];

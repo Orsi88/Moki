@@ -23,7 +23,7 @@ import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
 import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
-import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile } from '../side-menu';
+import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
 import { CraftDownloads } from '../components/CraftDownloads';
 import { FileIcon } from '../icons';
@@ -93,6 +93,7 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const resizeSidebar = useRef<{ startX: number; startWidth: number; width: number } | null>(null);
   const setSidebarOpen = (open: boolean) => { setSidebarCollapsed(!open); remember('qa-sidebar', open ? 'open' : 'closed'); };
   useEffect(() => { if (search) setSidebarOpen(true); }, [search]);
+  useEffect(() => { touchRecentProject(project.id); }, [project.id]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') setSidebarOpen(true); };
     window.addEventListener('keydown', onKey);

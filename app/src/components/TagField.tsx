@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type Tag, type TagCatalog } from '../api';
 import { t } from '../i18n';
+import { InfoTip } from './InfoTip';
 import { TagPicker } from './TagPicker';
 
 const PROJECT_COLOR = '#64748b';
@@ -30,7 +31,10 @@ export function TagField({ value, onChange, catalog, onCatalog, label }: Props) 
     <div className="field tag-field">
       {label !== '' && <span className="label">{label ?? t('Projects (tags)')}</span>}
       <TagPicker catalog={tags} value={value} onChange={onChange} onCatalog={() => onCatalog?.()} />
-      <span className="muted small">{value.length ? t('Applies to the projects with any of these tags.') : t('No tag: applies to every project of the workspace.')}</span>
+      <span className="muted small tag-field-hint">
+        {value.length ? t('Applies to the projects with any of these tags.') : t('No tag: applies to every project of the workspace.')}
+        <InfoTip label={t('How tags work')} text={t('Tags say which projects this applies to. With no tag, it applies to all of them. To link a project, type its name. A shared tag links every project that has it.')} />
+      </span>
     </div>
   );
 }

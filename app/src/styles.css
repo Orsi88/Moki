@@ -1942,3 +1942,15 @@ span.mcp-row-main { cursor: default; }
 .invoke-operation { color: var(--muted); font-size: 0.78rem; }
 .terminal-callbar { display: flex; justify-content: flex-end; padding: 4px 10px; border-bottom: 1px solid var(--border); }
 @media (max-width: 700px) { .activity-uses { grid-template-columns: minmax(0, 1fr); } }
+
+/* The ⓘ of a field (InfoTip): the explanation shows on hover or focus, opening leftward (the ⓘ sits at the end of a line). */
+.info-tip { position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; color: var(--muted); cursor: help; border-radius: 50%; }
+.info-tip:hover, .info-tip:focus-visible { color: var(--accent); outline: none; }
+.info-tip:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
+.info-tip-text { position: absolute; z-index: 30; bottom: calc(100% + 6px); right: -6px; width: max-content; max-width: 260px; padding: 7px 9px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); color: var(--text); box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  font-size: 0.78rem; line-height: 1.35; white-space: normal; text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s; }
+.info-tip:hover .info-tip-text, .info-tip:focus-visible .info-tip-text { opacity: 1; visibility: visible; }
+.tag-field-hint { display: inline-flex; align-items: center; flex-wrap: wrap; }
+.tag-options-head { padding: 4px 6px 2px; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .04em; }
+.tag-options-head:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 6px; }
