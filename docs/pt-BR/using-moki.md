@@ -18,7 +18,7 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de
 
 Para conversar sobre uma ideia, escolha um agente em **Chamar…** e acrescente o assunto como observação opcional. Uma execução só começa quando o procedimento ou seu pedido exigir.
 
-As **Configurações do projeto** (o ícone ao lado do nome do projeto, o menu ⋯ da pasta do projeto ou *Configurar projeto…* na árvore) guardam o nome e a descrição do projeto e com o que uma IA aberta nele começa. Uma seção por tipo:
+As **Configurações do projeto** (o ícone ao lado do nome do projeto no painel, ou o menu ⋯ da pasta do projeto) guardam o nome e a descrição do projeto e com o que uma IA aberta nele começa. Uma seção por tipo:
 
 - **Ao abrir uma IA aqui**: instruções opcionais, enviadas junto com os padrões abaixo para toda IA aberta sem escolher nada.
 - **Agentes**: os habilitados no projeto; a estrela torna um deles padrão.

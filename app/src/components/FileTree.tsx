@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
 import { describeRun, statusLabel, type TreeNode } from '../api';
 import { t } from '../i18n';
-import { IconChevron, IconCode, IconFolder, IconLink, IconList, IconMcp, IconMore, IconPlus, IconSliders, IconStar } from './Icons';
+import { IconChevron, IconCode, IconFolder, IconLink, IconList, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
 import { FileIcon, SectionIcon, isSectionIconName } from '../icons';
 import { RenameField, tooLong } from './RenameField';
 
@@ -22,7 +22,6 @@ interface Props {
   onRenameStart?: (path: string) => void; // F2 on a row (the screen says why when the item keeps its name)
   onRename?: (path: string, name: string) => Promise<void>; // rejects with the reason the name was refused
   onRenameEnd?: () => void;
-  onSetup?: () => void; // the Project settings group ends with a row that opens them
   focusPath?: string | null; // a row to take the focus once it is shown (a file just renamed comes back under its new path)
   onFocused?: () => void;
 }
@@ -34,14 +33,13 @@ export const friendlyName = (name: string): string => ({
 
 // The sidebar's file blocks: the folders, then groups that exist only here - Tracking (the two
 // files Moki keeps up to date: proposed updates and the activity log) and Other files (what the
-// user left loose in the project root) - and, below Operations, Project settings (README.md,
-// project.json) and the MCP servers. Display only: nothing moves on disk. A group's path starts
+// user left loose in the project root) - and, fixed at the bottom, the MCP servers. README.md and project.json
+// are not listed: the project settings (the panel, the project folder menu) edit what they hold. Display only: nothing moves on disk. A group's path starts
 // with "." (never a real entry: the tree skips dot files).
 const TRACKING = ['proposed-updates.md', 'activity-log.md'];
-const SETTINGS = ['README.md', 'project.json'];
+const SETTINGS = ['README.md', 'project.json']; // left out of the tree
 export const OTHER_FILES = '.other';
-// Project settings uses sliders: a gear would read as Moki's own Settings.
-const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, '.tracking': IconList, [OTHER_FILES]: IconFolder, '.settings': IconSliders, '.mcps': IconMcp };
+const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, '.tracking': IconList, [OTHER_FILES]: IconFolder, '.mcps': IconMcp };
 
 export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; settings: TreeNode[] } {
   const mcps = nodes.find((n) => n.path === '.mcps');
@@ -55,7 +53,7 @@ export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; settings: Tree
       ...group(t('Tracking'), '.tracking', pick(TRACKING)),
       ...group(t('Other files'), OTHER_FILES, other),
     ],
-    settings: [...group(t('Project settings'), '.settings', pick(SETTINGS)), ...(mcps ? [mcps] : [])],
+    settings: mcps ? [mcps] : [],
   };
 }
 
@@ -192,9 +190,6 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         <ul role="group">
           {(node.path === 'notes' && favorites ? [...node.children].sort((a, b) => Number(favorites.has(b.path)) - Number(favorites.has(a.path))) : node.children)
             .map((c) => <Node {...props} key={c.path} node={c} depth={depth + 1} />)}
-          {node.path === '.settings' && props.onSetup && (
-            <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={props.onSetup}><span className="tree-icon"><IconSliders size={14} /></span><span className="tree-label">{t('Project settings…')}</span></button></li>
-          )}
           {node.path === 'notes' && (
             <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={onNewNote}><span className="tree-icon"><IconPlus size={14} /></span><span className="tree-label">{t('New note')}</span></button></li>
           )}

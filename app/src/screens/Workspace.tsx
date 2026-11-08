@@ -544,7 +544,6 @@ export function Workspace({ workspaceId, project, tools, onHome, settings, onSet
   const treeProps = {
     tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openPath, expanded,
     onNewNote: () => setNote({ path: null }), onMenu: openItemMenu, favorites, onIde: openIde, noteTitles, onReceive: dropOnFolder,
-    onSetup: () => setShowSetup(true),
     renaming, onRenameStart: startRename, onRename: renameItem, onRenameEnd: () => setRenaming(null), focusPath, onFocused: () => setFocusPath(null),
     onToggle: (p: string) => setExpanded((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
   };

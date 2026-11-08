@@ -691,13 +691,11 @@ test.describe.serial('Moki project tree', () => {
     await treePage.locator('.tree-row[title=".tracking"]').click();
     await expect(treePage.locator('.tree-row[title="activity-log.md"]')).toContainText('Registro de atividades');
 
-    // Project settings opens like a folder: README.md and project.json; the MCP servers stay apart, below it.
-    const config = treePage.locator('.tree-row[title=".settings"]');
-    await expect(config).toContainText('Configurações do projeto');
+    // No Project settings group in the tree (the project settings edit what README.md and project.json hold); the MCP servers stay.
+    await expect(treePage.locator('.tree-row[title=".settings"]')).toHaveCount(0);
     await expect(treePage.locator('.tree-row[title="project.json"]')).toHaveCount(0);
+    await expect(treePage.locator('.tree-row[title="README.md"]')).toHaveCount(0);
     await expect(treePage.locator('.tree-row[title=".mcps"]')).toBeVisible();
-    await config.click();
-    await expect(treePage.locator('.tree-row[title="project.json"]')).toBeVisible();
     // Operations is the last card of the project panel, below the AI assistant. With nothing under way it stays on that list; an operation is chosen on the assistant card.
     const ops = treePage.locator('.panel').getByRole('region', { name: 'Execuções' });
     await expect(ops.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
@@ -714,8 +712,7 @@ test.describe.serial('Moki project tree', () => {
     const blocks = await treePage.locator('.sidebar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]));
     expect(blocks.slice(-2)).toEqual(['sidebar-scroll', 'sidebar-foot']);
     await expect(treePage.locator('.sidebar .ops-side')).toHaveCount(0);
-    // Project settings and the MCP servers stay fixed at the bottom of the sidebar.
-    await expect(treePage.locator('.sidebar-foot .tree-row[title=".settings"]')).toBeVisible();
+    // The MCP servers stay fixed at the bottom of the sidebar.
     await expect(treePage.locator('.sidebar-foot .tree-row[title=".mcps"]')).toBeVisible();
   });
 
@@ -2892,7 +2889,7 @@ test.describe.serial('Moki project defaults', () => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
   });
 
-  test('the settings open from the project menu and from the tree, one section per kind', async () => {
+  test('the settings open from the project menu and the panel, one section per kind', async () => {
     await dp.getByRole('button', { name: 'Opções da pasta do projeto' }).click();
     await dp.getByRole('menuitem', { name: 'Configurações do projeto' }).click();
     const settings = dp.getByRole('dialog', { name: /^Configurações de / });
@@ -2902,9 +2899,8 @@ test.describe.serial('Moki project defaults', () => {
     await expect(settings.getByRole('status')).toHaveText('Uma IA aberta aqui começa sem nada configurado.');
     await settings.getByRole('button', { name: 'Cancelar' }).click();
     await expect(settings).toBeHidden();
-    // The tree's Project settings group ends with the same door.
-    await dp.locator('.tree-row[title=".settings"]').click();
-    await dp.getByRole('button', { name: 'Configurar projeto…' }).click();
+    // The panel's sliders open the same settings.
+    await dp.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
     await expect(settings).toBeVisible();
     await settings.getByRole('button', { name: 'Cancelar' }).click();
   });

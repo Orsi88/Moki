@@ -18,7 +18,7 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent open in a termi
 
 To talk through an idea, choose an agent in **Call…** and add the subject as an optional note. No run starts unless its procedure or your request calls for one.
 
-**Project settings** (the sliders next to the project's name, the ⋯ menu of the project folder, or *Project settings…* in the tree) hold the project's name and description and what an AI opened in it starts with. One section per kind:
+**Project settings** (the sliders next to the project's name in the panel, or the ⋯ menu of the project folder) hold the project's name and description and what an AI opened in it starts with. One section per kind:
 
 - **When an AI opens here**: optional instructions, sent with the defaults below to every AI opened without choosing something.
 - **Agents**: the ones the project enables; the star makes one a default.
