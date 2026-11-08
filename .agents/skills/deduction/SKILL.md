@@ -1,5 +1,5 @@
 ---
-name: investigation
+name: deduction
 description: Deep investigation of any topic - laws and regulation (including how a law was at a past date and the context it was made in), history, markets, tools and products, technology and security, science, business domains, organizations - by searching the web, standards, scientific and educational articles, books, vendor documentation and forums, following citations to primary sources and cross-checking every key claim. Agrees the research plan with the user first, then delivers a well-structured dossier shaped by the purpose of the research (understand, map risks and tests, decide, support a position) with every statement traceable to a source actually opened. Never invents a reference and never sends project data to the web. Use when the user wants a topic researched in depth, with grounded references.
 license: MIT
 metadata:
@@ -9,7 +9,7 @@ metadata:
   phase: "2"
 ---
 
-# Investigation
+# Deduction
 
 ## Purpose
 
@@ -74,7 +74,7 @@ Step ids are used in `state.json`.
    - work in search rounds and log each one; stop when **every key question is answered or declared a gap** and either no new relevant information appeared in the last round (saturation) or the plan's round limit was reached — say which, and list what remains open.
    If the research shows the plan was wrong (the topic is different, a key question is missing), stop and propose the change before continuing.
 4. **`dossier`** — Write the dossier with the [dossier template](references/dossier-template.md), the sections the purpose requires and the sections of each type. Every statement that is not common knowledge has a citation; confidence is stated for each finding; divergences and gaps have their own sections. Optional spreadsheet only when the user asks or approved it in the plan.
-5. **`handoff`** — Present a summary (5 to 10 lines: what was found, the strongest evidence, the main gaps), the file paths and the possible next steps (for example `test-design` with the risk catalog, `requirements-review` with the open questions, proposals for `project-context`). Record results and close the run.
+5. **`handoff`** — Present a summary (5 to 10 lines: what was found, the strongest evidence, the main gaps), the file paths and the possible next steps (for example `cross-examination` to have the dossier challenged before relying on it, `test-design` with the risk catalog, `requirements-review` with the open questions, proposals for `project-context`). Record results and close the run.
 
 ## Rules and constraints
 
@@ -116,7 +116,7 @@ Deliverables (language: deliverable language; see `AGENTS.md`):
   - **Sources** — one row per source opened: id, title, author/organization, date, tier, link or identifier, accessed on, used or discarded and why;
   - **Evidence for key findings** — finding id, source id, locator (section, clause, page or paragraph), short excerpt in the original language (at most about 25 words);
   - **Search rounds** — round, key question, queries run, new relevant sources, outcome (answered, gap, continue).
-- Optional spreadsheet (only when asked or approved in the plan), for a large table such as a risk catalog: `npm run xlsx -- write --layout skills/investigation/assets/risk-catalog.layout.json --data <data.json> --lang <pt-BR|en> --out workspace/projects/<project-id>/runs/<run-id>/outputs/<file>.xlsx`; the data file goes to the run's work folder. Layout: [risk-catalog.layout.json](assets/risk-catalog.layout.json). Other tables: a Markdown table in the dossier.
+- Optional spreadsheet (only when asked or approved in the plan), for a large table such as a risk catalog: `npm run xlsx -- write --layout skills/deduction/assets/risk-catalog.layout.json --data <data.json> --lang <pt-BR|en> --out workspace/projects/<project-id>/runs/<run-id>/outputs/<file>.xlsx`; the data file goes to the run's work folder. Layout: [risk-catalog.layout.json](assets/risk-catalog.layout.json). Other tables: a Markdown table in the dossier.
 
 Chat-only tools: present the plan and the dossier in the conversation and tell the user where to save them.
 

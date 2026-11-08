@@ -22,7 +22,7 @@ Uma operação, inclusive uma atividade que aponta para ela, sempre abre seu pr�
 | Origem | Onde | Dá para mudar? |
 |---|---|---|
 | **Ações do Moki** | No código do app: *Só abrir o projeto*, *Contexto do projeto*, *Preparar o projeto*, *Planejar o projeto com a IA*, *Retomar uma execução* | Não: os pedidos delas dependem do app (o plano do projeto, a execução a retomar). Dá para marcar com estrela |
-| **Vem com o Moki** | [activities/](../../activities/) no framework: *Revisar histórias de usuário*, *Desenhar testes*, *Revisar e depois desenhar testes*, *Pré-análise de falha*, *Montar evidências de teste*, *Investigar um tema*, *Automação* | Só leitura: **Duplicar para editar** cria uma cópia que é sua |
+| **Vem com o Moki** | [activities/](../../activities/) no framework: *Revisar histórias de usuário*, *Desenhar testes*, *Revisar e depois desenhar testes*, *Pré-análise de falha*, *Montar evidências de teste*, *Investigar com o Sherlock*, *Contestar com o Moriarty*, *Automação* | Só leitura: **Duplicar para editar** cria uma cópia que é sua |
 | **Suas** | `workspace/library/activities/<id>.md` | Sim, em **Configurações › Atividades** |
 
 As suas atividades chegam aos projetos por **tags**, como os agentes e os templates: sem tag, vale para todos os projetos do workspace; a tag de um projeto ou uma tag compartilhada limita a esses projetos.

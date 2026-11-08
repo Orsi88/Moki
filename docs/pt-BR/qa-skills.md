@@ -10,7 +10,8 @@ As atividades que vêm com o Moki:
 | [Projetar testes](../../skills/test-design/SKILL.md) | Mapa de cenários e, depois do seu OK, casos de teste manuais em Excel. | pronta |
 | [Pré-análise de falha](../../skills/failure-analysis/SKILL.md) | Uma nota curta para o time de desenvolvimento, a partir da sua descrição e do log. | pronta |
 | [Montar evidências](../../skills/qa-orchestrator/references/workflows/test-evidence.md) | O item de trabalho e as gravações do Jam, depois uma planilha e um documento Word com os prints, nos seus modelos quando você tiver. | pronta |
-| [Investigar um tema](../../agents/research/sherlock.md) | O Sherlock pesquisa qualquer tema a fundo (web, normas, artigos, livros, fóruns) e, depois que você aprova o plano, entrega um dossiê estruturado com referências que você pode conferir. | pronta |
+| [Investigar com o Sherlock](../../agents/research/sherlock.md) | O Sherlock pesquisa qualquer tema a fundo (web, normas, artigos, livros, fóruns) e, depois que você aprova o plano, entrega um dossiê estruturado com referências que você pode conferir. | pronta |
+| [Contestar com o Moriarty](../../agents/research/moriarty.md) | O Moriarty ataca uma entrega pronta (um dossiê, uma revisão, casos de teste...): confere as fontes, procura evidência contrária e falhas de lógica, e dá um veredito com os achados por gravidade, sem reescrever o trabalho. | pronta |
 | [Contexto do projeto](../../skills/project-context/SKILL.md) | Onboarding, atualizações e o plano de um projeto em branco. | pronta |
 | [Automação](../../skills/automation/SKILL.md) | Construir, implementar ou evoluir um projeto de automação. | ainda não disponível |
 | [Documentação](../../skills/documentation/SKILL.md), [smoke test](../../skills/smoke-test/SKILL.md) | Planejadas. A IA avisa e para. | ainda não disponível |

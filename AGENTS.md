@@ -30,7 +30,8 @@ Canonical definitions are in `skills/<name>/SKILL.md` (tools load the generated 
 | `api-testing` | draft | Run API test cases/collections against an approved environment and validate status, schema and body → results with masked evidence | Test cases or requests, target environment, authentication | `project-context` |
 | `evidence-sheet` | draft | Evidence spreadsheet, one row per test case, in the user's xlsx model, project standard or default | Approved `evidence.json` | `evidence-collection` |
 | `evidence-document` | draft | Evidence Word document with images per step, in the user's docx model, project standard or default | Approved `evidence.json` | `evidence-collection` |
-| `investigation` | draft | Investigate any topic in depth (web, standards, papers, books, forums) → approved plan, then a structured dossier with grounded, verified references | Topic, purpose of the research | `project-context` (optional) |
+| `deduction` | draft | Investigate any topic in depth (web, standards, papers, books, forums) → approved plan, then a structured dossier with grounded, verified references | Topic, purpose of the research | `project-context` (optional) |
+| `cross-examination` | draft | Adversarial critical review of a finished deliverable (dossier, report, review, test cases...) → ranked critique with a verdict; never rewrites the work | The deliverable | `project-context` (optional); often after `deduction` |
 | `documentation` | planned | Propose updates to the official scenario base | — | not available |
 | `automation` | pending-migration | Automation engineering: build, implement (FLX scenarios) and evolve automation projects in a target repository | — | not available until its reference materials are migrated |
 | `smoke-test` | planned | Targeted pre-validation of an improvement | — | not available |
@@ -54,7 +55,8 @@ An **agent** is a role with instructions, optional skills and an access level. B
 | `evidence-builder` | quality | draft | evidence-collection, evidence-sheet, evidence-document, project-context | project-write |
 | `api-tester` | quality | draft | api-testing, project-context | project-write |
 | `automation-engineer` | quality | pending-migration | automation, project-context | repository-write |
-| `sherlock` | research | draft | investigation, project-context | project-write |
+| `sherlock` | research | draft | deduction, project-context | project-write |
+| `moriarty` | research | draft | cross-examination, project-context | project-write |
 | `quality-agents-expert` | framework | draft | project-context (reference only) | repository-write |
 | `moki-consultant` | framework | draft | moki-architecture, moki-change | read-only |
 | `moki-executor` | framework | draft | moki-architecture, moki-change | repository-write |

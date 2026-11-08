@@ -1,4 +1,4 @@
-# Example: investigation
+# Example: deduction
 
 Synthetic input: [request.md](request.md) — research on the risks of an SSO integration (SAML 2.0 + OpenID Connect), purpose *map risks and tests*.
 

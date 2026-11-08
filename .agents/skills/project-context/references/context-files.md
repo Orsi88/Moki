@@ -30,7 +30,8 @@ Load only what the activity needs. Within a file, load only the sections for the
 | test-design | glossary, business-rules (affected modules), flows, conventions, system-characteristics | actors-and-permissions, integrations |
 | failure-analysis | environments-and-tools (logs section), modules (affected module), integrations | flows |
 | api-testing | environments-and-tools (environments, credentials source), integrations (APIs), conventions | business-rules, modules |
-| investigation | overview, glossary (only what scopes the topic) | system-characteristics, integrations |
+| deduction | overview, glossary (only what scopes the topic) | system-characteristics, integrations |
+| cross-examination | — (the deliverable and its inputs) | the context files the deliverable relies on |
 | evidence-collection | environments-and-tools (trackers, MCP servers, whether the tracker MCP can write), conventions (id formats, deliverable templates) | modules |
 | evidence-sheet, evidence-document | conventions (deliverable language, deliverable templates) | — |
 | documentation (planned) | conventions, business-rules, flows | modules |

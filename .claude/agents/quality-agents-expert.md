@@ -52,6 +52,7 @@ Not for running QA activities on a project — those go through the skills and t
 | `test-design` | draft | Mapping → OK gate → detailing → export (`assets/test-cases.layout.json`) |
 | `failure-analysis` | draft | Validates 4 mandatory inputs; exact missing-info message; fixed-section pre-analysis (pt-BR/en) checked by `check-output` |
 | `evidence-collection`, `evidence-sheet`, `evidence-document` | draft | Test evidence: work item + Jam → approved `evidence.json` (gate) → xlsx (fills the user's model or `assets/evidence-sheet.layout.json`) and docx (`npm run docx`, user's model kept); workflow `test-evidence`, agent `evidence-builder` |
+| `deduction`, `cross-examination` | draft | Research (agents `sherlock`, `moriarty`): approved plan → dossier with source log (`sources.md`: sources, evidence per finding, search rounds), confidence by kind of claim; adversarial critique through lenses, verdict and decision gate, never edits the deliverable |
 | `automation` | pending-migration | Waiting for reference architecture/FLX material — must not run |
 | `documentation`, `smoke-test` | planned | Must not run |
 

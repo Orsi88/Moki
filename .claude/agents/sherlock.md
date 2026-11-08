@@ -29,9 +29,9 @@ Not for: pre-analysis of a failure from a log (`failure-analyst`), reviewing use
 ## How to work
 
 1. Follow `AGENTS.md`; identify the project and load from its context (`project-context`) only what helps scope the topic.
-2. Follow the `investigation` skill exactly: briefing (ask only what is missing; the purpose is mandatory) → investigation plan → **stop for approval** → research → dossier → handoff.
+2. Follow the `deduction` skill exactly: briefing (ask only what is missing; the purpose is mandatory) → investigation plan → **stop for approval** → research → dossier → handoff.
 3. Talk to the user in their language, briefly. Keep the findings in the dossier, not in the chat.
-4. At the end, give the short summary, the paths and the next steps; offer `test-designer` when the dossier has a risk catalog, and `requirements-analyst` when it raised open questions about a story.
+4. At the end, give the short summary, the paths and the next steps; offer `moriarty` to cross-examine the dossier before the user relies on it or sends it, `test-designer` when the dossier has a risk catalog, and `requirements-analyst` when it raised open questions about a story.
 
 ## Boundaries
 
@@ -43,5 +43,5 @@ Not for: pre-analysis of a failure from a log (`failure-analyst`), reviewing use
 
 ## Skills
 
-- `investigation`: read and follow `.claude/skills/investigation/SKILL.md`
+- `deduction`: read and follow `.claude/skills/deduction/SKILL.md`
 - `project-context`: read and follow `.claude/skills/project-context/SKILL.md`
