@@ -18,14 +18,13 @@ interface Props {
   hidden?: boolean; // the column is closed: marks on the text's edge instead
   onShow?: () => void;
   saving?: boolean;
-  onRewrite?: (kind: 'format' | 'loss') => void; // the editor would change this file (TipTapEditor)
   onLink?: (href: string) => void;
 }
 
 const markOf = (body: HTMLElement, id: string) => body.querySelector<HTMLElement>(`span[data-md-comment="${id}"]`);
 const now = () => new Date().toISOString();
 
-export function CommentedEditor({ text, path, onChange, onCommit, hidden = false, onShow, saving = false, onRewrite, onLink }: Props) {
+export function CommentedEditor({ text, path, onChange, onCommit, hidden = false, onShow, saving = false, onLink }: Props) {
   const comments = useMemo(() => readComments(text).comments, [text]);
   const editor = useRef<TipTapHandle>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -100,7 +99,7 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
       onMouseUp={(e) => { if (inText(e.target)) selected(); }}
       onKeyUp={(e) => { if (e.shiftKey && inText(e.target)) selected(); }}>
       <style>{colors}</style>
-      <LazyTipTap ref={editor} text={text} path={path} onChange={onChange} onRewrite={onRewrite} onLink={onLink} />
+      <LazyTipTap ref={editor} text={text} path={path} onChange={onChange} onLink={onLink} />
       <CommentColumn path={path} comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
         active={active} onActive={setActive} saving={saving} actions={actions} />
       {bubble && <SelectionBubble bubble={bubble} onComment={openComposer} />}

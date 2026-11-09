@@ -15,7 +15,8 @@ import { EXCALIDRAW_STARTER, MERMAID_STARTER } from '../diagram-source';
 import { t } from '../i18n';
 import { encodeCommentMarks, readComments, restoreComments, type MdComment } from '../md-comments';
 import { MdCommentMark } from '../md-comment-mark';
-import { preserveSource, sourceOffsets, splitSource } from '../md-preserve';
+import { preserveBlocks, preserveSource, sourceOffsets, splitSource, wordsOf } from '../md-preserve';
+import { RawMarkdown, rawWords, shieldFrontMatter, shieldLosses } from '../md-raw';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { DiagramFence } from './DiagramFence';
 import { MokiCodeBlock } from './CodeBlockCard';
@@ -24,13 +25,12 @@ import { IconTrash } from './Icons';
 const IMAGE_MAX = 1200;
 const TYPING_PAUSE = 150; // ms: the markdown is serialized and sent to the owner once typing pauses (a note can hold ~50 images as text)
 
-// onRewrite: told once, when the file opens, if what the editor draws cannot be mapped back onto the file's own text
-// (md-preserve.ts), so a first edit would rewrite the file: 'format' when every word is still there (tables, list
-// marks, emphasis written its own way), 'loss' when some would go (HTML, syntax the editor does not know).
-interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean; onRewrite?: (kind: 'format' | 'loss') => void; onLink?: (href: string) => void }
+// Any .md opens here: what the editor cannot draw is kept as written (md-raw.ts), and an edit rewrites only the
+// blocks it touched (md-preserve.ts).
+interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean; onLink?: (href: string) => void }
 
-// The words and numbers of a Markdown text, in order: what a reader sees, whatever the syntax around them.
-const wordsOf = (markdown: string) => (markdown.normalize('NFC').match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
+// The Markdown the editor is given for a file's body: comment marks as editor tokens, the front matter kept whole.
+const toEditor = (body: string) => encodeCommentMarks(shieldFrontMatter(body));
 
 export type TipTapCommand =
   | 'bold' | 'italic' | 'strike' | 'h1' | 'h2' | 'h3'
@@ -355,13 +355,14 @@ interface SlashMenu { from: number; query: string; index: number; top: number; l
 
 const matchesOf = (query: string) => SLASH.filter((c) => fold(`${t(c.label)} ${c.id} ${c.words}`).includes(fold(query)));
 
-export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true, onRewrite, onLink }, ref) {
+export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true, onLink }, ref) {
+  // The raw blocks' card words, in the interface language of this render.
+  rawWords.kind = (kind) => (kind === 'properties' ? t('Document properties') : kind === 'reference' ? t('Link reference') : kind === 'kept' ? t('Kept as written') : t('HTML'));
+  rawWords.hint = t('Kept exactly as written in the file. Edit it as text here.');
   const linkOpener = useRef(onLink);
   linkOpener.current = onLink;
   const change = useRef(onChange);
   change.current = onChange;
-  const rewrite = useRef(onRewrite);
-  rewrite.current = onRewrite;
   // The comment list is not part of the editor document. Marks stay in the text;
   // this puts the list back on every change, and drops a comment whose words were deleted.
   const comments = useRef<MdComment[]>(readComments(text).comments);
@@ -369,10 +370,23 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
   // so Windows line endings and the spacing the editor would normalize stay (md-preserve.ts).
   const kept = useRef({ core: '', tail: '', newline: '\n', before: '' }); // set when the editor is created
   const drawn = (current: Editor) => current.getMarkdown().replace(/\s+$/, '');
+  // The file is in the editor (`fresh`: it was just given to it): remember what it drew. If a block would lose words
+  // (syntax the editor does not know), that block is given again as a raw block, so nothing is ever lost.
+  const fill = (current: Editor, next: string, fresh: boolean) => {
+    const body = readComments(next).body;
+    if (!fresh) current.commands.setContent(toEditor(body), { contentType: 'markdown', emitUpdate: false });
+    kept.current = { ...splitSource(next, body), before: drawn(current) };
+    const k = kept.current;
+    const md = current.markdown;
+    if (!md || sourceOffsets(k.before, k.core) || wordsOf(k.before) === wordsOf(k.core)) return;
+    const shielded = shieldLosses(shieldFrontMatter(body), (piece) => md.serialize(md.parse(encodeCommentMarks(piece))));
+    current.commands.setContent(encodeCommentMarks(shielded), { contentType: 'markdown', emitUpdate: false });
+    k.before = drawn(current);
+  };
   const fileText = (current: Editor) => {
     const k = kept.current;
     const after = drawn(current);
-    k.core = preserveSource(k.before, after, k.core, k.newline) ?? after.replace(/\n/g, k.newline);
+    k.core = preserveSource(k.before, after, k.core, k.newline) ?? preserveBlocks(k.before, after, k.core, k.newline) ?? after.replace(/\n/g, k.newline);
     k.before = after;
     if (comments.current.some((c) => !k.core.includes(`<!--c:${c.id}-->`))) { // commented words were deleted: their comment goes too
       const full = restoreComments(k.core, comments.current);
@@ -447,9 +461,10 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
       TaskItem.configure({ nested: true, HTMLAttributes: { class: 'task-item' } }),
       DiagramFence,
       MdCommentMark,
+      ...RawMarkdown,
       Markdown,
     ],
-    content: encodeCommentMarks(readComments(text).body),
+    content: toEditor(readComments(text).body),
     contentType: 'markdown',
     editorProps: {
       attributes: { class: 'tiptap-body', spellcheck: 'true' },
@@ -500,10 +515,8 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
       },
     },
     onCreate: ({ editor: current }) => {
-      kept.current = { ...splitSource(text, readComments(text).body), before: drawn(current) };
+      fill(current, text, true);
       seen.current = text;
-      const k = kept.current;
-      if (rewrite.current && !sourceOffsets(k.before, k.core)) rewrite.current(wordsOf(k.before) === wordsOf(k.core) ? 'format' : 'loss');
     },
     onSelectionUpdate: ({ editor: current }) => { syncRef.current(current); },
     onBlur: () => { typing.flush(); },
@@ -568,8 +581,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
     typing.cancel(); // the document is replaced: a text typed before it is not sent over it
     comments.current = read.comments;
     seen.current = text;
-    editor.commands.setContent(encodeCommentMarks(read.body), { contentType: 'markdown', emitUpdate: false });
-    kept.current = { ...splitSource(text, readComments(text).body), before: drawn(editor) };
+    fill(editor, text, false);
   }, [editor, text]);
 
   if (!editor) return null;

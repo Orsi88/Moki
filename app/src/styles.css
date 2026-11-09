@@ -529,6 +529,40 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .doc-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .notice-bar { margin: 16px auto 0; width: min(760px, calc(100% - 48px)); padding: 8px 12px; border-radius: 6px; background: var(--bg-2); color: var(--muted); font-size: 0.85rem; }
 
+/* A notice above a document (Notice.tsx): icon, title and detail, actions, close. The tone colors only the edge and icon. */
+.doc-notice {
+  --tone: var(--accent);
+  display: flex; align-items: flex-start; gap: 10px; box-sizing: border-box;
+  width: min(760px, calc(100% - 32px)); margin: 12px auto 0; padding: 10px 10px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--border)); border-left: 3px solid var(--tone); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--tone) 7%, var(--bg)); color: var(--text); font-size: 13px; line-height: 1.45; flex-shrink: 0;
+}
+.doc-notice-warn { --tone: var(--warn); }
+.doc-notice-icon { display: flex; flex-shrink: 0; padding-top: 1px; color: var(--tone); }
+.doc-notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.doc-notice-text strong { font-weight: 600; }
+.doc-notice-text span { color: var(--muted); }
+.doc-notice-actions { display: flex; flex-wrap: wrap; gap: 6px; align-self: center; flex-shrink: 0; }
+.doc-notice-close { flex-shrink: 0; width: 24px; height: 24px; margin: -2px -2px 0 0; color: var(--muted); }
+@media (max-width: 560px) { .doc-notice { flex-wrap: wrap; } .doc-notice-actions { width: 100%; padding-left: 26px; } }
+.sheet > .doc-notice { width: auto; margin: 10px 12px 0; }
+
+/* What the formatted editor keeps as written (md-raw.ts): a card with the block's text, and inline chips. */
+.tiptap-wrap .md-raw { margin: 10px 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); overflow: hidden; }
+.tiptap-wrap .ProseMirror-focused .md-raw.ProseMirror-selectednode { outline: 2px solid var(--accent); outline-offset: 1px; }
+.md-raw-bar { display: flex; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--border); }
+.md-raw-kind { font-size: 11px; font-weight: 650; letter-spacing: 0.03em; text-transform: uppercase; color: var(--faint); cursor: help; }
+.md-raw-text {
+  display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 8px 10px; border: 0; resize: none; overflow: hidden;
+  background: transparent; color: var(--text); font: 12.5px/1.55 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; white-space: pre-wrap;
+}
+.md-raw-text:focus { outline: none; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.tiptap-wrap .md-raw-inline {
+  display: inline-block; max-width: 100%; padding: 0 5px; margin: 0 1px; border: 1px solid var(--border); border-radius: 4px; vertical-align: 1px;
+  background: var(--bg-2); color: var(--muted); font: 11.5px/1.5 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tiptap-wrap .ProseMirror-focused .md-raw-inline.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+
 /* Reading view */
 .markdown { width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 80px; font-size: 15px; line-height: 1.7; }
 .markdown h1 { font-size: 1.9em; margin: 0.2em 0 0.6em; }

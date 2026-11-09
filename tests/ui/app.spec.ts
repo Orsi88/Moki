@@ -2870,7 +2870,6 @@ test.describe.serial('Moki one view for Markdown', () => {
     await op.locator(`.tree-row[title="inbox/${name}"]`).click();
   };
   const editor = () => op.locator('.commented-editor .tiptap-body');
-  const reading = () => op.locator('.md-commented .markdown');
   const note = (text: string) => op.getByRole('status').filter({ hasText: text });
   // What the editor would do with Markdown as people and the AI write it (see the probe in TipTapEditor's onRewrite).
   const SAMPLES: Record<string, { text: string; kind: 'none' | 'format' | 'loss' }> = {
@@ -2899,14 +2898,14 @@ test.describe.serial('Moki one view for Markdown', () => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
   });
 
-  test('Ctrl+E shows the Markdown source, to read and copy, not to edit', async () => {
+  test('Ctrl+E shows the Markdown source, editable as text and copied whole', async () => {
     await open('conflito.md');
     await expect(editor()).toHaveAttribute('contenteditable', 'true');
     await editor().click();
     await op.keyboard.press('Control+e');
     const source = op.locator('textarea.md-source');
     await expect(source).toBeVisible();
-    await expect(source).toHaveJSProperty('readOnly', true);
+    await expect(source).toBeEditable();
     await expect(source).toHaveValue('# Conflito\n\nTexto inicial.\n');
     await expect(op.locator('.doc-bar').getByRole('button', { name: 'Código Markdown' })).toHaveAttribute('aria-pressed', 'true');
     // The bar's buttons line up: the copy icon is as tall as the source button beside it.
@@ -2927,7 +2926,7 @@ test.describe.serial('Moki one view for Markdown', () => {
     await op.keyboard.press('End');
     await op.keyboard.type(' Minha parte.');
     writeFileSync(file, '# Conflito\n\nEscrito pela IA.\n');
-    const bar = op.getByRole('alert').filter({ hasText: 'mudou fora do Moki' });
+    const bar = op.getByRole('alert').filter({ hasText: 'Alterado fora do Moki' });
     await expect(bar).toBeVisible();
     expect(readFileSync(file, 'utf8')).toBe('# Conflito\n\nEscrito pela IA.\n'); // nothing was overwritten
     await bar.getByRole('button', { name: 'Manter a minha' }).click();
@@ -2946,36 +2945,23 @@ test.describe.serial('Moki one view for Markdown', () => {
     expect(readFileSync(file, 'utf8')).toBe('# Conflito\n\nA IA de novo.\n');
   });
 
-  test('what the editor would do to a file is told apart: nothing, only its formatting, or losing parts of it', async () => {
+  test('every file opens editable in the formatted editor, with no note, whatever it holds', async () => {
     for (const [name, sample] of Object.entries(SAMPLES)) {
       await open(name);
-      if (sample.kind === 'loss') {
-        // Shown for reading and comments; to edit it, the user's own program.
-        await expect(note('perderia partes deste arquivo'), name).toBeVisible();
-        await expect(reading(), name).toBeVisible();
-        await expect(op.locator('.commented-editor'), name).toHaveCount(0);
-        await expect(note('perderia partes').getByRole('button', { name: 'Abrir no seu programa' }), name).toBeVisible();
-      } else {
-        await expect(editor(), name).toHaveAttribute('contenteditable', 'true');
-        if (sample.kind === 'format') await expect(note('escreve a formatação do jeito dele'), name).toBeVisible();
-        else await expect(note('escreve a formatação do jeito dele'), name).toHaveCount(0);
-      }
+      await expect(editor(), name).toHaveAttribute('contenteditable', 'true');
+      await expect(op.locator('.doc-notice'), name).toHaveCount(0);
+      if (sample.kind === 'loss') await expect(editor().locator('.md-raw'), name).toHaveCount(2); // the HTML is kept as written
       expect(readFileSync(join(inbox, name), 'utf8'), name).toBe(sample.text); // opening it changed nothing
     }
-    // The note about the formatting closes, and stays closed for this tab.
-    await open('emphasis.md');
-    await note('escreve a formatação do jeito dele').getByRole('button', { name: 'Fechar' }).click();
-    await expect(note('escreve a formatação do jeito dele')).toHaveCount(0);
-    await open('numbered.md');
-    await open('emphasis.md');
-    await expect(note('escreve a formatação do jeito dele')).toHaveCount(0);
   });
 
-  test('a large file is for reading and comments', async () => {
+  test('a large file opens editable in its source; the reading view shows it formatted', async () => {
     await open('grande.md');
-    await expect(note('grande')).toBeVisible();
-    await expect(op.locator('.md-commented .markdown h1')).toHaveText('Grande');
+    await expect(note('Arquivo grande')).toBeVisible();
+    await expect(op.locator('textarea.md-source')).toBeEditable();
     await expect(op.locator('.commented-editor')).toHaveCount(0);
+    await op.locator('.doc-bar').getByRole('button', { name: 'Modo de leitura' }).click();
+    await expect(op.locator('.md-commented .markdown h1')).toHaveText('Grande');
   });
 
   test('a click in a link puts the caret there; Ctrl+click opens it', async () => {
