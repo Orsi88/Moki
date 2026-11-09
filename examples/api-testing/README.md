@@ -22,3 +22,11 @@ Answer: "Approved."
 - [ ] Only the two approved requests are sent; masked request and response files exist in the run's evidence folder.
 - [ ] `api-results.md` shows the proposed verdicts with expected and actual values; a case that differs is `Failed`, an unreachable host is `Blocked`.
 - [ ] No token or authorization value appears in any file; verdicts wait for the QA's confirmation.
+
+## Case 4 — negative authentication and schema validation
+
+Add an approved local-stub request with no credential expecting 401 and the documented error body. Also provide a case expecting a response whose schema permits extra properties.
+
+- [ ] An actual 401 matching the negative case is evaluated normally, without blocking unrelated cases as a credential failure.
+- [ ] Extra properties allowed by the schema do not become false defects.
+- [ ] A JSON parser alone is not reported as automated schema validation. If a required schema check cannot be completed, the case is not proposed as Passed.

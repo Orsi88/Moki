@@ -2,6 +2,8 @@
 // app. HTML in the source is escaped, so the output never contains raw markup
 // from the document. No dependencies.
 
+import { headingSlugger } from './heading-anchors.ts';
+
 export const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 // A backslash keeps a punctuation character literal (\* is "*", not emphasis).
@@ -71,6 +73,13 @@ export function markdownToHtml(md, { image = null, comments = false } = {}) {
 function render(md) {
   const lines = md.replace(/\r\n/g, '\n').split('\n');
   const out = [];
+  const headingId = headingSlugger();
+  const heading = (level, text) => {
+    const html = inline(text);
+    const visible = html.replace(/<[^>]*>/g, '').replace(/\ue100[a-z0-9]+\ue101|\ue102/g, '')
+      .replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" })[entity]);
+    return `<h${level} id="${headingId(visible)}">${html}</h${level}>`;
+  };
   let i = 0;
   const isTableSep = (l) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l);
   const cells = (l) => l.trim().replace(/^\||(?<!\\)\|$/g, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
@@ -93,7 +102,7 @@ function render(md) {
         : `<pre${token ? ` data-lang="${token}"` : ''}><code>${code}</code></pre>`);
     } else if (/^#{1,6}\s/.test(line)) {
       const level = line.match(/^#+/)[0].length;
-      out.push(`<h${level}>${inline(line.slice(level).trim())}</h${level}>`);
+      out.push(heading(level, line.slice(level).trim()));
       i++;
     } else if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
       out.push('<hr>');
@@ -138,7 +147,7 @@ function render(md) {
         if (buf.length && /^ {0,3}(=+|-+)\s*$/.test(lines[i])) { level = lines[i].trim()[0] === '=' ? 1 : 2; i++; break; }
         buf.push(lines[i++]);
       }
-      if (level) { out.push(`<h${level}>${inline(buf.join(' ').trim())}</h${level}>`); continue; }
+      if (level) { out.push(heading(level, buf.join(' ').trim())); continue; }
       // A line ending in two spaces is a line break inside the paragraph.
       out.push(`<p>${inline(buf.join('\n')).replace(/ {2,}\n/g, '<br>').replace(/\n/g, ' ')}</p>`);
     }

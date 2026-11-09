@@ -27,6 +27,8 @@ Uma operação, inclusive uma atividade que aponta para ela, sempre abre seu pr�
 
 As suas atividades chegam aos projetos por **tags**, como os agentes e os templates: sem tag, vale para todos os projetos do workspace; a tag de um projeto ou uma tag compartilhada limita a esses projetos.
 
+A lista também inclui **Modelar dados com o Cartógrafo**, **Desenhar uma solução com o Inventor**, **Prototipar uma interface com o Artesão** e **Validar uma API com o Sentinela**. Aceitam arquivos opcionais e uma descrição na observação. O [guia de especialistas](engineering-specialists.md) explica escopo, entregas, aprovações e exemplos.
+
 ## Configurações › Atividades
 
 A aba lista todas as atividades, com filtros (Todos, Favoritas, Vem com o Moki, Suas, Ações do Moki) e busca.

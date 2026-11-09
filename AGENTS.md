@@ -12,6 +12,7 @@ This repository is a portable library of **QA skills** (Agent Skills format). Yo
 6. **Language.** Talk to the user in their language. Deliverables are in **English** by default, or in the project's `deliverableLanguage`, or in the language the user explicitly asks for. Quoted source content (documented messages, log lines) stays in its original language.
 7. **No secrets, no external sharing** of project data without configuration and authorization.
 8. **Deliverables only.** Produce only the files asked for, in the format asked; when the format is not given, ask. No copies in other formats, no screenshots of a deliverable, no helper files next to it: those go to the run's `work/` folder and are deleted when the run is completed. List only the deliverables in `state.json` `artifacts`.
+9. **Clickable references.** In Markdown deliverables, link existing project files with standard Markdown paths relative to the document. Link a verified heading, comment or PDF page when it makes the reference precise. Follow [core/traceability.md](core/traceability.md); never invent an anchor or expose an absolute computer path.
 
 Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md) (deliverables only).
 
@@ -28,6 +29,11 @@ Canonical definitions are in `skills/<name>/SKILL.md` (tools load the generated 
 | `failure-analysis` | draft | Pre-analysis of an error from description + log | Item description, failure moment, date/time, log | `project-context` (optional) |
 | `evidence-collection` | draft | Assemble the evidence of an executed test: work item (MCP or pasted), Jam recordings, prints → approved `evidence.json`; optionally link it to the tracker item after explicit approval | Source item, execution data, result per test case, Jam link or print | `project-context` |
 | `api-testing` | draft | Run API test cases/collections against an approved environment and validate status, schema and body → results with masked evidence | Test cases or requests, target environment, authentication | `project-context` |
+| `api-assessment` | draft | Assess API contracts, technical coverage and supplied evidence; never calls the API | Contract, documented requests or exchanges; assessment objective | `project-context`; handoff to `test-design` or `api-testing` |
+| `data-modeling` | draft | Design/review conceptual, logical and physical models, ERDs and dictionaries | Domain or schema, modeling objective; engine/version for physical detail | `project-context` |
+| `database-engineering` | draft | Build/review SQL, schemas, migrations and query diagnostics; execute only an approved plan | Engine/version, relevant model/SQL/evidence; environment for execution | `project-context`; approved model when implementing |
+| `solution-design` | draft | Discover, design or assess solutions with requirements, alternatives, architecture decisions and a delivery plan | Problem or proposed solution, desired outcome | `project-context` |
+| `interface-prototyping` | draft | Design/build/review polished working interfaces with responsive, accessible interaction and browser checks | Interface task, scope, requested format and destination | `project-context` |
 | `evidence-sheet` | draft | Evidence spreadsheet, one row per test case, in the user's xlsx model, project standard or default | Approved `evidence.json` | `evidence-collection` |
 | `evidence-document` | draft | Evidence Word document with images per step, in the user's docx model, project standard or default | Approved `evidence.json` | `evidence-collection` |
 | `documentation` | planned | Propose updates to the official scenario base | — | not available |
@@ -52,6 +58,10 @@ An **agent** is a role with instructions, optional skills and an access level. B
 | `failure-analyst` | quality | draft | failure-analysis, project-context | project-write |
 | `evidence-builder` | quality | draft | evidence-collection, evidence-sheet, evidence-document, project-context | project-write |
 | `api-tester` | quality | draft | api-testing, project-context | project-write |
+| `sentinela` | quality | draft | api-assessment, api-testing, test-design, project-context | project-write |
+| `cartografo` | engineering | draft | data-modeling, database-engineering, project-context | repository-write |
+| `inventor` | engineering | draft | solution-design, requirements-review, project-context | project-write |
+| `artesao` | engineering | draft | interface-prototyping, project-context | repository-write |
 | `automation-engineer` | quality | pending-migration | automation, project-context | repository-write |
 | `quality-agents-expert` | framework | draft | project-context (reference only) | repository-write |
 | `moki-consultant` | framework | draft | moki-architecture, moki-change | read-only |

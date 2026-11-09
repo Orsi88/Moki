@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.0/Moki.Setup.0.5.0.exe">Moki.Setup.0.5.0.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe">Moki.Setup.0.5.1.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
@@ -20,11 +20,11 @@ Começou como trabalho de qualidade de software: revisar uma história, projetar
 
 ## Instalar
 
-1. Baixe o [Moki.Setup.0.5.0.exe](https://github.com/Orsi88/moki/releases/download/v0.5.0/Moki.Setup.0.5.0.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.1.exe](https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
 
-Para o VS Code, baixe o [moki-0.5.0.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.0/moki-0.5.0.vsix) e rode `code --install-extension moki-0.5.0.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+Para o VS Code, baixe o [moki-0.5.1.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.1/moki-0.5.1.vsix) e rode `code --install-extension moki-0.5.1.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
 
 Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
@@ -45,16 +45,15 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 | [Pré-análise de falha](skills/failure-analysis/SKILL.md) | Uma nota curta para o time de desenvolvimento, a partir da sua descrição e do log |
 | [Montar evidências](skills/qa-orchestrator/references/workflows/test-evidence.md) | O item de trabalho e as gravações do Jam, depois uma planilha e um documento Word com os prints |
 | [Contexto do projeto](skills/project-context/SKILL.md) | Onboarding, atualizações e o plano de um projeto em branco |
+| [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) | Cartógrafo para dados, Inventor para soluções, Artesão para protótipos funcionais de interface e Sentinela para avaliação/validação de APIs |
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
 
-## Novo na 0.5
+## Novo na 0.5.1
 
-- **Grupos e tela dividida.** Cada terminal de IA abre o seu grupo de abas colorido, e os arquivos que ele entrega abrem ali sozinhos. Divida a tela em até quatro partes, cada uma com as suas abas.
-- **Configurações do projeto com padrões.** Escolha os agentes, skills, atividades e operações com que uma IA aberta no projeto começa, e ligue tudo pela tag do projeto (as duas configurações mostram o mesmo).
-- **Trazer para este projeto.** Solte uma skill, um agente, uma atividade ou uma pasta `.claude` inteira; o Moki separa e liga ao projeto.
-- **Só o que você pediu.** A IA entrega os arquivos que você pediu, no seu formato, e o Moki limpa os arquivos de apoio que sobram.
-- **Notas e arquivos.** Renomeie tudo no lugar, edite e comente Markdown numa vista só, acrescente linhas e colunas em tabelas, e temas para o Moki, o terminal e os documentos.
+- **Quatro especialistas.** Cartógrafo modela e implementa bancos de dados; Inventor planeja soluções; Artesão constrói protótipos funcionais de interface; Sentinela avalia e valida APIs. O [guia](docs/pt-BR/engineering-specialists.md) explica entradas, entregas e pontos de aprovação.
+- **Links precisos no projeto.** Navegue para seções de Markdown, comentários de Markdown/PDF e páginas de PDF. Caminhos existentes no modo de leitura ficam clicáveis sem alterar o documento. Use Ctrl+clique nos caminhos escritos no terminal.
+- **Copiar uma referência.** Copie um link Markdown no menu do arquivo ou em um comentário, pronto para usar numa nota ou relatório. Novas menções nas notas usam caminhos relativos ao documento; as antigas continuam funcionando. Veja [Links do projeto](docs/pt-BR/internal-links.md).
 
 ## Documentação
 

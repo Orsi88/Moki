@@ -3,6 +3,10 @@
     "label": "Quality Engineering",
     "description": "Requirements review, test design, failure analysis and test automation."
   },
+  "engineering": {
+    "label": "Engineering",
+    "description": "Data modeling, database engineering, solution architecture and interface prototyping."
+  },
   "framework": {
     "label": "Framework",
     "description": "Maintaining Moki itself: skills, scripts, desktop app and checks."

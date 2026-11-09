@@ -11,6 +11,7 @@ import { stackCards } from '../pdf-quads';
 import { IconChat } from './Icons';
 import { CommentColors } from './CommentColors';
 import { confirmDialog } from '../dialogs';
+import { CopyCommentLink } from './CopyCommentLink';
 
 export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number }[]; rail: number; railTop: number; height: number }
 export interface CommentActions {
@@ -62,6 +63,7 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
 }
 
 interface ColumnProps {
+  path?: string;
   comments: MdComment[];
   placed: Placed;
   rail: RefObject<HTMLDivElement | null>;
@@ -74,7 +76,7 @@ interface ColumnProps {
   actions: CommentActions;
 }
 
-export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions }: ColumnProps) {
+export function CommentColumn({ path, comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions }: ColumnProps) {
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [colorPicker, setColorPicker] = useState<string | null>(null);
   const where = new Map(placed.items.map((p) => [p.id, p]));
@@ -98,7 +100,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
           </svg>
           <div className="md-rail" ref={rail} style={{ height: placed.height }} aria-label={t('Comments')}>
             {comments.map((c) => (
-              <div key={c.id} data-card={c.id} className={`pdf-card md-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
+              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
                 onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')}>
                 <div className="pdf-comment-head"><strong>{c.author || t('Unknown author')}</strong><span className="muted small">{when(c.at)}</span></div>
                 {editing?.id === c.id && editing.mode === 'edit' ? null : <p className="pdf-comment-text">{c.text}</p>}
@@ -125,6 +127,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
                 ) : (
                   <div className="pdf-actions">
                     <button type="button" className="icon-btn md-color-toggle" title={t('Change comment color')} aria-label={t('Change comment color')} aria-expanded={colorPicker === c.id} disabled={saving} onClick={() => setColorPicker(colorPicker === c.id ? null : c.id)}><span style={{ background: c.color ? SWATCH[c.color] : 'var(--accent)' }} /></button>
+                    {path && <CopyCommentLink path={path} id={c.id} />}
                     <button type="button" className="link-btn" onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>
                     <button type="button" className="link-btn" onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.text })}>{t('Edit')}</button>
                     <button type="button" className="link-btn" onClick={() => remove(c.id)}>{t('Delete')}</button>

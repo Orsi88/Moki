@@ -11,6 +11,9 @@ import { NoteDialog } from './NoteDialog';
 import { COLORS, SWATCH as COLOR_SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
 import { confirmDialog } from '../dialogs';
+import type { LinkJump } from '../internal-links';
+import { useAnchorJump } from './useInternalLinks';
+import { CopyCommentLink } from './CopyCommentLink';
 
 // pdf.js and its worker load when the first PDF tab is shown (lazy-module.ts).
 const pdfPages = lazyHeavy(() => import('./PdfPages'));
@@ -44,6 +47,8 @@ interface Props {
   renew: () => Promise<string>;
   native: ReactNode; // Chromium's own viewer (search, print)
   onSaved: (path: string) => void; // the file the change was saved to
+  jump?: LinkJump;
+  onMissingAnchor?: () => void;
 }
 
 interface Placed { id: string; ax: number; ay: number; edge: number; top: number; color: string } // edge: the right side of its page
@@ -90,7 +95,7 @@ function NoteBorderColor({ color, disabled, onChange }: { color?: string; disabl
 // a small box right there to highlight and comment. On the right the comments scroll with the
 // pages, each beside what it comments (PdfCraft's rect), joined to it by a thin line; reply,
 // edit and delete there. PdfCraft writes every change.
-export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
+export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMissingAnchor }: Props) {
   const [view, setView] = useState<'pages' | 'native'>('pages');
   const [zoom, setZoomState] = useState(1);
   const zoomed = useRef(false); // the person chose a zoom: it is no longer fitted to the window
@@ -99,6 +104,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [mac, setMac] = useState(false);
   const [comments, setComments] = useState<PdfComment[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [notes, setNotes] = useState<PdfNote[]>([]);
   const [noteBusy, setNoteBusy] = useState(false);
   const [draggingNote, setDraggingNote] = useState(false);
@@ -139,8 +145,22 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
   useEffect(() => { api.pdfNotes(project, path).then(setNotes).catch((e: Error) => setError(e.message)); }, [project, path]);
   useEffect(() => {
     if (!available) return;
-    api.pdfComments(project, path).then(setComments).catch((e: Error) => setError(e.message));
+    setCommentsLoaded(false);
+    api.pdfComments(project, path).then((items) => { setComments(items); setCommentsLoaded(true); }).catch((e: Error) => { setError(e.message); setCommentsLoaded(true); });
   }, [available, project, path, url]);
+
+  useEffect(() => {
+    if (!jump) return;
+    setView('pages');
+    if (jump.anchor.kind === 'comment') { setTab('comment'); setRailOff(false); setActive(jump.anchor.id); }
+  }, [jump]);
+  const missingAnchor = useRef(onMissingAnchor);
+  missingAnchor.current = onMissingAnchor;
+  const commentReady = commentsLoaded && (comments.length === 0 || placed.items.length > 0);
+  useAnchorJump(scroller, jump, view === 'pages' && info.pages > 0 && (jump?.anchor.kind !== 'comment' || commentReady), onMissingAnchor);
+  useEffect(() => {
+    if (jump?.anchor.kind === 'comment' && available === false) missingAnchor.current?.();
+  }, [jump, available]);
 
   // Where each card goes: beside its place on its page, pushed down under the card above when they would overlap.
   const measure = useCallback(() => {
@@ -398,7 +418,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
   );
 
   const item = (c: PdfComment, reply = false) => (
-    <div className={reply ? 'pdf-reply' : 'pdf-comment-body'}>
+    <div className={reply ? 'pdf-reply' : 'pdf-comment-body'} data-comment-id={c.id}>
       <div className="pdf-comment-head">
         {!reply && <span className="pdf-swatch" style={{ background: SWATCH[c.color ?? ''] ?? c.color ?? 'transparent' }} />}
         <strong>{c.author || t('Unknown author')}</strong>
@@ -417,6 +437,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
         <>
           {c.contents ? <p className="pdf-comment-text">{c.contents}</p> : !reply && <p className="muted small">{t('Highlight without a comment.')}</p>}
           <div className="pdf-actions">
+            <CopyCommentLink path={path} id={c.id} />
             {!reply && <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>}
             <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.contents ?? '' })}>{t('Edit')}</button>
             <button type="button" className="link-btn" disabled={off} onClick={() => remove(c)}>{t('Delete')}</button>
@@ -524,7 +545,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved }: Props) {
                 </svg>
                 <div className="pdf-rail" ref={rail} style={{ height: Math.max(0, placed.height - 32) }} aria-label={t('Comments')}>
                   {comments.map((c) => (
-                    <div key={c.id} data-card={c.id} className={`pdf-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: where.get(c.id)?.color }}
+                    <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: where.get(c.id)?.color }}
                       onMouseEnter={() => setActive(c.id)} onMouseLeave={() => setActive((a) => (a === c.id ? '' : a))}>
                       {item(c)}
                     </div>

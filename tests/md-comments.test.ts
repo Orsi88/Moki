@@ -30,7 +30,7 @@ test('a comment marks its text and goes to the block at the end; any Markdown vi
   // In Moki the text is marked; in a generated report, nothing shows.
   assert.match(markdownToHtml(text, { comments: true }), /<p>The password <mark class="md-comment" data-c="k1">expires in 30 days<\/mark>\.<\/p>/);
   assert.doesNotMatch(markdownToHtml(text, { comments: true }), /moki-comments|&lt;!--/);
-  assert.equal(markdownToHtml(text), '<h1>Login</h1>\n<p>The password expires in 30 days.</p>');
+  assert.equal(markdownToHtml(text), '<h1 id="login">Login</h1>\n<p>The password expires in 30 days.</p>');
 });
 
 test('replies, edits and deletes keep the file\'s own text', () => {

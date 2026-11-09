@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { api, type FileContent, type OpenWithApps } from '../api';
 import { t } from '../i18n';
-import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, IconMore, IconRefresh, IconTag, IconX } from './Icons';
+import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, IconEye, IconMore, IconRefresh, IconTag, IconX } from './Icons';
 import { FileIcon } from '../icons';
 import { PdfDoc } from './PdfDoc';
 import { MarkdownBody } from './MarkdownBody';
@@ -10,6 +10,9 @@ import { readComments } from '../md-comments';
 import { recall, remember } from '../prefs';
 import { LazyTipTap } from './LazyTipTap';
 import { CommentedEditor } from './CommentedEditor';
+import { useAnchorJump, type LinkResolver } from './useInternalLinks';
+import type { LinkJump } from '../internal-links';
+import '../internal-links.css';
 
 // A .md file: the formatted editor ('edit', comments beside it) is where it is edited and commented; its Markdown
 // source ('source') is read and copied; the reading view ('preview', comments too) is for a file the editor would lose
@@ -42,6 +45,9 @@ interface Props {
   onOpenExternal: () => void;
   onReload: () => void;
   onLink: (href: string) => void;
+  resolveLink?: (from: string, href: string) => ReturnType<LinkResolver>;
+  jump?: LinkJump;
+  onMissingAnchor?: () => void;
   onPdfSaved?: (path: string) => void; // a PDF change was saved, to this file (the same one, or its -edited copy)
   onCommit?: (text: string) => void; // a .md file's new text, saved at once (its comments: MarkdownComments)
   tags?: ReactNode;
@@ -156,7 +162,8 @@ const formatSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1
 
 const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-export function DocView({ content, project, mode, initialScrollTop = 0, onScroll, draft, dirty, saving, onDraft, onMode, why, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onRewrite, onQuiet, onSave, onOpenExternal, onReload, onLink, onPdfSaved, onCommit, openWith, tags }: Props) {
+export function DocView({ content, project, mode, initialScrollTop = 0, onScroll, draft, dirty, saving, onDraft, onMode, why, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onRewrite, onQuiet, onSave, onOpenExternal, onReload, onLink, resolveLink, jump, onMissingAnchor, onPdfSaved, onCommit, openWith, tags }: Props) {
+  const resolveCurrent = useCallback((href: string) => resolveLink?.(content.path, href) ?? null, [resolveLink, content.path]);
   const editable = (content.kind === 'markdown' || content.kind === 'text') && content.editable;
   const crumbs = content.path.split('/');
   const savedHtml = content.kind === 'markdown' ? content.html : '';
@@ -227,6 +234,8 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
   // The comment column of a .md file, opened or closed from the bar (remembered), as for a PDF.
   const [commentsOff, setCommentsOffState] = useState(() => recall('qa-md-comments') === 'closed');
   const setCommentsOff = (off: boolean) => { setCommentsOffState(off); remember('qa-md-comments', off ? 'closed' : 'open'); };
+  useEffect(() => { if (jump?.anchor.kind === 'comment') setCommentsOff(false); }, [jump]);
+  useAnchorJump(body, jump, content.kind === 'markdown' && mode === 'preview', onMissingAnchor);
   // The reading view and the formatted editor show the comments; the Markdown source does not (no count read there on every change).
   const canComment = Boolean(onCommit);
   const withComments = !sourceMode;
@@ -269,6 +278,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           {(tagsOpen ? crumbs : crumbs.slice(-1)).map((c, i) => <span key={`${c}-${i}`} className={i === (tagsOpen ? crumbs.length : 1) - 1 ? 'crumb-last' : ''}>{c}</span>)}
         </div>
         <div className="doc-actions">
+          {content.kind === 'markdown' && content.editable && home === 'edit' && <button type="button" className={`icon-btn${mode === 'preview' ? ' on' : ''}`} title={t('Reading view')} aria-label={t('Reading view')} aria-pressed={mode === 'preview'} onClick={() => onMode(mode === 'preview' ? 'edit' : 'preview')}><IconEye size={16} /></button>}
           {tags && <button type="button" className={`icon-btn${tagsOpen ? ' on' : ''}`} title={t('Tags')} aria-label={t('Tags')} aria-expanded={tagsOpen} onClick={() => setTagsOpen((v) => !v)}><IconTag size={16} /></button>}
           {content.kind === 'markdown' && <button type="button" className={`icon-btn${sourceMode ? ' on' : ''}`}
             title={sourceMode ? t('Back to the document (Ctrl+E)') : t('Markdown source, to read and copy (Ctrl+E)')} aria-label={t('Markdown source')} aria-pressed={sourceMode}
@@ -329,14 +339,14 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         {content.kind === 'markdown' && mode === 'preview' && (
           // HTML comes from the main process renderer, which escapes all markup from the file.
           onCommit && content.editable
-            ? <MarkdownComments html={html} text={draft} onCommit={onCommit} onClick={onClick} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} />
-            : <MarkdownBody className="markdown" html={html} text={draft} onChange={content.editable && onCommit ? onCommit : undefined} onClick={onClick} />
+            ? <MarkdownComments path={content.path} html={html} text={draft} onCommit={onCommit} onClick={onClick} resolveLink={resolveCurrent} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} />
+            : <MarkdownBody className="markdown" html={html} text={draft} onChange={content.editable && onCommit ? onCommit : undefined} onClick={onClick} resolveLink={resolveCurrent} />
         )}
         {content.kind === 'markdown' && mode !== 'preview' && content.editable && home === 'edit' && (content.editable
           ? sourceMode ? <textarea className="editor md-source" readOnly spellCheck={false} value={draft} aria-label={t('Markdown source')} />
             : onCommit
-              ? <CommentedEditor key={content.path} text={draft} path={content.path} onChange={onDraft} onCommit={onCommit} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} onRewrite={onRewrite} />
-              : <LazyTipTap key={content.path} text={draft} path={content.path} onChange={onDraft} onRewrite={onRewrite} />
+              ? <CommentedEditor key={content.path} text={draft} path={content.path} onChange={onDraft} onCommit={onCommit} onLink={onLink} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} onRewrite={onRewrite} />
+              : <LazyTipTap key={content.path} text={draft} path={content.path} onChange={onDraft} onRewrite={onRewrite} onLink={onLink} />
           : <pre className="plain">{content.text}</pre>)}
         {content.kind === 'text' && (content.editable
           ? <textarea className="editor" spellCheck value={draft} onChange={(e) => onDraft(e.target.value)} />
@@ -350,7 +360,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         )}
         {content.kind === 'xlsx' && <SheetView key={content.path} sheets={content.sheets} />}
         {content.kind === 'pdf' && (project && onPdfSaved
-          ? <PdfDoc key={content.path} project={project} path={content.path} url={content.url} renew={renewPdf} native={<PdfView url={content.url} title={content.path} />} onSaved={onPdfSaved} />
+          ? <PdfDoc key={content.path} project={project} path={content.path} url={content.url} renew={renewPdf} native={<PdfView url={content.url} title={content.path} />} onSaved={onPdfSaved} jump={jump} onMissingAnchor={onMissingAnchor} />
           : <PdfView url={content.url} title={content.path} />)}
         {content.kind === 'html' && <HtmlView text={content.text} title={content.path} />}
         {content.kind === 'image' && <ImageView url={content.url} alt={content.path} />}

@@ -1,0 +1,9 @@
+/* A navigated section or comment stays identifiable in either theme. */
+.doc [data-link-target] {
+  transition: none; /* Reach the final card position before scrolling into view. */
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 3px;
+  scroll-margin-block: 48px;
+}
+.markdown code a[data-internal-link] { color: var(--accent); text-decoration: underline; }

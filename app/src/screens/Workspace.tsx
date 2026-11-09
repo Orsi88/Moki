@@ -43,6 +43,7 @@ import {
 import { GroupMenu, LayoutButton, PaneHead, TabMenu, groupStyle, type PaneTab } from '../components/TabGroups';
 import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
 import { confirmDialog } from '../dialogs';
+import { projectLink, resolveInternal, type Anchor, type LinkJump } from '../internal-links';
 
 interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
@@ -51,7 +52,7 @@ interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[
 // it is shown for reading and comments ('preview') when it is large or the editor would lose parts of it (`why`, DocView).
 // `quiet`: the note about the formatting was closed. It saves on its own: `conflict` when the file changed outside Moki
 // meanwhile, `savedAt` for the bar.
-interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; scrollTop: number; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number }
+interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; scrollTop: number; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number; jump?: LinkJump }
 interface TermTab extends TerminalRef { running: boolean }
 
 // The picture above the project name when nothing is open.
@@ -72,16 +73,6 @@ const AUTOSAVE_MS = 700;
 const autosaves = (t: Tab): boolean => t.content.kind === 'markdown' && t.content.editable;
 const isDirty = (t: Tab): boolean => (t.content.kind === 'markdown' || t.content.kind === 'text') && t.content.editable && t.draft !== t.content.text;
 const sidebarWidthWithinBounds = (width: number) => Math.max(180, Math.min(720, Math.round(width)));
-
-// Resolves a link found in a document relative to that document's folder.
-function resolveLink(from: string, href: string): string | null {
-  const parts = from.split('/').slice(0, -1);
-  for (const seg of decodeURI(href.split('#')[0]).split('/')) {
-    if (!seg || seg === '.') continue;
-    if (seg === '..') { if (!parts.length) return null; parts.pop(); } else parts.push(seg);
-  }
-  return parts.join('/');
-}
 
 // What linking a folder did, shown after "Choose my folder" or creating a project from a folder.
 export const linkedNotice = (r: ProjectSummary & { backup?: string }): string => (r.backup
@@ -321,19 +312,24 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     return () => { cancelled = true; };
   }, [project.id, loadTree, workspaceId, apply]);
 
-  const openPath = useCallback((path: string, mode: Tab['mode'] = 'preview') => {
+  const jumpToken = useRef(0);
+  const openPath = useCallback((path: string, mode: Tab['mode'] = 'preview', anchor?: Anchor | null) => {
     setError('');
     setOpView(null);
-    if (/^notes\/[^/]+\.md$/.test(path)) { setNote({ path }); return; } // notes open in the main area, over the tabs
+    if (/^notes\/[^/]+\.md$/.test(path) && !anchor) { setNote({ path }); return; } // anchored notes use the document reader
     setNote(null);
-    if (tabsRef.current.some((t) => t.path === path)) { touchRecentFile(project.id, path); apply((b) => show(b, fileKey(path))); return; }
+    const jump = anchor ? { anchor, token: ++jumpToken.current } : undefined;
+    if (tabsRef.current.some((t) => t.path === path)) {
+      if (jump) { flushEdits(); setTabs((all) => all.map((tab) => tab.path === path ? { ...tab, mode: 'preview', jump } : tab)); }
+      touchRecentFile(project.id, path); apply((b) => show(b, fileKey(path))); return;
+    }
     const node = findFile(treeRef.current, path); // taken before the read: it can only be older than the content
     const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
     api.readFile(project.id, path).then((content) => {
       touchRecentFile(project.id, path);
       const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
-      const view: DocMode = content.kind !== 'markdown' ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
-      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      const view: DocMode = content.kind !== 'markdown' || jump ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
+      setTabs((all) => (all.some((x) => x.path === path) ? all.map((tab) => tab.path === path && jump ? { ...tab, mode: 'preview', jump } : tab) : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}), ...(jump && { jump }) }]));
       apply((b) => boardOpen(b, fileKey(path)));
       // Reveal the file in the tree.
       setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
@@ -532,9 +528,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   // A file a note window mentions (clicked in its reading view) opens here.
   useEffect(() => {
     if (!pendingPath) return;
-    openPath(pendingPath);
+    const target = resolveInternal('', pendingPath, project.id, (path) => Boolean(findFile(treeRef.current, path)));
+    if (target) openPath(target.path, 'preview', target.anchor);
     onPendingPath?.();
-  }, [pendingPath, openPath, onPendingPath]);
+  }, [pendingPath, openPath, onPendingPath, project.id]);
 
   // tool '' opens the user's shell; otherwise the AI tool starts right away in the tab.
   // An AI opened here starts with the project's defaults unless plain; its tab says which ("Claude Code · failure-analyst").
@@ -803,10 +800,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     }).catch((err: Error) => setError(t(err.message)));
   };
 
+  const resolveProjectLink = useCallback((from: string, href: string) => resolveInternal(from, href, project.id, (path) => Boolean(findFile(tree, path))), [tree, project.id]);
   const onLinkFrom = (from: string, href: string) => {
-    if (/^https?:\/\//.test(href)) { void api.openLink(href); return; }
-    const target = resolveLink(from, href);
-    if (target) openPath(target);
+    if (/^https?:\/\//i.test(href)) { void api.openLink(href); return; }
+    const target = resolveProjectLink(from, href);
+    if (target) openPath(target.path, 'preview', target.anchor);
+    else flash(t('This link does not point to a file in this project.'));
   };
 
   const renderDoc = (doc: Tab) => (
@@ -836,6 +835,9 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       onOpenExternal={() => openExternal(doc.path)}
       onReload={() => reloadFile(doc.path)}
       onLink={(href) => onLinkFrom(doc.path, href)}
+      resolveLink={resolveProjectLink}
+      jump={doc.jump}
+      onMissingAnchor={() => flash(t('The referenced section, comment or page was not found.'))}
       onPdfSaved={(path) => {
         if (path !== doc.path) { openPath(path); return; }
         api.readFile(project.id, path).then((content) => update(path, { content, draft: textOf(content), seen: stampOf(content, doc.seen) })).catch((e: Error) => setError(e.message));
@@ -966,6 +968,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         {note && (
           <div className="note-host">
             <NoteDialog key={note.loose ? 'loose' : note.path ?? 'new'} embedded project={note.loose ? null : project.id} path={note.path} onMyAis={() => onSettings('ai')}
+              onLink={note.loose ? undefined : (href) => onLinkFrom(note.path ?? 'notes/note.md', href)}
               projects={note.loose ? noteProjects : undefined}
               onSaved={(saved) => { if ('path' in saved && saved.path !== note.path) loadTree(); }}
               onClose={() => { const loose = note.loose; setNote(null); loadTree(); if (loose) document.querySelector<HTMLElement>('.ribbon .ribbon-note')?.focus(); }} />
@@ -992,7 +995,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                 />
                 <div className="pane-body">
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
-                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
+                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
                   ))}
                   {pane.active === GRAPH ? (
                     <div className="welcome">
@@ -1095,6 +1098,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
             )}
             <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path) && !canRename(itemMenu.path)} onClick={() => revealItem(itemMenu.path)}><IconFolder size={15} /> {t('Show in folder')}</button></li>
             <li><button type="button" role="menuitem" onClick={() => copyItemPath(itemMenu.path)}><IconCopy size={15} /> {t('Copy path')}</button></li>
+            {findFile(tree, itemMenu.path) && <li><button type="button" role="menuitem" onClick={() => {
+              const path = itemMenu.path; setItemMenu(null);
+              api.copyText(projectLink(path)).then(() => flash(t('Link copied.'))).catch((e: Error) => setError(e.message));
+            }}><IconCopy size={15} /> {t('Copy link')}</button></li>}
             {itemMenu.path !== 'project.json' && itemMenu.path !== '@folder' && !itemMenu.path.startsWith('.') && (
               <li><button type="button" role="menuitem" className="danger" onClick={() => removeItem(itemMenu.path)}><IconTrash size={15} /> {t('Delete')}</button></li>
             )}
