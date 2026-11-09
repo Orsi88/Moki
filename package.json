@@ -36,6 +36,7 @@
     "pdf": "node scripts/pdf.mjs",
     "docx": "node scripts/docx.mjs",
     "excalidraw": "node scripts/excalidraw.mjs",
+    "doc-check": "node scripts/doc-check.mjs",
     "check-output": "node scripts/check-output.mjs",
     "dist:win": "node scripts/build-desktop.mjs && electron-builder --win nsis",
     "dist:mac": "node scripts/build-desktop.mjs && electron-builder --mac dmg",

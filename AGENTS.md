@@ -125,6 +125,7 @@ Exception: an authorized change to a **target repository** (e.g. automation code
 | `npm run xlsx -- write/read/fill/inspect ...` | Build or read xlsx deliverables from a skill's layout, or fill the user's own xlsx model |
 | `npm run pdf -- <report.md> <report.pdf>` | Render a Markdown report to PDF (Edge/Chrome) |
 | `npm run docx -- write/inspect ...` | Build a Word deliverable (optionally inside the user's model) or read a model's structure |
+| `npm run doc-check -- <file.md>` | Check a Markdown deliverable against what Moki renders (callouts, HTML, heading links, tables, Mermaid and Excalidraw blocks, cited sources, local files) |
 
 ## For contributors (editing this framework)
 

@@ -24,7 +24,7 @@ Editorial design for documents: the reader sees the structure before reading a w
 
 - A sentence before the table says what it shows and how it is ordered.
 - Header row; the key column first; one fact per cell; units in the header, not in every cell.
-- Up to about six columns on screen and A4 portrait; wider → split into two tables, transpose, move secondary columns to an appendix, or use landscape in Word/PDF.
+- Up to about seven columns on screen and A4 portrait (`npm run doc-check` warns above that); wider → split into two tables, transpose, or move secondary columns to an appendix.
 - Long text does not belong in cells: keep cells short and put the explanation below.
 
 ## Emphasis

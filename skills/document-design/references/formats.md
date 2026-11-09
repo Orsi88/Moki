@@ -4,7 +4,7 @@ What each format needs. Produce only the format asked.
 
 ## Markdown in Moki
 
-Moki's viewer and its PDF export use a small renderer (`scripts/lib/markdown.mjs`). Write only what it shows correctly:
+Moki's viewer and its PDF export use a small renderer (`scripts/lib/markdown.mjs`). Write only what it shows correctly (`npm run doc-check -- <file.md>` flags the rest):
 
 | Works | Does not work — avoid |
 |---|---|
