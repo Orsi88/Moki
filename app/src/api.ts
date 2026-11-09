@@ -231,12 +231,18 @@ export interface GlobalItems {
   agents: { name: string; description: string; file: string; contract?: AgentContract }[];
 }
 export interface GlobalAgentDetail { name: string; description: string; file: string; text: string; html: string; contract?: AgentContract }
-// Status bar (desktop/usage.ts): plan usage of the AI tools and memory of the computer, of Moki and of each project's terminals.
+// Status bar (desktop/usage.ts): plan usage of the AI tools and memory of the computer, of Moki and, apart, of each project's terminals.
 export interface PlanUsage { tool: 'claude' | 'codex'; label: string; windows: { label: string; percent: number; resetsAt: number | null }[]; error?: string }
 export interface Usage {
   plans: PlanUsage[];
-  // bytes is the figure of the bar (kind 'pss' on Linux, 'rss' elsewhere); rssBytes / appRss are always the RSS. A session is one terminal tab.
-  memory: { total: number; used: number; app: number; appRss: number; kind: 'pss' | 'rss'; projects: { project: string; bytes: number; rssBytes: number; sessions: { id: string; bytes: number; rssBytes: number }[] }[] };
+  // bytes is the figure of the bar (kind: 'pss' on Linux, 'private' on Windows, 'rss' elsewhere); rssBytes / appRss are always the RSS.
+  // app: Moki itself (appGroups: by role); tools: the terminal tabs (shells and AI tools), listed in projects. A session is one terminal tab.
+  memory: {
+    total: number; used: number; app: number; appRss: number; kind: 'pss' | 'private' | 'rss';
+    appGroups: { kind: 'main' | 'window' | 'notes' | 'search' | 'gpu' | 'other'; bytes: number; count: number }[];
+    tools: number;
+    projects: { project: string; bytes: number; rssBytes: number; sessions: { id: string; bytes: number; rssBytes: number }[] }[];
+  };
 }
 
 // MCP Manager (scripts/lib/mcp.ts): one catalog per workspace; each server is global (projects: []) or for the projects listed.

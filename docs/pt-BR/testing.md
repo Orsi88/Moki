@@ -44,7 +44,9 @@ Rode a partir de um terminal **sem** `QA_ROOT`, `QA_MCP_SERVER` ou `QA_RUN_TOOL`
 | `md-preserve.test.ts` | Unidade | O editor formatado reescreve só o trecho editado de um arquivo Markdown: finais de linha do Windows e o espaçamento original ficam como estavam |
 | `tool-path.test.ts` | Unidade | Encontrar as ferramentas de IA a partir do app instalado: o PATH que ele monta com o do terminal e as pastas de instalação de sempre |
 | `tags.test.ts` | Unidade | A regra única (sem tag = todos os projetos) e a migração de agentes e modelos de documento para tags |
-| `usage.test.ts` | Unidade | As janelas de uso dos planos do Claude e do Codex, memória por terminal e por projeto |
+| `usage.test.ts` | Unidade | As janelas de uso dos planos do Claude e do Codex; a memória do Moki por função (processo principal, cada tipo de janela, GPU) à parte da memória por terminal e por projeto; a medida da barra: PSS do `smaps_rollup` no Linux, bytes privados no Windows, RSS no macOS, com o RSS sempre mantido |
+| `terminals.test.ts` | Unidade | A saída de um terminal: o fim guardado para a aba que volta, o envio em lotes para a janela, o controle de fluxo e as chamadas a um terminal de IA |
+| `search-cache.test.ts` | Unidade | O texto tirado de arquivos Word, PDF e planilhas, guardado por versão do arquivo para a busca expandida |
 | `i18n.test.ts` | Unidade (estático) | Todo texto do app tem tradução em pt-BR que mantém os `{marcadores}` |
 | `icon-font.test.mjs` | Unidade | O desenho do gato na barra de status e a conversão dos caminhos SVG |
 | `wiki.test.mjs` | Unidade | A wiki gerada a partir de `docs/`: todas as páginas, links reescritos, o aviso de versão em desenvolvimento, links quebrados param a geração |

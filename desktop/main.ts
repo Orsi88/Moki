@@ -19,7 +19,7 @@ import { setWorkspaceEnv } from './workspaces.ts';
 import { appChooser } from './open-with.ts';
 import { pdfcraftAvailable, runPdfcraft } from './pdfcraft.ts';
 import { createTerminals, shellSpec } from './terminals.ts';
-import { memoryUsage, planUsage } from './usage.ts';
+import { memoryUsage, planUsage, type AppProcessKind, type WindowKind } from './usage.ts';
 import { fixToolPath } from './tool-path.ts';
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
 import { createParseClient } from './parse-pool.ts';
@@ -117,6 +117,18 @@ function withFileUrl(sender: WebContents, project: unknown, result: CallResult):
 function isNoteWindow(contents: WebContents): boolean {
   for (const note of noteWindows.values()) if (!note.isDestroyed() && note.webContents === contents) return true;
   return false;
+}
+
+// Which window each renderer process draws, for the memory of Moki by window in the status bar.
+function windowProcesses(): Map<number, WindowKind> {
+  const kinds = new Map<number, WindowKind>();
+  const add = (w: BrowserWindow | null | undefined, kind: WindowKind) => {
+    if (w && !w.isDestroyed()) { const pid = w.webContents.getOSProcessId(); if (pid) kinds.set(pid, kind); }
+  };
+  add(win, 'window');
+  for (const note of noteWindows.values()) add(note, 'notes');
+  add(searchWindow, 'search');
+  return kinds;
 }
 
 // Only our own UI (loaded from app/dist) may call the service.
@@ -265,8 +277,10 @@ if (!app.requestSingleInstanceLock()) {
     win.focus();
   });
 
+  // Before ready, so Electron does not build its default menu only for it to be thrown away.
+  Menu.setApplicationMenu(null);
+
   app.whenReady().then(() => {
-    Menu.setApplicationMenu(null);
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
 
     protocol.handle(FILE_SCHEME, async (request) => {
@@ -358,10 +372,15 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.on('qa:term-detach', (event, id: unknown) => { if (trusted(event) && typeof id === 'string') terminals.detach(id); });
 
-    // Status bar: plan usage of the AI tools, and memory of the computer, of Moki and of each project's terminals.
+    // Status bar: plan usage of the AI tools, and memory of the computer, of Moki and, apart, of each project's terminals.
     ipcMain.handle('qa:usage', async (event, refresh: unknown) => {
       if (!trusted(event)) return null;
-      const appProcesses = app.getAppMetrics().map((m) => ({ pid: m.pid, kb: m.memory.workingSetSize }));
+      // Each Electron process with its role; privateBytes is only reported on Windows (desktop/usage.ts uses it there).
+      const windows = windowProcesses();
+      const appProcesses = app.getAppMetrics().map((m) => ({
+        pid: m.pid, kb: m.memory.workingSetSize, privateKb: m.memory.privateBytes,
+        kind: (m.type === 'Browser' ? 'main' : m.type === 'GPU' ? 'gpu' : windows.get(m.pid) ?? 'other') as AppProcessKind,
+      }));
       const [memory, plans] = await Promise.all([memoryUsage(terminals.list(), appProcesses), planUsage(refresh === true)]);
       return { memory, plans };
     });

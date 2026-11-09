@@ -4,7 +4,7 @@
 // not block the main process. The expanded search (its own window) also reads
 // Word, PDF and spreadsheets, and every file name.
 
-import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
+import { closeSync, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { IO_LIMIT, fileTags, listProjects, listProjectsAsync, mapLimit, projectSummary, projectSummaryAsync, projectsDir, type ProjectSummary } from '../scripts/lib/core.ts';
@@ -78,26 +78,62 @@ async function walkText(base: string, rel = '', all = false): Promise<string[]> 
   return nested.flat();
 }
 
+// Text taken out of Word, PDF and spreadsheet files, kept per file version: each expanded search would
+// otherwise open and read every one of them again (pdf.js in the main process). Least recently used first out.
+const EXTRACTED_LIMIT = 16_000_000; // characters kept in all
+const extracted = new Map<string, { stamp: string; text: string }>();
+let extractedSize = 0;
+
+export function rememberText(file: string, stamp: string, text: string, limit = EXTRACTED_LIMIT): void {
+  const old = extracted.get(file);
+  if (old) { extracted.delete(file); extractedSize -= old.text.length; }
+  if (text.length > limit) return;
+  extracted.set(file, { stamp, text });
+  extractedSize += text.length;
+  for (const [key, value] of extracted) {
+    if (extractedSize <= limit) break;
+    extracted.delete(key);
+    extractedSize -= value.text.length;
+  }
+}
+
+export function recalledText(file: string, stamp: string): string | null {
+  const hit = extracted.get(file);
+  if (!hit || hit.stamp !== stamp) return null;
+  extracted.delete(file); // most recently used goes last
+  extracted.set(file, hit);
+  return hit.text;
+}
+
 async function fileText(full: string, extension: string): Promise<string> {
+  if (TEXT.has(extension)) return readLimitedSync(full)?.toString('utf8') ?? '';
+  if (extension !== '.docx' && extension !== '.xlsx' && extension !== '.pdf') return '';
+  const st = lstatSync(full);
+  if (st.size > FILE_LIMIT) return '';
+  const stamp = `${st.mtimeMs}:${st.size}`; // taken before reading: a change in between is read again next time
+  const known = recalledText(full, stamp);
+  if (known !== null) return known;
   const data = readLimitedSync(full);
   if (!data) return '';
-  if (TEXT.has(extension)) return data.toString('utf8');
+  const text = await extractText(data, extension);
+  rememberText(full, stamp, text);
+  return text;
+}
+
+async function extractText(data: Buffer, extension: string): Promise<string> {
   if (extension === '.docx') return docxToMarkdown(Buffer.from(data));
   if (extension === '.xlsx') return xlsxSheets(Buffer.from(data)).map((sheet: { name: string; rows: unknown[][] }) => `${sheet.name}\n${sheet.rows.map((row) => row.join(' ')).join('\n')}`).join('\n');
-  if (extension === '.pdf') {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs'); // loaded on first PDF only
-    const task = getDocument({ data: new Uint8Array(data), useSystemFonts: false, verbosity: 0 });
-    const doc = await task.promise;
-    try {
-      const pages: string[] = [];
-      for (let n = 1; n <= doc.numPages; n++) {
-        const content = await (await doc.getPage(n)).getTextContent();
-        pages.push(content.items.map((item) => 'str' in item ? item.str : '').join(' '));
-      }
-      return pages.join('\n');
-    } finally { await task.destroy(); }
-  }
-  return '';
+  const { getDocument } = await import('./pdfjs.ts'); // pdf.js with its worker, loaded on the first PDF, not at startup
+  const task = getDocument({ data: new Uint8Array(data), useSystemFonts: false, verbosity: 0 });
+  const doc = await task.promise;
+  try {
+    const pages: string[] = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const content = await (await doc.getPage(n)).getTextContent();
+      pages.push(content.items.map((item) => 'str' in item ? item.str : '').join(' '));
+    }
+    return pages.join('\n');
+  } finally { await task.destroy(); }
 }
 
 export async function searchWorkspaceExpanded(root: string, query: string, tags: string[] = [], project?: string): Promise<SearchResult> {

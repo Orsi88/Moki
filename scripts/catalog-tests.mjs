@@ -70,6 +70,7 @@ const RULES = {
   'usage.test.ts': [[/./, 'Status bar usage', U]],
   'terminals.test.ts': [[/./, 'Launching AI tools', U]],
   'search.test.ts': [[/./, 'Search', I]],
+  'search-cache.test.ts': [[/./, 'Search', U]],
   'debounce.test.ts': [[/./, 'Rendering', U]],
   'diagram-cache.test.ts': [[/./, 'Rendering', U]],
   'parse-worker.test.ts': [[/./, 'Rendering', U]],

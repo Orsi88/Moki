@@ -1,6 +1,6 @@
 // Numbers for the status bar, as in Orca: how much of each AI plan is used (Claude
 // Code and Codex, asked to each provider with the login the tool saved on this
-// computer) and the memory of the computer and of the terminals of each project.
+// computer) and the memory of the computer, of Moki itself and, apart, of the terminals of each project.
 // The logins are only read here and sent to their own provider; the UI never sees them.
 
 import { execFile } from 'node:child_process';
@@ -15,9 +15,16 @@ const C_LOCALE = { ...process.env, LC_ALL: 'C', LANG: 'C' };
 
 export interface PlanWindow { label: string; percent: number; resetsAt: number | null }
 export interface PlanUsage { tool: 'claude' | 'codex'; label: string; windows: PlanWindow[]; error?: string }
-// bytes is the figure of the status bar: PSS on Linux, RSS (working set) elsewhere (kind); rssBytes is always the RSS.
+// bytes is the figure of the status bar (kind): PSS on Linux, private bytes on Windows, RSS elsewhere; rssBytes is always the RSS.
+export type MemoryKind = 'pss' | 'private' | 'rss';
 export interface ProjectMemory { project: string; bytes: number; rssBytes: number; sessions: { id: string; bytes: number; rssBytes: number }[] } // a session is one terminal tab
-export interface MemoryUsage { total: number; used: number; app: number; appRss: number; kind: 'pss' | 'rss'; projects: ProjectMemory[] }
+// Moki's own processes by role: the main process, each kind of window, the GPU process and the rest of Chromium.
+export type AppProcessKind = 'main' | 'window' | 'notes' | 'search' | 'gpu' | 'other';
+export type WindowKind = 'window' | 'notes' | 'search';
+export interface AppGroup { kind: AppProcessKind; bytes: number; count: number } // bytes in the bar's measure (kind)
+// app: Moki itself (appGroups: by role); tools: everything the terminal tabs started (shells and AI tools), listed in projects.
+// The two are measured the same way and never added into one number.
+export interface MemoryUsage { total: number; used: number; app: number; appRss: number; kind: MemoryKind; appGroups: AppGroup[]; tools: number; projects: ProjectMemory[] }
 
 // '5h', '7d', '30d' from a window length in seconds.
 export const windowLabel = (seconds: number): string => (seconds % 86400 === 0 ? `${seconds / 86400}d` : `${Math.round(seconds / 3600)}h`);
@@ -100,12 +107,14 @@ export function planUsage(refresh = false): Promise<PlanUsage[]> {
   return plans.value;
 }
 
-// "pid ppid kilobytes" per line (ps on macOS/Linux, the same columns from PowerShell on Windows).
-export function parseProcesses(out: string): Map<number, { ppid: number; kb: number }> {
-  const rows = new Map<number, { ppid: number; kb: number }>();
+// "pid ppid kilobytes" per line (ps on macOS/Linux, the same columns from PowerShell on Windows); kilobytes is the RSS
+// (working set). Windows adds a fourth column, the private bytes in kilobytes (privateKb).
+export function parseProcesses(out: string): Map<number, { ppid: number; kb: number; privateKb?: number }> {
+  const rows = new Map<number, { ppid: number; kb: number; privateKb?: number }>();
   for (const line of out.split(/\r?\n/)) {
-    const [pid, ppid, kb] = line.trim().split(/\s+/).map(Number);
-    if (Number.isInteger(pid) && Number.isInteger(ppid)) rows.set(pid, { ppid, kb: Number.isFinite(kb) ? kb : 0 });
+    const [pid, ppid, kb, privateKb] = line.trim().split(/\s+/).map(Number);
+    if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
+    rows.set(pid, { ppid, kb: Number.isFinite(kb) ? kb : 0, ...(Number.isFinite(privateKb) ? { privateKb } : {}) });
   }
   return rows;
 }
@@ -133,7 +142,7 @@ async function readProcesses(): Promise<string> {
   try {
     if (process.platform !== 'win32') return (await run('ps', ['-A', '-o', 'pid=,ppid=,rss='], { env: C_LOCALE, timeout: 5000, maxBuffer: 10 << 20 })).stdout;
     return (await run('powershell.exe', ['-NoProfile', '-Command',
-      'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $([math]::Round($_.WorkingSetSize / 1KB))" }'],
+      'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $([math]::Round($_.WorkingSetSize / 1KB)) $([math]::Round($_.PrivatePageCount / 1KB))" }'],
     { timeout: 10_000, maxBuffer: 10 << 20, windowsHide: true })).stdout;
   } catch { return ''; }
 }
@@ -162,26 +171,29 @@ async function available(): Promise<number> {
   return freemem();
 }
 
-export interface AppProcess { pid: number; kb: number } // one Electron process: its pid and working set (RSS) in kB
+// One Electron process: its pid, working set (RSS) in kB, private bytes in kB (Windows only) and role.
+export interface AppProcess { pid: number; kb: number; privateKb?: number; kind?: AppProcessKind }
 export interface MemoryOptions { platform?: NodeJS.Platform; readSmaps?: ReadSmaps; ps?: () => Promise<string> } // injectable for tests
 
 // app: Electron's own processes (app.getAppMetrics), which the terminals are not part of; a plain number is their
 // RSS in bytes when the pids are not known. On Linux the memory of those processes and of every terminal tree is
-// PSS (see proc-memory.ts) so the bar does not mix measures; macOS and Windows keep the RSS / working set as before.
+// PSS (see proc-memory.ts) so the bar does not mix measures; on Windows they are the private bytes; macOS keeps the RSS.
 export async function memoryUsage(terminals: { id: string; pid: number; project: string }[], app: number | AppProcess[], opts: MemoryOptions = {}): Promise<MemoryUsage> {
-  const kind = (opts.platform ?? process.platform) === 'linux' ? 'pss' : 'rss';
+  const platform = opts.platform ?? process.platform;
+  const kind: MemoryKind = platform === 'linux' ? 'pss' : platform === 'win32' ? 'private' : 'rss';
   const [out, free] = await Promise.all([terminals.length ? (opts.ps ?? processes)() : Promise.resolve(''), available()]);
   const rows = parseProcesses(out);
   const trees = terminals.map((t) => ({ ...t, pids: treePids(rows, t.pid) }));
   const appProcs = typeof app === 'number' ? [] : app;
   const appRss = typeof app === 'number' ? app : appProcs.reduce((sum, p) => sum + p.kb * 1024, 0);
-  let kbOf = new Map<number, number>(); // pid -> kB of the bar's measure (PSS), only when it is not the RSS
-  if (kind === 'pss') {
-    const all = new Map<number, number>(appProcs.map((p) => [p.pid, p.kb]));
-    for (const { pids } of trees) for (const pid of pids) all.set(pid, rows.get(pid)?.kb ?? 0);
-    kbOf = await memoryKbByPid([...all].map(([pid, kb]) => ({ pid, kb })), opts.readSmaps);
+  // pid -> kB of the bar's measure, only when it is not the RSS. A process whose PSS or private bytes are unknown counts its RSS.
+  let kbOf = new Map<number, number>();
+  if (kind !== 'rss') {
+    const all = new Map<number, number>(appProcs.map((p) => [p.pid, kind === 'private' ? p.privateKb ?? p.kb : p.kb]));
+    for (const { pids } of trees) for (const pid of pids) { const r = rows.get(pid); all.set(pid, (kind === 'private' ? r?.privateKb ?? r?.kb : r?.kb) ?? 0); }
+    kbOf = kind === 'pss' ? await memoryKbByPid([...all].map(([pid, kb]) => ({ pid, kb })), opts.readSmaps) : all;
   }
-  const measure = (pids: number[], rss: number) => (kind === 'pss' ? pids.reduce((kb, pid) => kb + (kbOf.get(pid) ?? 0), 0) * 1024 : rss);
+  const measure = (pids: number[], rss: number) => (kind === 'rss' ? rss : pids.reduce((kb, pid) => kb + (kbOf.get(pid) ?? 0), 0) * 1024);
   const byProject = new Map<string, ProjectMemory>();
   for (const { id, pid, project, pids } of trees) {
     const p = byProject.get(project) ?? { project, bytes: 0, rssBytes: 0, sessions: [] };
@@ -195,6 +207,22 @@ export async function memoryUsage(terminals: { id: string; pid: number; project:
   const projects = [...byProject.values()].sort((a, b) => b.bytes - a.bytes);
   for (const p of projects) p.sessions.sort((a, b) => b.bytes - a.bytes);
   const total = totalmem();
-  const appBytes = kind === 'pss' && appProcs.length ? measure(appProcs.map((p) => p.pid), appRss) : appRss;
-  return { total, used: Math.max(0, total - free), app: appBytes, appRss, kind, projects };
+  const appBytes = kind !== 'rss' && appProcs.length ? measure(appProcs.map((p) => p.pid), appRss) : appRss;
+  const groups = appGroups(appProcs, (p) => measure([p.pid], p.kb * 1024));
+  return { total, used: Math.max(0, total - free), app: appBytes, appRss, kind, appGroups: groups, tools: projects.reduce((n, p) => n + p.bytes, 0), projects };
+}
+
+const KIND_ORDER: AppProcessKind[] = ['main', 'window', 'notes', 'search', 'gpu', 'other'];
+
+// Moki's processes grouped by role, in a fixed order; bytesOf gives each process in the bar's measure.
+export function appGroups(procs: AppProcess[], bytesOf: (p: AppProcess) => number): AppGroup[] {
+  const groups = new Map<AppProcessKind, AppGroup>();
+  for (const p of procs) {
+    const k = p.kind ?? 'other';
+    const g = groups.get(k) ?? { kind: k, bytes: 0, count: 0 };
+    g.bytes += bytesOf(p);
+    g.count += 1;
+    groups.set(k, g);
+  }
+  return KIND_ORDER.flatMap((k) => groups.get(k) ?? []);
 }
