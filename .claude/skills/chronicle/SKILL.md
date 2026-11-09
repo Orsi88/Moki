@@ -1,9 +1,9 @@
 ---
 name: chronicle
-description: Builds analysis and investigation documents with real command of document construction and information layout - investigation dossiers, analysis reports, executive summaries, technical notes, decision memos, incident reports - from content the author provides (findings, sources, data), with the answer first, a clear hierarchy, the right form for each piece of information (prose, list, table, callout, diagram via blueprint), citations and confidence kept intact. Writes Markdown by default (Word or PDF only when asked) and never adds facts of its own. Use when a document must be written or restructured so its readers find and trust what matters.
+description: Information architecture and writing of any deliverable - investigation dossiers, analysis reports, executive summaries, technical notes, decision memos, incident reports, requirements reviews, test scenarios and cases, evidence documents, tracker items and any other document - turning the content the specialists produced into a coherent reading sequence for its reader - the question it answers, what the reader must do with it, the answer early, related information grouped, conditions next to what they qualify, overview apart from depth, headings that orient, appendices with traceability - while keeping every fact, figure, citation and confidence label as given and respecting the mandatory structure of templates and of the producing skill. Use when a document must be written, organized or restructured (Watson runs it, with document-design, blueprint and document-quality).
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   status: draft
   category: documentation
   phase: "2"
@@ -13,91 +13,82 @@ metadata:
 
 ## Purpose
 
-Turn content into a document people can use: the reader finds the answer in the first lines, understands how sure it is and why, and can go down to the evidence when needed. The author owns the facts; this skill owns the construction.
+Turn content into a document people can follow and use: the reader knows early what it answers and what to do with it, the reading flows, and every statement can be traced back. The author owns the facts; this skill owns the organization and the writing.
 
 ## Responsibilities
 
-- Understand the reader, what they will do with the document, and how they will read it (skim, study, decide, audit).
-- Choose the document type and its structure ([document types](references/document-types.md)), or follow the structure the calling skill fixed (for example the `deduction` dossier template).
-- Lay out each piece of information in the form that fits it ([layout rules](references/layout-rules.md)): prose, list, table, callout, diagram (through `blueprint`).
-- Keep every fact, figure, citation, locator and confidence label exactly as the author gave it.
-- Check the document with the [quality checklist](references/quality-checklist.md) before handing it over.
+- Understand the deliverable: its kind ([document types](references/document-types.md)), its purpose, its reader and how it will be read (skim, study, decide, audit, execute).
+- Identify in the content: conclusions, evidence, arguments, risks, decisions, recommendations, caveats and pending points.
+- Organize ([organization rules](references/organization-rules.md)): group related information, choose the order, keep conditions and exceptions next to what they qualify, separate overview from depth, remove needless repetition without losing information, use appendices with traceability.
+- Write: connected prose where reasoning matters, the right form for each piece of information, headings that orient, consistent terms.
+- Keep every fact, number, id, citation, confidence label, condition and the difference between fact, hypothesis, proposal and decision.
 
-Does **not**: research, decide or add facts; change a citation, a number or a confidence label; produce formats nobody asked for.
+Does **not**: research, decide or add facts; change a mandatory structure; style or format the file (`document-design`); draw diagrams (`blueprint`); do the final check (`document-quality`).
 
 ## When to use
 
-- Called by Sherlock (`deduction`) to write the investigation dossier; by other skills or agents that need a well-built report.
-- The user asks to write, structure, restructure or improve an analysis or investigation document, report, summary, memo or technical note.
-
-Do not use for: the research itself (`deduction`), critique (`cross-examination`), evidence spreadsheets and documents with a fixed model (`evidence-sheet`, `evidence-document`).
+- Any document Watson writes or restructures, from any specialist's content (dossiers from `deduction`, reviews from `requirements-review`, scenarios and cases from `test-design`, evidence from `evidence-*`, tracker items, notes, reports).
+- The user asks to organize, rewrite, summarize or restructure a document.
 
 ## Inputs
 
 Required:
-- **The content**: findings, data, sources, decisions — a file (for example the case notes Sherlock leaves in the run's work folder), several files, or text.
+- **The content**: findings, data, decisions, the author's text — a file (for example Sherlock's case notes in the run's work folder), several files, or text.
 
 Optional:
-- Reader and use; a fixed structure (template from the calling skill or the project's conventions); deliverable language; format (Markdown by default); length limit; the user's own model for Word.
+- The reader and the use; the structure the producing skill or the template fixes; the kind of edition (full, or a summary for a given reader); length limits; the deliverable language.
 
 ## Tools
 
-- File reading and writing. `blueprint` for diagrams.
-- Word only when asked: `npm run docx -- write --data <document.json> --out <file.docx> [--template <model.docx>]`. PDF only when asked: `npm run pdf -- <document.md> <document.pdf>` (Moki draws the diagrams in it). Fallback: deliver the Markdown and say which format could not be produced.
+- File reading and writing. `blueprint` for diagrams, `document-design` for format and look, `document-quality` for the final check.
 
 ## Procedure
 
-Step ids are used in `state.json` (when called by another skill, they are recorded as sub-steps of its `dossier` or equivalent step).
+Step ids are used in `state.json` (as sub-steps of the producing skill's step when called by another skill).
 
-1. **`brief`** — Read all the content. Identify reader, use and reading mode; the document type; the fixed structure if any. Ask only what is missing and matters (at most two questions); when called by another skill, take these from its plan.
-2. **`outline`** — Build the outline: title, the one-paragraph answer, the sections in the order the reader needs them, and for each section its form (prose, table, list, diagram). With a fixed structure, map the content onto it and note content that has no place (it goes to an appendix or back to the author as a question, never silently dropped). **Gate** only when there is no fixed structure and the document is long (more than about five sections) or new for the project: show the outline and wait.
-3. **`write`** — Write top-down with the [layout rules](references/layout-rules.md): answer first, then support, then detail. Diagrams through `blueprint`. Citations and confidence labels copied exactly.
-4. **`check`** — Go through the [quality checklist](references/quality-checklist.md); compare against the content: every finding, figure, citation and label present and unchanged; nothing added. Fix and recheck.
-5. **`deliver`** — Save the document; produce Word or PDF only if asked. Report the path and, in one or two lines, anything that did not fit or needs the author's decision.
+1. **`brief`** — Read all the content. Identify the kind of deliverable, the purpose, the reader and the reading mode; the mandatory structure if any (template, model, producing skill's contract). Ask only what is missing and matters (purpose or reader unclear, ambiguous content, a change of meaning, a change of an approved standard, a large change of scope); otherwise decide.
+2. **`organize`** — Classify the content (conclusions, evidence, risks, decisions, caveats, pending points), choose the order and the sections, and for each piece of information its form (prose, list, numbered steps, table, callout, diagram). With a fixed structure, map the content onto it; content without a place goes to an appendix or back to the author as a question, never dropped silently. Show the outline for approval **only** for a long document of a new kind with no fixed structure; routine decisions are taken without asking.
+3. **`write`** — Write top-down with the [organization rules](references/organization-rules.md): the answer early when the purpose allows, connected paragraphs for reasoning (no document made only of fragments), the forms chosen in step 2. Diagrams through `blueprint`.
+4. **`hand-over`** — Pass the text to `document-design` for format and look, then to `document-quality` for the final check (Watson runs them in sequence).
 
 ## Rules and constraints
 
-- **Fidelity first.** No new facts, no softened or strengthened claims, no changed numbers, citations, locators or confidence labels. A claim without a citation in the content stays without one and is pointed out to the author.
-- **Answer first** (bottom line up front): the first screen tells the reader what matters and how sure it is.
-- **One idea per paragraph**, short paragraphs; headings that say something ("Tokens are not single use" rather than "Tokens").
-- **Right form for the information**: comparisons and catalogs in tables; parallel items in lists; sequences and structures in diagrams; reasoning in prose; warnings and key takeaways in callouts written as a quote with a bold label (`> **Note:** …`, `> **Warning:** …`), which every Markdown viewer shows correctly.
-- **Consistent vocabulary**: one term per concept, defined once (glossary when there are many).
-- **Navigable**: numbered findings and sections when the document is long; internal links to sections and appendices; ids (F1, S3, R2) that resolve.
-- **Deliverables only**: Markdown unless another format was asked; no copies in other formats ([execution principles](references/core/execution-principles.md)).
+- **Fidelity**: no new facts; nothing softened or strengthened; numbers, units, dates, ids, citations with locators, confidence labels, conditions and caveats kept; fact, hypothesis, proposal, recommendation and approved decision stay distinct. A claim without a citation in the content stays without one and is pointed out to the author.
+- **Summaries** may select and condense for their reader, but keep the essential conditions and limitations; a **full edition** keeps every relevant point.
+- **Ambiguities and contradictions** that need interpretation go back to the author or the user; never resolve them by guessing.
+- **Mandatory structures** (templates, models, the producing skill's sections and fixed labels) are kept exactly; organization works inside them.
+- **Proportional effort**: a small correction is made directly; a new document gets the full procedure.
 - Deliverable language per `AGENTS.md`; quotes stay in their original language.
 
 ## Validation criteria
 
-- The first section answers the reader's question in at most ten lines, with the overall confidence when the content has one.
-- Every finding, figure, citation, locator and confidence label of the content is present and identical; nothing was added (spot-check against the content).
-- Every table has a header and a sentence before it saying what it shows; every diagram has a caption; no diagram over 15 nodes.
-- Headings form a clean hierarchy (no skipped levels); every internal id and link resolves.
-- Only the formats asked for were produced.
+- The first section says what the document answers (and the answer, when the purpose allows), with the overall confidence when the content has one.
+- Every fact, figure, id, citation, locator, confidence label and condition of the content is present and identical; nothing was added.
+- The reading flows: related information together, conditions next to what they qualify, overview before depth; no section is only disconnected fragments.
+- A fixed structure is complete and unchanged.
 
 ## Output format
 
-- Markdown document: `workspace/projects/<project-id>/runs/<run-id>/outputs/<document-name>.md` (for a dossier, the name the calling skill sets, e.g. `dossier-<slug>.md`), with tables, callouts and diagram blocks.
-- Word or PDF only when asked, beside it in the same outputs folder.
+The organized and written text of the deliverable, handed to `document-design` (which produces the file in the asked format in the run's outputs folder, for example `workspace/projects/<project-id>/runs/<run-id>/outputs/<document-name>.md`). Drafts stay in `workspace/projects/<project-id>/runs/<run-id>/work/`.
 
 ## Human approval points
 
-At each gate, before the closing question, give the summary the [approval policy](references/core/approval-policy.md) asks for: what was done, what happens next, what it depends on and what remains open.
-
 | Gate | When | Closing question (in the user's language; English and pt-BR shown) |
 |---|---|---|
-| Outline | Step `outline`, only without a fixed structure and for a long or new kind of document | "Outline ready. Approve it or tell me what to change before I write." ["Estrutura pronta. Aprove ou me diga o que ajustar antes de eu escrever."] |
+| Outline | Step `organize`, only for a long document of a new kind with no fixed structure | "Outline ready. Approve it or tell me what to change before I write." ["Estrutura pronta. Aprove ou me diga o que ajustar antes de eu escrever."] |
+
+Questions about purpose, reader, ambiguous content or changes of meaning are asked when they come up, never as a routine gate.
 
 ## Error handling
 
-- Content contradicts itself → do not choose; keep both, flag it to the author.
+- Content contradicts itself → keep both, flag it to the author; never choose.
 - Content too thin for the requested document → write what is supported and list what is missing.
-- A requested format cannot be produced (no Node, no browser for PDF) → deliver the Markdown and say why.
 - Content does not fit the fixed structure → appendix, or a question to the author; never drop it silently.
 
 ## Completion criteria
 
-The document is saved in the requested format, passed the quality checklist, and the author or user got the path and the open points.
+The text is organized and written, faithful to the content, inside the mandatory structure, and handed to `document-design` and `document-quality`.
 
 ## Persistence
 
-When called by another skill, work inside that skill's run (its outputs and work folders) and record the steps in its `state.json`. Called alone: follow the [persistence protocol](references/core/persistence-protocol.md) with a run in `workspace/projects/<project-id>/runs/<run-id>/` (steps `brief`, `outline`, `write`, `check`, `deliver`), the content files in `inputs`, the document in its outputs folder (listed in `artifacts`) and drafts in its work folder.
+When called by another skill, work inside that skill's run and record the steps in its `state.json`. Called alone: follow the [persistence protocol](references/core/persistence-protocol.md) with a run in `workspace/projects/<project-id>/runs/<run-id>/` (steps `brief`, `organize`, `write`, `hand-over`), the content in `inputs`, drafts in its work folder.
