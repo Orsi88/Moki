@@ -27,7 +27,7 @@ const TYPING_PAUSE = 150; // ms: the markdown is serialized and sent to the owne
 // onRewrite: told once, when the file opens, if what the editor draws cannot be mapped back onto the file's own text
 // (md-preserve.ts), so a first edit would rewrite the file: 'format' when every word is still there (tables, list
 // marks, emphasis written its own way), 'loss' when some would go (HTML, syntax the editor does not know).
-interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean; onRewrite?: (kind: 'format' | 'loss') => void }
+interface Props { text: string; path: string; onChange: (text: string) => void; bar?: boolean; onRewrite?: (kind: 'format' | 'loss') => void; onLink?: (href: string) => void }
 
 // The words and numbers of a Markdown text, in order: what a reader sees, whatever the syntax around them.
 const wordsOf = (markdown: string) => (markdown.normalize('NFC').match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
@@ -218,7 +218,7 @@ function TableBubble({ editor }: { editor: Editor }) {
   );
 }
 
-function LinkBubble({ editor }: { editor: Editor }) {
+function LinkBubble({ editor, onLink = openLink }: { editor: Editor; onLink?: (href: string) => void }) {
   const [href, setHref] = useState('');
   const [url, setUrl] = useState('');
   const [label, setLabel] = useState('');
@@ -279,7 +279,7 @@ function LinkBubble({ editor }: { editor: Editor }) {
             onChange={(event) => setUrl(event.target.value)}
             onBlur={() => { editing.current = null; if (url.trim() !== href) applyUrl(url); }}
             onKeyDown={onKey(applyUrl, url)} />
-          <button type="button" className="btn btn-sm" onMouseDown={(event) => event.preventDefault()} onClick={() => openLink(url || href)}>{t('Open')}</button>
+          <button type="button" className="btn btn-sm" onMouseDown={(event) => event.preventDefault()} onClick={() => onLink(url || href)}>{t('Open')}</button>
         </label>
       </div>
     </BubbleMenu>
@@ -355,7 +355,9 @@ interface SlashMenu { from: number; query: string; index: number; top: number; l
 
 const matchesOf = (query: string) => SLASH.filter((c) => fold(`${t(c.label)} ${c.id} ${c.words}`).includes(fold(query)));
 
-export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true, onRewrite }, ref) {
+export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEditor({ text, path, onChange, bar = true, onRewrite, onLink }, ref) {
+  const linkOpener = useRef(onLink);
+  linkOpener.current = onLink;
   const change = useRef(onChange);
   change.current = onChange;
   const rewrite = useRef(onRewrite);
@@ -456,7 +458,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
         if (!el || !view.dom.contains(el) || !(event.ctrlKey || event.metaKey)) return false; // a plain click edits the link's words
         event.preventDefault();
         editorRef.current?.commands.setTextSelection(pos);
-        openLink(el.getAttribute('href') ?? '');
+        (linkOpener.current ?? openLink)(el.getAttribute('href') ?? '');
         return true;
       },
       handlePaste(_view, event) {
@@ -606,7 +608,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
           })}
         </div>
       </BubbleMenu>
-      <LinkBubble editor={editor} />
+      <LinkBubble editor={editor} onLink={onLink} />
       <TableBubble editor={editor} />
       {slash && createPortal(
         <div className="note-mention note-mention-floating" role="listbox" aria-label={t('Commands')} style={{ position: 'fixed', top: slash.top, left: slash.left }}>

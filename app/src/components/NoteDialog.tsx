@@ -29,6 +29,7 @@ import { flushEdits } from '../debounce';
 import { TABLE_ICON, useMarkdownEditing } from './useMarkdownEditing';
 import { confirmDialog } from '../dialogs';
 import { isTopModal, useModalLayer } from '../modal-layer';
+import { anchorFragment, hrefTo, resolveInternal } from '../internal-links';
 
 interface Props {
   project: string | null; // null: a loose note, which can be sent to a project from here
@@ -44,6 +45,7 @@ interface Props {
   onSaved?: (saved: NoteRef) => void; // after each save: where the note is now (a project note, for a loose one sent there)
   active?: boolean; // in a notebook: only the shown tab takes the keys
   onMyAis?: () => void; // Settings › My AIs, to install an AI not found here (not in a note window)
+  onLink?: (href: string) => void;
 }
 
 const QUICK = ['terminal', 'editor'];
@@ -77,7 +79,7 @@ function imageToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis }: Props) {
+export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis, onLink }: Props) {
   const titleId = useId();
   const container = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState('');
@@ -368,7 +370,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     const el = editor.current;
     if (!el || !mention) return;
     const name = file.split('/').pop() ?? file;
-    const value = `[@${name}](${file})`;
+    const value = `[@${name.replace(/[\[\]]/g, '')}](${hrefTo(curPath ?? 'notes/note.md', file)})`;
     replace(mention.start, el.selectionStart, value, mention.start + value.length, mention.start + value.length);
     setMention(null);
   };
@@ -383,6 +385,15 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null); return; }
     }
     md.listKey(e);
+  };
+
+  const openReference = (href: string) => {
+    if (/^https?:\/\//i.test(href)) { void api.openLink(href); return; }
+    if (onLink) { onLink(href); return; }
+    const resolved = target && resolveInternal(curPath ?? 'notes/note.md', href, target, (file) => files.includes(file));
+    if (!resolved || !target) { setError(t('This link does not point to a file in this project.')); return; }
+    const fragment = resolved.anchor ? `#${anchorFragment(resolved.anchor)}` : '';
+    window.qa?.openInMain?.(target, `${encodeURI(resolved.path).replace(/#/g, '%23')}${fragment}`);
   };
 
   // ---------- use the note with the AI ----------
@@ -608,7 +619,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
           )
             : (
               <div className="note-visual">
-                <LazyTipTap ref={visual} bar={false} text={text} path={path ?? curPath ?? 'notes/note.md'} onChange={edit} />
+                <LazyTipTap ref={visual} bar={false} text={text} path={path ?? curPath ?? 'notes/note.md'} onChange={edit} onLink={openReference} />
               </div>
             )}
         </div>

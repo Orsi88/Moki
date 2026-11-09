@@ -98,7 +98,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
           </svg>
           <div className="md-rail" ref={rail} style={{ height: placed.height }} aria-label={t('Comments')}>
             {comments.map((c) => (
-              <div key={c.id} data-card={c.id} className={`pdf-card md-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
+              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
                 onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')}>
                 <div className="pdf-comment-head"><strong>{c.author || t('Unknown author')}</strong><span className="muted small">{when(c.at)}</span></div>
                 {editing?.id === c.id && editing.mode === 'edit' ? null : <p className="pdf-comment-text">{c.text}</p>}

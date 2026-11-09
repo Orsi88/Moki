@@ -283,7 +283,7 @@ test('markdown: deep lists, setext headings, rules and autolinks', () => {
     '<ul><li>a<ul><li>b<ul><li>c<ul><li>d</li></ul></li></ul></li><li>e</li></ul></li><li>f</li></ul>');
   assert.equal(markdownToHtml('1. a\n    - b\n        1. c\n2. d'), '<ol><li>a<ul><li>b<ol><li>c</li></ol></li></ul></li><li>d</li></ol>');
   assert.equal(markdownToHtml('Title\n=====\n\nSub *x*\n---\n\ntext\n\n---\n\nmore'),
-    '<h1>Title</h1>\n<h2>Sub <em>x</em></h2>\n<p>text</p>\n<hr>\n<p>more</p>');
+    '<h1 id="title">Title</h1>\n<h2 id="sub-x">Sub <em>x</em></h2>\n<p>text</p>\n<hr>\n<p>more</p>');
   assert.equal(markdownToHtml('See <https://x.io/a?b=1&c=2> now'), '<p>See <a href="https://x.io/a?b=1&amp;c=2">https://x.io/a?b=1&amp;c=2</a> now</p>');
   assert.doesNotMatch(markdownToHtml('<javascript:alert(1)> <ftp://x> <https://x" onclick="y>'), /<a |onclick="/);
   // Without a resolver a relative image is not embedded.
@@ -305,7 +305,7 @@ test('markdown diagrams stay escaped until the app draws them', () => {
 
 test('markdown to html', () => {
   const html = markdownToHtml('# T\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- x\n  - y\n\n**b** <i>');
-  assert.match(html, /<h1>T<\/h1>/);
+  assert.match(html, /<h1 id="t">T<\/h1>/);
   assert.match(html, /<td>1<\/td><td>2<\/td>/);
   assert.match(html, /<ul><li>x<ul><li>y<\/li><\/ul><\/li><\/ul>/);
   assert.match(html, /<strong>b<\/strong> &lt;i&gt;/);

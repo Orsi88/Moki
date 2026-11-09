@@ -12,6 +12,7 @@ This repository is a portable library of **QA skills** (Agent Skills format). Yo
 6. **Language.** Talk to the user in their language. Deliverables are in **English** by default, or in the project's `deliverableLanguage`, or in the language the user explicitly asks for. Quoted source content (documented messages, log lines) stays in its original language.
 7. **No secrets, no external sharing** of project data without configuration and authorization.
 8. **Deliverables only.** Produce only the files asked for, in the format asked; when the format is not given, ask. No copies in other formats, no screenshots of a deliverable, no helper files next to it: those go to the run's `work/` folder and are deleted when the run is completed. List only the deliverables in `state.json` `artifacts`.
+9. **Clickable references.** In Markdown deliverables, link existing project files with standard Markdown paths relative to the document. Link a verified heading, comment or PDF page when it makes the reference precise. Follow [core/traceability.md](core/traceability.md); never invent an anchor or expose an absolute computer path.
 
 Full policies: [core/isolation-policy.md](core/isolation-policy.md), [core/approval-policy.md](core/approval-policy.md), [core/persistence-protocol.md](core/persistence-protocol.md), [core/traceability.md](core/traceability.md), [core/execution-principles.md](core/execution-principles.md) (deliverables only).
 
