@@ -38,14 +38,14 @@ Does **not**: judge whether the content's conclusions are right, rewrite meaning
 ## Tools
 
 - File reading; `npm run doc-check -- <file.md>` for Markdown (what Moki renders wrongly, broken tables, heading links, diagram blocks, cited sources without a bibliography row, missing local files); the generators' own checks (`npm run xlsx -- read`, `npm run docx -- inspect`).
-- Visual inspection when available: the deliverable as the reader sees it (the Moki viewer, the PDF), or pictures of its pages rendered as working data in the run's `work/` folder and deleted afterwards. Requires an AI tool that can read images.
+- Visual inspection: `npm run doc-render -- <file.md>` renders a Markdown deliverable as Moki's PDF export does (template and diagrams included) into the project's `temporary/inspection/` folder — never next to the deliverable — as a PDF and A4 page pictures (`page-1.png`…); look at the pictures (or the PDF), then remove them with `npm run doc-render -- --clean <file.md>` (the app also empties old temporary files). A PDF deliverable is looked at as it is. Requires an Edge/Chrome/Chromium browser and an AI tool that can read images.
 - Fallback without a renderer or image reading: the structural checks only, and the report names the visual checks not done.
 
 ## Procedure
 
 1. **`fidelity`** — List the source's checkable items (findings and their ids, numbers with units, dates and periods, citations with locators, confidence labels, conditions and exceptions, decisions vs proposals vs hypotheses) and confirm each in the deliverable. A summary may select and condense, but keeps the essential conditions and limits.
 2. **`structure`** — For Markdown, run `npm run doc-check -- <file.md>` and fix every error (warnings are judged). Then run the [checklist](references/checklist.md): purpose clear early, order, headings, terminology, tables, figures and captions, ids and references resolving, mandatory fields and sections of the model, only the formats asked.
-3. **`presentation`** — Inspect the deliverable in its format ([checklist § presentation](references/checklist.md#presentation)): cut or overlapping text, wide tables, page breaks, diagram legibility (labels, crossings, connectors), the file opens.
+3. **`presentation`** — Render and look (`npm run doc-render`), then inspect the deliverable in its format ([checklist § presentation](references/checklist.md#presentation)): cut or overlapping text, wide tables, page breaks, diagram legibility (labels, crossings, connectors), the file opens.
 4. **`fix`** — Correct the presentation problems found and check again (at most three passes per problem). Content problems — a contradiction, a missing source, an ambiguous claim — go back to the author or the user with the exact place; they are never solved by guessing.
 5. **`report`** — In the hand-over: what was checked, what was fixed, what was sent back, and **exactly which checks were not possible** (for example "visual inspection not done: no renderer available").
 
@@ -53,7 +53,7 @@ Does **not**: judge whether the content's conclusions are right, rewrite meaning
 
 - Never mark a check as done that did not run; "not verified" is a valid, required answer.
 - Fix presentation, never meaning; a meaning problem goes back to its owner.
-- Inspection files (page pictures, temporary exports) are working data in `work/`, never deliverables, and are deleted after the check ([execution principles](references/core/execution-principles.md)).
+- Inspection files (page pictures, temporary exports) live only in the project's `temporary/inspection/` folder (the render tool puts them there by itself), never next to the deliverable, and are removed after the check ([execution principles](references/core/execution-principles.md)).
 - Apply [traceability](references/core/traceability.md).
 
 ## Validation criteria
@@ -82,4 +82,4 @@ The deliverable passed fidelity, structure and presentation checks — or every 
 
 ## Persistence
 
-Inside the producing run: follow the [persistence protocol](references/core/persistence-protocol.md); inspection files only in the run's work folder, deleted after the check.
+Inside the producing run: follow the [persistence protocol](references/core/persistence-protocol.md); inspection files only in the project's temporary folder, removed after the check.

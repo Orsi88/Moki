@@ -126,6 +126,7 @@ Exception: an authorized change to a **target repository** (e.g. automation code
 | `npm run pdf -- <report.md> <report.pdf>` | Render a Markdown report to PDF (Edge/Chrome) |
 | `npm run docx -- write/inspect ...` | Build a Word deliverable (optionally inside the user's model) or read a model's structure |
 | `npm run doc-check -- <file.md>` | Check a Markdown deliverable against what Moki renders (callouts, HTML, heading links, tables, Mermaid and Excalidraw blocks, cited sources, local files) |
+| `npm run doc-render -- [--clean] <file.md>` | Render a Markdown deliverable as Moki's PDF export does (PDF + A4 page pictures) for visual inspection; always written to the project's `temporary/inspection/`, never next to the deliverable |
 
 ## For contributors (editing this framework)
 

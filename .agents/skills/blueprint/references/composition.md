@@ -12,6 +12,7 @@ A diagram is good when the reader gets its point in a few seconds. Plan it befor
 ## 2. Lay out
 
 - **One reading direction**: left to right for flows and pipelines, top to bottom for hierarchies and decisions; never mix in one diagram.
+- **Fit the page**: on an A4 or a panel-width page, a left-to-right chain of more than about four boxes is drawn tiny; use top to bottom, or two rows (subgraphs), for longer flows.
 - **Main path straight**: the normal path runs along the reading direction; exceptions branch to the side and come back or end.
 - **Group** related elements (a subgraph, a lane, a frame) and name the group.
 - **Few crossings**: order elements so arrows do not cross; when they must, it is a sign to reorder or split.
@@ -34,4 +35,4 @@ A diagram is good when the reader gets its point in a few seconds. Plan it befor
 
 - Every element and arrow corresponds to something the text states; nothing invented to complete the picture.
 - The caption answers the question of step 1; the surrounding text explains what the diagram does not.
-- Rendered (in Moki, or as a picture in the run's work folder when the tool can see images): labels readable, no overlapping, arrows with clear origin and target, crossings minimal. If not readable, reorder, shorten labels or split, and check again.
+- Rendered (in Moki, or with `npm run doc-render` when the tool can see images): labels readable at page width, no overlapping, arrows with clear origin and target, crossings minimal. If not readable, reorder, shorten labels or split, and check again.
