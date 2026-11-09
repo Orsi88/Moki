@@ -1,6 +1,6 @@
 ---
 name: requirements-review
-description: Preventive, interactive review of user stories before development and test design. Finds ambiguities, contradictions, gaps, rule interactions, systemic impacts and testability problems through static review, diagnosis, a one-question-at-a-time interview and cross-validation; produces the QA Review Matrix (xlsx), waits for the team's returned matrix and formalizes a Final Definitions Report (PDF). Use when asked to review, refine or validate user stories or requirements. Never generates test cases.
+description: Preventive, interactive review of user stories before development and test design. Finds ambiguities, contradictions, gaps, rule interactions, systemic impacts and testability problems through static review, diagnosis, a one-question-at-a-time interview and cross-validation; produces the QA Review Matrix (xlsx), waits for the team's returned matrix or their answers in the tracker's comments and formalizes a Final Definitions Report (PDF). Reads the item from Azure DevOps or Jira by its number or URL and, with approval, publishes each round's questions and the report there. Use when asked to review, refine or validate user stories, MFs or requirements. Never generates test cases.
 license: MIT
 metadata:
   version: "1.0.0"
@@ -60,6 +60,7 @@ The input is always **one or more user stories**. They may come with business ru
 - **If no user story is provided, ask for it before starting.**
 - With multiple stories, analyze them **individually and together**, looking for dependencies, shared rules, conflicts and gaps in the complete flow.
 - Required: project id (to load context via `project-context`).
+- Optional: the item's **number or URL** in Azure DevOps or Jira ("review MF 1234"): it is read through `dispatch` ([tracker](references/tracker.md)); the names MF, US, história follow the project's glossary.
 - Optional: run id to resume; the returned QA Review Matrix (stage 6).
 
 Classify information as: **DOCUMENTADO, INFERÍVEL, AUSENTE, AMBÍGUO, CONTRADITÓRIO, A CONFIRMAR or NÃO SE APLICA** (English equivalents in [vocabulary](references/vocabulary.md)).
@@ -70,6 +71,7 @@ Classify information as: **DOCUMENTADO, INFERÍVEL, AUSENTE, AMBÍGUO, CONTRADIT
 - Image reading for screenshots/prototypes when provided. If the tool cannot read images, say so and ask for a textual description.
 - **Spreadsheet**: from the framework root, `npm run xlsx -- write --layout <skill>/assets/review-matrix.layout.json --data <data.json> --lang <pt-BR|en> --out <file.xlsx>` builds the matrix with filters, styled header, frozen first row, wrapped text and column widths; `npm run xlsx -- read <file.xlsx> --layout ... --out <data.json>` reads the returned matrix. Fallback: the tool's own spreadsheet capability following the same layout, or the matrix as tables plus the JSON for the user to convert.
 - **PDF**: `npm run pdf -- <report.md> <report.pdf>` (uses a locally installed Edge/Chrome). Fallback: deliver the Markdown/HTML report and ask the user to export it to PDF.
+- **Tracker** (optional): the `dispatch` skill reads the item and publishes rounds and the report ([tracker](references/tracker.md)). Fallback: the user pastes the item; publications become prepared text and files with manual instructions.
 
 ## Procedure
 
@@ -79,17 +81,20 @@ Load project context first (via `project-context`), especially glossary, system 
 
 | Stage | Step id (state.json) | Details | Gate after it |
 |---|---|---|---|
+| 0. Source (tracker item, optional) | `source` | [tracker § reading](references/tracker.md#reading-the-item-stage-0-step-source) | — |
 | 1. Static review | `static-review` | [static review](references/static-review.md) | — |
 | 2. Initial diagnosis | `diagnosis` | [static review § diagnosis](references/static-review.md#2-initial-diagnosis) | — (start the interview automatically) |
 | 3. Interactive interview | `interview` | [interview](references/interview.md) | — |
 | 4. Cross-validation | `cross-validation` | [interview § cross-validation](references/interview.md#4-cross-validation) | **G1**: authorization to consolidate |
-| 5. Consolidation + Excel | `consolidation`, `matrix` | [review matrix](references/review-matrix.md) | **G2**: wait for the returned matrix (input) |
-| 6. Returned matrix analysis | `returned-matrix-analysis` | [final report](references/final-report.md) | **G3**: authorization to generate PDF |
+| 5. Consolidation + Excel | `consolidation`, `matrix` | [review matrix](references/review-matrix.md) | — |
+| 5b. Publish the round (optional) | `publish-round` | [tracker § round](references/tracker.md#publishing-a-round-step-publish-round-after-the-matrix) | **P1**: approval of the exact comment and attachment; then **G2**: wait for the returned matrix or the answers in comments (input) |
+| 6. Returned matrix / answers analysis | `returned-matrix-analysis` (and `comment-answers`) | [final report](references/final-report.md), [tracker § answers](references/tracker.md#answers-from-comments-stage-6-alongside-or-instead-of-the-returned-matrix) | **GC** (answers from comments): confirmation of the extracted definitions; **G3**: authorization to generate PDF |
 | 7. Final Definitions Report | `final-report` | [final report § PDF](references/final-report.md#final-definitions-report--pdf) | — |
+| 7b. Publish the report (optional) | `publish-report` | [tracker § report](references/tracker.md#publishing-the-report-step-publish-report-after-the-pdf) | **P2**: approval of the exact attachment and comment |
 
 Full flow:
 
-**US(s)** → Static review → Diagnosis → Interactive interview → Cross-validation → Consolidation → **QA Review Matrix.xlsx** → Wait for the matrix filled in by the team → Analyze returned definitions → Resolve remaining conflicts/pending items, if any → Validate consolidation → Request authorization → **Final Definitions Report.pdf**
+**US(s)** (pasted, or read from the tracker by number or URL) → Static review → Diagnosis → Interactive interview → Cross-validation → Consolidation → **QA Review Matrix.xlsx** → (optional, approved: one consolidated comment per round on the item, matrix attached) → Wait for the matrix filled in by the team or their answers in the comments (confirmed by the user) → Analyze returned definitions → Resolve remaining conflicts/pending items, if any → Validate consolidation → Request authorization → **Final Definitions Report.pdf**
 
 **The process is only formally closed after the final PDF is generated.**
 
@@ -115,6 +120,8 @@ If not, do not raise it.
 - Never turn a pending point into a final definition.
 - Do not alter, complete or silently interpret a definition provided in the returned Excel.
 - Do not invent owners; use **A DEFINIR**.
+- **Publishing is its own decision**: G1 (generate the matrix) and G3 (generate the PDF) never authorize publishing them; each publication has its own exact preview and approval (P1, P2) through `dispatch`.
+- A comment in the tracker is not a definition until the user confirms it (GC); keep its author, date and link as the definition's source.
 - Apply [execution principles](references/core/execution-principles.md), [traceability](references/core/traceability.md), [isolation](references/core/isolation-policy.md) and [approval](references/core/approval-policy.md).
 - Project-specific review checks from the project context are evaluated in addition to the generic checklist.
 
@@ -126,6 +133,8 @@ Objective checks on deliverables (see [review matrix](references/review-matrix.m
 - Each interview message contains exactly one question.
 - Matrix: seven sheets with the exact columns; IDs consistent across sheets; status values only from the allowed lists; no invented owner (A DEFINIR); every "RESOLVIDO — ATUALIZAR US" row has an entry in sheet 4.
 - PDF generated only after G3 approval, with no pending point presented as defined.
+- A round comment holds only points that need the team, each identified by its `REV-XXX`, and was published only after P1; the report was published only after P2.
+- Every definition taken from a comment was confirmed at GC and keeps author, date and the comment's link.
 
 ## Output format
 
@@ -140,7 +149,10 @@ Gate questions are asked in the user's language using the fixed wording in the [
 
 - **G1** — after cross-validation, ask: **"Concluí a validação cruzada e não identifiquei outras questões relevantes. Posso consolidar a revisão e gerar a Matriz de Revisão QA?"** Wait for confirmation.
 - **G2** — after delivering the matrix, **wait for the user to return the QA Review Matrix** with pending points resolved and/or complementary definitions. Do not generate the final report before receiving it.
+- **P1** — before publishing a round (optional): the `dispatch` preview of the exact comment, attachment and item, then the fixed P1 question in the [vocabulary](references/vocabulary.md#fixed-questions-at-gates).
+- **GC** — after extracting answers from comments: the table of answers per `REV-XXX` (author, date, link, excerpt, classification), then the fixed GC question. Only confirmed answers become definitions.
 - **G3** — when the matrix is sufficiently consolidated, ask: **"A matriz está suficientemente consolidada para formalização. Posso gerar o Relatório Final de Definições em PDF?"** Wait for authorization.
+- **P2** — before publishing the report (optional): the `dispatch` preview, then the fixed P2 question.
 - Formalizing with non-blocking pending points only if the user explicitly chooses to; those points appear as pending/caveats.
 
 ## Error handling
@@ -157,4 +169,4 @@ The review is closed only when the Final Definitions Report PDF has been generat
 
 ## Persistence
 
-Follow the [persistence protocol](references/core/persistence-protocol.md). `state.json` in `workspace/projects/<project-id>/runs/<run-id>/` records the stage (step ids above), the REV items, interview questions/answers summary, checklist status and gate decisions, so the review can resume in another session or tool. Store the working matrix data in `workspace/projects/<project-id>/runs/<run-id>/outputs/review-matrix.json` and update it after each interview answer.
+Follow the [persistence protocol](references/core/persistence-protocol.md). `state.json` in `workspace/projects/<project-id>/runs/<run-id>/` records the stage (step ids above), the REV items, interview questions/answers summary, checklist status and gate decisions, so the review can resume in another session or tool. Store the working matrix data in `workspace/projects/<project-id>/runs/<run-id>/outputs/review-matrix.json` and update it after each interview answer. With a tracker item: its snapshot in the run's inputs folder and `sources` in `state.json` (dispatch), each published round and report in `results` with the comment and attachment links, and the publication journal in `workspace/projects/<project-id>/runs/<run-id>/logs/dispatch-journal.json`.

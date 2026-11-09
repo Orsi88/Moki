@@ -10,6 +10,11 @@ The activities that ship with Moki:
 | [Design tests](../skills/test-design/SKILL.md) | Scenario map, then — after your OK — manual test cases in Excel. | ready |
 | [Failure pre-analysis](../skills/failure-analysis/SKILL.md) | A short note for developers, from your description and the log. | ready |
 | [Build test evidence](../skills/qa-orchestrator/references/workflows/test-evidence.md) | The work item and the Jam recordings, then a spreadsheet and a Word document with the prints, in your own models when you have them. | ready |
+| [Investigate with Sherlock](../agents/research/sherlock.md) | Sherlock researches any topic in depth (web, standards, papers, books, forums) and, after you approve the plan, delivers a structured dossier with references you can check. | ready |
+| [Cross-examine with Moriarty](../agents/research/moriarty.md) | Moriarty attacks a finished deliverable (a dossier, a review, test cases...): checks the sources, looks for counter-evidence and logical flaws, and gives a verdict with ranked findings, without rewriting the work. | ready |
+| [Write a document with Watson](../agents/documentation/watson.md) | Watson does any documentation: organizes, writes, designs and checks the deliverable in the format you ask, with the project's template and Mermaid or editable Excalidraw diagrams, faithful to the content. Sherlock calls him for every dossier. | ready |
+| [Review an MF from the tracker](../skills/requirements-review/references/tracker.md) | The requirements review reads the MF by its number or URL and, with your approval, publishes each round's questions and the report on it. | ready |
+| [Register items with Lestrade](../agents/quality/lestrade.md) | Lestrade registers items of any type in Azure DevOps or Jira — bugs, impediments, tasks, technical debt, improvements: asks the type, uses your template, asks only what is missing, checks duplicates and creates only after you approve the exact preview. | ready |
 | [Project context](../skills/project-context/SKILL.md) | Onboarding, updates, and the plan for a blank project. | ready |
 | [Automation](../skills/automation/SKILL.md) | Build, implement or evolve an automation project. | not available yet |
 | [Documentation](../skills/documentation/SKILL.md), [smoke test](../skills/smoke-test/SKILL.md) | Planned. The AI will say so and stop. | not available yet |

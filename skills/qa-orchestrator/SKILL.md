@@ -69,7 +69,7 @@ Optional:
 ### Interrupting and resuming
 
 - The user can stop at any time. Persist `state.json` with the current step and pending items, and tell the user the run id.
-- To resume: identify project and run id (`npm run runs -- <project-id>`), read `state.json`, reload the context for the current step, summarize, continue. See the [persistence protocol](references/core/persistence-protocol.md).
+- To resume: identify project and run id (`npm run runs -- <project-id>`), read `state.json`, reload the context for the current step (including the freshness check of the run's tracker items), summarize, continue. See the [persistence protocol](references/core/persistence-protocol.md).
 
 ## Workflows
 

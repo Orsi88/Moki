@@ -1486,6 +1486,32 @@ test.describe.serial('Moki terminals outlive the project screen', () => {
     await expect(termPage.locator('.tree-row[title="inbox/casos.xlsx"]')).toBeVisible();
   });
 
+  test('the + menu stays inside the window when the + is at its right edge, on every level', async () => {
+    const plus = termPage.getByTitle('Novo: terminal, IA ou arquivo');
+    // Where the side panel is closed, the + sits against the window's right edge.
+    await plus.evaluate((el) => { Object.assign((el as HTMLElement).style, { position: 'fixed', right: '2px', top: '40px' }); });
+    const inside = async () => {
+      const box = (await termPage.getByRole('menu').boundingBox())!;
+      const size = await termPage.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.w);
+      expect(box.y + box.height).toBeLessThanOrEqual(size.h);
+    };
+    try {
+      await plus.click();
+      await expect(termPage.getByRole('menuitem', { name: 'Apps ArtCraft' })).toBeVisible();
+      await inside();
+      await termPage.getByRole('menuitem', { name: 'IA' }).click();
+      await expect(termPage.getByRole('menuitem', { name: 'Voltar' })).toBeVisible();
+      await inside();
+      await termPage.keyboard.press('Escape');
+      await termPage.keyboard.press('Escape');
+      await expect(termPage.getByRole('menu')).toHaveCount(0);
+    } finally {
+      await plus.evaluate((el) => { (el as HTMLElement).removeAttribute('style'); });
+    }
+  });
+
   // The download itself needs GitHub (main-process fetch is not faked here); the unit tests cover it.
   test('the + menu offers the ArtCraft apps: 16 apps, launcher first, and a Download button for each', async () => {
     await termPage.getByTitle('Num terminal novo').first().click();
@@ -1558,6 +1584,29 @@ test.describe.serial('Moki MCP servers list', () => {
     await expect.poll(saved).toEqual([]);
     await expect(global).toHaveAttribute('aria-checked', 'true');
     await expect(mcpPage.locator('.mcp-chip')).toHaveCount(0);
+  });
+
+  test('an HTTP server takes an optional OAuth client (id and callback port) under Headers, saved without any secret', async () => {
+    const saved = () => (JSON.parse(readFileSync(catalog, 'utf8')) as { servers: { name: string; oauth?: unknown }[] }).servers.find((x) => x.name === 'Azure DevOps')?.oauth;
+    await mcpPage.getByRole('button', { name: 'Adicionar servidor', exact: true }).click();
+    await mcpPage.getByRole('textbox', { name: 'Nome do servidor', exact: true }).fill('Azure DevOps');
+    await mcpPage.getByRole('button', { name: 'HTTP', exact: true }).click();
+    await mcpPage.getByRole('textbox', { name: 'URL', exact: true }).fill('https://mcp.dev.azure.com/acme');
+    await mcpPage.getByRole('tab', { name: 'Cabeçalhos' }).click();
+    await expect(mcpPage.getByText('Login OAuth (opcional)')).toBeVisible();
+    await mcpPage.getByRole('textbox', { name: 'Client id' }).fill('0f1e2d3c-aaaa-bbbb-cccc-1234567890ab');
+    await mcpPage.getByRole('textbox', { name: 'Porta de callback' }).fill('3118');
+    for (const mode of ['light', 'dark']) {
+      await mcpPage.evaluate((m) => document.documentElement.setAttribute('data-theme', m), mode);
+      await mcpPage.locator('.mcp-form').screenshot({ path: test.info().outputPath(`mcp-oauth-${mode}.png`) });
+    }
+    await mcpPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(saved).toEqual({ clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: 3118 });
+    // stdio servers have no OAuth fields.
+    await mcpPage.getByRole('tab', { name: 'Configuração' }).click();
+    await mcpPage.getByRole('button', { name: 'stdio', exact: true }).click();
+    await mcpPage.getByRole('tab', { name: 'Ambiente' }).click();
+    await expect(mcpPage.getByText('Login OAuth (opcional)')).toHaveCount(0);
   });
 });
 
@@ -2274,7 +2323,8 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     const wizard = aiPage.getByRole('dialog');
     await wizard.getByRole('tab', { name: 'Atividades', exact: true }).click();
     await wizard.getByRole('searchbox').fill('requirements-review');
-    await wizard.locator('.invoke-row').first().click();
+    // Two activities use the skill (pasted stories, and an MF read from the tracker); this one requires files.
+    await wizard.locator('.invoke-row', { hasText: 'Revisar histórias de usuário' }).click();
     await expect(wizard.getByRole('button', { name: 'Escolha um arquivo para continuar' })).toBeDisabled();
     await wizard.getByText('us-1.md').click();
     await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();

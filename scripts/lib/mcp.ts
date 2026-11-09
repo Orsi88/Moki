@@ -26,10 +26,15 @@ export interface McpServer {
   url: string; // http: the server's endpoint
   env: Record<string, string>; // stdio
   headers: Record<string, string>; // http
+  oauth?: McpOAuth; // http: the OAuth client an AI tool signs in with (Claude Code); absent = none
   access: McpAccess;
   enabled: boolean; // off: kept in the catalog, given to no project
   projects: string[]; // where it applies: [] = every project of the workspace (global)
 }
+
+// A public OAuth client (an id and the local callback port), as Claude Code's oauth block takes it.
+// A client id is not a credential; a client secret is never accepted.
+export interface McpOAuth { clientId: string; callbackPort?: number }
 
 export class McpError extends Error {}
 
@@ -40,6 +45,7 @@ const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const VAR = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 const SECRET_KEY = /(token|secret|password|passwd|pwd|api[-_]?key|private[-_]?key|auth|credential|cookie)/i;
+const CLIENT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 const LIMIT = { name: 60, description: 300, command: 500, arg: 2000, args: 50, url: 2000, pairs: 50, value: 2000, projects: 500 };
 
 const catalogFile = (root: string) => join(workspaceDir(root), MCP_FILE);
@@ -70,6 +76,26 @@ export function literalSecret(key: string, value: string): string | null {
   return null;
 }
 
+// The oauth block of an HTTP server: nothing, or a client id with an optional callback port.
+function oauthOf(name: string, v: unknown): McpOAuth | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (typeof v !== 'object' || Array.isArray(v)) throw new McpError(`${name}: OAuth must give a client id.`);
+  const o = v as Record<string, unknown>;
+  if (o.clientSecret !== undefined) throw new McpError(`${name}: Moki never stores an OAuth client secret; use a public client (client id only).`);
+  const clientId = String(o.clientId ?? '').trim();
+  const rawPort = o.callbackPort;
+  const hasPort = rawPort !== undefined && rawPort !== null && rawPort !== '';
+  if (!clientId) {
+    if (hasPort) throw new McpError(`${name}: give the OAuth client id for the callback port.`);
+    return undefined;
+  }
+  if (!CLIENT_ID.test(clientId)) throw new McpError(`${name}: the OAuth client id may only have letters, digits, dots, hyphens and underscores.`);
+  if (!hasPort) return { clientId };
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new McpError(`${name}: the OAuth callback port must be a whole number from 1024 to 65535.`);
+  return { clientId, callbackPort: port };
+}
+
 // Checks and normalizes a server; the id is kept as given (saveServer chooses new ones).
 export function clean(raw: unknown): McpServer {
   const r = (raw ?? {}) as Record<string, unknown>;
@@ -97,10 +123,12 @@ export function clean(raw: unknown): McpServer {
     if (literalSecret('', a)) throw new McpError(`${name}: argument ${i + 1} looks like a credential. Use \${VARIABLE} instead.`);
   }
   if (literalSecret('', url)) throw new McpError(`${name}: the URL holds a credential. Use \${VARIABLE} instead.`);
+  const oauth = transport === 'http' ? oauthOf(name, r.oauth) : undefined;
   const id = String(r.id ?? '');
   return {
     id: ID.test(id) ? id : '', name, description: String(r.description ?? '').trim().slice(0, LIMIT.description), transport,
     command: transport === 'stdio' ? command : '', args, url: transport === 'http' ? url : '', env, headers,
+    ...(oauth ? { oauth } : {}),
     access: r.access === 'execute' ? 'execute' : 'read',
     enabled: r.enabled !== false,
     projects: [...new Set(strings(r.projects, LIMIT.projects).filter((p) => ID.test(p)))],
@@ -179,9 +207,15 @@ export function importConfig(text: string): { servers: unknown[]; replaced: stri
       replaced.push(`${name}: ${k} → \${${ref}}`);
       return [k, `\${${ref}}`];
     }));
+    let oauth: unknown;
+    if (c.oauth && typeof c.oauth === 'object' && !Array.isArray(c.oauth)) {
+      const { clientSecret, ...rest } = c.oauth as Record<string, unknown>;
+      if (clientSecret !== undefined) replaced.push(`${name}: oauth.clientSecret left out (Moki never stores it)`);
+      oauth = rest;
+    }
     return {
       name, transport: url && !c.command ? 'http' : 'stdio', command: String(c.command ?? ''), args: strings(c.args, LIMIT.args),
-      url, env: scrub(c.env), headers: scrub(c.headers), access: 'read',
+      url, env: scrub(c.env), headers: scrub(c.headers), ...(oauth ? { oauth } : {}), access: 'read',
     };
   });
   if (!servers.length) throw new McpError('No MCP servers found in this JSON.');
@@ -195,11 +229,14 @@ export const entryKey = (id: string): string => `moki-${id}`;
 const isManaged = (key: string): boolean => key === MOKI_SERVER || key.startsWith('moki-');
 
 // One server as Claude Code (".mcp.json", --mcp-config) and Cursor (".cursor/mcp.json") read it.
-// Claude expands ${VAR} itself; Cursor reads ${env:VAR}.
+// Claude expands ${VAR} itself; Cursor reads ${env:VAR}. The oauth block is Claude Code's only.
 function entry(s: McpServer, tool: 'claude' | 'cursor'): Record<string, unknown> {
   const ref = (v: string) => (tool === 'cursor' ? v.replace(REF, '${env:$1}') : v);
   const map = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ref(v)]));
-  if (s.transport === 'http') return { ...(tool === 'claude' ? { type: 'http' } : {}), url: ref(s.url), ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}) };
+  if (s.transport === 'http') {
+    const oauth = tool === 'claude' && s.oauth ? { oauth: { clientId: s.oauth.clientId, ...(s.oauth.callbackPort ? { callbackPort: s.oauth.callbackPort } : {}) } } : {};
+    return { ...(tool === 'claude' ? { type: 'http' } : {}), url: ref(s.url), ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}), ...oauth };
+  }
   return { command: ref(s.command), args: s.args.map(ref), ...(Object.keys(s.env).length ? { env: map(s.env) } : {}) };
 }
 
@@ -243,6 +280,7 @@ export function codexBlock(entries: GeneratedEntry[]): { text: string; skipped: 
     const lines = [`[mcp_servers.${tq(key)}]`];
     if (s.transport === 'http') {
       lines.push(`url = ${tq(s.url)}`);
+      if (s.oauth) skipped.push(`${key}: OAuth sign-in`);
       for (const [name, value] of Object.entries(s.headers)) {
         const bearer = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(value);
         if (name.toLowerCase() === 'authorization' && bearer) lines.push(`bearer_token_env_var = ${tq(bearer[1])}`);

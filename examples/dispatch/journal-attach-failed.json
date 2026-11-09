@@ -1,0 +1,23 @@
+{
+  "actions": [
+    {
+      "id": "A1", "tracker": "jira", "project": "acme.atlassian.net/LIB", "operation": "comment", "target": "LIB-210",
+      "summary": "Review round 1: REV-001 to REV-003",
+      "signature": "Registered via Moki · run 20261108-1530-requirements-review-renewal · action A1",
+      "dependsOn": [], "state": "done", "result": { "id": "10452", "url": "https://acme.atlassian.net/browse/LIB-210?focusedCommentId=10452" },
+      "error": null, "approvedAt": "2026-11-08T15:41:00Z", "updatedAt": "2026-11-08T15:41:07Z"
+    },
+    {
+      "id": "A2", "tracker": "jira", "project": "acme.atlassian.net/LIB", "operation": "attach", "target": "LIB-210",
+      "summary": "Attach QA Review Matrix.xlsx",
+      "signature": null, "dependsOn": [], "state": "failed", "result": null,
+      "error": "Attachment upload refused: network domain not allowed", "approvedAt": "2026-11-08T15:41:00Z", "updatedAt": "2026-11-08T15:41:12Z"
+    },
+    {
+      "id": "A3", "tracker": "jira", "project": "acme.atlassian.net/LIB", "operation": "link", "target": "LIB-210",
+      "summary": "Link LIB-210 'relates to' LIB-188 (rule referenced in the review)",
+      "signature": null, "dependsOn": [], "state": "approved", "result": null,
+      "error": null, "approvedAt": "2026-11-08T15:41:00Z", "updatedAt": "2026-11-08T15:41:00Z"
+    }
+  ]
+}

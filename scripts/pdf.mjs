@@ -70,7 +70,7 @@ export async function renderHtml(md, title, { style = DEFAULT_STYLE, vars = {}, 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>${styleCss(style, v)}</style></head><body>${mark}${body}</body></html>`;
 }
 
-function findBrowser() {
+export function findBrowser() {
   if (process.env.QA_AGENTS_BROWSER) return process.env.QA_AGENTS_BROWSER;
   const candidates = [
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',

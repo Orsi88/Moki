@@ -243,6 +243,7 @@ export interface Usage {
 export interface McpServer {
   id: string; name: string; description: string; transport: 'stdio' | 'http';
   command: string; args: string[]; url: string; env: Record<string, string>; headers: Record<string, string>;
+  oauth?: { clientId: string; callbackPort?: number }; // http: the OAuth client Claude Code signs in with
   access: 'read' | 'execute'; enabled: boolean; projects: string[];
 }
 export interface McpProbe { at: string; ok: boolean; tools: { name: string; description: string }[]; server?: string; error?: string; ms: number }

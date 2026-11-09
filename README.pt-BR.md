@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe">Moki.Setup.0.5.1.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe">Moki.Setup.0.5.2.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
@@ -20,11 +20,11 @@ Começou como trabalho de qualidade de software: revisar uma história, projetar
 
 ## Instalar
 
-1. Baixe o [Moki.Setup.0.5.1.exe](https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.2.exe](https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
 
-Para o VS Code, baixe o [moki-0.5.1.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.1/moki-0.5.1.vsix) e rode `code --install-extension moki-0.5.1.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+Para o VS Code, baixe o [moki-0.5.2.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.2/moki-0.5.2.vsix) e rode `code --install-extension moki-0.5.2.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
 
 Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
@@ -49,11 +49,12 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
 
-## Novo na 0.5.1
+## Novo na 0.5.2
 
-- **Quatro especialistas.** Cartógrafo modela e implementa bancos de dados; Inventor planeja soluções; Artesão constrói protótipos funcionais de interface; Sentinela avalia e valida APIs. O [guia](docs/pt-BR/engineering-specialists.md) explica entradas, entregas e pontos de aprovação.
-- **Links precisos no projeto.** Navegue para seções de Markdown, comentários de Markdown/PDF e páginas de PDF. Caminhos existentes no modo de leitura ficam clicáveis sem alterar o documento. Use Ctrl+clique nos caminhos escritos no terminal.
-- **Copiar uma referência.** Copie um link Markdown no menu do arquivo ou em um comentário, pronto para usar numa nota ou relatório. Novas menções nas notas usam caminhos relativos ao documento; as antigas continuam funcionando. Veja [Links do projeto](docs/pt-BR/internal-links.md).
+- **O catálogo completo de agentes.** Sherlock investiga com fontes; Moriarty contesta entregas; Watson organiza, diagrama e confere documentos com Mermaid e Excalidraw editável; Lestrade prepara itens de tracker com o tipo e o template que você escolher. Todos têm atividades no app. Veja [Skills de QA e agentes](docs/pt-BR/qa-skills.md).
+- **Revisão de MF e trackers.** Leia itens do Azure DevOps/Jira, confira mudanças ao iniciar e retomar, revise requisitos em rodadas e publique só a prévia exata que você aprovar. O registro de itens pergunta primeiro o tipo e segue o template do projeto. Veja [Azure DevOps e Jira](docs/pt-BR/trackers.md).
+- **O menu Novo fica visível.** O menu + e seus submenus ficam dentro da janela quando abertos perto da borda.
+- **Engenharia e links do projeto.** Inclui Cartógrafo, Inventor, Artesão e Sentinela, além de links precisos para seções, comentários e páginas de PDF, cópia de referências e navegação com Ctrl+clique no terminal. Veja [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) e [Links do projeto](docs/pt-BR/internal-links.md).
 
 ## Documentação
 

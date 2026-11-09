@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Download Moki for Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe">Moki.Setup.0.5.1.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe">Moki.Setup.0.5.2.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
 
@@ -20,11 +20,11 @@ It started as software quality work: review a story, design tests, look at a fai
 
 ## Install
 
-1. Download [Moki.Setup.0.5.1.exe](https://github.com/Orsi88/moki/releases/download/v0.5.1/Moki.Setup.0.5.1.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
+1. Download [Moki.Setup.0.5.2.exe](https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
 2. If Windows says it protected your PC, choose **More info → Run anyway**. The installer is not digitally signed yet.
 3. Install an AI tool too (Claude Code, Cursor, Codex, Gemini, or a chat you already use).
 
-For VS Code, download [moki-0.5.1.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.1/moki-0.5.1.vsix) and run `code --install-extension moki-0.5.1.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
+For VS Code, download [moki-0.5.2.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.2/moki-0.5.2.vsix) and run `code --install-extension moki-0.5.2.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
 
 Your projects live in **Documents\Moki**, and a newer installer never touches them. macOS, Linux and running from the source: [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
@@ -49,11 +49,12 @@ Your projects live in **Documents\Moki**, and a newer installer never touches th
 
 Agents chain these into **multi-agent operations**, MCP servers give the AI your tools (Playwright, Azure DevOps, Jira…), and the **VS Code extension** brings the project's context to the AI of your editor.
 
-## New in 0.5.1
+## New in 0.5.2
 
-- **Four specialists.** Cartógrafo models and implements databases; Inventor plans solutions; Artesão builds working interface prototypes; Sentinela assesses and validates APIs. Their [guide](docs/engineering-specialists.md) explains inputs, outputs and approval points.
-- **Precise project links.** Navigate to Markdown headings, Markdown/PDF comments and PDF pages. Existing paths in the reading view become clickable without changing the document. Ctrl+click paths printed in a terminal.
-- **Copy a reference.** Copy a Markdown link from the file menu or a comment, ready to use in a note or report. New note mentions use document-relative paths; existing mentions keep working. See [Project links](docs/internal-links.md).
+- **The complete agent catalog.** Sherlock investigates with sources; Moriarty challenges deliverables; Watson organizes, designs and checks documents with Mermaid and editable Excalidraw; Lestrade prepares tracker items using the type and template you choose. All have activities in the app. See [QA skills and agents](docs/qa-skills.md).
+- **MF reviews and trackers.** Read Azure DevOps/Jira items, check changes at the start and resume, review requirements in rounds, and publish only the exact preview you approve. Item registration asks the type first and follows its project template. See [Azure DevOps and Jira](docs/trackers.md).
+- **The New menu stays visible.** The + menu and its submenus stay inside the window when opened near the edge.
+- **Engineering and project links.** Includes Cartógrafo, Inventor, Artesão and Sentinela, plus precise links to sections, comments and PDF pages, copying references and Ctrl+click navigation from terminals. See [Engineering specialists](docs/engineering-specialists.md) and [Project links](docs/internal-links.md).
 
 ## Documentation
 

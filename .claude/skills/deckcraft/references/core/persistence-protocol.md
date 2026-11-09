@@ -22,6 +22,16 @@ Run id format: `YYYYMMDD-HHMM-<skill-or-workflow>-<short-slug>` (lowercase, hyph
 
 Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug>` (or `--workflow <id>`; add `--activity <id>` when the request names the Moki activity it came from) when a shell is available. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
 
+## Inside a multi-agent operation
+
+When the request says you are a step of a Moki operation, the operation's run folder replaces the skill's own run:
+
+- Do **not** create a run and do not change the operation's `state.json` (Moki updates it).
+- Read the request in `inputs/request.md` and the files of the step before (`outputs/<its step>/`, `handoff/<its step>.md`); earlier visits of your own step are your earlier work: continue from it.
+- Deliverables go to `outputs/<your step>/`. What the skill would record in its own `state.json` (current step, approvals, pending items, `sources`, results) goes into your handoff summary and, when the skill needs it on a later visit, into `outputs/<your step>/step-state.json`. Logs (such as a publication journal) go to `logs/<your step>-<name>`. Working files go to `work/` as usual.
+- Your skill's approval points still apply: ask the user in your terminal (Moki shows that you are waiting). An arrow with approval between steps is a separate decision and never replaces a gate of your skill that shows exact content (for example a publication preview).
+- Finish with the handoff, its first line `outcome: <result>` when your agent declares results.
+
 ## state.json
 
 Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `createdAt`, `updatedAt`, `status`, `currentStep`, `completedSteps`, `pending`, `approvals`, `inputs`, `results`, `artifacts`.
@@ -41,10 +51,10 @@ Update `state.json` at the end of every step and before every approval gate. Kee
 When the user asks to resume (for example "resume run 20261020-0930-..." or "continue the review"):
 
 1. Identify the project. Read `workspace/projects/<project-id>/runs/<run-id>/state.json`. If the run id is unknown, list the project's runs (`npm run runs -- <project-id>` or the folder listing) and ask which one.
-2. Load the project context the current step needs (see the `project-context` skill), not all of it.
+2. Load the project context the current step needs (see the `project-context` skill), not all of it. If the run relies on tracker items (`sources` in `state.json`), run the freshness check (`dispatch` skill) before continuing: report what changed since the adopted version and its impact, or that the update could not be verified and when it was last checked.
 3. Read only the artifacts needed for the current step.
 4. Summarize to the user: current step, completed steps, pending items, last approval.
-5. Continue from `currentStep`. Do not redo completed steps unless the user asks or their inputs changed.
+5. Continue from `currentStep`. Do not redo completed steps unless the user asks or their inputs changed (a tracker change the user decided to adopt counts: redo only the affected parts).
 
 ## Chat-only environments
 

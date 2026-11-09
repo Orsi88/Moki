@@ -2,7 +2,7 @@
 // shows its options in place of the list, with a Back row. Arrows move, → or Enter opens a
 // category, ← or Esc goes back (Esc on the categories closes the menu).
 
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { ToolInfo } from '../api';
 import { t } from '../i18n';
 import { FileIcon } from '../icons';
@@ -39,6 +39,21 @@ const moveFocus = (e: KeyboardEvent<HTMLUListElement>, step: number) => {
 export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, onCraft, onClose }: Props) {
   const [category, setCategory] = useState<Category | null>(null);
   const [plain, setPlain] = useState(false); // the next AI opens without the project's defaults
+  const list = useRef<HTMLUListElement>(null);
+  const [pos, setPos] = useState(at);
+
+  // Opened from a + near the window's right (or bottom) edge, the menu would be cut off: once it is
+  // laid out, shift it back inside the window. Each level has its own width, so it runs per level.
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!el) return;
+    const margin = 8;
+    const { width, height } = el.getBoundingClientRect();
+    setPos({
+      left: Math.max(margin, Math.min(at.left, window.innerWidth - width - margin)),
+      top: Math.max(margin, Math.min(at.top, window.innerHeight - height - margin)),
+    });
+  }, [at.left, at.top, category, withDefaults, tools.length]);
 
   const categories: { id: Category; icon: ReactNode; label: string }[] = [
     { id: 'terminal', icon: <IconTerminal size={15} />, label: t('Terminal') },
@@ -86,7 +101,7 @@ export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, o
 
   return (
     <div className="menu-backdrop" onMouseDown={onClose}>
-      <ul className="term-menu new-menu" role="menu" aria-label={category ? categories.find((c) => c.id === category)?.label : t('New')} style={at}
+      <ul className="term-menu new-menu" role="menu" aria-label={category ? categories.find((c) => c.id === category)?.label : t('New')} style={pos} ref={list}
         onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
         {category ? (
           <>

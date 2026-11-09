@@ -83,3 +83,6 @@ Use the labels of the deliverable language. The pt-BR labels are those of the or
 |---|---|---|
 | G1 | "Concluí a validação cruzada e não identifiquei outras questões relevantes. Posso consolidar a revisão e gerar a Matriz de Revisão QA?" | "I have completed the cross-validation and found no other relevant issues. May I consolidate the review and generate the QA Review Matrix?" |
 | G3 | "A matriz está suficientemente consolidada para formalização. Posso gerar o Relatório Final de Definições em PDF?" | "The matrix is sufficiently consolidated for formalization. May I generate the Final Definitions Report in PDF?" |
+| P1 | "Esta é a publicação da rodada <n> na <MF/US> <id>: o comentário e o anexo acima, exatamente. Posso publicar?" | "This is round <n>'s publication on <item> <id>: exactly the comment and attachment above. May I publish it?" |
+| GC | "Estas são as respostas encontradas nos comentários, por REV. Confirma quais viram definição (todas, algumas ou nenhuma)?" | "These are the answers found in the comments, per REV. Which ones become definitions (all, some or none)?" |
+| P2 | "Esta é a publicação do relatório final na <MF/US> <id>: o anexo e o comentário acima, exatamente. Posso publicar?" | "This is the final report's publication on <item> <id>: exactly the attachment and comment above. May I publish it?" |

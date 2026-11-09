@@ -1,6 +1,6 @@
 {
   "name": "quality-agents",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Portable, vendor-neutral Agent Skills for software quality engineering.",
   "license": "MIT",
@@ -35,6 +35,9 @@
     "xlsx": "node scripts/xlsx.mjs",
     "pdf": "node scripts/pdf.mjs",
     "docx": "node scripts/docx.mjs",
+    "excalidraw": "node scripts/excalidraw.mjs",
+    "doc-check": "node scripts/doc-check.mjs",
+    "doc-render": "node scripts/doc-render.mjs",
     "check-output": "node scripts/check-output.mjs",
     "dist:win": "node scripts/build-desktop.mjs && electron-builder --win nsis",
     "dist:mac": "node scripts/build-desktop.mjs && electron-builder --mac dmg",

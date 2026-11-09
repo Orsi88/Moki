@@ -101,6 +101,7 @@ In the desktop app, **Settings › Operations** links agents into an operation: 
 - **Start**: the step chosen with *Start with this step*, or the one no arrow leads to. One step runs at a time (no steps in parallel).
 - A step whose agent executes through an MCP always waits for your approval.
 - Operations are saved in `workspace/library/operations/<id>.json` (stays on your computer).
+- Ready-made designs to build: [operation recipes](operation-recipes.md).
 
 ### Running one in a project
 

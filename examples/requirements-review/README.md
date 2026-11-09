@@ -38,3 +38,35 @@ Stage 5–6:
 - [ ] With the returned matrix, asks the G3 question verbatim before the PDF.
 - [ ] The PDF reads as a consolidated specification (no Q&A sections, no "decisões tomadas" section).
 - [ ] All files are under `workspace/projects/acme-library/runs/<run-id>/`.
+
+## Tracker cases (simulated tracker)
+
+The tester plays Azure DevOps or Jira (or uses a test project). The story of `user-story.md` is item `LIB-210`.
+
+Reading:
+
+- [ ] "Revise a MF" without an id: asks for **the item number or the URL** before anything else.
+- [ ] "Revise a MF LIB-210": reads it through `dispatch` (description, criteria, comments, attachments, links), saves the snapshot and the `sources` entry, and reviews it like the pasted story.
+- [ ] Tracker down: says so, asks the user to paste the story; the review goes on, `origin: user`.
+
+Round publication (after the matrix):
+
+- [ ] Generating the matrix (G1) does not publish it. The agent offers publication; the preview shows **one consolidated comment** holding only the points that need the team, each identified by its `REV-XXX`, ending with the signature line, plus the matrix as attachment and the target `LIB-210`.
+- [ ] Nothing is published before the P1 answer; "só o comentário" publishes only the comment.
+
+Answers from comments (stage 6):
+
+- [ ] Tester adds comments after the round: "REV-002: o limite é 2 renovações" (Ana), "REV-002: são 3 renovações" (Rui), and one with no id: "o bloqueio por multa vale para todos".
+- [ ] The table maps the first two to REV-002 and flags them as **contradicting each other** (author, date, link of each); the third gets a proposed REV marked *uncertain*.
+- [ ] Stops at GC; no answer becomes a definition before the user confirms; the contradiction goes back to the interview, one question at a time.
+- [ ] Reading the comments does not lead to the PDF: G3 is still asked.
+
+Report publication:
+
+- [ ] After G3 and the PDF, the attachment is published only after the P2 preview and answer.
+
+## In an operation (recipe "Pente-fino", docs/operation-recipes.md)
+
+- [ ] First visit of the round-reviewer step: does not create its own run nor touch the operation's `state.json`; reviews up to G1 and the matrix; writes `publication-round-1.md` (target item, the round comment with REV ids, the matrix to attach) in its step's outputs; **publishes nothing**; the handoff starts with `outcome: matrix-ready`.
+- [ ] The Wiggins step shows the exact comment and attachment from that file (no text changed, signature added), publishes only after the OK, writes `publication-report.md`, ends `published`.
+- [ ] Second visit of the round reviewer (after the arrow "the team answered"): continues from its earlier matrix and REV ids; reads the answers; GC; ends `pending` with `publication-round-2.md`, or asks G3, generates the PDF and ends `report-ready` with `publication-report.md`.

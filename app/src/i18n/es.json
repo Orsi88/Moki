@@ -1761,5 +1761,20 @@
   "Prototype an interface with Artesão": "Crear un prototipo de interfaz con Artesão",
   "visual design, working interactions, responsiveness and browser review": "diseño visual, interacciones funcionales, adaptabilidad y revisión en el navegador",
   "Validate an API with Sentinela": "Validar una API con Sentinela",
-  "contracts, coverage, permissions and approved execution with evidence": "contratos, cobertura, permisos y ejecución aprobada con evidencias"
+  "contracts, coverage, permissions and approved execution with evidence": "contratos, cobertura, permisos y ejecución aprobada con evidencias",
+  "Investigate with Sherlock": "Investigar con Sherlock",
+  "Cross-examine with Moriarty": "Contrainterrogar con Moriarty",
+  "Write a document with Watson": "Escribir un documento con Watson",
+  "analysis or investigation document, well structured, with diagrams": "documento de análisis o investigación, bien estructurado, con diagramas",
+  "critical review of a deliverable, with a verdict and ranked findings": "revisión crítica de un entregable, con veredicto y hallazgos por gravedad",
+  "deep research with grounded references, delivered as a dossier": "investigación a fondo con referencias fundamentadas, entregada como dosier",
+  "OAuth sign-in (optional)": "Inicio de sesión OAuth (opcional)",
+  "Client id": "Client id",
+  "Callback port": "Puerto de callback",
+  "For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.": "Para servidores que inician sesión con tu propio registro de aplicación (Azure DevOps remoto en Claude Code). Solo un client id público, nunca un secreto. Se escribe solo para Claude Code.",
+  "Review an MF from the tracker": "Revisar una MF del tracker",
+  "reads the item from Azure DevOps or Jira by its number or URL": "lee el elemento de Azure DevOps o Jira por su número o URL",
+  "Register items with Lestrade": "Registrar elementos con Lestrade",
+  "bugs, impediments, tasks, improvements or any type of Azure DevOps or Jira, from your material": "bugs, impedimentos, tareas, mejoras o cualquier tipo de Azure DevOps o Jira, a partir de tu material",
+  "any document, organized, designed and checked, with diagrams": "cualquier documento, organizado, diseñado y revisado, con diagramas"
 }
