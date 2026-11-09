@@ -122,6 +122,34 @@ test('configurations for Claude Code and Cursor; merging keeps the person\'s ent
   assert.equal(merged.other, 1);
 });
 
+test('OAuth: an HTTP server keeps its public client for Claude Code; never a secret; nothing changes without it', () => {
+  const ado = clean({ id: 'ado', name: 'Azure DevOps', transport: 'http', url: 'https://mcp.dev.azure.com/acme', oauth: { clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: '3118' } });
+  assert.deepEqual(ado.oauth, { clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: 3118 });
+  const entries = [{ key: 'moki-ado', server: ado }];
+  assert.deepEqual(toolConfig(entries, 'claude').mcpServers['moki-ado'], { type: 'http', url: 'https://mcp.dev.azure.com/acme', oauth: { clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: 3118 } });
+  assert.deepEqual(toolConfig(entries, 'cursor').mcpServers['moki-ado'], { url: 'https://mcp.dev.azure.com/acme' }, 'Cursor does not get the Claude-only block');
+  assert.deepEqual(mergeCodex('', entries).skipped, ['moki-ado: OAuth sign-in']);
+  // Without oauth the server and its generated entry are exactly what they were before.
+  const plain = clean({ id: 'gh', name: 'GH', transport: 'http', url: 'https://x.dev/mcp' });
+  assert.equal('oauth' in plain, false);
+  assert.deepEqual(toolConfig([{ key: 'moki-gh', server: plain }], 'claude').mcpServers['moki-gh'], { type: 'http', url: 'https://x.dev/mcp' });
+  assert.equal(clean({ name: 'Only id', transport: 'http', url: 'https://x.dev/mcp', oauth: { clientId: 'my-app' } }).oauth?.callbackPort, undefined);
+  assert.equal(clean({ name: 'Empty', transport: 'http', url: 'https://x.dev/mcp', oauth: { clientId: '' } }).oauth, undefined);
+  assert.equal(clean({ name: 'Stdio', command: 'npx', oauth: { clientId: 'x' } }).oauth, undefined, 'stdio servers have no oauth');
+  assert.throws(() => clean({ name: 'S', transport: 'http', url: 'https://x.dev', oauth: { clientId: 'x', clientSecret: 'y' } }), /never stores an OAuth client secret/);
+  assert.throws(() => clean({ name: 'P', transport: 'http', url: 'https://x.dev', oauth: { clientId: 'x', callbackPort: 80 } }), /1024 to 65535/);
+  assert.throws(() => clean({ name: 'I', transport: 'http', url: 'https://x.dev', oauth: { clientId: 'bad id!' } }), /client id may only/);
+  assert.throws(() => clean({ name: 'N', transport: 'http', url: 'https://x.dev', oauth: { callbackPort: 3118 } }), /give the OAuth client id/);
+});
+
+test('OAuth: import keeps the client of a Claude Code configuration and leaves a client secret out', () => {
+  const r = importConfig(JSON.stringify({ mcpServers: { ado: { type: 'http', url: 'https://mcp.dev.azure.com/acme', oauth: { clientId: 'abc-123', callbackPort: 3118, clientSecret: 'hidden-value' } } } }));
+  const server = clean(r.servers[0]);
+  assert.deepEqual(server.oauth, { clientId: 'abc-123', callbackPort: 3118 });
+  assert.deepEqual(r.replaced, ['ado: oauth.clientSecret left out (Moki never stores it)']);
+  assert.ok(!JSON.stringify(r).includes('hidden-value'));
+});
+
 test('variables are read only when a server starts; a missing one says which, never a value', () => {
   const s = clean({ id: 'jira', name: 'Jira', command: 'npx', env: { TOKEN: '${JIRA_TOKEN}', URL: 'https://${HOST}/x' } });
   assert.throws(() => resolveServer(s, { HOST: 'h' }), /JIRA_TOKEN/);

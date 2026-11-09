@@ -1,0 +1,18 @@
+{
+  "direction": "LR",
+  "nodes": [
+    { "id": "user", "label": "User", "shape": "ellipse" },
+    { "id": "sp", "label": "Service provider", "color": "blue" },
+    { "id": "idp", "label": "Identity provider", "color": "green" },
+    { "id": "check", "label": "Valid assertion?", "shape": "diamond", "color": "yellow" },
+    { "id": "ok", "label": "Session created", "color": "green" },
+    { "id": "deny", "label": "Access denied", "color": "red" }
+  ],
+  "edges": [
+    { "from": "user", "to": "sp", "label": "opens" },
+    { "from": "sp", "to": "idp", "label": "redirects" },
+    { "from": "idp", "to": "check", "label": "assertion" },
+    { "from": "check", "to": "ok", "label": "yes" },
+    { "from": "check", "to": "deny", "label": "no", "dashed": true }
+  ]
+}

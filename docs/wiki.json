@@ -10,12 +10,14 @@
     { "title": "QA work", "pages": [
       { "file": "qa-skills.md", "page": "QA skills and agents", "pt": { "file": "pt-BR/qa-skills.md", "page": "Skills de QA e agentes" } },
       { "file": "activities.md", "page": "Activities", "pt": { "file": "pt-BR/activities.md", "page": "Atividades" } },
-      { "file": "agents.md", "page": "Agents and operations" }
+      { "file": "agents.md", "page": "Agents and operations" },
+      { "file": "operation-recipes.md", "page": "Operation recipes", "pt": { "file": "pt-BR/operation-recipes.md", "page": "Receitas de operação" } }
     ] },
     { "title": "Tools", "pages": [
       { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } },
       { "file": "engineering-specialists.md", "page": "Engineering specialists", "pt": { "file": "pt-BR/engineering-specialists.md", "page": "Especialistas de engenharia" } },
       { "file": "mcp-servers.md", "page": "MCP servers" },
+      { "file": "trackers.md", "page": "Azure DevOps and Jira", "pt": { "file": "pt-BR/trackers.md", "page": "Azure DevOps e Jira" } },
       { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } }
     ] },
     { "title": "Help", "pages": [

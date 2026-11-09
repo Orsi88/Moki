@@ -17,12 +17,13 @@ interface Props { project: ProjectSummary | null; projects: ProjectSummary[] }
 
 type Filter = 'all' | 'global' | 'specific' | 'ok' | 'failing' | 'untested' | 'off';
 type Tab = 'config' | 'env' | 'tools';
-interface Draft { id: string; name: string; description: string; transport: 'stdio' | 'http'; command: string; args: string; url: string; pairs: string; access: 'read' | 'execute'; enabled: boolean; global: boolean; projects: string[] }
+interface Draft { id: string; name: string; description: string; transport: 'stdio' | 'http'; command: string; args: string; url: string; pairs: string; clientId: string; callbackPort: string; access: 'read' | 'execute'; enabled: boolean; global: boolean; projects: string[] }
 
-const EMPTY: Draft = { id: '', name: '', description: '', transport: 'stdio', command: '', args: '', url: '', pairs: '', access: 'read', enabled: true, global: true, projects: [] };
+const EMPTY: Draft = { id: '', name: '', description: '', transport: 'stdio', command: '', args: '', url: '', pairs: '', clientId: '', callbackPort: '', access: 'read', enabled: true, global: true, projects: [] };
 const toDraft = (s: McpServer): Draft => ({
   id: s.id, name: s.name, description: s.description, transport: s.transport, command: s.command, args: s.args.join('\n'), url: s.url,
   pairs: Object.entries(s.transport === 'http' ? s.headers : s.env).map(([k, v]) => `${k}=${v}`).join('\n'),
+  clientId: s.oauth?.clientId ?? '', callbackPort: s.oauth?.callbackPort ? String(s.oauth.callbackPort) : '',
   access: s.access, enabled: s.enabled, global: !s.projects.length, projects: s.projects,
 });
 const fromDraft = (d: Draft): Partial<McpServer> => {
@@ -30,7 +31,9 @@ const fromDraft = (d: Draft): Partial<McpServer> => {
   return {
     ...(d.id ? { id: d.id } : {}), name: d.name, description: d.description, transport: d.transport, command: d.command,
     args: d.args.split('\n').map((a) => a.trim()).filter(Boolean), url: d.url,
-    env: d.transport === 'stdio' ? pairs : {}, headers: d.transport === 'http' ? pairs : {}, access: d.access, enabled: d.enabled,
+    env: d.transport === 'stdio' ? pairs : {}, headers: d.transport === 'http' ? pairs : {},
+    ...(d.transport === 'http' && (d.clientId.trim() || d.callbackPort.trim()) ? { oauth: { clientId: d.clientId.trim(), ...(d.callbackPort.trim() ? { callbackPort: Number(d.callbackPort.trim()) } : {}) } } : {}),
+    access: d.access, enabled: d.enabled,
     projects: d.global ? [] : d.projects,
   };
 };
@@ -215,6 +218,16 @@ export function McpManager({ project, projects: summaries }: Props) {
                 <textarea rows={6} value={draft.pairs} placeholder={draft.transport === 'http' ? 'Authorization=Bearer ${GITHUB_TOKEN}' : 'API_TOKEN=${MY_API_TOKEN}'} onChange={(e) => set({ pairs: e.target.value })} />
                 <span className="muted small">{t('Credentials go as ${VARIABLE}: Moki never stores their values, it reads them from this computer\'s environment when the server starts.')}</span>
               </label>
+            )}
+            {tab === 'env' && draft.transport === 'http' && (
+              <div className="field mcp-oauth">
+                <span className="label">{t('OAuth sign-in (optional)')}</span>
+                <div className="mcp-oauth-row">
+                  <label className="field"><span className="label small">{t('Client id')}</span><input value={draft.clientId} placeholder="00000000-0000-0000-0000-000000000000" onChange={(e) => set({ clientId: e.target.value })} /></label>
+                  <label className="field"><span className="label small">{t('Callback port')}</span><input inputMode="numeric" value={draft.callbackPort} placeholder="3118" onChange={(e) => set({ callbackPort: e.target.value })} /></label>
+                </div>
+                <span className="muted small">{t('For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.')}</span>
+              </div>
             )}
             {tab === 'tools' && (
               current?.status

@@ -1,0 +1,11 @@
+{
+  "actions": [
+    {
+      "id": "A1", "tracker": "azure-devops", "project": "contoso/Library", "operation": "comment", "target": "1234",
+      "summary": "Review round 1: REV-001 to REV-004",
+      "signature": "Registered via Moki · run 20261108-0900-requirements-review-renewal · action A1",
+      "dependsOn": [], "state": "running", "result": null,
+      "error": null, "approvedAt": "2026-11-08T11:02:00Z", "updatedAt": "2026-11-08T11:02:01Z"
+    }
+  ]
+}

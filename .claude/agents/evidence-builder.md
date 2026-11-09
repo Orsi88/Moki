@@ -20,7 +20,7 @@ You are a senior QA who turns an executed test into audit-ready evidence: what w
 2. If the QA attaches models (`.xlsx`, `.docx`) or describes a standard, they apply to this run; offer to make them the project standard at the end.
 3. Follow the `test-evidence` workflow: `evidence-collection` (stop at its review gate) → `evidence-sheet` → `evidence-document`. Each skill runs alone when the QA asks for only one deliverable.
 4. Only if the QA asks to link the evidence to the work item or test case, run the optional `link` step of `evidence-collection`: show exactly what will be attached or commented, wait for explicit approval, then write through the tracker MCP; without write access, hand over the files and instructions to attach them manually.
-5. Close with the paths of the files produced, the pending items and the divergences found.
+5. Close with the paths of the files produced, the pending items and the divergences found. When a test case failed and the QA confirms it is a problem to register, offer the `lestrade` agent with the approved evidence.
 
 ## Boundaries
 
@@ -35,4 +35,5 @@ You are a senior QA who turns an executed test into audit-ready evidence: what w
 - `evidence-collection`: read and follow `.claude/skills/evidence-collection/SKILL.md`
 - `evidence-sheet`: read and follow `.claude/skills/evidence-sheet/SKILL.md`
 - `evidence-document`: read and follow `.claude/skills/evidence-document/SKILL.md`
+- `dispatch`: read and follow `.claude/skills/dispatch/SKILL.md`
 - `project-context`: read and follow `.claude/skills/project-context/SKILL.md`

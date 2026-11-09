@@ -14,6 +14,12 @@ Synthetic material for exercising the skills. Everything here is fictional ("Acm
 | [database-engineering](database-engineering/README.md) | `database-engineering` | en |
 | [solution-design](solution-design/README.md) | `solution-design` | en |
 | [interface-prototyping](interface-prototyping/README.md) | `interface-prototyping` | en |
+| [deduction](deduction/README.md) | `deduction` | en |
+| [cross-examination](cross-examination/README.md) | `cross-examination` | en |
+| [chronicle](chronicle/README.md) | `chronicle` | en |
+| [blueprint](blueprint/README.md) | `blueprint` | en |
+| [dispatch](dispatch/README.md) | `dispatch` | en (simulated tracker) |
+| [item-report](item-report/README.md) | `item-report` | en (simulated tracker) |
 | [evidence-collection](evidence-collection/README.md) | `evidence-collection` | en |
 | [evidence-sheet](evidence-sheet/README.md) | `evidence-sheet` | en (model in pt-BR) |
 | [evidence-document](evidence-document/README.md) | `evidence-document` | en |

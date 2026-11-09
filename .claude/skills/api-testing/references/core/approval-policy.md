@@ -12,7 +12,12 @@ Automation does not remove the QA professional's responsibility. Skills prepare,
 - Modifying code or files in any target repository.
 - Running anything against shared or production-like environments.
 - Sending data to an external service.
+- Writing to a work item tracker (creating, editing, commenting, attaching, linking, changing state) — each write, through an exact preview. Approving that a document be produced does not approve publishing it.
 - Deleting or overwriting any user file.
+
+## What does not need approval each time
+
+- Reading, through an MCP server the project has with read access, the tracker items of the current activity (the items named in the request or recorded in the run's `sources`, and the linked items the work already used), including the freshness check at start and resume. Reading other items or other projects is not covered.
 
 ## How to request approval
 
