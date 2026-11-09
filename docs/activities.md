@@ -22,7 +22,7 @@ An operation, including an activity that points to one, always opens its own sta
 | Source | Where | Can you change it? |
 |---|---|---|
 | **Moki actions** | In the app's code: *Just open the project*, *Project context*, *Prepare the project*, *Plan the project with the AI*, *Resume a run* | No: their requests depend on the app (the project's plan, the run to resume). You can star them |
-| **Comes with Moki** | [activities/](../activities/) in the framework: *Review user stories*, *Design tests*, *Review, then design tests*, *Failure pre-analysis*, *Build test evidence*, *Investigate with Sherlock*, *Cross-examine with Moriarty*, *Write a document with Watson*, *Review an MF from the tracker*, *Register an item with Lestrade*, *Automation* | Read-only: **Duplicate to edit** makes a copy that is yours |
+| **Comes with Moki** | [activities/](../activities/) in the framework: *Review user stories*, *Design tests*, *Review, then design tests*, *Failure pre-analysis*, *Build test evidence*, *Investigate with Sherlock*, *Cross-examine with Moriarty*, *Write a document with Watson*, *Review an MF from the tracker*, *Register items with Lestrade*, *Automation* | Read-only: **Duplicate to edit** makes a copy that is yours |
 | **Yours** | `workspace/library/activities/<id>.md` | Yes, in **Settings › Activities** |
 
 Your activities reach projects by **tags**, like agents and templates: no tag means every project of the workspace; a project's own tag or a shared tag limits it to those projects.

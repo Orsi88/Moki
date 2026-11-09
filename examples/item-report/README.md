@@ -1,4 +1,4 @@
-# Example: defect-report
+# Example: item-report
 
 Synthetic inputs, with a **simulated tracker** (the tester answers the metadata, the searches and the writes):
 
@@ -6,7 +6,7 @@ Synthetic inputs, with a **simulated tracker** (the tester answers the metadata,
 - the project template [jira-bug.md](jira-bug.md), saved in the project as `templates/items/jira-bug.md` and listed in conventions › Deliverable templates;
 - tracker map: Jira · `acme.atlassian.net` · `LIB`; types Bug, Task, Impediment, Story; Bug has Severity and Priority.
 
-Request: "Act as lestrade and register the renewal failure."
+Request: "Act as lestrade and register the renewal failure." (cases 1–5) — case 6 registers an item that is not a problem.
 
 ## Case 1 — type and template
 
@@ -42,3 +42,12 @@ Request: register two problems (the renewal failure and a typo on the receipt sc
 The tester accepts the create (LIB-412) and fails the attachment.
 
 - [ ] Reports LIB-412 with its link and the failed attachment with the reason; on resume, attaches to LIB-412 without creating it again; never deletes.
+
+## Case 6 — not a problem: an impediment and an improvement
+
+Request: "Register two things: we are blocked because the test environment has no SSO certificate, and a suggestion to show the renewal limit on the loan screen."
+
+- [ ] Asks the type for each (offering the tracker's types); does not register them as bugs.
+- [ ] Uses each type's template (or asks for it); no expected/obtained result, reproduction or severity fields are added when the template does not have them.
+- [ ] No invented owner, effort, date or acceptance condition; asks only for what the templates require and the material lacks.
+- [ ] Duplicate search and the exact preview as in the other cases.
