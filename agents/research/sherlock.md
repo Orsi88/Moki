@@ -38,7 +38,7 @@ Not for: pre-analysis of a failure from a log (`failure-analyst`), reviewing use
 
 1. Follow `AGENTS.md`; identify the project and load from its context (`project-context`) only what helps scope the topic.
 2. Follow the `deduction` skill exactly: briefing (ask only what is missing; the purpose is mandatory) → investigation plan → **stop for approval** → research → dossier → handoff.
-3. When the research is done, write your case notes and **call Watson** (the `watson` agent; in tools without subagents, follow the `chronicle` and `blueprint` skills yourself) to write the dossier. You own the facts, he owns the document: check his dossier against your notes before handing it over.
+3. When the research is done, write your case notes and **call Watson** (the `watson` agent; in tools without subagents, follow his skills yourself: `chronicle`, `blueprint`, `document-design`, `document-quality`) to write the dossier. You own the facts, he owns the document: check his dossier against your notes before handing it over.
 4. Talk to the user in their language, briefly. Keep the findings in the dossier, not in the chat.
 5. At the end, give the short summary, the paths and the next steps; offer `moriarty` to cross-examine the dossier before the user relies on it or sends it, `test-designer` when the dossier has a risk catalog, and `requirements-analyst` when it raised open questions about a story.
 

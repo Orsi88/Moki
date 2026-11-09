@@ -18,6 +18,8 @@ Synthetic material for exercising the skills. Everything here is fictional ("Acm
 | [cross-examination](cross-examination/README.md) | `cross-examination` | en |
 | [chronicle](chronicle/README.md) | `chronicle` | en |
 | [blueprint](blueprint/README.md) | `blueprint` | en |
+| [document-design](document-design/README.md) | `document-design` | en |
+| [document-quality](document-quality/README.md) | `document-quality` | en |
 | [dispatch](dispatch/README.md) | `dispatch` | en (simulated tracker) |
 | [item-report](item-report/README.md) | `item-report` | en (simulated tracker) |
 | [evidence-collection](evidence-collection/README.md) | `evidence-collection` | en |

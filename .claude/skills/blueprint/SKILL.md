@@ -42,17 +42,18 @@ Do not use when a table or a list says it better (a comparison of attributes is 
 
 ## Procedure
 
-1. **`decide`** — Check that a diagram adds understanding. Choose the type from [diagram types](references/diagram-types.md) by the question it answers (how does it flow? who talks to whom, in which order? how is it organized? when did it happen? how do options compare on two axes?). Default to **Mermaid**; use **Excalidraw** when the user wants a drawing to rearrange by hand, a free-form sketch, or asks for it.
-2. **`draw`** —
+1. **`decide`** — Check that a diagram adds understanding. Plan it with the [composition method](references/composition.md): the question it answers (it becomes the caption), the elements and relations the text states, the type ([diagram types](references/diagram-types.md)). Default to **Mermaid**; use **Excalidraw** when the user wants a drawing to rearrange by hand, a free-form sketch, or asks for it.
+2. **`draw`** — Lay out, label and style following the [composition method](references/composition.md) (one reading direction, main path straight, groups, few crossings, short labels with their conditions, shapes and colours with one meaning each).
    - Mermaid: write the block following the [Mermaid rules](references/diagram-types.md#mermaid-rules).
    - Excalidraw: write the spec (in the run's work folder), run the script with `--fence`, paste the block into the document.
    Give the diagram a one-line caption above it that says what it shows; if it summarizes sources, cite them in the caption.
-3. **`check`** — Re-read the diagram against the text: every node and arrow corresponds to something stated; nothing the text does not say. Check the limits (at most 15 nodes; short labels). If the tool can render Mermaid or the user opens the file in Moki and it fails to draw, fix the syntax.
+3. **`check`** — Re-read the diagram against the text: every node and arrow corresponds to something stated; nothing the text does not say. Check the limits (at most 15 nodes; short labels); `npm run doc-check -- <file.md>` checks the blocks' type line, HTML, `click`, size and Excalidraw scenes. Inspect it rendered when possible (in Moki, or with `npm run doc-render`, whose pictures go to the project's temporary folder, when the AI tool can read images): readable labels, no overlap, clear arrows, few crossings; fix and check again. When it cannot be rendered or seen, say that the visual check was not done. **Updating a drawing the user edited by hand**: never regenerate it over their adjustments; change only what the content requires, or ask.
 
 ## Rules and constraints
 
 - **Inside the Markdown, as source.** Diagrams are fenced blocks in the `.md` deliverable. No PNG/SVG/PDF copies unless the user asks ([deliverables only](references/core/execution-principles.md)).
 - **Small and readable**: at most 15 nodes; labels of a few words; one idea per diagram. Bigger content → split into two diagrams or use a table.
+- **Composed, not just valid**: valid syntax is only part of the check; the diagram must be understandable at a glance ([composition](references/composition.md)).
 - **Faithful**: a diagram never adds facts. In a dossier, a node that states a finding carries its finding id (F3) so it traces to the citation.
 - **Accessible**: the caption and the surrounding text carry the meaning too; never rely on color alone.
 - Excalidraw only through the script; Mermaid only with the syntax in the rules (no HTML labels, no click handlers, no external links — Moki draws Mermaid in strict mode).
