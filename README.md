@@ -45,6 +45,7 @@ Your projects live in **Documents\Moki**, and a newer installer never touches th
 | [Failure pre-analysis](skills/failure-analysis/SKILL.md) | A short note for developers, from your description and the log |
 | [Build test evidence](skills/qa-orchestrator/references/workflows/test-evidence.md) | The work item and the Jam recordings, then a spreadsheet and a Word document with the prints |
 | [Project context](skills/project-context/SKILL.md) | Onboarding, updates, and the plan for a blank project |
+| [Engineering specialists](docs/engineering-specialists.md) | Cartógrafo for data, Inventor for solutions, Artesão for working interface prototypes and Sentinela for API assessment/validation |
 
 Agents chain these into **multi-agent operations**, MCP servers give the AI your tools (Playwright, Azure DevOps, Jira…), and the **VS Code extension** brings the project's context to the AI of your editor.
 

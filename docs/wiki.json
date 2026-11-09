@@ -13,6 +13,7 @@
       { "file": "agents.md", "page": "Agents and operations" }
     ] },
     { "title": "Tools", "pages": [
+      { "file": "engineering-specialists.md", "page": "Engineering specialists", "pt": { "file": "pt-BR/engineering-specialists.md", "page": "Especialistas de engenharia" } },
       { "file": "mcp-servers.md", "page": "MCP servers" },
       { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } }
     ] },

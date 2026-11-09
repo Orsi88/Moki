@@ -27,6 +27,8 @@ An operation, including an activity that points to one, always opens its own sta
 
 Your activities reach projects by **tags**, like agents and templates: no tag means every project of the workspace; a project's own tag or a shared tag limits it to those projects.
 
+The built-in list also includes **Model data with Cartógrafo**, **Design a solution with Inventor**, **Prototype an interface with Artesão** and **Validate an API with Sentinela**. They accept optional input files and a brief in the note. See [engineering specialists](engineering-specialists.md) for scope, outputs, approvals and examples.
+
 ## Settings › Activities
 
 The tab lists every activity with filters (All, Favorites, Comes with Moki, Your activities, Moki actions) and a search field.

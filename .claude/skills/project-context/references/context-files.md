@@ -30,6 +30,11 @@ Load only what the activity needs. Within a file, load only the sections for the
 | test-design | glossary, business-rules (affected modules), flows, conventions, system-characteristics | actors-and-permissions, integrations |
 | failure-analysis | environments-and-tools (logs section), modules (affected module), integrations | flows |
 | api-testing | environments-and-tools (environments, credentials source), integrations (APIs), conventions | business-rules, modules |
+| api-assessment | integrations (contracts), business-rules, actors-and-permissions, conventions | flows, environments-and-tools, modules |
+| data-modeling | glossary, business-rules, flows, conventions | actors-and-permissions, integrations, environments-and-tools (engine/version) |
+| database-engineering | environments-and-tools (engine/version, target, credential source), conventions, integrations | business-rules, flows, actors-and-permissions |
+| solution-design | overview, modules, business-rules, conventions | actors-and-permissions, flows, integrations, system-characteristics, environments-and-tools |
+| interface-prototyping | overview, modules, actors-and-permissions, flows, conventions (design system) | integrations (contracts), business-rules, system-characteristics, environments-and-tools |
 | evidence-collection | environments-and-tools (trackers, MCP servers, whether the tracker MCP can write), conventions (id formats, deliverable templates) | modules |
 | evidence-sheet, evidence-document | conventions (deliverable language, deliverable templates) | — |
 | documentation (planned) | conventions, business-rules, flows | modules |

@@ -45,6 +45,7 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 | [Pré-análise de falha](skills/failure-analysis/SKILL.md) | Uma nota curta para o time de desenvolvimento, a partir da sua descrição e do log |
 | [Montar evidências](skills/qa-orchestrator/references/workflows/test-evidence.md) | O item de trabalho e as gravações do Jam, depois uma planilha e um documento Word com os prints |
 | [Contexto do projeto](skills/project-context/SKILL.md) | Onboarding, atualizações e o plano de um projeto em branco |
+| [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) | Cartógrafo para dados, Inventor para soluções, Artesão para protótipos funcionais de interface e Sentinela para avaliação/validação de APIs |
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
 

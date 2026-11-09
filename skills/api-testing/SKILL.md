@@ -24,7 +24,7 @@ Act as a **senior QA executing API tests**: send the requests described by the t
 - Propose a verdict per case; the QA confirms.
 - Save masked requests and responses and a result table in the run folder.
 
-Out of scope: designing the test cases (`test-design`); the evidence spreadsheet or document (`evidence-collection` and its follow-ups); analyzing the cause of a failure (`failure-analysis`); load, performance and security testing; writing automation code in a target repository (`automation`).
+Out of scope: designing the test cases (`test-design`); the evidence spreadsheet or document (`evidence-collection` and its follow-ups); analyzing the cause of a failure (`failure-analysis`); load, performance and active security testing; writing automation code in a target repository (`automation`). Documented functional authentication/authorization cases remain in scope under the approved plan; exploit scanning and credential attacks do not.
 
 ## When to use
 
@@ -48,7 +48,7 @@ Optional:
 
 - File read/write in the project folder.
 - A way to send HTTP requests: shell with `curl`, or Node (`fetch`), or an HTTP/Postman/Bruno MCP or CLI configured in the tool. Fallback without any: write the exact requests (curl commands) and the validation checklist, ask the QA to run them and paste the responses, then validate those; never claim a request was sent when it was not.
-- A JSON parser (`jq`, Node) to check schema and fields. Without it, compare by reading and say that the check was manual.
+- A JSON parser to inspect fields, and a schema validator supporting the contract's actual OpenAPI/JSON Schema version, dialect and reference resolution when schema validation is requested. A parser alone does not validate a schema. Without a compatible validator, state which checks were manual or incomplete; never claim automated schema conformance.
 
 ## Procedure
 
@@ -56,7 +56,7 @@ Optional:
 2. **Plan** (`plan`). Build the request list in `outputs/api-plan.md`: per case id, method, URL (with variables, never with secret values), data, expected status, expected schema or body fields, source of each expectation. An expectation the source does not document is not guessed: mark it `not defined` (only status and reachability are checked) and list it as pending.
 3. **Approval gate** (`approval`). Show the plan with the environment, the number of requests and which ones change state (POST, PUT, PATCH, DELETE or any call with side effects). Stop (`awaiting-approval`). Production or any environment the QA did not explicitly name as safe needs a separate, explicit confirmation naming the environment; state-changing requests run only if listed and approved.
 4. **Execute** (`execute`). Run in the approved order, only the approved requests, with the credential read from the environment or the secret store. Save each exchange masked in `evidence/` as `<case-id>-request.json` and `<case-id>-response.json` (status, headers that matter, body, time). Stop and report if a request fails 3 times for the same infrastructure reason ([execution principles](references/core/execution-principles.md)); never retry state-changing requests automatically.
-5. **Validate** (`validate`). For each case compare status, schema (when provided) and body fields with the expectation; list every difference with expected and actual values. Verdict proposed: `Passed` (all defined checks hold), `Failed` (a defined check differs), `Blocked` (could not run: auth, environment, dependency), `Not run`. Network or environment errors are `Blocked`, not `Failed`.
+5. **Validate** (`validate`). For each case compare status, schema (when provided) and body fields with the expectation; list every difference with expected and actual values. Respect the actual schema dialect, required fields, nullability, composition and additional-property rules; extra fields are not automatically violations. Record validator support and any incomplete checks. Verdict proposed: `Passed` (all defined checks hold), `Failed` (a defined check differs), `Blocked` (could not complete: auth, environment, dependency or required validation capability), `Not run`. Network or environment errors are `Blocked`, not `Failed`; a required check left incomplete prevents `Passed`.
 6. **Report** (`report`). Write `outputs/api-results.md` (and `api-results.json`) with the table of cases, verdicts, differences, response times and pending items. Show a summary and ask the QA to confirm or correct the verdicts. Stop (`awaiting-approval`).
 7. **Close** (`close`). After confirmation, mark each verdict as confirmed or corrected, set the run `completed`, and offer the next steps: failure pre-analysis for failed cases (`failure-analysis`) and evidence deliverables (`evidence-collection`).
 
@@ -106,7 +106,7 @@ Para executar os testes de API, preciso de:
 
 ## Error handling
 
-- Authentication failing (401/403) with a credential from the environment: stop, mark the affected cases `Blocked`, ask the QA; do not try other credentials.
+- A documented negative case expecting 401/403 is validated normally against its expected status/body; it is not automatically an authentication blockage. If a credential unexpectedly fails before a case's intended behavior can be exercised, block dependent cases and ask the QA; do not try other credentials. A response violating a defined authorization expectation is a case difference, not merely an environment problem.
 - Timeout, DNS or TLS error: retry a read-only request once; then `Blocked` with the error.
 - Response that is not the documented format (not JSON, empty): save it masked, mark the difference, do not coerce.
 - No HTTP capability in the tool: use the fallback in [Tools](#tools).

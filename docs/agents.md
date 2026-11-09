@@ -68,6 +68,8 @@ The `framework` category maintains Moki itself, not a project: its agents are fo
 
 ## Agents per project
 
+[Engineering specialists](engineering-specialists.md) covers Cartógrafo (data and databases), Inventor (solutions), Artesão (interfaces) and Sentinela (API assessment and validation). Their activities load the role directly, preserve each skill's gates and ask for the requested output format. They are independent usable drafts; no operation or external skill installation is required.
+
 `project.json` may list the agents enabled in that project:
 
 ```json

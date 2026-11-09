@@ -1746,5 +1746,14 @@
   "Group shown in this view": "Grupo mostrado nesta divisão",
   "Choose a group above, or drag a tab here.": "Escolha um grupo acima ou arraste uma aba para cá.",
   "Resize the views": "Redimensionar as divisões",
-  "{name} (right click: name and color)": "{name} (botão direito: nome e cor)"
+  "{name} (right click: name and color)": "{name} (botão direito: nome e cor)",
+  "Engineering": "Engenharia",
+  "Model data with Cartógrafo": "Modelar dados com o Cartógrafo",
+  "entities, relationships, dictionaries and coherent database structures": "entidades, relacionamentos, dicionários e estruturas de banco coerentes",
+  "Design a solution with Inventor": "Desenhar uma solução com o Inventor",
+  "problem, requirements, alternatives, architecture and delivery plan": "problema, requisitos, alternativas, arquitetura e plano de entrega",
+  "Prototype an interface with Artesão": "Prototipar uma interface com o Artesão",
+  "visual design, working interactions, responsiveness and browser review": "design visual, interações funcionais, responsividade e revisão no navegador",
+  "Validate an API with Sentinela": "Validar uma API com o Sentinela",
+  "contracts, coverage, permissions and approved execution with evidence": "contratos, cobertura, permissões e execução aprovada com evidências"
 }

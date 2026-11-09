@@ -1746,5 +1746,14 @@
   "Group shown in this view": "Grupo mostrado en esta vista",
   "Choose a group above, or drag a tab here.": "Elige un grupo arriba o arrastra una pestaña aquí.",
   "Resize the views": "Cambiar el tamaño de las vistas",
-  "{name} (right click: name and color)": "{name} (clic derecho: nombre y color)"
+  "{name} (right click: name and color)": "{name} (clic derecho: nombre y color)",
+  "Engineering": "Ingeniería",
+  "Model data with Cartógrafo": "Modelar datos con Cartógrafo",
+  "entities, relationships, dictionaries and coherent database structures": "entidades, relaciones, diccionarios y estructuras de base de datos coherentes",
+  "Design a solution with Inventor": "Diseñar una solución con Inventor",
+  "problem, requirements, alternatives, architecture and delivery plan": "problema, requisitos, alternativas, arquitectura y plan de entrega",
+  "Prototype an interface with Artesão": "Crear un prototipo de interfaz con Artesão",
+  "visual design, working interactions, responsiveness and browser review": "diseño visual, interacciones funcionales, adaptabilidad y revisión en el navegador",
+  "Validate an API with Sentinela": "Validar una API con Sentinela",
+  "contracts, coverage, permissions and approved execution with evidence": "contratos, cobertura, permisos y ejecución aprobada con evidencias"
 }
