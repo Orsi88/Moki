@@ -1,5 +1,7 @@
 // Status bar numbers, as in Orca: how much of each AI plan is used (Usage popover), and the
-// memory of Moki and of the terminals of each project (Resource Manager) (desktop/usage.ts).
+// memory of Moki and, apart, of the terminals of each project with the AI tools they run
+// (Resource Manager) (desktop/usage.ts). The two are never added into one number: the AI tools
+// are not Moki, and they usually use most of the memory.
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, type TerminalRef, type Usage } from '../api';
@@ -15,6 +17,19 @@ const left = (at: number | null): string => {
   const d = Math.floor(min / 1440), h = Math.floor(min / 60) % 24, m = min % 60;
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 };
+
+type Memory = Usage['memory'];
+const KIND_LABEL: Record<Memory['appGroups'][number]['kind'], string> = {
+  main: 'Main process', window: 'Main window', notes: 'Notes windows', search: 'Search window', gpu: 'Graphics (GPU)', other: 'Other Chromium processes',
+};
+// The bar's measure: column label, the total's label and what it means.
+const METRIC: Record<Memory['kind'], { label: string; total: string; help: string }> = {
+  pss: { label: 'PSS', total: 'PSS (real memory)', help: 'PSS: memory shared between processes is split among them, so the numbers add up without counting it twice.' },
+  private: { label: 'Private', total: 'Private bytes', help: 'Private bytes: memory used only by that process.' },
+  rss: { label: 'RSS', total: 'Σ RSS', help: 'RSS: resident memory; memory shared between processes is counted in each one.' },
+};
+const MOKI = '\0moki'; // keys of the two groups in the collapsed set (project ids are never like these)
+const TOOLS = '\0tools';
 
 const Bar = ({ percent }: { percent: number }) => (
   <span className={`usage-bar${percent >= 80 ? ' high' : ''}`}><span style={{ width: `${percent}%` }} /></span>
@@ -42,9 +57,8 @@ export function UsageStatus({ names, terminals = [], onTerminal }: { names: Reco
   }, [load, watching]);
   if (!usage) return null;
   const { plans, memory } = usage;
-  const measured = memory.app + memory.projects.reduce((n, p) => n + p.bytes, 0); // PSS on Linux, RSS elsewhere
-  const rss = memory.appRss + memory.projects.reduce((n, p) => n + p.rssBytes, 0);
-  const pss = memory.kind === 'pss';
+  const metric = METRIC[memory.kind];
+  const rss = memory.appRss + memory.projects.reduce((n, p) => n + p.rssBytes, 0); // always the RSS, shown next to another measure
   const sessions = memory.projects.reduce((n, p) => n + p.sessions.length, 0);
   const toggle = (id: string) => setClosed((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
   const refresh = (
@@ -69,10 +83,10 @@ export function UsageStatus({ names, terminals = [], onTerminal }: { names: Reco
           ))}
         </button>
       )}
-      <button type="button" className="usage-trigger" onClick={() => setOpen(open === 'memory' ? null : 'memory')} title={t('Memory of the computer, of Moki and of the terminals of each project')}>
-        <IconMemory size={13} /> {size(measured)}
+      <button type="button" className="usage-trigger" onClick={() => setOpen(open === 'memory' ? null : 'memory')} title={t('Memory of Moki and, apart, of the terminals and AI tools of each project')}>
+        <IconMemory size={13} /> Moki {size(memory.app)}
         <span className="usage-sep">·</span>
-        <IconTerminal size={13} /> {sessions}
+        <IconTerminal size={13} /> {sessions ? <>{t('AI')} {size(memory.tools)} ({sessions})</> : 0}
       </button>
       {open && (
         <div className="menu-backdrop" onMouseDown={() => setOpen(null)}>
@@ -99,15 +113,20 @@ export function UsageStatus({ names, terminals = [], onTerminal }: { names: Reco
             <div className="usage-pop" role="dialog" aria-label={t('Resource Manager')} onMouseDown={(e) => e.stopPropagation()}>
               <header className="usage-pop-head"><IconMemory size={14} /><strong>{t('Resource Manager')}</strong>{refresh}</header>
               <div className="usage-total">
-                <strong>{size(measured)}</strong> <span className="muted">{pss ? t('PSS (real memory)') : 'Σ RSS'}</span>
-                {pss && <span className="muted">· {size(rss)} {t('RSS (as the system reports it)')}</span>}
+                <strong>Moki {size(memory.app)}</strong>
+                <span className="muted">· {t('AI')} {size(memory.tools)} · {t(metric.total)}</span>
+                {memory.kind !== 'rss' && <span className="muted">· {size(rss)} {t('RSS (as the system reports it)')}</span>}
                 <span className="muted usage-computer">{t('Computer')} {size(memory.used)} / {size(memory.total)} ({Math.round((memory.used / memory.total) * 100)}%)</span>
               </div>
               <table>
-                <thead><tr><th>{t('Name')}</th><td>{pss ? 'PSS' : 'RSS'}</td></tr></thead>
+                <thead><tr><th>{t('Name')}</th><td title={t(metric.help)}>{t(metric.label)}</td></tr></thead>
                 <tbody>
-                  <tr><th><span className="usage-twisty" />Moki</th><td>{size(memory.app)}</td></tr>
-                  {memory.projects.map((p) => {
+                  <Group id={MOKI} label="Moki" bytes={memory.app} shut={closed.has(MOKI)} onToggle={toggle} />
+                  {!closed.has(MOKI) && memory.appGroups.map((g) => (
+                    <tr key={g.kind} className="usage-sub"><th>{t(KIND_LABEL[g.kind])}{g.count > 1 ? ` (${g.count})` : ''}</th><td>{size(g.bytes)}</td></tr>
+                  ))}
+                  <Group id={TOOLS} label={t('Terminals and AI tools')} bytes={memory.tools} shut={closed.has(TOOLS)} onToggle={toggle} />
+                  {!closed.has(TOOLS) && memory.projects.map((p) => {
                     const shut = closed.has(p.project);
                     return (
                       <Fragment key={p.project}>
@@ -138,10 +157,26 @@ export function UsageStatus({ names, terminals = [], onTerminal }: { names: Reco
                 </tbody>
               </table>
               {!memory.projects.length && <p className="muted small">{t('No terminal is running in a project.')}</p>}
+              <p className="muted small">{t(metric.help)}</p>
             </div>
           )}
         </div>
       )}
     </>
+  );
+}
+
+// A group row of the Resource Manager (Moki, or the terminals and AI tools), with its total.
+function Group({ id, label, bytes, shut, onToggle }: { id: string; label: string; bytes: number; shut: boolean; onToggle: (id: string) => void }) {
+  return (
+    <tr className="usage-group">
+      <th>
+        <button type="button" onClick={() => onToggle(id)} aria-expanded={!shut}>
+          <span className={`usage-twisty${shut ? '' : ' open'}`}><IconChevron size={12} /></span>
+          {label}
+        </button>
+      </th>
+      <td>{size(bytes)}</td>
+    </tr>
   );
 }

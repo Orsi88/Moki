@@ -44,7 +44,9 @@ Run them from a terminal **without** `QA_ROOT`, `QA_MCP_SERVER` or `QA_RUN_TOOL`
 | `md-preserve.test.ts` | Unit | The formatted editor rewrites only the edited stretch of a Markdown file: Windows line endings and the original spacing stay |
 | `tool-path.test.ts` | Unit | Finding the AI tools from the installed app: the PATH it builds from the terminal's and the usual install folders |
 | `tags.test.ts` | Unit | The one rule (no tag = every project) and the migrations of agents and document templates to tags |
-| `usage.test.ts` | Unit | Claude and Codex plan windows, memory per terminal and per project |
+| `usage.test.ts` | Unit | Claude and Codex plan windows; Moki's memory by role (main process, each kind of window, GPU) apart from the memory per terminal and per project; the bar's measure: PSS from `smaps_rollup` on Linux, private bytes on Windows, RSS on macOS, with the RSS always kept |
+| `terminals.test.ts` | Unit | A terminal's output: the end kept for a tab that comes back, batching to the window, backpressure, and calls into an AI terminal |
+| `search-cache.test.ts` | Unit | The text taken out of Word, PDF and spreadsheet files, kept per file version for the expanded search |
 | `i18n.test.ts` | Unit (static) | Every text of the app has a pt-BR translation that keeps its `{placeholders}` |
 | `icon-font.test.mjs` | Unit | The status bar cat glyph and the SVG path flattening |
 | `wiki.test.mjs` | Unit | The wiki built from `docs/`: every page, links rewritten, the in-development note, broken links stop it |

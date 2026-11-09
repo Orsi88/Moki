@@ -81,6 +81,12 @@
     "appId": "io.github.orsi88.qualityagents",
     "productName": "Moki",
     "copyright": "MIT License",
+    "electronLanguages": [
+      "en-US",
+      "pt-BR",
+      "es",
+      "es-419"
+    ],
     "directories": {
       "app": "build/app",
       "output": "release"

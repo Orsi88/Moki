@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { claudeWindows, codexWindows, memoryUsage, parseProcesses, treeBytes, treePids, ttlCache, windowLabel } from '../desktop/usage.ts';
+import { appGroups, claudeWindows, codexWindows, memoryUsage, parseProcesses, treeBytes, treePids, ttlCache, windowLabel } from '../desktop/usage.ts';
 import { memoryKbByPid, parsePssKb } from '../desktop/proc-memory.ts';
 
 test('Claude plan windows come from limits[], with the model of a scoped limit', () => {
@@ -125,18 +125,58 @@ test('on Linux the bar measures PSS for Moki and for the terminals, and keeps th
   assert.deepEqual(m.projects.map((p) => p.project), ['beta', 'acme']); // sorted by the bar's figure
 });
 
-test('on macOS and Windows the numbers stay RSS from the same sources, and no smaps_rollup is read', async () => {
+test('on macOS the numbers stay RSS from the same sources, and no smaps_rollup is read', async () => {
   const ps = async () => ' 10 1 2048\n 11 10 1024\n';
   const readSmaps = async (): Promise<string> => { throw new Error('must not be called'); };
-  for (const platform of ['darwin', 'win32'] as const) {
-    const m = await memoryUsage([{ id: 't1', pid: 10, project: 'acme' }], [{ pid: 100, kb: 1000 }, { pid: 101, kb: 500 }], { platform, readSmaps, ps });
-    assert.equal(m.kind, 'rss');
-    assert.equal(m.app, 1500 * 1024);
-    assert.equal(m.appRss, m.app);
-    assert.equal(m.projects[0].bytes, 3072 * 1024);
-    assert.equal(m.projects[0].rssBytes, m.projects[0].bytes);
-    assert.equal(m.projects[0].sessions[0].bytes, 3072 * 1024);
-  }
+  const m = await memoryUsage([{ id: 't1', pid: 10, project: 'acme' }], [{ pid: 100, kb: 1000 }, { pid: 101, kb: 500 }], { platform: 'darwin', readSmaps, ps });
+  assert.equal(m.kind, 'rss');
+  assert.equal(m.app, 1500 * 1024);
+  assert.equal(m.appRss, m.app);
+  assert.equal(m.projects[0].bytes, 3072 * 1024);
+  assert.equal(m.projects[0].rssBytes, m.projects[0].bytes);
+  assert.equal(m.projects[0].sessions[0].bytes, 3072 * 1024);
+  assert.equal(m.tools, 3072 * 1024);
+});
+
+test('on Windows the bar measures private bytes, the RSS stays the working set, and no smaps_rollup is read', async () => {
+  // PowerShell columns: pid ppid workingSet(kB) private(kB); pid 11 has no private column: its RSS is used.
+  const ps = async () => ' 10 1 2048 900\n 11 10 1024\n';
+  const readSmaps = async (): Promise<string> => { throw new Error('must not be called'); };
+  const m = await memoryUsage([{ id: 't1', pid: 10, project: 'acme' }],
+    [{ pid: 100, kb: 1000, privateKb: 600 }, { pid: 101, kb: 500 }], { platform: 'win32', readSmaps, ps });
+  assert.equal(m.kind, 'private');
+  assert.equal(m.app, (600 + 500) * 1024);
+  assert.equal(m.appRss, 1500 * 1024); // always the RSS
+  assert.deepEqual(m.projects[0].sessions, [{ id: 't1', bytes: (900 + 1024) * 1024, rssBytes: (2048 + 1024) * 1024 }]);
+  assert.equal(m.projects[0].rssBytes, (2048 + 1024) * 1024);
+  assert.equal(m.tools, (900 + 1024) * 1024);
+});
+
+test('the private kilobytes column is read when present and left out otherwise', () => {
+  const rows = parseProcesses(' 10 1 2048 900\n 11 10 1024\n');
+  assert.deepEqual(rows.get(10), { ppid: 1, kb: 2048, privateKb: 900 });
+  assert.deepEqual(rows.get(11), { ppid: 10, kb: 1024 });
+});
+
+test('Moki is listed by role apart from the AI tools, each in the bar measure', async () => {
+  const ps = async () => ' 10 1 2048\n';
+  const readSmaps = async (pid: number) => `Pss: ${({ 100: 400, 101: 200, 102: 100, 103: 50, 104: 30, 10: 700 } as Record<number, number>)[pid]} kB\n`;
+  const m = await memoryUsage([{ id: 't1', pid: 10, project: 'acme' }], [
+    { pid: 104, kb: 60 }, // no role: other
+    { pid: 101, kb: 300, kind: 'window' },
+    { pid: 100, kb: 500, kind: 'main' },
+    { pid: 102, kb: 150, kind: 'notes' },
+    { pid: 103, kb: 80, kind: 'notes' },
+  ], { platform: 'linux', readSmaps, ps });
+  assert.deepEqual(m.appGroups, [
+    { kind: 'main', bytes: 400 * 1024, count: 1 },
+    { kind: 'window', bytes: 200 * 1024, count: 1 },
+    { kind: 'notes', bytes: 150 * 1024, count: 2 },
+    { kind: 'other', bytes: 30 * 1024, count: 1 },
+  ]);
+  assert.equal(m.app, m.appGroups.reduce((n, g) => n + g.bytes, 0));
+  assert.equal(m.tools, 700 * 1024); // the terminals are not part of Moki
+  assert.deepEqual(appGroups([], () => 1), []);
 });
 
 test('a plain number of bytes for Moki is still accepted', async () => {
