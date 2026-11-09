@@ -42,10 +42,10 @@ Before saving any log line or request: replace values of `Authorization`, `Cooki
 
 Optional, only when the QA asks, only after the deliverables exist and the evidence is approved.
 
-1. Use the tracker MCP of this project's tools, and only if it can write. Do not use another tool or service.
+1. Write only through the `dispatch` skill and the tracker of this project's tools, and only if it can write. Do not use another tool or service.
 2. List every action before doing anything: target item id (and URL), then either `attach <file>` or `comment <exact text>`. Attachments are the approved deliverables (`.xlsx`, `.docx`) and the evidence files the QA names; the comment is plain text with the status the QA confirmed and the file names. Show it exactly as it will be sent.
 3. Check that no listed file shows secrets or personal data (see the warnings from the earlier steps); if it does, remove it from the list or ask.
-4. Stop for approval. After "yes", run only the listed actions, in order, and stop at the first failure.
+4. Stop for approval. After "yes", run only the listed actions, in order, following the `dispatch` publication protocol (each comment ends with its signature line; the journal records every action; a resume reuses what was done and checks uncertain actions by signature).
 5. Record in `state.json` each action with `done`, `failed` (reason) or `manual`. Never change the item's state, fields or test results.
 
 Manual fallback (no write MCP, denied or failed): give the QA the paths of the files and, per item, the instruction "attach these files to <item id> in <tracker>" plus the comment text ready to paste. Record `link` as `manual`.

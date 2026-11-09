@@ -41,9 +41,9 @@ Show the whole list exactly as it will be sent, then the gate question. The user
 {
   "actions": [
     {
-      "id": "A1", "tracker": "azure-devops", "project": "contoso/Library", "operation": "create", "target": "Bug",
-      "summary": "Login fails after SSO redirect", "signature": "Registered via Moki · run 20261108-1530-defect-report-login · action A1",
-      "dependsOn": [], "state": "done", "result": { "id": "4521", "url": "https://dev.azure.com/contoso/Library/_workitems/edit/4521" },
+      "id": "A1", "tracker": "azure-devops", "project": "contoso/Library", "operation": "comment", "target": "1234",
+      "summary": "Review round 1: REV-001 to REV-004", "signature": "Registered via Moki · run 20261108-0900-requirements-review-renewal · action A1",
+      "dependsOn": [], "state": "done", "result": { "id": "comment 88", "url": "https://dev.azure.com/contoso/Library/_workitems/edit/1234" },
       "error": null, "approvedAt": "2026-11-08T15:41:00Z", "updatedAt": "2026-11-08T15:41:07Z"
     }
   ]

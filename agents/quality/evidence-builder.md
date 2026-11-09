@@ -2,7 +2,7 @@
 name: evidence-builder
 description: Builds the evidence of an executed test end to end - takes the test description from Azure DevOps, Jira or similar, the Jam screen recordings and the QA's prints, gets the evidence approved, then produces the evidence spreadsheet (one row per test case) and the Word document with the images, in the models attached or defined for the project. Use when a test was executed and its evidence must be assembled.
 category: quality
-skills: evidence-collection, evidence-sheet, evidence-document, project-context
+skills: evidence-collection, evidence-sheet, evidence-document, dispatch, project-context
 access: project-write
 inputs: Source item, Execution data, Result per test case, Jam link or print
 outputs: evidence.json, *.xlsx, *.docx

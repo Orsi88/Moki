@@ -2297,7 +2297,8 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     const wizard = aiPage.getByRole('dialog');
     await wizard.getByRole('tab', { name: 'Atividades', exact: true }).click();
     await wizard.getByRole('searchbox').fill('requirements-review');
-    await wizard.locator('.invoke-row').first().click();
+    // Two activities use the skill (pasted stories, and an MF read from the tracker); this one requires files.
+    await wizard.locator('.invoke-row', { hasText: 'Revisar histórias de usuário' }).click();
     await expect(wizard.getByRole('button', { name: 'Escolha um arquivo para continuar' })).toBeDisabled();
     await wizard.getByText('us-1.md').click();
     await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();

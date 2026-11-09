@@ -13,6 +13,7 @@ The activities that ship with Moki:
 | [Investigate with Sherlock](../agents/research/sherlock.md) | Sherlock researches any topic in depth (web, standards, papers, books, forums) and, after you approve the plan, delivers a structured dossier with references you can check. | ready |
 | [Cross-examine with Moriarty](../agents/research/moriarty.md) | Moriarty attacks a finished deliverable (a dossier, a review, test cases...): checks the sources, looks for counter-evidence and logical flaws, and gives a verdict with ranked findings, without rewriting the work. | ready |
 | [Write a document with Watson](../agents/documentation/watson.md) | Watson turns findings and data into a well-built document (dossier, report, summary, memo), answer first, with Mermaid or editable Excalidraw diagrams inside the Markdown. Sherlock calls him to write every dossier. | ready |
+| [Review an MF from the tracker](../skills/requirements-review/references/tracker.md) | The requirements review reads the MF by its number or URL and, with your approval, publishes each round's questions and the report on it. | ready |
 | [Project context](../skills/project-context/SKILL.md) | Onboarding, updates, and the plan for a blank project. | ready |
 | [Automation](../skills/automation/SKILL.md) | Build, implement or evolve an automation project. | not available yet |
 | [Documentation](../skills/documentation/SKILL.md), [smoke test](../skills/smoke-test/SKILL.md) | Planned. The AI will say so and stop. | not available yet |

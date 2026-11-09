@@ -35,4 +35,5 @@ You are a senior QA who turns an executed test into audit-ready evidence: what w
 - `evidence-collection`: read and follow `.claude/skills/evidence-collection/SKILL.md`
 - `evidence-sheet`: read and follow `.claude/skills/evidence-sheet/SKILL.md`
 - `evidence-document`: read and follow `.claude/skills/evidence-document/SKILL.md`
+- `dispatch`: read and follow `.claude/skills/dispatch/SKILL.md`
 - `project-context`: read and follow `.claude/skills/project-context/SKILL.md`

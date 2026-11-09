@@ -25,12 +25,12 @@ Request: create a comment on 1234 and attach `matrix.xlsx` (two actions).
 - [ ] Preview lists A1 (comment with full text ending in the signature line `— Registered via Moki · run <run-id> · action A1`) and A2 (attach, file name, target 1234), then the gate question.
 - [ ] User answers "only A1": only A1 runs; A2 ends `skipped`; the journal and `state.json` approvals say so.
 
-## Case 4 — created, then the attachment failed (resume)
+## Case 4 — comment posted, then the attachment failed (resume)
 
 Input: [journal-attach-failed.json](journal-attach-failed.json) in the run's logs folder; request "resume".
 
-- [ ] Reports: LIB-412 created (with link), A2 failed (reason), A3 approved and not run.
-- [ ] Does **not** create the bug again; runs A3 using LIB-412; offers to retry A2 as a new preview (after the network domain is allowed).
+- [ ] Reports: the round comment posted on LIB-210 (with link), A2 failed (reason), A3 approved and not run.
+- [ ] Does **not** post the comment again; runs A3; offers to retry A2 as a new preview (after the network domain is allowed).
 - [ ] No delete of any kind is proposed.
 
 ## Case 5 — timeout with an uncertain result
@@ -43,7 +43,7 @@ Input: [journal-uncertain.json](journal-uncertain.json) (A1 left `running`); req
 
 ## Case 6 — tracker map discovery
 
-The project's context has no tracker map; Lestrade needs item types.
+The project's context has no tracker map; the review needs to know which tracker type the team calls "MF".
 
 - [ ] Reads the item types and fields from the tracker metadata and writes them as `PU-###` proposals; asks for confirmation; no type or field is assumed from general knowledge.
 

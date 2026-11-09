@@ -1756,5 +1756,7 @@
   "OAuth sign-in (optional)": "Inicio de sesión OAuth (opcional)",
   "Client id": "Client id",
   "Callback port": "Puerto de callback",
-  "For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.": "Para servidores que inician sesión con tu propio registro de aplicación (Azure DevOps remoto en Claude Code). Solo un client id público, nunca un secreto. Se escribe solo para Claude Code."
+  "For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.": "Para servidores que inician sesión con tu propio registro de aplicación (Azure DevOps remoto en Claude Code). Solo un client id público, nunca un secreto. Se escribe solo para Claude Code.",
+  "Review an MF from the tracker": "Revisar una MF del tracker",
+  "reads the item from Azure DevOps or Jira by its number or URL": "lee el elemento de Azure DevOps o Jira por su número o URL"
 }

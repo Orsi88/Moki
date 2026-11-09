@@ -52,7 +52,7 @@ Optional:
 
 - File read/write in the project folder. Image reading to describe prints and propose their association (fallback: ask the QA which case and step each print belongs to).
 - **Tracker MCP** (Azure DevOps, Jira or similar), read-only, when configured in the project or in the tool: fetch the item by id, including its steps and linked test cases. Fallback: ask the QA to paste or attach the description.
-- **Tracker MCP with write access**, only for the optional `link` step and only when configured: attach files or add a comment to the item. Fallback: deliver the files and manual instructions ([linking](references/sources.md#linking-to-the-tracker)).
+- **Tracker writes**, only for the optional `link` step, through the `dispatch` skill (its publication protocol: exact preview, approval, signature, journal, recovery): attach files or add a comment to the item. Fallback: deliver the files and manual instructions ([linking](references/sources.md#linking-to-the-tracker)).
 - **Jam MCP**, when configured: read each recording's details, user events (steps), console logs, network requests and screenshots. Fallback: keep the Jam link as the reference and ask the QA for the actual result of each case.
 - Details of each source: [sources](references/sources.md).
 
@@ -65,7 +65,7 @@ Optional:
 5. **Consolidate** (`consolidate`). Write `outputs/evidence.json` in the [evidence data format](references/evidence-data.md). Copy expected results from the source without rewording. Actual results and statuses come from the QA; a status deduced from a recording is recorded as `proposed` with its reason. List divergences and pending items.
 6. **Review gate** (`review`). Show the [summary](references/evidence-data.md#summary-for-the-gate) and ask the QA to approve or adjust. Stop (`awaiting-approval`).
 7. **Close** (`close`). After approval, mark every `proposed` item as confirmed or corrected, save `evidence.json`, set the run `completed` and offer the next steps: spreadsheet (`evidence-sheet`), Word document (`evidence-document`) and, if the QA wants it, linking to the tracker (`link`).
-8. **Link to the tracker** (`link`, optional, never by default). Only when the QA asks, after the deliverables exist. Build the list of actions (for each: target item id, attach file X or comment with text Y) and show it exactly, with file names and the full comment text. Stop (`awaiting-approval`). After explicit approval, run only the approved actions through the project's tracker MCP with write access and record each result (done, failed with reason) in `state.json`. Without such an MCP, or if it fails, use the [manual fallback](references/sources.md#linking-to-the-tracker): list the files and the item to attach them to, and record `link` as `manual`.
+8. **Link to the tracker** (`link`, optional, never by default). Only when the QA asks, after the deliverables exist. Build the list of actions (for each: target item id, attach file X or comment with text Y) and show it exactly, with file names and the full comment text. Stop (`awaiting-approval`). After explicit approval, run only the approved actions through `dispatch` (journal in the run's logs folder) and record each result (done, failed with reason) in `state.json`. Without such an MCP, or if it fails, use the [manual fallback](references/sources.md#linking-to-the-tracker): list the files and the item to attach them to, and record `link` as `manual`.
 
 ### Missing-information message
 
