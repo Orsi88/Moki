@@ -13,6 +13,7 @@ import { replaceDiagram } from '../diagram-source';
 import { linkProjectPaths, type LinkResolver } from './useInternalLinks';
 
 interface Props {
+  path?: string;
   html: string; // the file rendered with its marks (markdownToHtml, comments: true)
   text: string; // the file's text
   onCommit: (text: string) => void; // saves the file with this text
@@ -26,7 +27,7 @@ interface Props {
 const markOf = (body: HTMLElement, id: string) => body.querySelector<HTMLElement>(`mark.md-comment[data-c="${id}"]`);
 const now = () => new Date().toISOString();
 
-export function MarkdownComments({ html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
+export function MarkdownComments({ path, html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
   const comments = useMemo(() => readComments(text).comments, [text]);
   const [me, setMe] = useState('');
   const [composer, setComposer] = useState<{ range: [number, number]; x: number; y: number } | null>(null);
@@ -107,7 +108,7 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
   return (
     <div className={`md-commented${shown ? ' with-rail' : ''}`} ref={stage}>
       <div ref={doc} className="markdown" onClick={onClick} onMouseUp={onMouseUp} dangerouslySetInnerHTML={inner} />
-      <CommentColumn comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
+      <CommentColumn path={path} comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
         active={active} onActive={setActive} saving={saving} actions={actions} />
       {bubble && <SelectionBubble bubble={bubble} onComment={openComposer} />}
       {composer && <CommentComposer x={composer.x} y={composer.y} saving={saving} color={color} onColor={setColor} onAdd={add} onCancel={() => setComposer(null)} />}

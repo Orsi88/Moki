@@ -15,3 +15,8 @@ Clique no link no **Modo de leitura**, ou use Ctrl+clique (Cmd+clique no macOS) 
 No Modo de leitura, caminhos de arquivos existentes escritos como texto ou código em linha também ficam clicáveis. Blocos de código, links existentes, URLs, e-mails e caminhos de arquivos ausentes permanecem como foram escritos. Isso muda apenas a visualização; o arquivo original não é reescrito.
 
 Menções inseridas com `@` no editor de código-fonte das notas usam caminhos relativos ao documento. As menções antigas relativas ao projeto continuam funcionando. A navegação fica dentro do projeto ativo. Se um arquivo ou âncora não existir, o app exibe uma mensagem.
+## Copiar e seguir referências
+
+No menu de um arquivo na árvore, **Copiar link** copia um link Markdown a partir da raiz do projeto ativo. Cartões de comentário de Markdown e PDF têm **Copiar link do comentário**, preservando o id salvo. O link copiado funciona de qualquer documento no mesmo projeto do Moki. Ao escrever uma entrega Markdown portátil para outro visualizador, ajuste o destino para partir daquele documento.
+
+No terminal, use Ctrl+clique (Cmd+clique no macOS) num caminho existente do projeto para abri-lo. O clique simples mantém o terminal ativo. Linhas quebradas e caracteres largos são considerados; caminhos codificados como URL podem representar espaços. Um caminho do computador só é aceito quando identifica a pasta do projeto ativo. Arquivos ausentes e referências a outros projetos não viram links no terminal.

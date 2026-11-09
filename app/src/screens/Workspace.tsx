@@ -43,7 +43,7 @@ import {
 import { GroupMenu, LayoutButton, PaneHead, TabMenu, groupStyle, type PaneTab } from '../components/TabGroups';
 import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
 import { confirmDialog } from '../dialogs';
-import { resolveInternal, type Anchor, type LinkJump } from '../internal-links';
+import { projectLink, resolveInternal, type Anchor, type LinkJump } from '../internal-links';
 
 interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
@@ -995,7 +995,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                 />
                 <div className="pane-body">
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
-                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
+                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
                   ))}
                   {pane.active === GRAPH ? (
                     <div className="welcome">
@@ -1098,6 +1098,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
             )}
             <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path) && !canRename(itemMenu.path)} onClick={() => revealItem(itemMenu.path)}><IconFolder size={15} /> {t('Show in folder')}</button></li>
             <li><button type="button" role="menuitem" onClick={() => copyItemPath(itemMenu.path)}><IconCopy size={15} /> {t('Copy path')}</button></li>
+            {findFile(tree, itemMenu.path) && <li><button type="button" role="menuitem" onClick={() => {
+              const path = itemMenu.path; setItemMenu(null);
+              api.copyText(projectLink(path)).then(() => flash(t('Link copied.'))).catch((e: Error) => setError(e.message));
+            }}><IconCopy size={15} /> {t('Copy link')}</button></li>}
             {itemMenu.path !== 'project.json' && itemMenu.path !== '@folder' && !itemMenu.path.startsWith('.') && (
               <li><button type="button" role="menuitem" className="danger" onClick={() => removeItem(itemMenu.path)}><IconTrash size={15} /> {t('Delete')}</button></li>
             )}

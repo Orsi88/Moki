@@ -59,7 +59,9 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await expect(view.locator('.doc a[data-internal-link]')).toHaveCount(2);
     await expect(view.locator('.doc pre a')).toHaveCount(0);
     await view.getByRole('link', { name: 'MD comment', exact: true }).click();
-    await expect(view.locator('[data-card="rule1"][data-link-target]')).toBeVisible();
+    await expect(view.locator('[data-card="rule1"][data-link-target]')).toBeInViewport();
+    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md#comment-rule1)');
     await expect.poll(() => view.locator('.doc-body').evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
     await view.getByRole('link', { name: 'Top', exact: true }).click();
     await expect(view.locator('h1[data-link-target]')).toHaveText('Story');
@@ -74,6 +76,8 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await view.getByRole('link', { name: 'PDF comment', exact: true }).click();
     await expect(view.locator('.pdf-card[data-link-target]')).toContainText('Inspect this evidence');
     await expect(view.locator('.pdf-card[data-link-target]')).toBeInViewport();
+    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[evidence.pdf](/inbox/evidence.pdf#comment-' + pdfId + ')');
     await openReview();
     await view.getByRole('link', { name: 'Other project', exact: true }).click();
     await expect(view.getByText('This link does not point to a file in this project.', { exact: true })).toBeVisible();
@@ -89,6 +93,38 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await view.locator('.tree-row[title="notes/legacy.md"]').click();
     await view.locator('.note-host .ProseMirror a').click({ modifiers: ['Control'] });
     await expect(view.locator('h2[data-link-target]')).toBeVisible();
+    await view.locator('.tree-row[title="inbox/story.md"]').click({ button: 'right' });
+    await view.getByRole('menuitem', { name: 'Copy link', exact: true }).click();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md)');
+    // A freshly inserted @ mention writes a document-relative destination.
+    await view.locator('.tree-row[title="notes/legacy.md"]').click();
+    await view.locator('.note-host').getByTitle('Markdown source', { exact: true }).click();
+    const noteSource = view.locator('.note-host textarea.note-editor');
+    await noteSource.click();
+    await noteSource.press('Control+End');
+    await noteSource.pressSequentially('\n\n@story');
+    await view.getByRole('option').filter({ hasText: 'inbox/story.md' }).click();
+    await expect(noteSource).toHaveValue(/\[@story.md\]\(\.\.\/inbox\/story.md\)/);
+    await view.locator('.note-host').getByRole('button', { name: /Close/, exact: false }).first().click();
+    // A real shell prints a link. Plain click does not navigate; Ctrl+click does.
+    await view.getByTitle('New: terminal, AI or file', { exact: true }).click();
+    await view.getByRole('menuitem', { name: 'Terminal', exact: true }).click();
+    await view.getByRole('menuitem', { name: /your shell/ }).click();
+    const input = view.locator('.term-pane:not([hidden]) .xterm-helper-textarea');
+    await input.pressSequentially('echo inbox/story.md#regras-de-frete');
+    await input.press('Enter');
+    const output = view.locator('.term-pane:not([hidden]) .xterm-rows > div').filter({ hasText: /^inbox\/story.md#regras-de-frete/ }).last();
+    await expect(output).toBeVisible();
+    const lineBox = await output.boundingBox();
+    if (!lineBox) throw new Error('The terminal output has no screen position.');
+    // xterm receives pointer events on its screen overlay, above the text rows.
+    await view.mouse.move(lineBox.x + 35, lineBox.y + lineBox.height / 2);
+    await view.mouse.click(lineBox.x + 35, lineBox.y + lineBox.height / 2);
+    await expect(input).toBeVisible();
+    await view.keyboard.down('Control');
+    await view.mouse.click(lineBox.x + 35, lineBox.y + lineBox.height / 2);
+    await view.keyboard.up('Control');
+    await expect(view.locator('h2[data-link-target]')).toBeInViewport();
     expect(readFileSync(join(project, 'review.md'), 'utf8')).toBe(report);
     expect(readFileSync(join(project, 'inbox', 'story.md'), 'utf8')).toBe(story);
     expect(errors).toEqual([]);

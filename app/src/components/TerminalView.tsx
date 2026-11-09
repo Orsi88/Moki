@@ -11,13 +11,16 @@ import type { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css'; // only the styles are static (a side-effect import needs no types); the code loads when a tab is first shown
 import { api } from '../api';
 import { t } from '../i18n';
+import { terminalPaths } from '../terminal-links';
 
-interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void }
+interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void }
 
 const css = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const KEEP = 128 * 1024; // as much plain output as the main process keeps (desktop/terminals.ts), for a tab not shown yet
 
-export function TerminalView({ id, project, active, onExit }: Props) {
+export function TerminalView({ id, project, active, onExit, resolveLink, onLink }: Props) {
+  const links = useRef({ resolveLink, onLink });
+  links.current = { resolveLink, onLink };
   const box = useRef<HTMLDivElement>(null);
   const view = useRef<{ term: Terminal; fit: FitAddon } | null>(null);
   const build = useRef<(() => Promise<void>) | null>(null);
@@ -77,6 +80,14 @@ export function TerminalView({ id, project, active, onExit }: Props) {
       const fit = new FitAddon();
       made.loadAddon(fit);
       made.open(host);
+      listeners.push(made.registerLinkProvider({
+        provideLinks(y, callback) {
+          callback(terminalPaths(made.buffer.active, made.cols, y, (href) => links.current.resolveLink?.(href) ?? false).map((link) => ({
+            ...link,
+            activate(event, href) { if (event.ctrlKey || event.metaKey) { event.preventDefault(); links.current.onLink?.(href); } },
+          })));
+        },
+      }));
       fit.fit();
       listeners.push(made.onData((data) => bridge.input(id, data)), made.onResize(({ cols, rows }) => bridge.resize(id, cols, rows)));
       view.current = { term: made, fit };

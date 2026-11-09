@@ -82,9 +82,15 @@ export function hrefTo(from: string, path: string, anchor?: Anchor | null): stri
   return encodeURI(rel).replace(/#/g, '%23').replace(/\(/g, '%28').replace(/\)/g, '%29') + hash; // ( ) would end the Markdown link
 }
 
+// A copied link has no referring document yet: root it at the active project.
+export function projectLink(path: string, anchor?: Anchor): string {
+  const label = (path.split('/').pop() ?? path).replace(/[\\[\]]/g, '\\$&');
+  const href = hrefTo('', path, anchor);
+  return `[${label}](/${href})`;
+}
 // Paths written as text ("see inbox/US-12.md#rules" or "glossary.md"): where each starts and ends. Only shapes
 // that look like a file (a name with an extension, optional folders and anchor); the caller keeps those that exist.
-const PATH = /(?<![\p{L}\p{N}_/@.\\:-])((?:\.{1,2}\/)*(?:[\p{L}\p{N}_@.-]+\/)*[\p{L}\p{N}_@-][\p{L}\p{N}_@.-]*\.[A-Za-z][A-Za-z0-9]{0,5}(?:#[\p{L}\p{N}_=.:-]+)?)(?![\p{L}\p{N}_/\\-])/gu;
+const PATH = /(?<![\p{L}\p{N}_/@.\\:-])((?:[A-Za-z]:[\\/]|\/)?(?:\.{1,2}[\\/])*(?:[\p{L}\p{N}_@.%~-]+[\\/])*[\p{L}\p{N}_@%-][\p{L}\p{N}_@.%~-]*\.[A-Za-z][A-Za-z0-9]{0,11}(?:#[\p{L}\p{N}_%=.:-]+)?)(?![\p{L}\p{N}_/\\-])/gu;
 export function findPaths(text: string): { start: number; end: number; text: string }[] {
   const out: { start: number; end: number; text: string }[] = [];
   for (const m of text.matchAll(PATH)) {

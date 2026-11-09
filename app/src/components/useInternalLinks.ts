@@ -38,9 +38,14 @@ export function useAnchorJump(root: RefObject<HTMLElement | null>, jump: LinkJum
     const host = root.current;
     if (!jump || !ready || !host) return;
     let frame = 0;
-    let done = false;
+    let found: HTMLElement | null = null;
+    let stopped = false;
+    let settled: ReturnType<typeof setTimeout> | undefined;
+    const stop = () => {
+      stopped = true; observer.disconnect(); size.disconnect(); cancelAnimationFrame(frame); clearTimeout(timeout); clearTimeout(settled);
+    };
     const attempt = () => {
-      if (done) return;
+      if (stopped) return;
       const anchor = jump.anchor;
       const target = anchor.kind === 'heading'
         ? [...host.querySelectorAll<HTMLElement>('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]')].find((el) => el.id === anchor.slug)
@@ -50,20 +55,34 @@ export function useAnchorJump(root: RefObject<HTMLElement | null>, jump: LinkJum
       if (!target) return;
       // Comment cards first mount at top: 0; wait for their passage to be measured.
       if (anchor.kind === 'comment' && target.closest<HTMLElement>('[data-card]')?.dataset.positioned !== 'true') return;
-      done = true;
-      host.querySelectorAll<HTMLElement>('[data-link-target]').forEach((el) => el.removeAttribute('data-link-target'));
-      target.dataset.linkTarget = 'true';
-      target.tabIndex = -1;
+      if (found !== target) {
+        host.querySelectorAll<HTMLElement>('[data-link-target]').forEach((el) => el.removeAttribute('data-link-target'));
+        target.dataset.linkTarget = 'true';
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+        found = target;
+        size.observe(target);
+      }
       target.scrollIntoView({ block: 'center' });
-      target.focus({ preventScroll: true });
-      observer.disconnect();
-      clearTimeout(timeout);
+      // PDF fit/zoom and comment layout can change just after the target mounts.
+      // Follow that layout until quiet, but give control back at the first user interaction.
+      clearTimeout(settled);
+      settled = setTimeout(stop, 1000);
     };
-    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(attempt); };
+    const schedule = () => { if (!stopped) { cancelAnimationFrame(frame); frame = requestAnimationFrame(attempt); } };
     const observer = new MutationObserver(schedule);
-    observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-positioned'] });
-    const timeout = setTimeout(() => { if (!done) { observer.disconnect(); missing.current?.(); } }, 5000);
+    observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-positioned', 'style'] });
+    const size = new ResizeObserver(schedule);
+    size.observe(host);
+    if (host.firstElementChild) size.observe(host.firstElementChild);
+    const timeout = setTimeout(() => { const absent = !found; stop(); if (absent) missing.current?.(); }, 5000);
+    host.addEventListener('wheel', stop, { passive: true });
+    host.addEventListener('pointerdown', stop);
+    host.addEventListener('keydown', stop);
     schedule();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); clearTimeout(timeout); };
+    return () => {
+      stop();
+      host.removeEventListener('wheel', stop); host.removeEventListener('pointerdown', stop); host.removeEventListener('keydown', stop);
+    };
   }, [root, jump, ready]);
 }
