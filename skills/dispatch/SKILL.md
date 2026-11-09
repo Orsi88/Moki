@@ -29,7 +29,7 @@ Does **not**: delete anything (items, comments, attachments, links), change fiel
 
 ## When to use
 
-- Called by `requirements-review`, `evidence-collection` (its `link` step), the freshness check of `project-context`, and any skill that reads or writes tracker items.
+- Called by `requirements-review`, `defect-report` (Lestrade), `evidence-collection` (its `link` step), the freshness check of `project-context`, and any skill that reads or writes tracker items.
 - Directly, when the user asks to read an item, search the tracker, or make one approved change.
 
 ## Inputs

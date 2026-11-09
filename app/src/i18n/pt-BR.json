@@ -1758,5 +1758,7 @@
   "Callback port": "Porta de callback",
   "For servers that sign in with your own app registration (Azure DevOps remote in Claude Code). Only a public client id; never a secret. Written for Claude Code only.": "Para servidores que fazem login com o seu próprio registro de app (Azure DevOps remoto no Claude Code). Só um client id público, nunca um segredo. Escrito só para o Claude Code.",
   "Review an MF from the tracker": "Revisar MF do tracker",
-  "reads the item from Azure DevOps or Jira by its number or URL": "lê o item do Azure DevOps ou do Jira pelo número ou URL"
+  "reads the item from Azure DevOps or Jira by its number or URL": "lê o item do Azure DevOps ou do Jira pelo número ou URL",
+  "Register an item with Lestrade": "Registrar item com o Lestrade",
+  "bug, defect or similar in Azure DevOps or Jira, from the description, evidence or pre-analysis": "bug, defeito ou similar no Azure DevOps ou Jira, a partir da descrição, evidência ou pré-análise"
 }
