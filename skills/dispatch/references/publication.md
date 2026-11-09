@@ -69,6 +69,28 @@ List each action with its final state, id and link. Say plainly what was publish
 3. `failed` actions: present again only if the user wants to retry, as a new preview.
 4. Never retry the whole batch, never delete to undo.
 
+## Prepared publication
+
+When one agent prepares and another publishes (for example in an operation: the requirements analyst prepares a review round, Wiggins publishes it), the preparer writes a **publication file** `publication-<what>.md` in its outputs folder and does not publish:
+
+```markdown
+# Publication — <what, e.g. review round 2 of MF 1234>
+
+Tracker: <azure-devops | jira> · Project: <org/project or site/key> · Item: <id> · URL: <link>
+Prepared by: <agent> · Run: <run-id> · Step: <step>
+
+## Action 1 — comment
+<the exact comment text, without the signature (the publisher adds it)>
+
+## Action 2 — attach
+- <file name in the same outputs folder>
+
+## Action 3 — link
+- <link type> → <item id>
+```
+
+The publisher builds the action list from it without changing any text, then follows steps 2 to 5 above.
+
 ## Without a usable MCP
 
 Mark every action *prepared, not published* and give, per action: where (tracker, project, item), what to do (create/comment/attach…), the exact content to paste (signature included) and the files. Record the actions as `skipped` with `manual: true` so a later run can check for the signatures.

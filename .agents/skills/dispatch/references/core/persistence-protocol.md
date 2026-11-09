@@ -22,6 +22,16 @@ Run id format: `YYYYMMDD-HHMM-<skill-or-workflow>-<short-slug>` (lowercase, hyph
 
 Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug>` (or `--workflow <id>`; add `--activity <id>` when the request names the Moki activity it came from) when a shell is available. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
 
+## Inside a multi-agent operation
+
+When the request says you are a step of a Moki operation, the operation's run folder replaces the skill's own run:
+
+- Do **not** create a run and do not change the operation's `state.json` (Moki updates it).
+- Read the request in `inputs/request.md` and the files of the step before (`outputs/<its step>/`, `handoff/<its step>.md`); earlier visits of your own step are your earlier work: continue from it.
+- Deliverables go to `outputs/<your step>/`. What the skill would record in its own `state.json` (current step, approvals, pending items, `sources`, results) goes into your handoff summary and, when the skill needs it on a later visit, into `outputs/<your step>/step-state.json`. Logs (such as a publication journal) go to `logs/<your step>-<name>`. Working files go to `work/` as usual.
+- Your skill's approval points still apply: ask the user in your terminal (Moki shows that you are waiting). An arrow with approval between steps is a separate decision and never replaces a gate of your skill that shows exact content (for example a publication preview).
+- Finish with the handoff, its first line `outcome: <result>` when your agent declares results.
+
 ## state.json
 
 Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `createdAt`, `updatedAt`, `status`, `currentStep`, `completedSteps`, `pending`, `approvals`, `inputs`, `results`, `artifacts`.

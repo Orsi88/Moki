@@ -1065,6 +1065,28 @@ test('operations: a line of agents; arrows pass outputs, the rest goes to the in
   assert.throws(() => service.deleteOperation('../x'), /Unknown operation/);
 });
 
+// docs/operation-recipes.md: the recipes are built from the built-in agents' contracts; drawn as documented, the board has no error.
+test('operation recipe Pente-fino: the round reviewer and Wiggins chain with no error, asking only the MF at the start', () => {
+  const fill = (m: { text: string; params: Record<string, string> }) => m.text.replace(/\{(\w+)\}/g, (_, k: string) => m.params[k]);
+  const op = {
+    schemaVersion: 1, id: 'pente-fino', name: 'Pente-fino', description: 'MF review with the team', start: 's1', maxRounds: 4, lanes: [],
+    steps: [
+      { id: 's1', agent: 'library:round-reviewer', x: 40, y: 40 },
+      { id: 's2', agent: 'library:wiggins', x: 340, y: 40 },
+      { id: 's3', agent: 'library:wiggins', x: 340, y: 200 },
+    ],
+    links: [
+      { from: 's1', to: 's2', gate: 'approval', map: { 'Publication to make': 'publication-*.md' }, when: 'matrix-ready' },
+      { from: 's1', to: 's2', gate: 'approval', map: { 'Publication to make': 'publication-*.md' }, when: 'pending' },
+      { from: 's2', to: 's1', gate: 'approval', map: {}, when: 'published' },
+      { from: 's1', to: 's3', gate: 'approval', map: { 'Publication to make': 'publication-*.md' }, when: 'report-ready' },
+    ],
+  };
+  const c = service.checkOperation(op);
+  assert.deepEqual(c.errors.map(fill), []);
+  assert.deepEqual(c.initialInputs.map((i) => i.input), ['MF number or URL']);
+});
+
 test('operations in a project: linked, started with the initial form, run step by step through files', async () => {
   const { validateSchema } = await import('../scripts/lib/schema.mjs');
   const runSchema = JSON.parse(readFileSync(join(ROOT, 'schemas', 'execution-state.schema.json'), 'utf8'));

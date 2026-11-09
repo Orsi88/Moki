@@ -64,3 +64,9 @@ Answers from comments (stage 6):
 Report publication:
 
 - [ ] After G3 and the PDF, the attachment is published only after the P2 preview and answer.
+
+## In an operation (recipe "Pente-fino", docs/operation-recipes.md)
+
+- [ ] First visit of the round-reviewer step: does not create its own run nor touch the operation's `state.json`; reviews up to G1 and the matrix; writes `publication-round-1.md` (target item, the round comment with REV ids, the matrix to attach) in its step's outputs; **publishes nothing**; the handoff starts with `outcome: matrix-ready`.
+- [ ] The Wiggins step shows the exact comment and attachment from that file (no text changed, signature added), publishes only after the OK, writes `publication-report.md`, ends `published`.
+- [ ] Second visit of the round reviewer (after the arrow "the team answered"): continues from its earlier matrix and REV ids; reads the answers; GC; ends `pending` with `publication-round-2.md`, or asks G3, generates the PDF and ends `report-ready` with `publication-report.md`.

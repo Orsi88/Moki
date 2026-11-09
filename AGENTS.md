@@ -62,6 +62,8 @@ An **agent** is a role with instructions, optional skills and an access level. B
 | `sherlock` | research | draft | deduction, project-context | project-write |
 | `moriarty` | research | draft | cross-examination, project-context | project-write |
 | `watson` | documentation | draft | chronicle, blueprint, project-context | project-write |
+| `round-reviewer` | quality | draft | requirements-review, dispatch, project-context | project-write |
+| `wiggins` | quality | draft | dispatch, project-context | project-write |
 | `quality-agents-expert` | framework | draft | project-context (reference only) | repository-write |
 | `moki-consultant` | framework | draft | moki-architecture, moki-change | read-only |
 | `moki-executor` | framework | draft | moki-architecture, moki-change | repository-write |
@@ -86,6 +88,10 @@ Example: *"Review this story and, once approved, map the test scenarios"* → wo
 Activities (the ready-made requests people pick in the app) are files: `activities/` in the framework, `workspace/library/activities/` for the person's own; the app's own actions (open, context, setup, plan, resume) are in code. Guide: [docs/activities.md](docs/activities.md).
 
 Workflows: `skills/qa-orchestrator/references/workflows/` — `requirements-to-tests`, `failure-investigation`, `test-evidence`, `quality-lifecycle`.
+
+## Inside an operation
+
+When the request says you are a step of a Moki operation, use the operation's run folder instead of creating a run, never change its `state.json`, deliver in `outputs/<your step>/`, keep the skill's gates, and end with the handoff (first line `outcome: <result>` when your agent declares results). Details: [persistence protocol](core/persistence-protocol.md#inside-a-multi-agent-operation).
 
 ## Interrupting and resuming
 

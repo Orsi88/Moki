@@ -46,6 +46,20 @@ The `dispatch` preview shows the exact comment, the file and the target; publish
 5. Present the extracted definitions as a table and stop at **GC** (confirmation). A comment is not a definition until the user confirms it; confirmed ones enter the working matrix data with the comment as their source; ambiguous or contradictory ones return to the interview, one question at a time.
 6. Then continue stage 6 as usual (cross-check, criteria for formalization) up to G3. Reading comments never authorizes generating the PDF or closing the review.
 
+## In an operation
+
+When the review runs as a step of a Moki operation with a publishing step after it (the `round-reviewer` agent, with `wiggins` publishing), do not publish: prepare the publication file in the step's outputs folder (the "Prepared publication" format of the `dispatch` skill's publication protocol) and end with the outcome.
+
+| Visit | What you do | Prepared file | Outcome |
+|---|---|---|---|
+| First (no earlier work in the run) | Stages 0–5 up to G1 and the matrix | `publication-round-1.md`: the round comment and the matrix to attach | `matrix-ready` |
+| Later, points still need the team | Stage 6 (answers from the returned matrix and the comments, GC); update the matrix | `publication-round-<n>.md` | `pending` |
+| Later, sufficient | Stage 6, G3, the PDF | `publication-report.md`: the PDF to attach and a short closing comment | `report-ready` |
+
+Every visit delivers the current matrix (`review-matrix.json` and the xlsx) and exactly one publication file: a step of an operation is done only when it delivered every output its agent declares.
+
+Your earlier visits' outputs are your earlier work: continue from them (the matrix data, the REV ids, the round number). The publication preview and approval happen in the publishing step; the arrow approvals of the operation are separate decisions.
+
 ## Publishing the report (step `publish-report`, after the PDF)
 
 After G3 and the PDF exist, and only if the user wants it: attach the PDF to the item, optionally with a short closing comment (signature included). Preview and approval (gate P2) through `dispatch`.
