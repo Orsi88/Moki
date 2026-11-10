@@ -48,19 +48,35 @@ export function useNoteAssist({ text, onApply }: { text: string; onApply: (next:
 
 // The four buttons, as icons with their names as tooltips, for the note's toolbar: one group set apart from the
 // formatting tools, a sparkle and "AI" in front, so it reads as the AI's.
+// When the note is narrow (a container query on the toolbar), only "✦ AI" shows, keeping the tools on one line:
+// a click opens the four below it, and choosing one or clicking elsewhere closes them.
 export function AssistButtons({ assist, empty }: { assist: ReturnType<typeof useNoteAssist>; empty: boolean }) {
+  const [open, setOpen] = useState(false);
+  const group = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!group.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc, true); };
+  }, [open]);
   return (
-    <span className="note-assist-buttons" role="group" aria-label={t('Quick assistants')} title={t('Quick assistants')}>
-      <span className="note-assist-mark" aria-hidden="true"><IconSparkle size={14} /> {t('AI')}</span>
-      {HELPERS.map((helper) => {
-        const why = empty ? t('Write something in the note first.') : assist.busy ? t('An assistant is working on this note.') : '';
-        return (
-          <button key={helper} type="button" className={`icon-btn${assist.state?.helper === helper ? ' on' : ''}`} disabled={Boolean(why)}
-            title={why ? `${label(helper)}: ${why}` : label(helper)} aria-label={label(helper)} onClick={() => assist.run(helper)}>
-            {ICON[helper]}
-          </button>
-        );
-      })}
+    <span ref={group} className={`note-assist-buttons${open ? ' open' : ''}`} role="group" aria-label={t('Quick assistants')}>
+      <button type="button" className="note-assist-mark" aria-expanded={open} title={t('Quick assistants')} onClick={() => setOpen((v) => !v)}>
+        <IconSparkle size={14} /> {t('AI')}
+      </button>
+      <span className="note-assist-list">
+        {HELPERS.map((helper) => {
+          const why = empty ? t('Write something in the note first.') : assist.busy ? t('An assistant is working on this note.') : '';
+          return (
+            <button key={helper} type="button" className={`icon-btn${assist.state?.helper === helper ? ' on' : ''}`} disabled={Boolean(why)}
+              title={why ? `${label(helper)}: ${why}` : label(helper)} aria-label={label(helper)} onClick={() => { setOpen(false); assist.run(helper); }}>
+              {ICON[helper]}
+            </button>
+          );
+        })}
+      </span>
     </span>
   );
 }
