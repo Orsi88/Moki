@@ -60,8 +60,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await expect(view.locator('.doc pre a')).toHaveCount(0);
     await view.getByRole('link', { name: 'MD comment', exact: true }).click();
     await expect(view.locator('[data-card="rule1"][data-link-target]')).toBeInViewport();
-    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md#comment-rule1)');
+    await expect(view.getByRole('button', { name: 'Copy link to comment' })).toHaveCount(0); // a comment has no copy link
     await expect.poll(() => view.locator('.doc-body').evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
     await view.getByRole('link', { name: 'Top', exact: true }).click();
     await expect(view.locator('h1[data-link-target]')).toHaveText('Story');
@@ -76,8 +75,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await view.getByRole('link', { name: 'PDF comment', exact: true }).click();
     await expect(view.locator('.pdf-card[data-link-target]')).toContainText('Inspect this evidence');
     await expect(view.locator('.pdf-card[data-link-target]')).toBeInViewport();
-    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[evidence.pdf](/inbox/evidence.pdf#comment-' + pdfId + ')');
+    await expect(view.getByRole('button', { name: 'Copy link to comment' })).toHaveCount(0); // a comment has no copy link
     await openReview();
     await view.getByRole('link', { name: 'Other project', exact: true }).click();
     await expect(view.getByText('This link does not point to a file in this project.', { exact: true })).toBeVisible();

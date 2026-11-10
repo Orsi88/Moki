@@ -100,7 +100,7 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
       onKeyUp={(e) => { if (e.shiftKey && inText(e.target)) selected(); }}>
       <style>{colors}</style>
       <LazyTipTap ref={editor} text={text} path={path} onChange={onChange} onLink={onLink} />
-      <CommentColumn path={path} comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
+      <CommentColumn comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
         active={active} onActive={setActive} saving={saving} actions={actions} />
       {bubble && <SelectionBubble bubble={bubble} onComment={openComposer} />}
       {composer && <CommentComposer x={composer.x} y={composer.y} saving={saving} color={color} onColor={setColor} onAdd={add} onCancel={() => setComposer(null)} />}
