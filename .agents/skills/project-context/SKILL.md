@@ -85,6 +85,7 @@ Provide the next skill only the relevant excerpts, with their file paths, plus t
 ### 4. Update context
 
 Follow [context update rules](references/context-updates.md):
+0. A definition the user confirms in the conversation goes straight to context: ask in one line "Save this to the project context?" as soon as it is confirmed, and on a yes write it into the target `context/` file and update `context/index.md` — no proposal, no waiting for the user to ask. Steps 1–4 are for knowledge that is not confirmed yet.
 1. Any skill may append proposals to `proposed-updates.md` (id `PU-###`).
 2. Present pending proposals to the user in small batches; one decision per item.
 3. On confirmation, write the item into the target `context/` file, mark the proposal `promoted`, update `context/index.md`.

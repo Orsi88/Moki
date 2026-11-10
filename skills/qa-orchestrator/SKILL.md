@@ -57,8 +57,8 @@ Optional:
 6. **New project** → glossary, rules, modules, flows and other knowledge are recorded by `project-context` as they are confirmed.
 7. **Existing project** → `project-context` retrieves the registered context.
 8. **Select skills and hand over context.** For each step, pass only the context files/sections from the retrieval map plus the gaps list. Check skill status: `planned` or `pending-migration` skills are not executed — tell the user and stop or skip if the step is optional.
-9. **Run and record.** Create a run per skill execution (or one run for the whole workflow with per-step entries), update `state.json` at every step and gate, append to `activity-log.md`. Activity results stay in the run folder.
-10. **Update context only with confirmed definitions.** At the end of each step, collect definitions that may be general system knowledge, add them as proposals, and ask the user to confirm them via `project-context`.
+9. **Run and record — only when there is something to keep.** A step that produces a document or stops at an approval gate gets a run (one per skill execution, or one for the whole workflow with per-step entries, with `--title`); update `state.json` at every step and gate, append to `activity-log.md`. Activity results stay in the run folder. Questions, explanations, definitions and small changes are answered in the conversation, with no run ([answer in the conversation first](references/core/execution-principles.md#answer-in-the-conversation-first)).
+10. **Update context only with confirmed definitions.** When the user confirms a general definition of the system, ask in one line whether to save it to the project context and, on a yes, write it via `project-context`; definitions not confirmed yet go as proposals.
 
 ### Gates
 

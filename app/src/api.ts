@@ -85,7 +85,7 @@ export interface ActivityRun extends OpenRun, RunOrigin { skill: string; workflo
 
 export interface TreeNode {
   name: string; path: string; type: 'dir' | 'file'; size?: number; mtime?: number; children?: TreeNode[];
-  run?: { status: string; skill: string; currentStep: string } & RunOrigin;
+  run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin;
   mcp?: string; // MCP server row: where it is configured
   linked?: string; // the linked folder (path "@folder", shown live): its full path on this computer
 }

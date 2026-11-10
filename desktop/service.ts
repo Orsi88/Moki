@@ -87,7 +87,7 @@ export interface TreeNode {
   mtime?: number; // files: last change (ms); with size, tells the app whether a PDF/image tab must be read again
   children?: TreeNode[];
   linked?: string; // the linked folder's node (path "@folder"): its full path on this computer
-  run?: { status: string; skill: string; currentStep: string } & RunOrigin; // a run folder: also the activity it came from and its scenario
+  run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin; // a run folder: its title, the activity it came from and its scenario
   mcp?: string; // MCP server row: where it is configured
 }
 
@@ -533,6 +533,14 @@ export function createService(root: string, deps: Deps) {
       .sort((a, b) => b.modified.localeCompare(a.modified));
   }
 
+  // What a run shows in the tree: its deliverables. The files of outputs/ come straight under the run (their paths
+  // stay real); the run's state, inputs, logs, helper files and the operation's own folders stay out of sight, and so
+  // does an empty folder. The files are all still there (the Requests card and the run view read them).
+  const RUN_INTERNALS = new Set(['state.json', 'inputs', 'logs', 'work', 'handoff', 'waiting']);
+  const deliverablesOf = (children: TreeNode[]): TreeNode[] => children
+    .filter((c) => !RUN_INTERNALS.has(c.name) && !(c.type === 'dir' && !c.children?.length))
+    .flatMap((c) => (c.name === 'outputs' && c.type === 'dir' ? c.children ?? [] : [c]));
+
   function tree(project: string): TreeNode[] {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
@@ -549,9 +557,11 @@ export function createService(root: string, deps: Deps) {
         const full = join(dir, e.name);
         const path = prefix + posix(relative(from, full));
         if (e.isDirectory()) {
-          const node: TreeNode = { name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] };
           const run = path.startsWith('runs/') && path.split('/').length === 2 ? runs.get(e.name) : undefined;
-          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...runOrigin(run, labels) };
+          const children = depth < 8 ? walk(full, depth + 1, from, prefix) : [];
+          const node: TreeNode = { name: e.name, path, type: 'dir', children: run ? deliverablesOf(children) : children };
+          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...(typeof run.title === 'string' && run.title.trim() ? { title: run.title.trim() } : {}), ...runOrigin(run, labels) };
+          if (path.startsWith('runs/') && !run && node.children?.length === 0 && path.split('/').length > 2) continue; // an empty folder inside a run
           nodes.push(node);
         } else if (e.isFile()) {
           const st = statSync(full);
@@ -868,7 +878,7 @@ export function createService(root: string, deps: Deps) {
       description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
       available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
     // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
-    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
+    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, prompt, tool };
   }

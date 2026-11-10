@@ -114,8 +114,10 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
   const origin = node.run?.activity ? t(node.run.activity.label) : '';
   // A run's folder: the tree is narrow, so its row says what tells it apart (the scenario); the whole name
   // (activity · scenario, as in the Requests card) is in its tooltip.
-  const runName = !run ? '' : origin ? (node.run?.scenario ? `${origin} · ${node.run.scenario}` : origin) : node.run?.scenario || run.title;
-  const label = run ? node.run?.scenario || runName : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.path.startsWith('notes/') ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : node.name;
+  // Without a title, the run's id says it: its slug, without the skill's name, in words.
+  const slug = !run ? '' : (node.run?.skill && run.title.startsWith(`${node.run.skill}-`) ? run.title.slice(node.run.skill.length + 1) : run.title).replace(/-/g, ' ');
+  const runName = !run ? '' : node.run?.title || (origin ? (node.run?.scenario ? `${origin} · ${node.run.scenario}` : origin) : node.run?.scenario || slug);
+  const label = run ? node.run?.title || node.run?.scenario || runName : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.path.startsWith('notes/') ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : node.name;
   const menu = node.path.startsWith('.') ? undefined : onMenu; // a group of the sidebar, not a folder: nothing to create, reveal or copy
   const noteDrag = !isDir && /^notes\/[^/]+\.md$/.test(node.path);
   const movable = !isDir && canMove(node.path);
