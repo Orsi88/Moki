@@ -19,4 +19,6 @@ Menções inseridas com `@` no editor de código-fonte das notas usam caminhos r
 
 No menu de um arquivo na árvore, **Copiar link** copia um link Markdown a partir da raiz do projeto ativo. Cartões de comentário de Markdown e PDF têm **Copiar link do comentário**, preservando o id salvo. O link copiado funciona de qualquer documento no mesmo projeto do Moki. Ao escrever uma entrega Markdown portátil para outro visualizador, ajuste o destino para partir daquele documento.
 
+No Modo de leitura, o **#** ao lado de um título copia um link para aquela seção. Um link Markdown colado ou digitado no editor formatado vira link, então o link copiado é colado como referência.
+
 No terminal, use Ctrl+clique (Cmd+clique no macOS) num caminho existente do projeto para abri-lo. O clique simples mantém o terminal ativo. Linhas quebradas e caracteres largos são considerados; caminhos codificados como URL podem representar espaços. Um caminho do computador só é aceito quando identifica a pasta do projeto ativo. Arquivos ausentes e referências a outros projetos não viram links no terminal.

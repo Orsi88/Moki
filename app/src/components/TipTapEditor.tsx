@@ -440,7 +440,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false, link: { openOnClick: false } }),
+      StarterKit.configure({ codeBlock: false, link: { openOnClick: false, markdownLinks: true } }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,

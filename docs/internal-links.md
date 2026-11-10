@@ -19,4 +19,6 @@ Note mentions inserted with `@` in the source editor use document-relative paths
 
 In a file's tree menu, **Copy link** copies a Markdown link rooted at the active project. Markdown and PDF comment cards have **Copy link to comment**, preserving the stored comment id. A copied link works from any document in the same Moki project. When authoring a portable Markdown deliverable for another viewer, make the destination relative to that document.
 
+In Reading view, the **#** beside a heading copies a link to that section. A Markdown link pasted or typed in the formatted editor becomes a link, so a copied link is pasted as a reference.
+
 In a terminal, Ctrl+click (Cmd+click on macOS) an existing project path to open it. Plain clicks keep the terminal active. Wrapped lines and wide characters are handled; URL-encoded paths can represent spaces. A computer path is accepted only when it identifies the active project folder. Missing files and references to other projects are not made into terminal links.

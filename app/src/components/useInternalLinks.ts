@@ -31,6 +31,22 @@ export function linkProjectPaths(root: HTMLElement, resolve?: LinkResolver): voi
   }
 }
 
+// A button by each heading of the reading view copies a link to it; the heading's id is its anchor
+// (scripts/lib/markdown.mjs). It has no text, so selecting or commenting the heading reads the same words.
+export function headingLinks(root: HTMLElement, label: string, copy: (slug: string, button: HTMLButtonElement) => void): void {
+  for (const heading of root.querySelectorAll<HTMLElement>('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]')) {
+    if (heading.querySelector(':scope > .heading-link')) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'heading-link';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', () => copy(heading.id, button));
+    button.addEventListener('blur', () => button.classList.remove('copied'));
+    heading.append(button);
+  }
+}
+
 export function useAnchorJump(root: RefObject<HTMLElement | null>, jump: LinkJump | undefined, ready: boolean, onMissing?: () => void): void {
   const missing = useRef(onMissing);
   missing.current = onMissing;

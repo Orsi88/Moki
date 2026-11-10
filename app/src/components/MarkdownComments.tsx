@@ -10,7 +10,8 @@ import { addComment, colorComment, editComment, findInSource, readComments, remo
 import { CommentColumn, CommentComposer, SelectionBubble, useBubbleLife, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
 import { mountDiagrams } from './Diagrams';
 import { replaceDiagram } from '../diagram-source';
-import { linkProjectPaths, type LinkResolver } from './useInternalLinks';
+import { headingLinks, linkProjectPaths, type LinkResolver } from './useInternalLinks';
+import { projectLink } from '../internal-links';
 
 interface Props {
   path?: string;
@@ -45,8 +46,11 @@ export function MarkdownComments({ path, html, text, onCommit, onClick, hidden =
     const el = doc.current;
     if (!el) return;
     linkProjectPaths(el, resolveLink);
+    if (path) headingLinks(el, t('Copy link to this section'), (slug, button) => {
+      api.copyText(projectLink(path, { kind: 'heading', slug })).then(() => button.classList.add('copied')).catch((e: Error) => { button.title = e.message; });
+    });
     void mountDiagrams(el, (index, lang, body) => onCommit(replaceDiagram(text, index, lang, body)));
-  }, [html, text, onCommit, resolveLink]);
+  }, [html, text, onCommit, resolveLink, path]);
   // The mark of the card under the pointer lights up.
   useLayoutEffect(() => {
     const colors = new Map(comments.map((c) => [c.id, c.color]));
