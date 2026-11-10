@@ -3,13 +3,15 @@
 // to it inline when the worker cannot be used. Pure: bytes in, plain structured data out.
 // A sheet is cut to the rows and columns the app shows here, so the worker sends back only that.
 
+import { wordDocument, type WordDocument } from '../scripts/lib/office-word.ts';
+import { workbookInfo, type WorkbookInfo } from '../scripts/lib/office-sheet.ts';
 import { docxToMarkdown } from '../scripts/lib/docx.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { xlsxSheets } from '../scripts/xlsx.mjs';
 
 export type OfficeKind = 'docx' | 'xlsx';
 // sheets: the service's Sheet[] (kept loose here so this module does not depend on the service).
-export type OfficeParsed = { kind: 'docx'; html: string } | { kind: 'xlsx'; sheets: unknown[] };
+export type OfficeParsed = { kind: 'docx'; html: string; document?: WordDocument } | { kind: 'xlsx'; sheets: unknown[]; workbook?: WorkbookInfo };
 
 const SHEET_ROWS = 2000; // rows and columns per sheet shown in the app; the rest only in the spreadsheet program
 const SHEET_COLS = 200;
@@ -37,7 +39,7 @@ function cutSheet(s: RawSheet) {
 
 export function parseOffice(kind: OfficeKind, data: Uint8Array): OfficeParsed {
   const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-  if (kind === 'docx') return { kind, html: markdownToHtml(docxToMarkdown(buffer, { preview: true })) };
-  if (kind === 'xlsx') return { kind, sheets: (xlsxSheets(buffer, { display: true }) as RawSheet[]).map(cutSheet) };
+  if (kind === 'docx') return { kind, html: markdownToHtml(docxToMarkdown(buffer, { preview: true })), document: wordDocument(buffer) };
+  if (kind === 'xlsx') return { kind, sheets: (xlsxSheets(buffer, { display: true }) as RawSheet[]).map(cutSheet), workbook: workbookInfo(buffer) };
   throw new Error('Unknown file kind.');
 }

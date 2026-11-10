@@ -13,7 +13,6 @@ import { colorName } from './CommentColors';
 import { confirmDialog } from '../dialogs';
 import type { LinkJump } from '../internal-links';
 import { useAnchorJump } from './useInternalLinks';
-import { CopyCommentLink } from './CopyCommentLink';
 
 // pdf.js and its worker load when the first PDF tab is shown (lazy-module.ts).
 const pdfPages = lazyHeavy(() => import('./PdfPages'));
@@ -437,7 +436,6 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
         <>
           {c.contents ? <p className="pdf-comment-text">{c.contents}</p> : !reply && <p className="muted small">{t('Highlight without a comment.')}</p>}
           <div className="pdf-actions">
-            <CopyCommentLink path={path} id={c.id} />
             {!reply && <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>}
             <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.contents ?? '' })}>{t('Edit')}</button>
             <button type="button" className="link-btn" disabled={off} onClick={() => remove(c)}>{t('Delete')}</button>

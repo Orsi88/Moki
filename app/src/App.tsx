@@ -3,6 +3,7 @@ import { api, hasBridge, pageParams, type ProjectSummary, type Starter, type Ter
 import { t, useLang } from './i18n';
 import { hiddenIds, setMenuWorkspace } from './side-menu';
 import { Ribbon } from './components/Ribbon';
+import { IdeDialog } from './components/IdeDialog';
 import { UsageStatus } from './components/UsageStatus';
 import { NoteDialog } from './components/NoteDialog';
 import { Home } from './screens/Home';
@@ -42,6 +43,7 @@ export function App() {
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [search, setSearch] = useState(false); // the search panel replaces the left list
   const [quickNote, setQuickNote] = useState(false);
+  const [ideCompanion, setIdeCompanion] = useState(false);
   const [homeNote, setHomeNote] = useState(0); // a new loose note asked on the start screen: it opens in its main area
   const noteOpener = useRef<HTMLElement | null>(null);
   const openQuickNote = useCallback(() => {
@@ -143,11 +145,12 @@ export function App() {
     return (
       <>
         <div className="shell">
-          <Ribbon settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
+          <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
           <Home newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
           <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
         </div>
         {note}
+        {ideCompanion && <IdeDialog project="" tools={tools} onClose={() => setIdeCompanion(false)} onMyAis={() => { setIdeCompanion(false); setSettings('ai'); }} />}
       </>
     );
   }

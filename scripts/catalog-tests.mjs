@@ -18,6 +18,14 @@ const DESCRIBE = /^\s*test\.describe(?:\.serial)?\((['"`])((?:\\.|(?!\1).)*)\1/;
 const U = 'Unit';
 const I = 'Integration';
 const RULES = {
+  'hudson.test.ts': [[/./, 'Activities and runs', I]],
+  'md-raw.test.ts': [[/./, 'Rendering', U]],
+  'note-assist.test.ts': [[/./, 'Notes', U]],
+  'terminal-drop.test.ts': [[/./, 'Launching AI tools', U]],
+  'html-comments.test.ts': [[/^HTML comment service/, 'Files and confinement', I], [/./, 'Rendering', U]],
+  'html-preview.test.ts': [[/./, 'Files and confinement', U]],
+  'office-editor.test.ts': [[/^Office service|^legacy conversion/, 'Rendering', I], [/./, 'Rendering', U]],
+  'office-native.test.ts': [[/./, 'Rendering', I]],
   'project-watch.test.ts': [[/./, 'Files and confinement', U]],
   'desktop.test.ts': [
     [/^projects and project creation|^project name and description|^deleting a project|^tree lists|^project settings|^an AI opened in the project starts/, 'Projects', I],
@@ -30,7 +38,7 @@ const RULES = {
     [/^PdfCraft|^PDF/, 'PDF (PdfCraft)', I],
     [/^notes:|^note windows/, 'Notes', I],
     [/^MCPs:/, 'MCP servers', I],
-    [/^run details|^activity tracking|^a run records the activity|^npm run new-run|^leftovers|^cleanup after context/, 'Activities and runs', I],
+    [/^run details|^activity tracking|^a run records the activity|^a run shows its title|^npm run new-run|^leftovers/, 'Activities and runs', I],
     [/^launcher keeps user text/, 'Launching AI tools', U],
     [/^launch |^install plans|^a missing installable|^run-tool:|^non-ASCII|^app plugins|^plugins per project|^terminal tabs|^calling into a terminal/, 'Launching AI tools', I],
     [/^tags /, 'Tags', I],
@@ -45,6 +53,7 @@ const RULES = {
     [/^search|^expanded search/, 'Search', I],
     [/^craft apps:/, 'ArtCraft apps download', U],
     [/^craft download:/, 'ArtCraft apps download', I],
+    [/^IDE shortcut/, 'Finding the AI tools', I],
     [/^my AIs:/, 'Finding the AI tools', I],
   ],
   'framework.test.mjs': [
@@ -133,6 +142,11 @@ for (const file of readdirSync(join(root, 'tests')).filter((f) => /\.test\.(ts|m
 const blockName = (b) => { const n = b.replace(/^Moki /, ''); return `${n.charAt(0).toUpperCase()}${n.slice(1)} (UI)`; };
 for (const t of scan('tests/ui/app.spec.ts')) rows.push({ ...t, file: 'tests/ui/app.spec.ts', area: blockName(t.block), kind: 'Interface' });
 
+for (const [file, area] of [['diagrams.spec.ts', 'Rendering (UI)'], ['hudson.spec.ts', 'Activities and runs (UI)'], ['internal-links.spec.ts', 'Rendering (UI)'], ['md-edit.spec.ts', 'Rendering (UI)'], ['note-assist.spec.ts', 'Notes (UI)'], ['notes-layout.spec.ts', 'Projects (UI)'], ['terminal-images.spec.ts', 'Launching AI tools (UI)'], ['wiki-shots.spec.ts', 'Documentation (UI)']]) {
+  for (const t of scan('tests/ui/' + file)) rows.push({ ...t, file: 'tests/ui/' + file, area, kind: 'Interface' });
+}
+for (const t of scan('tests/ui/workspace-features.spec.ts')) rows.push({ ...t, file: 'tests/ui/workspace-features.spec.ts', area: 'Document editors (UI)', kind: 'Interface' });
+
 // Areas in reading order: the app's main objects first, then the IDE, then the framework and tooling.
 const ORDER = ['Projects', 'Files and confinement', 'Open with', 'PDF (PdfCraft)', 'Notes', 'Rendering', 'Search', 'Workspaces', 'Tabs and views', 'Theme', 'Dialogs', 'Tags', 'Launching AI tools', 'Finding the AI tools', 'Activities', 'Favorites', 'Activities and runs', 'Agents', 'Multi-agent operations', 'Skills and set up', 'Linked folder', 'MCP servers', 'App bridge (IPC)', 'Installer', 'Status bar usage', 'Translations', 'IDE: panel API', 'IDE: context and MCP server', 'IDE icon', 'Framework', 'Documentation'];
 const rank = (a) => { const i = ORDER.indexOf(a); return i < 0 ? ORDER.length : i; };
@@ -167,7 +181,7 @@ const TEXT = {
       'Status bar usage': 'Uso na barra de status', Translations: 'Traduções', 'IDE: panel API': 'IDE: API do painel', 'IDE: context and MCP server': 'IDE: contexto e servidor MCP',
       'Tabs and views': 'Abas e visões', Theme: 'Tema', Dialogs: 'Diálogos',
       'IDE icon': 'Ícone da IDE', Framework: 'Framework', Documentation: 'Documentação',
-      'Settings (UI)': 'Configurações (UI)', 'Tags (UI)': 'Tags (UI)', 'Workspaces (UI)': 'Workspaces (UI)', 'Project tree (UI)': 'Árvore do projeto (UI)',
+      'Rendering (UI)': 'Renderização (UI)', 'Activities and runs (UI)': 'Atividades e execuções (UI)', 'Notes (UI)': 'Notas (UI)', 'Projects (UI)': 'Projetos (UI)', 'Launching AI tools (UI)': 'Abrir ferramentas de IA (UI)', 'Documentation (UI)': 'Documentação (UI)', 'Document editors (UI)': 'Editores de documentos (UI)', 'Settings (UI)': 'Configurações (UI)', 'Tags (UI)': 'Tags (UI)', 'Workspaces (UI)': 'Workspaces (UI)', 'Project tree (UI)': 'Árvore do projeto (UI)',
       'Operations in a project (UI)': 'Operações num projeto (UI)', 'Terminals outlive the project screen (UI)': 'Terminais que continuam fora do projeto (UI)',
       'MCP servers list (UI)': 'Lista de servidores MCP (UI)', 'PDF comments (UI)': 'Comentários em PDF (UI)',
       'Finding the AI tools': 'Encontrar as ferramentas de IA', Activities: 'Atividades', 'Activities (UI)': 'Atividades (UI)', Favorites: 'Favoritos', 'Favorites (UI)': 'Favoritos (UI)', 'Settings without a project (UI)': 'Configurações sem projeto (UI)',

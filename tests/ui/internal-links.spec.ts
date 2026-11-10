@@ -22,6 +22,10 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     const config = JSON.parse(readFileSync(join(project, 'project.json'), 'utf8'));
     writeFileSync(join(project, 'project.json'), JSON.stringify({ ...config, project: 'acme', name: 'Link navigation' }));
     for (const dir of ['inbox', 'notes', 'runs']) mkdirSync(join(project, dir), { recursive: true });
+    mkdirSync(join(project, 'skills', 'panel-skill'), { recursive: true });
+    mkdirSync(join(project, 'agents'), { recursive: true });
+    writeFileSync(join(project, 'skills', 'panel-skill', 'SKILL.md'), '---\nname: panel-skill\ndescription: Project-specific review.\n---\n# Panel skill\nRead the supplied source.');
+    writeFileSync(join(project, 'agents', 'panel-agent.md'), '---\nname: panel-agent\ndescription: Project-specific helper.\n---\nReview the supplied source.');
     const source = '# Story\n\n' + 'A paragraph for scrolling.\n\n'.repeat(28) + '## Regras de frete\n\nConfirm the delivery rule.\n\n[Top](#story)\n';
     const at = source.indexOf('delivery rule');
     const story = addComment(source, at, at + 13, { author: 'Ana', at: '2026-11-01T10:00:00Z', text: 'Check the boundary', color: 'yellow' }, 'rule1').text;
@@ -35,12 +39,38 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     writeFileSync(join(project, 'review.md'), report);
     writeFileSync(join(project, 'inbox', 'editor.md'), '# Editor\n\n[Rules](story.md#regras-de-frete)\n');
     writeFileSync(join(project, 'notes', 'legacy.md'), '# A note\n\n[@story](inbox/story.md#regras-de-frete)\n');
-    app = await launchMoki({ QA_ROOT: root, QA_USER_DATA: profile, QA_OPEN_PROJECT: 'acme' });
+    app = await launchMoki({ QA_ROOT: root, QA_USER_DATA: profile, QA_OPEN_PROJECT: 'acme', QA_FAKE_TOOLS: '1' });
     const view = await app.firstWindow();
     const errors: string[] = [];
     view.on('pageerror', (e) => errors.push(e.message));
     await view.evaluate(() => { localStorage.setItem('qa-ui-language', 'en'); });
     await view.reload();
+    // The complete release must expose both the earlier specialists and the restored agents.
+    await view.getByRole('button', { name: /^Call/ }).first().click();
+    const catalog = view.getByRole('dialog');
+    await catalog.getByRole('tab', { name: /^Agents/ }).click();
+    for (const name of ['sherlock', 'moriarty', 'watson', 'lestrade', 'round-reviewer', 'wiggins', 'cartografo', 'inventor', 'artesao', 'sentinela']) {
+      await catalog.getByRole('searchbox').fill(name);
+      await expect(catalog.locator('.answer-title').filter({ hasText: new RegExp('^' + name + '$') })).toBeVisible();
+    }
+    await catalog.getByRole('tab', { name: /^Activities/ }).click();
+    for (const label of ['Investigate with Sherlock', 'Cross-examine with Moriarty', 'Write a document with Watson', 'Register items with Lestrade', 'Review an MF from the tracker']) {
+      await catalog.getByRole('searchbox').fill(label);
+      await expect(catalog.locator('.answer-title').filter({ hasText: new RegExp('^' + label + '$') })).toBeVisible();
+    }
+    await view.keyboard.press('Escape');
+    // The incoming project card uses the real service and preserves the local terminal's file handlers.
+    const items = view.getByRole('region', { name: 'Skills and agents', exact: true });
+    await expect(items.getByRole('button', { name: 'Use panel-skill in the AI', exact: true })).toBeEnabled();
+    await expect(items.locator('.pp-item', { hasText: 'panel-agent' })).toBeVisible();
+    await items.getByRole('button', { name: 'Use panel-skill in the AI', exact: true }).click();
+    const ai = view.locator('.term-pane:not([hidden])');
+    await expect(ai).toContainText('[start]');
+    await expect(ai).toContainText('Use the panel-skill skill');
+    await items.locator('.pp-item', { hasText: 'panel-agent' }).dragTo(ai);
+    await expect(ai).toContainText('Act as the panel-agent agent');
+    await expect(ai).not.toContainText('[submitted]'); // the drag only pastes the request
+    await expect.poll(() => view.evaluate(async () => (await window.qa?.term?.list('acme'))?.length)).toBe(1);
     await view.locator('.tree-row[title="inbox"]').click();
     await view.locator('.tree-row[title="inbox/editor.md"]').click();
     await expect(view.locator('.doc .ProseMirror')).toContainText('Editor');
@@ -60,8 +90,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await expect(view.locator('.doc pre a')).toHaveCount(0);
     await view.getByRole('link', { name: 'MD comment', exact: true }).click();
     await expect(view.locator('[data-card="rule1"][data-link-target]')).toBeInViewport();
-    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md#comment-rule1)');
+    await expect(view.getByRole('button', { name: 'Copy link to comment' })).toHaveCount(0); // a comment has no copy link
     await expect.poll(() => view.locator('.doc-body').evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
     await view.getByRole('link', { name: 'Top', exact: true }).click();
     await expect(view.locator('h1[data-link-target]')).toHaveText('Story');
@@ -76,8 +105,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await view.getByRole('link', { name: 'PDF comment', exact: true }).click();
     await expect(view.locator('.pdf-card[data-link-target]')).toContainText('Inspect this evidence');
     await expect(view.locator('.pdf-card[data-link-target]')).toBeInViewport();
-    await view.getByRole('button', { name: 'Copy link to comment', exact: true }).click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[evidence.pdf](/inbox/evidence.pdf#comment-' + pdfId + ')');
+    await expect(view.getByRole('button', { name: 'Copy link to comment' })).toHaveCount(0); // a comment has no copy link
     await openReview();
     await view.getByRole('link', { name: 'Other project', exact: true }).click();
     await expect(view.getByText('This link does not point to a file in this project.', { exact: true })).toBeVisible();
@@ -91,6 +119,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     // Legacy project-root note mentions still resolve from notes/.
     await view.locator('.tree-row[title="notes"]').click();
     await view.locator('.tree-row[title="notes/legacy.md"]').click();
+    await expect(view.locator('.note-host .modal-head').getByRole('button', { name: 'Use in the terminal', exact: true })).toBeVisible();
     await view.locator('.note-host .ProseMirror a').click({ modifiers: ['Control'] });
     await expect(view.locator('h2[data-link-target]')).toBeVisible();
     await view.locator('.tree-row[title="inbox/story.md"]').click({ button: 'right' });
@@ -98,7 +127,8 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md)');
     // A freshly inserted @ mention writes a document-relative destination.
     await view.locator('.tree-row[title="notes/legacy.md"]').click();
-    await view.locator('.note-host').getByTitle('Markdown source', { exact: true }).click();
+    await view.locator('.note-host .tiptap-body').click();
+    await view.keyboard.press('Control+e'); // the note's Markdown source
     const noteSource = view.locator('.note-host textarea.note-editor');
     await noteSource.click();
     await noteSource.press('Control+End');

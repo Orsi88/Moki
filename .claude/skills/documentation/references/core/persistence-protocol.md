@@ -10,17 +10,21 @@ Activities may span several sessions and several AI tools. There is **no shared 
 | Knowledge awaiting confirmation | `workspace/projects/<project-id>/proposed-updates.md` |
 | History of activities | `workspace/projects/<project-id>/activity-log.md` |
 | Progress, pending items, approvals, artifacts of one execution | `workspace/projects/<project-id>/runs/<run-id>/state.json` |
-| Deliverables, evidence, logs of one execution | `workspace/projects/<project-id>/runs/<run-id>/{outputs,evidence,logs}/` |
+| Deliverables and evidence of one execution | `workspace/projects/<project-id>/runs/<run-id>/{outputs,evidence}/` |
 | Files that only help produce a deliverable (generator data, working data between steps, drafts) | `workspace/projects/<project-id>/runs/<run-id>/work/`, deleted when the run is completed |
 | Scratch files outside any run | `workspace/projects/<project-id>/temporary/` (the app empties what is older than a few days) |
 
 Keep these separate: activity results never go into `context/`, and context is never edited from inside a run folder.
 
+## When there is a run
+
+A run is for work whose result is a document, or that stops at an approval gate and is resumed later. A question, an explanation, a definition, an investigation or a small change is answered in the conversation: no run, no file ([answer in the conversation first](execution-principles.md#answer-in-the-conversation-first)).
+
 ## Run folder
 
 Run id format: `YYYYMMDD-HHMM-<skill-or-workflow>-<short-slug>` (lowercase, hyphens), for example `20261020-0930-requirements-review-login-mfa`.
 
-Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug>` (or `--workflow <id>`; add `--activity <id>` when the request names the Moki activity it came from) when a shell is available. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
+Create a run with `npm run new-run -- --project <project-id> --skill <name> --slug <slug> --title "<what was asked, in a few words>"` (or `--workflow <id>`; add `--activity <id>` when the request names the Moki activity it came from) when a shell is available. The title is what the app shows for the run, in the language of the conversation (for example `--title "Revisão da US-12 frete grátis"`). The run starts with `state.json` only: create `outputs/`, `evidence/` or `work/` when the first file goes there, never empty. Otherwise create the folder and `state.json` manually following `schemas/execution-state.schema.json`. After creating a run, append one line to `activity-log.md`; update that line's outcome when the run ends.
 
 ## Inside a multi-agent operation
 
@@ -42,6 +46,7 @@ Required fields: `schemaVersion`, `id`, `project`, `skill` or `workflow`, `creat
 - `artifacts`: paths of the deliverables — the files the user asked for (and the evidence the skill keeps) — relative to the framework root (starting with `workspace/projects/<project-id>/`) or to a target repository (`<target-repo>/...`). Working files are never listed: they go to the run's `work/` folder and are deleted when the run is completed ([deliverables only](execution-principles.md#deliverables-only)).
 - `pending`: open questions and missing information, each with an id.
 - `terminal` (optional): the Moki desktop terminal the run was created in; `npm run new-run` records it by itself (from `QA_TERMINAL`). The app opens the run's deliverables next to that terminal. Never write it by hand.
+- `title` (optional): what was asked, in a few words, shown by the app as the run's name; `npm run new-run --title` records it.
 - `activity` (optional): the id of the Moki activity the request came from, when the request names one (the desktop app says it). It is how the app shows each run under its activity; a request that did not come from an activity has none.
 
 Update `state.json` at the end of every step and before every approval gate. Keep it small: store decisions and paths, not full document contents.

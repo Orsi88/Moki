@@ -28,6 +28,15 @@ The framework contains no rules specific to any company or application. Never as
 - Limit retries: at most **3 attempts** for the same failing action unless the skill defines a lower limit. Then stop and report.
 - Stop on blockers (missing mandatory input, no access, contradictory instructions) and report them instead of guessing.
 
+## Answer in the conversation first
+
+Most requests are answered in the conversation: a question, an explanation, a definition, an investigation, a review of something, a small change. Answer there, with no run and no file.
+
+- Create a run and files only when the user asks for a file, or when the activity's result is a document that is the point of the request (a review matrix, test cases, a report, an evidence file, a tracker item), or when the work stops at an approval gate and must be resumed later.
+- Never create support documents nobody asked for: notes, summaries, plans, checklists, "context" or "analysis" files written along the way. When one would help, offer it in one line ("Do you want this saved as a document?") and create it only on a yes.
+- Never write logs of your own work. A skill's recovery journal (the publication journal of `dispatch`) is not a log of your work and stays.
+- A definition the user confirms in the conversation (a business rule, a term, a decision about the system) is offered for the project context in one line ("Save this to the project context?"). On a yes, write it in `context/` through `project-context`, with no other step. Do not wait for the user to ask.
+
 ## Deliverables only
 
 The user keeps what they asked for, nothing else.

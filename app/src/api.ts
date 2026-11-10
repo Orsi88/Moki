@@ -1,9 +1,20 @@
+import type { HtmlAnchor, HtmlComment } from '../../scripts/lib/html-comments.ts';
+import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
 // Client for the desktop app's main process (see desktop/preload.ts and
 // desktop/service.ts). Every call goes through one validated IPC channel.
 
 import { lang, t } from './i18n';
 
 // A project's default (project.json defaults): several of each kind may be set.
+// A quick assistant of a note (desktop/note-assist.ts): the answer, or what went wrong ('no-tool': neither Claude Code nor Codex).
+export type { NoteHelper } from './note-assist';
+import type { NoteHelper } from './note-assist';
+// Hudson's plan for the files the runs left (desktop/hudson.ts): each file with an action the person approves.
+export type OrganizeAction = 'context' | 'rename' | 'delete' | 'keep';
+export interface OrganizeCandidate { path: string; size: number; run: string; title: string; status: string; deliverable: boolean; preview: string }
+export interface OrganizeStep { path: string; do: OrganizeAction; name?: string; why: string }
+export interface HudsonPlan { files?: OrganizeCandidate[]; plan?: OrganizeStep[]; tool?: string; error?: string }
+export interface NoteAssistResult { answer?: string; tool?: string; error?: string }
 export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
   id: string; name: string; description: string; onboardingStatus: string; deliverableLanguage: string; runs: number; openRuns: number;
@@ -82,7 +93,7 @@ export interface ActivityRun extends OpenRun, RunOrigin { skill: string; workflo
 
 export interface TreeNode {
   name: string; path: string; type: 'dir' | 'file'; size?: number; mtime?: number; children?: TreeNode[];
-  run?: { status: string; skill: string; currentStep: string } & RunOrigin;
+  run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin;
   mcp?: string; // MCP server row: where it is configured
   linked?: string; // the linked folder (path "@folder", shown live): its full path on this computer
 }
@@ -91,9 +102,9 @@ export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
-  | { kind: 'html'; path: string; text: string } // shown rendered, read-only
-  | { kind: 'docx'; path: string; html: string }
-  | { kind: 'xlsx'; path: string; sheets: {
+  | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
+  | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
+  | { kind: 'xlsx'; path: string; version?: string; workbook?: WorkbookInfo; sheets: {
     name: string; hidden: boolean; drawing: boolean; rows: (string | { n: string })[][]; truncated: boolean;
     merges: number[][]; widths: number[]; hiddenRows: number[]; hiddenCols: number[]; align: Record<string, { h?: string; v?: string; wrap?: boolean }>;
   }[] }
@@ -101,7 +112,7 @@ export type FileContent =
   // (last change, ms) come from one stat and are what the tree's are compared with.
   | { kind: 'image'; path: string; url: string; size: number; mtime: number }
   | { kind: 'pdf'; path: string; url: string; size: number; mtime: number }
-  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string };
+  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
 export interface RunState {
   id: string; status: string; currentStep?: string; skill?: string; workflow?: string; createdAt?: string; updatedAt?: string;
@@ -271,6 +282,9 @@ export interface Bridge {
   watch(project: string | null): Promise<boolean>;
   onChanged(callback: (project: string) => void): () => void;
   openLink(url: string): Promise<void>;
+  noteAssist?(request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult>;
+  noteAssistCancel?(id: string): Promise<void>;
+  hudsonPlan?(request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan>;
   usage?(refresh: boolean): Promise<Usage | null>;
   openNoteWindow(target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }): Promise<boolean>;
   openSearchWindow?(): Promise<boolean>;
@@ -356,11 +370,17 @@ export const api = {
   setActivityFavorite: (id: string, on: boolean) => call<string[]>('setActivityFavorite', id, on),
   integrations: () => call<ToolInfo[]>('integrations'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
+  openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string }>('openMokiInEditor', tool, project),
   installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
   tree: (project: string) => call<TreeNode[]>('tree', project),
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
   // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.
   writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
+  editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
+  htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
+  addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text),
+  removeHtmlComment: (project: string, path: string, id: string) => call<HtmlComment[]>('removeHtmlComment', project, path, id),
+  convertOffice: (project: string, path: string) => call<string>('convertOffice', project, path),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
   templates: () => call<DocumentTemplate[]>('templates'),
@@ -394,6 +414,8 @@ export const api = {
   deleteEntry: (project: string, path: string) => call<boolean>('deleteEntry', project, path),
   revealPath: (project: string, path: string) => call<boolean>('revealPath', project, path),
   copyPath: (project: string, path: string) => call<string>('copyPath', project, path),
+  fullPath: (project: string, path: string) => call<string>('fullPath', project, path),
+  savePastedImage: (project: string, data: Uint8Array, type: string) => call<string>('savePastedImage', project, data, type),
   copyText: (text: string) => call<boolean>('copyText', text),
   openWithApps: (project: string, path: string) => call<OpenWithApps>('openWithApps', project, path),
   openWith: (project: string, path: string, app: string) => call<boolean>('openWith', project, path, app),
@@ -482,6 +504,10 @@ export const api = {
   watch: (project: string | null) => window.qa?.watch(project ?? '') ?? Promise.resolve(false),
   onChanged: (cb: (project: string) => void) => window.qa?.onChanged(cb) ?? (() => {}),
   openLink: (url: string) => window.qa?.openLink(url),
+  noteAssist: (request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult> => window.qa?.noteAssist?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  noteAssistCancel: (id: string) => window.qa?.noteAssistCancel?.(id) ?? Promise.resolve(),
+  hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan> => window.qa?.hudsonPlan?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  organizeApply: (project: string, steps: OrganizeStep[]) => call<{ done: string[]; failed: string[] }>('organizeApply', project, steps),
   usage: (refresh = false) => window.qa?.usage?.(refresh) ?? Promise.resolve(null),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
@@ -501,3 +527,5 @@ export const statusLabel = (status: string): string => ({
   'in-progress': t('In progress'), 'awaiting-approval': t('Waiting for your approval'), 'awaiting-input': t('Waiting for input'),
   blocked: t('Blocked'), paused: t('Paused'), completed: t('Completed'), cancelled: t('Cancelled'), unreadable: t('Unreadable'),
 } as Record<string, string>)[status] ?? status;
+
+export type { WordDocument, WordChange, WorkbookInfo, SheetChange };
