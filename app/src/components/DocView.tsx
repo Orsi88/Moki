@@ -161,6 +161,7 @@ const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour:
 
 export function DocView({ content, project, mode, initialScrollTop = 0, onScroll, draft, dirty, saving, onDraft, onMode, large = false, quiet = false, autosave = false, savedAt, conflict = false, onTakeTheirs, onKeepMine, onQuiet, onSave, onOpenExternal, onReload, onLink, resolveLink, jump, onMissingAnchor, onPdfSaved, onCommit, openWith, tags, onConverted }: Props) {
   const resolveCurrent = useCallback((href: string) => resolveLink?.(content.path, href) ?? null, [resolveLink, content.path]);
+  const [htmlToolbar, setHtmlToolbar] = useState<HTMLDivElement | null>(null);
   const nativeOffice = Boolean(project && ((content.kind === 'docx' && content.document) || (content.kind === 'xlsx' && content.workbook)));
   const [officeStatus, setOfficeStatus] = useState({ busy: false, dirty: false, comments: 0 });
   const [officeComments, setOfficeComments] = useState(() => recall('qa-office-comments') === 'open');
@@ -308,8 +309,9 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           {editable && !autosave && (dirty || saving) && (
             <button type="button" className="btn btn-sm" onClick={onSave} disabled={saving}>{saving ? t('Saving…') : t('Save')}</button>
           )}
-          <button type="button" className="icon-btn" onClick={onReload} title={t('Reload this file')} aria-label={t('Reload this file')}><IconRefresh size={16} /></button>
-          <button type="button" className="icon-btn" onClick={onOpenExternal} title={openTitle}><IconExternal size={17} /></button>
+          {content.kind === 'html' && <div ref={setHtmlToolbar} className="html-toolbar-slot" />}
+          {content.kind !== 'html' && <button type="button" className="icon-btn" onClick={onReload} title={t('Reload this file')} aria-label={t('Reload this file')}><IconRefresh size={16} /></button>}
+          {content.kind !== 'html' && <button type="button" className="icon-btn" onClick={onOpenExternal} title={openTitle}><IconExternal size={17} /></button>}
           {openWith && OPEN_WITH.test(content.path) && (
             <button type="button" className="icon-btn" onClick={showOpenWith} title={t('Open with…')} aria-label={t('Open with…')} aria-haspopup="menu"><IconMore size={17} /></button>
           )}
@@ -366,7 +368,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         {content.kind === 'pdf' && (project && onPdfSaved
           ? <PdfDoc key={content.path} project={project} path={content.path} url={content.url} renew={renewPdf} native={<PdfView url={content.url} title={content.path} />} onSaved={onPdfSaved} jump={jump} onMissingAnchor={onMissingAnchor} />
           : <PdfView url={content.url} title={content.path} />)}
-        {content.kind === 'html' && <HtmlPreview key={content.path} project={project} url={content.url} text={content.text} title={content.path} onExternal={onOpenExternal} />}
+        {content.kind === 'html' && <HtmlPreview key={content.path} project={project} toolbar={htmlToolbar} url={content.url} text={content.text} title={content.path} onExternal={onOpenExternal} />}
         {content.kind === 'image' && <ImageView url={content.url} alt={content.path} />}
         {content.kind === 'binary' && (
           <div className="binary-view">

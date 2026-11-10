@@ -46,7 +46,7 @@ export function IdeDialog({ project, tools, onClose, onMyAis }: Props) {
           </section>;
         })}
       </div>
-      <footer className="modal-foot"><button type="button" className="btn btn-ghost" disabled={Boolean(busy)} onClick={onMyAis}>{t('My AIs')}</button><button type="button" className="btn" disabled={Boolean(busy)} onClick={onClose}>{t('Close')}</button></footer>
+      <footer className="modal-foot"><button type="button" className="btn btn-ghost" disabled={Boolean(busy)} onClick={onMyAis}>{t('My AIs')}</button></footer>
     </Modal>
   );
 }

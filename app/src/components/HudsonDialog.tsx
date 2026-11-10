@@ -39,6 +39,7 @@ export function HudsonDialog({ project, onClose, onDone, onMyAis }: Props) {
 
   const byPath = useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
   const groups = ORDER.map((action) => ({ action, steps: plan.filter((s) => s.do === action) })).filter((g) => g.steps.length);
+  const hasChanges = plan.some((step) => step.do !== 'keep');
   const picked = plan.filter((s) => s.do !== 'keep' && chosen.has(s.path));
   const toggle = (path: string) => setChosen((now) => { const next = new Set(now); if (next.has(path)) next.delete(path); else next.add(path); return next; });
 
@@ -67,7 +68,7 @@ export function HudsonDialog({ project, onClose, onDone, onMyAis }: Props) {
         {state === 'ready' && !plan.length && <p>{t('There is nothing to organize: the runs left no files.')}</p>}
         {(state === 'ready' || state === 'applying') && plan.length > 0 && (
           <>
-            <p className="muted small">{t('Nothing changes until you apply. Uncheck what you do not want; a deleted file goes to the trash.')}</p>
+            {hasChanges ? <p className="muted small">{t('Nothing changes until you apply. Uncheck what you do not want; a deleted file goes to the trash.')}</p> : <><h3 role="status">{t('No changes needed')}</h3><p className="muted small">{t('Hudson reviewed {n} files and recommends keeping them as they are.', { n: String(plan.length) })}</p></>}
             {groups.map(({ action, steps }) => (
               <section key={action} className={`hudson-group hudson-${action}`}>
                 <h3>{heading(action)} <span className="muted">({steps.length})</span></h3>
@@ -95,7 +96,7 @@ export function HudsonDialog({ project, onClose, onDone, onMyAis }: Props) {
           <p role="status">{t('{n} files organized.', { n: String(result.done.length) })}{result.failed.length ? ` ${t('{n} could not be changed (moved or open elsewhere).', { n: String(result.failed.length) })}` : ''}</p>
         )}
       </div>
-      <footer className="modal-foot">
+      {!(state === 'ready' && !hasChanges) && <footer className="modal-foot">
         {state === 'done' || state === 'error' || (state === 'ready' && !plan.length)
           ? <button type="button" className="btn" onClick={onClose}>{t('Close')}</button>
           : <>
@@ -104,7 +105,7 @@ export function HudsonDialog({ project, onClose, onDone, onMyAis }: Props) {
               {state === 'applying' ? t('Applying…') : t('Apply ({n})', { n: String(picked.length) })}
             </button>
           </>}
-      </footer>
+      </footer>}
     </Modal>
   );
 }

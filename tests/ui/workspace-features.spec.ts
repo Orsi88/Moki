@@ -67,6 +67,11 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await view.getByPlaceholder('Write a comment…').fill('Excel native note');
     await view.getByRole('button', { name: 'Add comment', exact: true }).click();
     await expect.poll(() => workbookInfo(readFileSync(join(inbox, 'styled.xlsx'))).sheets[0].comments[0]?.text).toBe('Excel native note');
+    await view.locator('td[data-cell="D10"]').click();
+    await view.locator('.office-comments article').getByText('Excel native note', { exact: true }).click();
+    await expect(view.locator('td[data-cell="B2"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(view.locator('.office-comments article .comment-actions')).toHaveCount(1);
+    await expect(view.locator('.office-comments article .office-comment-head button')).toHaveCount(0);
     await view.locator('.office-sheet-grid').evaluate(element => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event('scroll')); });
     await expect(view.locator('td[data-cell="A250"]')).toHaveCount(1);
     await view.getByRole('button', { name: 'Close comments', exact: true }).click();
@@ -74,6 +79,9 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await view.locator('.tree-row[title="inbox/legacy.doc"]').click();
     await expect(view.getByRole('button', { name: 'Convert and edit a copy' })).toBeVisible();
     await view.locator('.tree-row[title="inbox/index.html"]').click();
+    await expect(view.locator('.doc-bar .html-preview-bar')).toHaveCount(1);
+    await expect(view.locator('.html-preview > .html-preview-bar')).toHaveCount(0);
+    await expect(view.getByRole('button', { name: 'Reload this file' })).toHaveCount(0);
     const frame = view.frameLocator('iframe[title="inbox/index.html"]');
     await expect(frame.locator('#module')).toHaveText('Modules and fetch work');
     await expect(frame.locator('h1')).toHaveCSS('color', 'rgb(12, 34, 56)');
@@ -100,6 +108,9 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await view.getByRole('button', { name: 'Reload preview' }).click();
     await expect(htmlComments.locator('article')).toContainText('Review the demo heading');
     await expect(frame.locator('#module')).toHaveText('Modules and fetch work');
+    await htmlComments.getByRole('button', { name: 'Go to the commented location' }).click();
+    await expect(frame.locator('h1')).toBeInViewport();
+    await expect(htmlComments.locator('article .comment-actions button')).toHaveCount(2);
     await htmlComments.getByRole('button', { name: 'Delete comment' }).click();
     await expect(htmlComments.locator('article')).toHaveCount(0);
     expect(errors).toEqual([]);

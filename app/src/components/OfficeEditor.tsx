@@ -4,7 +4,7 @@ import { api, type FileContent, type WordChange, type SheetChange, type WordDocu
 import type { OfficeComment } from '../../../scripts/lib/office-types';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { t } from '../i18n';
-import { IconChat, IconPlus, IconRefresh, IconTrash, IconX } from './Icons';
+import { IconChat, IconExternal, IconPlus, IconRefresh, IconTrash, IconX } from './Icons';
 import { Notice } from './Notice';
 
 type Content = Extract<FileContent, { kind: 'docx' | 'xlsx' }>;
@@ -54,16 +54,17 @@ function useOfficeEdits(content: Content, project: string) {
   return { current, busy, dirty, error, edit, flush: () => { debounce.flush(); drain.current(); }, retry: () => { failed.current = false; drain.current(); } };
 }
 
-function Comments({ comments, anchor, onComment, onDelete, readOnly, onClose }: { comments: OfficeComment[]; anchor: string | null; onComment: (text: string) => void; onDelete: (id: string) => void; readOnly?: boolean; onClose: () => void }) {
+function Comments({ comments, anchor, onComment, onDelete, readOnly, onClose, onNavigate, anchorLabel }: { comments: OfficeComment[]; anchor: string | null; onComment: (text: string) => void; onDelete: (id: string) => void; readOnly?: boolean; onClose: () => void; onNavigate: (anchor: string) => void; anchorLabel: (anchor: string) => string }) {
   const [draft, setDraft] = useState('');
   return <aside className="office-comments" aria-label={t('Comments')}>
     <h3><IconChat size={15} />{t('Comments')} <span className="muted">({comments.length})</span><span className="statusbar-spacer" /><button type="button" className="icon-btn" title={t('Close comments')} aria-label={t('Close comments')} onClick={onClose}><IconX size={14} /></button></h3>
-    {comments.map((comment) => <article key={comment.id} className={comment.anchor === anchor ? 'selected' : ''}>
-      <div className="office-comment-head"><strong>{comment.author}</strong><span className="statusbar-spacer" /><button type="button" className="icon-btn" aria-label={t('Delete comment')} disabled={readOnly} onClick={() => onDelete(comment.id)}><IconTrash size={13} /></button></div>
+    {comments.map((comment) => <article key={comment.id} className={comment.anchor === anchor ? 'selected' : ''} onClick={(event) => { if (!(event.target as Element).closest('button')) onNavigate(comment.anchor); }}>
+      <div className="office-comment-head"><strong>{comment.author}</strong><span className="statusbar-spacer" /><span className="muted small">{anchorLabel(comment.anchor)}</span></div>
       <p>{comment.text}</p>
+      <div className="comment-actions"><button type="button" className="icon-btn" title={t('Go to the commented location')} aria-label={t('Go to the commented location')} disabled={!comment.anchor} onClick={() => onNavigate(comment.anchor)}><IconExternal size={15} /></button><button type="button" className="icon-btn" title={t('Delete comment')} aria-label={t('Delete comment')} disabled={readOnly} onClick={() => onDelete(comment.id)}><IconTrash size={15} /></button></div>
     </article>)}
     <label className="field"><span className="label">{t('Add a comment')}</span><textarea value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={10000} rows={3} placeholder={anchor === null ? t('Select a paragraph or cell first.') : t('Write a comment…')} disabled={anchor === null} /></label>
-    <button type="button" className="icon-btn office-add-comment" title={t('Add comment')} aria-label={t('Add comment')} disabled={anchor === null || !draft.trim()} onClick={() => { onComment(draft.trim()); setDraft(''); }}><IconPlus size={17} /></button>
+    <div className="comment-actions"><button type="button" className="icon-btn office-add-comment" title={t('Add comment')} aria-label={t('Add comment')} disabled={anchor === null || !draft.trim()} onClick={() => { onComment(draft.trim()); setDraft(''); }}><IconPlus size={17} /></button></div>
   </aside>;
 }
 
@@ -96,13 +97,17 @@ function WordEditor({ document, edit, flush, enabled, commentsOn, onCloseComment
       const paragraph = select(e.target), id = paragraph?.dataset.wordParagraph;
       if (paragraph && id !== undefined) edit({ op: 'text', paragraph: id, text: paragraph.innerText.replace(/\r/g, '') });
     }} onBlurCapture={flush} onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); flush(); } }} /></div>
-    {commentsOn && <Comments onClose={onCloseComments} readOnly={!enabled} comments={document.comments} anchor={enabled ? selected : null} onComment={(text) => { if (selected !== null) edit({ op: 'comment', paragraph: selected, author: '', text }, true); }} onDelete={(id) => edit({ op: 'delete-comment', id }, true)} />}
+    {commentsOn && <Comments onNavigate={(anchor) => { const paragraph = host.current?.querySelector<HTMLElement>(`[data-word-paragraph="${CSS.escape(anchor)}"]`); if (paragraph) { setSelected(anchor); paragraph.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); paragraph.focus({ preventScroll: true }); } }} anchorLabel={(anchor) => /^\d+$/.test(anchor) ? t('Paragraph {n}', { n: String(Number(anchor) + 1) }) : ''} onClose={onCloseComments} readOnly={!enabled} comments={document.comments} anchor={enabled ? selected : null} onComment={(text) => { if (selected !== null) edit({ op: 'comment', paragraph: selected, author: '', text }, true); }} onDelete={(id) => edit({ op: 'delete-comment', id }, true)} />}
   </div>;
 }
 
 function SpreadsheetEditor({ content, edit, enabled, commentsOn, onCloseComments, zoom }: { content: Extract<Content, { kind: 'xlsx' }>; edit: (change: Change, now?: boolean) => void; enabled: boolean; commentsOn: boolean; onCloseComments: () => void; zoom: number }) {
   const [sheetIndex, setSheetIndex] = useState(Math.max(0, content.sheets.findIndex((sheet) => !sheet.hidden)));
   const [selected, setSelected] = useState('A1'), [draft, setDraft] = useState(''), [editing, setEditing] = useState(false), [inCell, setInCell] = useState(false), [shown, setShown] = useState(200);
+  const grid = useRef<HTMLDivElement>(null);
+  const [navigation, setNavigation] = useState<{ ref: string } | null>(null);
+  const [navigationError, setNavigationError] = useState('');
+  useLayoutEffect(() => { if (!navigation) return; const cell = grid.current?.querySelector<HTMLElement>(`[data-cell="${CSS.escape(navigation.ref)}"]`); cell?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' }); cell?.focus({ preventScroll: true }); }, [navigation]);
   const info = content.workbook?.sheets[sheetIndex], sheet = content.sheets[sheetIndex];
   const cell = info?.cells[selected], locked = !enabled || Boolean(info?.protected);
   useEffect(() => { if (!editing) setDraft(cell?.formula ?? cell?.value ?? ''); }, [cell, selected, sheetIndex, editing]);
@@ -123,8 +128,9 @@ function SpreadsheetEditor({ content, edit, enabled, commentsOn, onCloseComments
         if (e.key === 'Enter') { e.preventDefault(); save(); e.currentTarget.blur(); }
         if (e.key === 'Escape') { e.stopPropagation(); setDraft(cell?.formula ?? cell?.value ?? ''); setEditing(false); }
       }} /></div>
+      {navigationError && <p role="status" className="muted small office-sheet-note">{navigationError}</p>}
       {info?.protected && <p className="muted small office-sheet-note">{t('This worksheet is protected.')}</p>}
-      <div className="sheet-grid office-sheet-grid" onScroll={(event) => { const element = event.currentTarget; if (element.scrollHeight - element.scrollTop - element.clientHeight < 250) setShown((count) => Math.min(count + 100, Math.max(20, sheet?.rows.length ?? 0))); }}><table style={{ zoom: zoom / 100 }}>
+      <div ref={grid} className="sheet-grid office-sheet-grid" onScroll={(event) => { const element = event.currentTarget; if (element.scrollHeight - element.scrollTop - element.clientHeight < 250) setShown((count) => Math.min(count + 100, Math.max(20, sheet?.rows.length ?? 0))); }}><table style={{ zoom: zoom / 100 }}>
         <colgroup><col style={{ width: 42 }} />{Array.from({ length: cols }, (_, c) => <col key={c} style={{ width: Math.max(40, sheet?.widths[c] ?? 90) }} />)}</colgroup>
         <thead><tr><th />{Array.from({ length: cols }, (_, c) => <th key={c}>{colName(c)}</th>)}</tr></thead>
         <tbody>{Array.from({ length: rows }, (_, r) => <tr key={r}><th>{r + 1}</th>{Array.from({ length: cols }, (_, c) => {
@@ -142,7 +148,7 @@ function SpreadsheetEditor({ content, edit, enabled, commentsOn, onCloseComments
       </table></div>
       <div className="sheet-tabs" role="tablist">{content.sheets.map((entry, index) => <button type="button" key={index} role="tab" aria-selected={sheetIndex === index} className={sheetIndex === index ? 'active' : ''} onClick={() => { save(); setSheetIndex(index); setSelected('A1'); setEditing(false); }}>{entry.name}</button>)}</div>
     </div>
-    {commentsOn && <Comments onClose={onCloseComments} readOnly={locked} comments={info?.comments ?? []} anchor={locked ? null : selected} onComment={(text) => edit({ op: 'comment', sheet: sheetIndex, ref: selected, author: '', text }, true)} onDelete={(ref) => edit({ op: 'delete-comment', sheet: sheetIndex, ref }, true)} />}
+    {commentsOn && <Comments onNavigate={(ref) => { const match = /^([A-Z]+)([1-9]\d*)$/.exec(ref); if (!match) return; const row = Number(match[2]), column = [...match[1]].reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0); if (row > 2000 || column > 200) { setNavigationError(t('This cell is outside the preview. Open it in your spreadsheet program.')); return; } setNavigationError(''); setEditing(false); setInCell(false); setShown((count) => Math.max(count, row + 10)); setSelected(ref); setNavigation({ ref }); }} anchorLabel={(ref) => ref} onClose={onCloseComments} readOnly={locked} comments={info?.comments ?? []} anchor={locked ? null : selected} onComment={(text) => edit({ op: 'comment', sheet: sheetIndex, ref: selected, author: '', text }, true)} onDelete={(ref) => edit({ op: 'delete-comment', sheet: sheetIndex, ref }, true)} />}
   </div>;
 }
 

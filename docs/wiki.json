@@ -1,35 +1,45 @@
 {
   "repo": "Orsi88/moki",
-  "intro": "Moki is a local app for the AI tool you already use: it keeps a project on your computer and opens Claude Code, Cursor, Codex, Gemini or a chat with the request ready. These pages are the full documentation; the [README](https://github.com/Orsi88/moki#readme) is the short introduction.",
-  "introPt": "O Moki é um app local para a ferramenta de IA que você já usa: guarda um projeto no seu computador e abre o Claude Code, o Cursor, o Codex, o Gemini ou um chat com o pedido pronto. Os guias de uso também estão em português.",
+  "home": { "file": "home.md", "pt": "pt-BR/home.md", "ptPage": "Início" },
   "sections": [
-    { "title": "Start here", "pages": [
+    { "title": "Start here", "titlePt": "Comece por aqui", "pages": [
+      { "file": "what-is-moki.md", "page": "What is Moki", "pt": { "file": "pt-BR/what-is-moki.md", "page": "O que é o Moki" } },
       { "file": "getting-started.md", "page": "Getting started", "pt": { "file": "pt-BR/getting-started.md", "page": "Primeiros passos" } },
-      { "file": "using-moki.md", "page": "Using Moki", "pt": { "file": "pt-BR/using-moki.md", "page": "Usando o Moki" } }
+      { "file": "tour.md", "page": "A tour of the screen", "pt": { "file": "pt-BR/tour.md", "page": "Tour pela tela" } }
     ] },
-    { "title": "QA work", "pages": [
+    { "title": "Everyday use", "titlePt": "Dia a dia", "pages": [
+      { "file": "projects.md", "page": "Projects and workspaces", "pt": { "file": "pt-BR/projects.md", "page": "Projetos e workspaces" } },
+      { "file": "files-and-editor.md", "page": "Files and the editor", "pt": { "file": "pt-BR/files-and-editor.md", "page": "Arquivos e editor" } },
+      { "file": "notes.md", "page": "Notes and quick assistants", "pt": { "file": "pt-BR/notes.md", "page": "Notas e assistentes rápidos" } },
+      { "file": "ai-terminals.md", "page": "AI terminals", "pt": { "file": "pt-BR/ai-terminals.md", "page": "Terminais de IA" } },
+      { "file": "call.md", "page": "Calling activities, agents and skills", "pt": { "file": "pt-BR/call.md", "page": "Chamar atividades, agentes e skills" } },
+      { "file": "runs.md", "page": "Runs and deliverables", "pt": { "file": "pt-BR/runs.md", "page": "Execuções e entregas" } },
+      { "file": "settings.md", "page": "Settings", "pt": { "file": "pt-BR/settings.md", "page": "Configurações" } },
+      { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } }
+    ] },
+    { "title": "QA work", "titlePt": "Trabalho de QA", "pages": [
       { "file": "qa-skills.md", "page": "QA skills and agents", "pt": { "file": "pt-BR/qa-skills.md", "page": "Skills de QA e agentes" } },
       { "file": "activities.md", "page": "Activities", "pt": { "file": "pt-BR/activities.md", "page": "Atividades" } },
       { "file": "agents.md", "page": "Agents and operations" },
-      { "file": "operation-recipes.md", "page": "Operation recipes", "pt": { "file": "pt-BR/operation-recipes.md", "page": "Receitas de operação" } }
+      { "file": "operation-recipes.md", "page": "Operation recipes", "pt": { "file": "pt-BR/operation-recipes.md", "page": "Receitas de operação" } },
+      { "file": "engineering-specialists.md", "page": "Engineering specialists", "pt": { "file": "pt-BR/engineering-specialists.md", "page": "Especialistas de engenharia" } }
     ] },
-    { "title": "Tools", "pages": [
-      { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } },
-      { "file": "engineering-specialists.md", "page": "Engineering specialists", "pt": { "file": "pt-BR/engineering-specialists.md", "page": "Especialistas de engenharia" } },
-      { "file": "mcp-servers.md", "page": "MCP servers" },
+    { "title": "Integrations", "titlePt": "Integrações", "pages": [
       { "file": "trackers.md", "page": "Azure DevOps and Jira", "pt": { "file": "pt-BR/trackers.md", "page": "Azure DevOps e Jira" } },
+      { "file": "mcp-servers.md", "page": "MCP servers" },
       { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } }
     ] },
-    { "title": "Help", "pages": [
+    { "title": "Help", "titlePt": "Ajuda", "pages": [
       { "file": "troubleshooting.md", "page": "Troubleshooting", "pt": { "file": "pt-BR/troubleshooting.md", "page": "Problemas comuns" } },
       { "file": "privacy-and-isolation.md", "page": "Privacy and isolation" }
     ] },
-    { "title": "Reference", "pages": [
+    { "title": "About", "titlePt": "Sobre", "pages": [
+      { "file": "credits.md", "page": "Credits and licenses", "pt": { "file": "pt-BR/credits.md", "page": "Créditos e licenças" } },
       { "file": "desktop-app.md", "page": "Desktop app" },
       { "file": "compatibility.md", "page": "Compatibility" },
       { "file": "compatibility-tests.md", "page": "Compatibility tests" }
     ] },
-    { "title": "Contributing", "pages": [
+    { "title": "Contributing", "titlePt": "Para quem contribui", "pages": [
       { "file": "contributing.md", "page": "Contributing" },
       { "file": "testing.md", "page": "Automated tests", "pt": { "file": "pt-BR/testing.md", "page": "Testes automatizados" } },
       { "file": "test-catalog.md", "page": "Test catalog", "pt": { "file": "pt-BR/test-catalog.md", "page": "Catálogo de testes" } },

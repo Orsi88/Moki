@@ -68,7 +68,7 @@ test('Hudson proposes, the person unchecks one, and only the kept steps are appl
   const dialog = page.getByRole('dialog', { name: 'Organizar com o Hudson' });
   await expect(dialog.locator('.hudson-context')).toContainText('definicoes.md');
   await expect(dialog.locator('.hudson-delete')).toContainText('rascunho-apoio.md');
-  await expect(dialog.locator('.hudson-rename')).toContainText('Relatório final.md');
+  await expect(dialog.locator('.hudson-rename')).toContainText('Matriz de revisão US-12.md');
   await expect(dialog.locator('.hudson-keep')).toContainText('matriz.md');
   await expect(dialog).not.toContainText('us-12.md'); // a run's inputs are never offered
   const shots = process.env.QA_SHOTS;

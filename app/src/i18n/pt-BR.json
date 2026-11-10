@@ -1875,5 +1875,9 @@
   "Select a passage in the preview to comment on it.": "Selecione um trecho na prévia para comentar.",
   "Select a passage and write a comment.": "Selecione um trecho e escreva um comentário.",
   "Close comments": "Fechar comentários",
-  "Reset zoom": "Restaurar zoom"
+  "Reset zoom": "Restaurar zoom",
+  "Go to the commented location": "Ir para o local comentado",
+  "This cell is outside the preview. Open it in your spreadsheet program.": "Esta célula está fora da prévia. Abra o arquivo no programa de planilhas.",
+  "No changes needed": "Nenhuma alteração necessária",
+  "Hudson reviewed {n} files and recommends keeping them as they are.": "O Hudson analisou {n} arquivos e recomenda mantê-los como estão."
 }
