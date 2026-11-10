@@ -8,10 +8,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSPrope
 import { api, CHANGED_OUTSIDE, type FileContent, type InvokeTarget, type LaunchPreset, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, preferredTool, recall, remember } from '../prefs';
-import { DocView, type DocMode, type MdWhy } from '../components/DocView';
+import { DocView, type DocMode } from '../components/DocView';
 import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { NewMenu } from '../components/NewMenu';
+import { IdeDialog } from '../components/IdeDialog';
 import { LaunchDialog } from '../components/LaunchDialog';
+import { HudsonDialog } from '../components/HudsonDialog';
 import { NoteDialog } from '../components/NoteDialog';
 import { OperationsPanel } from '../components/OperationsPanel';
 import { OperationLaunch } from '../components/OperationLaunch';
@@ -23,7 +25,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -48,11 +50,11 @@ import { projectLink, resolveInternal, type Anchor, type LinkJump } from '../int
 interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
-// A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is read and copied;
-// it is shown for reading and comments ('preview') when it is large or the editor would lose parts of it (`why`, DocView).
-// `quiet`: the note about the formatting was closed. It saves on its own: `conflict` when the file changed outside Moki
+// A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is edited as text;
+// the reading view ('preview') reads it. A `large` one opens in its source, still editable (DocView).
+// `quiet`: the note about a large file was closed. It saves on its own: `conflict` when the file changed outside Moki
 // meanwhile, `savedAt` for the bar.
-interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; scrollTop: number; seen?: Stamp; why?: MdWhy; quiet?: boolean; conflict?: boolean; savedAt?: number; jump?: LinkJump }
+interface Tab { path: string; content: FileContent; draft: string; mode: DocMode; saving: boolean; scrollTop: number; seen?: Stamp; large?: boolean; quiet?: boolean; conflict?: boolean; savedAt?: number; jump?: LinkJump }
 interface TermTab extends TerminalRef { running: boolean }
 
 // The picture above the project name when nothing is open.
@@ -188,6 +190,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const [craftOpen, setCraftOpen] = useState(false); // download of the ArtCraft apps
   // The tree item menu (right click or ⋯); path '' is the project folder. canCreate: a folder outside runs/.
   const [itemMenu, setItemMenu] = useState<{ path: string; canCreate: boolean; left: number; top: number } | null>(null);
+  const [hudson, setHudson] = useState(false); // Hudson organizing the files the runs left (HudsonDialog)
   const [renaming, setRenaming] = useState<string | null>(null); // the tree item whose name is being typed over
   const [focusPath, setFocusPath] = useState<string | null>(null); // a renamed item: its row takes the focus when the tree shows it
   const [creating, setCreating] = useState<{ parent: string; kind: 'file' | 'folder'; ext?: string } | null>(null); // ext: from New › File, which also lets the folder be chosen
@@ -284,13 +287,13 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         if (!node) return null;
         try {
           const content = await api.readFile(project.id, item.path);
-          const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
-          const mode: DocMode = content.kind !== 'markdown' || !content.editable || large ? 'preview' : item.mode;
+          const large = content.kind === 'markdown' && content.editable && content.text.length > LARGE_MD;
+          const mode: DocMode = content.kind !== 'markdown' || !content.editable ? 'preview' : large && item.mode === 'edit' ? 'source' : item.mode;
           return {
             path: item.path, content, draft: textOf(content), mode, saving: false,
             scrollTop: item.scrollTop,
             seen: stampOf(content, { size: node.size, mtime: node.mtime }),
-            ...(large && content.editable ? { why: 'large' as const } : {}),
+            ...(large ? { large } : {}),
           };
         } catch {
           return null; // removed or no longer readable: restore the other tabs
@@ -327,9 +330,9 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
     api.readFile(project.id, path).then((content) => {
       touchRecentFile(project.id, path);
-      const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
-      const view: DocMode = content.kind !== 'markdown' || jump ? 'preview' : !content.editable || large ? 'preview' : mode === 'source' ? 'source' : 'edit';
-      setTabs((all) => (all.some((x) => x.path === path) ? all.map((tab) => tab.path === path && jump ? { ...tab, mode: 'preview', jump } : tab) : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}), ...(jump && { jump }) }]));
+      const large = content.kind === 'markdown' && content.editable && content.text.length > LARGE_MD;
+      const view: DocMode = content.kind !== 'markdown' || jump || !content.editable ? 'preview' : large || mode === 'source' ? 'source' : 'edit';
+      setTabs((all) => (all.some((x) => x.path === path) ? all.map((tab) => tab.path === path && jump ? { ...tab, mode: 'preview', jump } : tab) : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large ? { large } : {}), ...(jump && { jump }) }]));
       apply((b) => boardOpen(b, fileKey(path)));
       // Reveal the file in the tree.
       setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
@@ -342,9 +345,9 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     const node = findFile(treeRef.current, path);
     const treeStamp = node ? { size: node.size, mtime: node.mtime } : undefined;
     api.readFile(project.id, path).then((content) => {
-      const large = content.kind === 'markdown' && content.text.length > LARGE_MD;
-      const view: DocMode = content.kind !== 'markdown' || !content.editable || large ? 'preview' : 'edit';
-      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large && content.editable ? { why: 'large' as const } : {}) }]));
+      const large = content.kind === 'markdown' && content.editable && content.text.length > LARGE_MD;
+      const view: DocMode = content.kind !== 'markdown' || !content.editable ? 'preview' : large ? 'source' : 'edit';
+      setTabs((all) => (all.some((x) => x.path === path) ? all : [...all, { path, content, draft: textOf(content), mode: view, saving: false, scrollTop: 0, seen: stampOf(content, treeStamp), ...(large ? { large } : {}) }]));
       apply((b) => boardOpen(b, fileKey(path), { group, background: true }));
     }).catch(() => { /* not readable yet: the next change tries again */ });
   }, [project.id, apply]);
@@ -653,6 +656,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     { path: '', label: t('the project folder') },
   ], [tree]);
   // "Open in the IDE" (the linked folder): straight in with one IDE installed, a menu with more (the default AI first).
+  const [ideCompanion, setIdeCompanion] = useState(false);
   const [ideMenu, setIdeMenu] = useState<{ left: number; top: number } | null>(null);
   const editors = tools.filter((x) => x.kind === 'editor' && x.available).sort((a, b) => Number(b.id === defaultTool()) - Number(a.id === defaultTool()));
   const runIde = (tool: string) => {
@@ -759,7 +763,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       if (key === 'e') {
         e.preventDefault();
         setTabs((all) => all.map((t) => (t.path === active && t.content.kind === 'markdown'
-          ? { ...t, mode: t.mode !== 'source' ? 'source' : t.content.editable && t.why !== 'large' && t.why !== 'loss' ? 'edit' : 'preview' }
+          ? { ...t, mode: t.mode !== 'source' ? 'source' : t.content.editable && !t.large ? 'edit' : 'preview' }
           : t)));
       }
     };
@@ -846,18 +850,19 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       saving={doc.saving}
       onDraft={(draft) => update(doc.path, { draft })}
       onMode={(mode) => update(doc.path, { mode })}
-      onQuiet={() => update(doc.path, { why: undefined, quiet: true })}
-      why={doc.why}
+      onQuiet={() => update(doc.path, { quiet: true })}
+      large={doc.large}
+      quiet={doc.quiet}
       autosave={autosaves(doc)}
       savedAt={doc.savedAt}
       conflict={doc.conflict}
       onTakeTheirs={() => takeTheirs(doc.path)}
       onKeepMine={() => keepMine(doc.path)}
-      onRewrite={doc.quiet ? undefined : (kind) => update(doc.path, kind === 'loss' ? { mode: 'preview', why: 'loss' } : { why: 'format' })}
       onSave={() => save(doc.path)}
       onCommit={(text) => commit(doc.path, text)}
       onOpenExternal={() => openExternal(doc.path)}
       onReload={() => reloadFile(doc.path)}
+      onConverted={(path) => { void openPath(path); }}
       onLink={(href) => onLinkFrom(doc.path, href)}
       resolveLink={resolveProjectLink}
       jump={doc.jump}
@@ -928,6 +933,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     >
       <Ribbon
         project={project}
+        onIde={() => setIdeCompanion(true)}
         settingsOn={settings !== null}
         onHome={goHome}
         onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
@@ -1070,6 +1076,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
           onFile={(ext) => { setTermMenu(null); setCreating({ parent: tree.some((n) => n.path === 'inbox') ? 'inbox' : '', kind: 'file', ext }); }}
           onCraft={() => { setTermMenu(null); setCraftOpen(true); }} />
       )}
+      {ideCompanion && <IdeDialog project={project.id} tools={tools} onClose={() => setIdeCompanion(false)} onMyAis={() => { setIdeCompanion(false); onSettings('ai'); }} />}
       {ideMenu && (
         <div className="menu-backdrop" onMouseDown={() => setIdeMenu(null)}>
           <ul className="term-menu" role="menu" aria-label={t('Open in the IDE')} style={ideMenu} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setIdeMenu(null); }}>
@@ -1089,11 +1096,16 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <TabMenu at={tabMenu} groups={board.groups} current={board.tabs[tabMenu.key].group} onClose={() => setTabMenu(null)}
           onMove={(group) => apply((b) => moveToGroup(b, tabMenu.key, group))} onNewGroup={() => newGroupFor(tabMenu.key, tabMenu)} />
       )}
+      {hudson && <HudsonDialog project={project.id} onClose={() => setHudson(false)} onDone={() => { void loadTree(); }} onMyAis={() => { setHudson(false); onSettings('ai'); }} />}
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
           <ul className="term-menu item-menu" role="menu" style={{ left: itemMenu.left, top: itemMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setItemMenu(null); }}>
             {itemMenu.path === '' && <>
               <li><button type="button" role="menuitem" onClick={() => { setItemMenu(null); setShowSetup(true); }}><IconSliders size={15} /> {t('Project settings')}</button></li>
+              <li className="ws-menu-sep" />
+            </>}
+            {itemMenu.path === 'runs' && <>
+              <li><button type="button" role="menuitem" autoFocus onClick={() => { setItemMenu(null); setHudson(true); }}><IconBroom size={15} /> {t('Organize with Hudson')}</button></li>
               <li className="ws-menu-sep" />
             </>}
             {itemMenu.canCreate && <>

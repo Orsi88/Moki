@@ -1,52 +1,90 @@
 # Primeiros passos
 
-## Instalar
+Do zero ao seu primeiro pedido para a IA, em uns cinco minutos.
+
+## 1. Instale o Moki
 
 ### Windows
 
-1. Baixe o [Moki.Setup.0.5.2.exe](https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.3.exe](https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Conclua. Um atalho **Moki** aparece na área de trabalho e no menu Iniciar.
 
-A primeira abertura cria **Documentos\Moki**: os arquivos do app e a sua `workspace/`, onde ficam os projetos. Um instalador mais novo atualiza os arquivos do app e deixa `workspace/` e `workspaces/` quietas. Desinstalar também mantém essas pastas.
+A primeira abertura cria **Documentos\Moki**: os arquivos do app e a sua `workspace/`, onde ficam os projetos. Um instalador mais novo atualiza os arquivos do app e nunca mexe em `workspace/` e `workspaces/`; desinstalar também mantém essas pastas.
 
-Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa). Excel, Word e PDF das atividades que vêm com o app precisam do [Node.js 22.18+](https://nodejs.org) (LTS). O app em si abre sem ele.
+### macOS e Linux
 
-macOS, Linux, ou uma cópia deste repositório: [A partir do código](#a-partir-do-código).
+Rode o Moki a partir do código — veja [A partir do código](#a-partir-do-código), mais abaixo.
 
-## Usar
+### A sua ferramenta de IA
 
-Abra o Moki e escolha um **workspace**, como um cofre do Obsidian. O canto dessa tela escolhe **inglês ou português** e o tema **claro ou escuro**.
+O Moki trabalha com a IA que você já usa. Instale pelo menos uma: [Claude Code](https://code.claude.com/docs/en/setup), [Codex](https://github.com/openai/codex), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Cursor, ou simplesmente um chat da web. O Moki encontra o que está instalado em **Configurações › Minhas IAs**, e consegue instalar uma IA de terminal que falte.
 
-**Workspaces.** Um workspace é uma pasta com seus próprios projetos, tags e configurações — por exemplo, um por cliente ou empresa. A `workspace/` que você já tem é o primeiro, então nada muda de lugar. Na primeira tela você pode:
+> [!NOTE]
+> As atividades que vêm com o app e geram Excel, Word e PDF precisam do [Node.js 22.18+](https://nodejs.org) (LTS). O app em si abre sem ele.
 
-- abrir um workspace da lista (o aberto por último fica marcado);
-- **criar um novo workspace** — por padrão em `workspaces/<nome>/`, dentro da pasta do Moki, ou numa pasta que você escolher;
+## 2. Escolha um workspace
+
+Abra o Moki. A primeira tela lista os seus **workspaces** — como os cofres do Obsidian. A `workspace/` que você já tem é o primeiro. No canto, você escolhe **inglês ou português** e o tema **claro ou escuro**.
+
+<details>
+<summary>Mais sobre workspaces</summary>
+
+Um workspace é uma pasta com seus próprios projetos, tags e configurações — por exemplo, um por cliente ou empresa. Na primeira tela você pode:
+
+- abrir um workspace da lista (o último aberto vem marcado);
+- **criar um workspace novo** — por padrão em `workspaces/<nome>/` dentro da pasta do Moki, ou numa pasta que você escolher;
 - **abrir uma pasta como workspace** — uma pasta que você já tem; o Moki cria uma pasta `projects/` dentro dela;
-- renomear um workspace, ou removê-lo da lista (a pasta continua no computador).
+- renomear um, ou tirá-lo da lista (a pasta continua no computador).
 
-Troque de workspace no rodapé da lista de projetos, ou volte para a lista com *Gerenciar workspaces…*. Os projetos de um workspace nunca enxergam outro.
+Troque de workspace no rodapé da lista de projetos, ou volte para a lista em *Gerenciar workspaces…*. Os projetos de um workspace nunca enxergam outro.
 
-**Tela inicial.** Projetos à esquerda, notas avulsas embaixo, o workspace no rodapé. Fixe um projeto para mantê-lo no topo. *Desvisualizar* tira o projeto da lista e os arquivos continuam no computador; ele vai para **Ocultos** até você mostrar de novo. Fixados e ocultos são guardados por workspace; as notas avulsas não pertencem a nenhum.
+</details>
 
-**Busca** (a lupa, ou **Ctrl+Shift+F**) toma o lugar da lista e procura no workspace ativo: nome e descrição dos projetos, e nome e texto dos arquivos deles (Markdown, texto, JSON, CSV e o texto dos arquivos Word). As tags aparecem ali como filtros; texto e tags se combinam. Um resultado abre o projeto com o arquivo.
+## 3. Crie o seu primeiro projeto
 
-**Criar um novo projeto** (o +) pede só o nome:
+Clique no **+** ao lado da lista de projetos e digite um nome — por exemplo *Loja on-line* — e **Enter**. O projeto abre na hora, com as pastas de sempre:
 
-| Você aperta | O que acontece |
+| Pasta | O que vai nela |
 |---|---|
-| **Enter** (*Criar projeto*) | O projeto abre na hora com as pastas padrão (`context/` vazia, `inbox/`, `runs/`, `temporary/`) e nada para configurar. Os arquivos de contexto aparecem conforme as atividades precisam. |
-| **Criar e personalizar…** | Uma janela: o nome, tags opcionais e como o contexto começa: **Vazio** (como acima) ou **Planejado pela IA** (a IA pergunta o que precisa e escreve um plano; os arquivos de contexto só aparecem depois da sua aprovação). O projeto abre em *Configurar &lt;nome&gt;* (descrição, skills, agentes). |
+| **Contexto** | O que está confirmado sobre o sistema. Começa vazia e vai enchendo conforme você confirma definições. |
+| **Entrada** | Os arquivos que você entrega à IA. |
+| **Arquivos de execuções** | O que cada trabalho entregou. |
+| **Notas** | As suas notas sobre o projeto. |
+| **Temporários** | Arquivos de rascunho; o que tem mais de 7 dias vai para a lixeira. |
 
-**Abrir um projeto**: escolha um à esquerda, ou escolha uma pasta na janela do sistema. Uma pasta já vinculada a um projeto abre esse projeto. Uma pasta nova pede o nome do projeto (o da pasta vem como sugestão), e então o projeto é criado com as pastas padrão e vinculado a ela. As configurações de IA da pasta são copiadas para `.moki-backup/` dentro dela. Nada mais ali muda.
+> [!TIP]
+> Já tem o código ou os documentos do sistema numa pasta? **Abra um projeto** e escolha essa pasta: o Moki a vincula e a mostra no topo da árvore, ao vivo — nada é copiado.
 
-**A pasta vinculada na árvore.** Ela vem primeiro na barra lateral do projeto, com o próprio nome, ao vivo: os arquivos são os originais (nada é copiado), abrem e são pré-visualizados no app, e `.md`/`.txt` são editados no lugar. `.git`, `node_modules`, pastas de build e arquivos ocultos ficam de fora. O botão `</>` na linha dela abre a pasta na sua IDE (VS Code ou Cursor; com os dois instalados, você escolhe).
+## 4. Entregue um arquivo
+
+Arraste para a janela a história de usuário, o log, a planilha ou o PDF com que você está trabalhando. Ele é copiado para a **Entrada** (até 40 arquivos, 200 MB cada). Clique para abrir: Markdown abre no editor, PDFs e imagens no visualizador, Word e Excel como prévia.
+
+## 5. Chame a IA
+
+Clique em **Chamar…** no painel do projeto, à direita (ou **Ctrl+Shift+K**).
+
+1. Escolha o que você quer — por exemplo **Revisar histórias de usuário** em *Atividades*, ou o agente **sherlock** em *Agentes*.
+2. Marque os arquivos da entrada que ele deve usar.
+3. Escreva uma observação se quiser (*foque nos cupons*), escolha **Num terminal novo** e a sua IA.
+
+A IA abre numa aba de terminal dentro do Moki com o pedido pronto, segue o procedimento da skill e para sempre que precisa de uma decisão sua. O que ela entrega aparece em **Arquivos de execuções** e abre ao lado do terminal dela.
+
+![A lista do Chamar…: atividades, agentes, skills e operações numa só busca](../assets/wiki/pt-BR/call.png)
+
+## E agora?
+
+- 👀 [Tour pela tela](tour.md) — cada parte da janela, explicada.
+- 🧠 [Projetos e workspaces](projects.md) — contexto, tags e compartilhamento.
+- 📞 [Chamar atividades, agentes e skills](call.md) — tudo o que o **Chamar…** faz.
+
+---
 
 ## A partir do código
 
-Use isto para rodar o Moki a partir de uma cópia do repositório, no macOS ou no Linux, ou para alterar o app. Quem instalou o `.exe` no Windows pode pular.
+Use isto para rodar o Moki no macOS ou no Linux, ou para mudar o app. Quem instalou o `.exe` no Windows pode pular.
 
-Você precisa de Git e Node.js 22.18 ou mais recente.
+Você precisa do Git e do Node.js 22.18 ou mais novo.
 
 ```bash
 git clone https://github.com/Orsi88/moki.git
@@ -55,15 +93,36 @@ npm run setup
 npm run qa
 ```
 
-O `npm run setup` instala as ferramentas, constrói o app, cria a `workspace/` e liga a verificação que bloqueia commits de dados de projeto ou segredos. Rode de novo depois de um `git pull`.
+O `npm run setup` instala as ferramentas, monta o app, cria a `workspace/` e liga a verificação que impede commit de dados de projeto ou segredos. Rode de novo depois de `git pull`.
 
 | Comando | O que faz |
 |---|---|
-| `npm run qa` | Abre o app. Um `npm link` e o `qa` funciona de qualquer pasta. |
-| `qa --terminal` | A mesma preparação num menu de terminal, se você preferir isso à janela. |
+| `npm run qa` | Abre o app. Com `npm link` uma vez, `qa` funciona de qualquer pasta. |
+| `qa --terminal` | A mesma preparação num menu de terminal, se você preferir à janela (em inglês; qualquer id de projeto serve). |
 | `npm run new-project -- <id> "<Nome>" [--blank]` | Cria a pasta de um projeto. `--blank` deixa de fora os arquivos de contexto de QA. |
-| `npm run dist:win` / `dist:mac` / `dist:linux` | Gera um instalador naquele sistema. A saída fica em `release/`. |
-| `npm run vscode:package` | Gera a extensão do VS Code (`release/moki-<versão>.vsix`). Para testar antes: `npm run vscode:build` e depois `code --extensionDevelopmentPath="$PWD/ide/vscode"`. Veja [Moki na IDE](ide.md). |
-| `npm run check` e `npm test` | Validam o repositório e rodam os testes dele. |
+| `npm run dist:win` / `dist:mac` / `dist:linux` | Gera um instalador naquele sistema. Sai em `release/`. |
+| `npm run vscode:package` | Gera a extensão do VS Code (`release/moki-<versão>.vsix`). Veja [Moki na IDE](ide.md). |
+| `npm run check` e `npm test` | Validam o repositório e rodam os testes. |
 
-O `qa --terminal` é em inglês e ainda pergunta *Which project (system under test)?*. Qualquer id de projeto serve. Os comandos trabalham na `workspace/`; defina `QA_WORKSPACE=<pasta>` para usar outro workspace.
+<details>
+<summary>Ubuntu ou WSL: "Unknown file extension .ts"</summary>
+
+Algumas versões do Node.js empacotadas pelo Ubuntu não têm suporte nativo a TypeScript, mesmo numa versão compatível (visto com o Node.js v22.22.1 em `/usr/bin/node`):
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts"
+```
+
+Instale o Node.js oficial pelo [NVM](https://github.com/nvm-sh/nvm):
+
+```bash
+nvm install 22
+nvm use 22
+nvm alias default 22
+node -p "process.features.typescript"   # deve mostrar: strip
+npm run qa
+```
+
+Só atualizar o Ubuntu ou conferir a versão do Node.js pode não resolver: a distribuição e a configuração de build também contam.
+
+</details>

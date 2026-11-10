@@ -1,8 +1,14 @@
+import type { WordDocument, WordChange } from '../scripts/lib/office-word.ts';
+import type { WorkbookInfo, SheetChange } from '../scripts/lib/office-sheet.ts';
 // Everything the desktop UI can ask for. Runs in Electron's main process and
 // validates every input: project ids must exist, paths stay inside the project
 // folder, choices come from fixed lists. It reuses the shared core — no QA
 // logic lives here; the AI tools do the QA work following the skills.
 
+import { createHash, randomBytes } from 'node:crypto';
+import { changeWord } from '../scripts/lib/office-word.ts';
+import { changeSheet } from '../scripts/lib/office-sheet.ts';
+import { convertLegacy, type ConvertEngine } from './office-convert.ts';
 import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -15,6 +21,7 @@ import {
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
 import { pathReady } from './tool-path.ts';
+import { safeName, type OrganizeCandidate } from './hudson.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
 import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
@@ -41,6 +48,8 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
+import { htmlComments, addHtmlComment, removeHtmlComment, moveHtmlComments } from './html-comments.ts';
+import { isHtmlAnchor } from '../scripts/lib/html-comments.ts';
 import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
@@ -53,6 +62,7 @@ export class ServiceError extends Error {}
 export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
 
 export interface Deps {
+  convertOffice?: ConvertEngine; // installed Office engine; tests provide a deterministic converter
   // plugins: the project's own (project.json); extra: more arguments for the tool (Claude Code's --mcp-config)
   launch: (tool: ToolKey, prompt: string, root: string, plugins?: string[], extra?: string[]) => LaunchResult;
   openFolder: (folder: string) => void;
@@ -89,7 +99,7 @@ export interface TreeNode {
   mtime?: number; // files: last change (ms); with size, tells the app whether a PDF/image tab must be read again
   children?: TreeNode[];
   linked?: string; // the linked folder's node (path "@folder"): its full path on this computer
-  run?: { status: string; skill: string; currentStep: string } & RunOrigin; // a run folder: also the activity it came from and its scenario
+  run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin; // a run folder: its title, the activity it came from and its scenario
   mcp?: string; // MCP server row: where it is configured
 }
 
@@ -108,14 +118,14 @@ export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
-  | { kind: 'html'; path: string; text: string } // shown rendered, read-only
-  | { kind: 'docx'; path: string; html: string }
-  | { kind: 'xlsx'; path: string; sheets: Sheet[] }
+  | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
+  | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
+  | { kind: 'xlsx'; path: string; version?: string; workbook?: WorkbookInfo; sheets: Sheet[] }
   // PDF and image carry no bytes: the UI loads them from `url` (moki-file://<token>, added by desktop/main.ts to a UI call and
   // served by desktop/file-protocol.ts). size and mtime come from one stat, taken before; the app compares them with the tree's.
   | { kind: 'image'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'pdf'; path: string; size: number; mtime: number; url?: string }
-  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string };
+  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
 export interface LaunchRequest {
   project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string;
@@ -530,6 +540,14 @@ export function createService(root: string, deps: Deps) {
       .sort((a, b) => b.modified.localeCompare(a.modified));
   }
 
+  // What a run shows in the tree: its deliverables. The files of outputs/ come straight under the run (their paths
+  // stay real); the run's state, inputs, logs, helper files and the operation's own folders stay out of sight, and so
+  // does an empty folder. The files are all still there (the Requests card and the run view read them).
+  const RUN_INTERNALS = new Set(['state.json', 'inputs', 'logs', 'work', 'handoff', 'waiting']);
+  const deliverablesOf = (children: TreeNode[]): TreeNode[] => children
+    .filter((c) => !RUN_INTERNALS.has(c.name) && !(c.type === 'dir' && !c.children?.length))
+    .flatMap((c) => (c.name === 'outputs' && c.type === 'dir' ? c.children ?? [] : [c]));
+
   function tree(project: string): TreeNode[] {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
@@ -546,9 +564,11 @@ export function createService(root: string, deps: Deps) {
         const full = join(dir, e.name);
         const path = prefix + posix(relative(from, full));
         if (e.isDirectory()) {
-          const node: TreeNode = { name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] };
           const run = path.startsWith('runs/') && path.split('/').length === 2 ? runs.get(e.name) : undefined;
-          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...runOrigin(run, labels) };
+          const children = depth < 8 ? walk(full, depth + 1, from, prefix) : [];
+          const node: TreeNode = { name: e.name, path, type: 'dir', children: run ? deliverablesOf(children) : children };
+          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...(typeof run.title === 'string' && run.title.trim() ? { title: run.title.trim() } : {}), ...runOrigin(run, labels) };
+          if (path.startsWith('runs/') && !run && node.children?.length === 0 && path.split('/').length > 2) continue; // an empty folder inside a run
           nodes.push(node);
         } else if (e.isFile()) {
           const st = statSync(full);
@@ -771,6 +791,7 @@ export function createService(root: string, deps: Deps) {
     const ext = extname(file).toLowerCase();
     const stat = statSync(file); // taken before reading: a change in between only costs the app one extra read
     const size = stat.size;
+    if (ext === '.doc' || ext === '.xls') return { kind: 'binary', path, size, openable: true, legacy: ext === '.doc' ? 'doc' : 'xls' };
     if (OFFICE_TYPES[ext]) {
       const what = OFFICE_TYPES[ext] === 'docx' ? 'Word document' : 'spreadsheet';
       if (size > OFFICE_LIMIT) return { kind: 'binary', path, size, openable: true, reason: `${what[0].toUpperCase()}${what.slice(1)} too large to preview.` };
@@ -778,7 +799,8 @@ export function createService(root: string, deps: Deps) {
       // Password-protected (and old .doc/.xls) files are not zip packages.
       if (data.subarray(0, 4).toString('hex') === 'd0cf11e0') return { kind: 'binary', path, size, openable: true, reason: `Password-protected ${what}: open it in your program.` };
       const kind = OFFICE_TYPES[ext];
-      const shape = (r: OfficeParsed): FileContent => (r.kind === 'docx' ? { kind: 'docx', path, html: r.html } : { kind: 'xlsx', path, sheets: r.sheets as Sheet[] });
+      const version = createHash('sha256').update(data).digest('hex');
+      const shape = (r: OfficeParsed): FileContent => (r.kind === 'docx' ? { kind: 'docx', path, html: r.html, version, document: r.document } : { kind: 'xlsx', path, sheets: r.sheets as Sheet[], version, workbook: r.workbook });
       const failed = (): FileContent => ({ kind: 'binary', path, size, openable: true, reason: `Could not read this ${what}.` });
       // With a parse client (the desktop app) the parse runs on a worker thread and the answer is a Promise;
       // without one (tests, other hosts) it runs inline, as before.
@@ -798,7 +820,7 @@ export function createService(root: string, deps: Deps) {
     if (size > TEXT_LIMIT) return { kind: 'binary', path, size, openable: isOpenable(file), reason: 'File too large to preview.' };
     const text = readFileSync(file, 'utf8');
     if (ext === '.md') return { kind: 'markdown', path, text, html: markdownToHtml(text, { image: imageResolver(project, path), comments: true }), editable: true };
-    if (ext === '.html' || ext === '.htm') return { kind: 'html', path, text };
+    if (ext === '.html' || ext === '.htm') return served({ kind: 'html', path, text }, file);
     if (ext === '.json') {
       try { return { kind: 'json', path, text: JSON.stringify(JSON.parse(text), null, 2) }; } catch { return { kind: 'json', path, text }; }
     }
@@ -865,9 +887,34 @@ export function createService(root: string, deps: Deps) {
       description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
       available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
     // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
-    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json).`;
+    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, prompt, tool };
+  }
+
+  function organizeCandidates(project: string): OrganizeCandidate[] {
+    const base = projectDir(project);
+    const out: OrganizeCandidate[] = [];
+    for (const run of listRuns(project, root)) {
+      const dir = join(base, 'runs', run.id);
+      const artifacts = new Set((Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => posix(String(a)).replace(/^.*?\/runs\//, 'runs/')));
+      const walk = (folder: string, depth: number) => {
+        if (depth > 6 || !existsSync(folder)) return;
+        for (const e of readdirSync(folder, { withFileTypes: true })) {
+          if (e.name.startsWith('.') || out.length >= 200) continue;
+          const full = join(folder, e.name);
+          const rel = posix(relative(base, full));
+          if (depth === 0 && ['state.json', 'inputs', 'logs', 'handoff', 'waiting'].includes(e.name)) continue;
+          if (e.isDirectory()) { walk(full, depth + 1); continue; }
+          if (!e.isFile() || /\.jsonl$|^step-state\.json$/.test(e.name)) continue;
+          const size = statSync(full).size;
+          const preview = /\.(md|txt|json|csv|html?)$/i.test(e.name) && size < 2_000_000 ? readFileSync(full, 'utf8').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+          out.push({ path: rel, size, run: run.id, title: typeof run.title === 'string' ? run.title : '', status: String(run.status ?? ''), deliverable: artifacts.has(rel), preview });
+        }
+      };
+      walk(dir, 0);
+    }
+    return out;
   }
 
   // What the project panel's ▶ and "Use in the terminal" send (scripts/lib/core.ts, buildInvokePrompt). The path of a skill or
@@ -915,6 +962,22 @@ export function createService(root: string, deps: Deps) {
     const linked = projectRepository(project, root);
     const prefix = linked ? `${linked.split(sep).join('/')}/` : '';
     return prefix && path.startsWith(prefix) ? `${LINKED}/${path.slice(prefix.length)}` : undefined;
+  };
+
+  const editorWithExtension = async (tool: unknown, project: unknown, force: boolean) => {
+    if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].mokiExtension) throw new ServiceError('This tool does not take the Moki extension.');
+    if (!toolsNow()[tool]) throw new ServiceError(`${TOOLS[tool].label} is not installed on this computer.`);
+    const linked = typeof project === 'string' && project ? (projectDir(project), projectRepository(project, root)) : null;
+    const folder = linked && existsSync(linked) ? linked : root;
+    const installed = force ? '' : await extensionVersion(tool, runCmd);
+    if (force || installed !== appVersion()) {
+      const vsix = await failingAsync(() => mokiVsix(root, appVersion(), tmpdir(), doFetch));
+      await failingAsync(() => installExtension(tool, vsix, runCmd));
+      toolsSeen = null;
+    }
+    const opened = await runCmd(TOOLS[tool].command!, [folder], 15_000);
+    if (opened === null) throw new ServiceError('Could not open the editor.');
+    return { version: await extensionVersion(tool, runCmd), folder };
   };
 
   return {
@@ -1157,17 +1220,8 @@ export function createService(root: string, deps: Deps) {
 
     // Installs the Moki extension of this app's version in the editor, then opens the editor on the project's
     // linked folder (or Moki's folder), where the extension finds the project.
-    installMokiExtension: async (tool: unknown, project?: unknown) => {
-      if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].mokiExtension) throw new ServiceError('This tool does not take the Moki extension.');
-      if (!toolsNow()[tool]) throw new ServiceError(`${TOOLS[tool].label} is not installed on this computer.`);
-      const linked = typeof project === 'string' && project ? (projectDir(project), projectRepository(project, root)) : null;
-      const folder = linked && existsSync(linked) ? linked : root;
-      const vsix = await failingAsync(() => mokiVsix(root, appVersion(), tmpdir(), doFetch));
-      await failingAsync(() => installExtension(tool, vsix, runCmd));
-      toolsSeen = null;
-      await runCmd(TOOLS[tool].command!, [folder], 15_000);
-      return { version: await extensionVersion(tool, runCmd), folder };
-    },
+    installMokiExtension: (tool: unknown, project?: unknown) => editorWithExtension(tool, project, true),
+    openMokiInEditor: (tool: unknown, project?: unknown) => editorWithExtension(tool, project, false),
 
     tree: (project: string) => tree(project),
 
@@ -1182,6 +1236,51 @@ export function createService(root: string, deps: Deps) {
       if (typeof text !== 'string' || text.length > TEXT_LIMIT) throw new ServiceError('Invalid content.');
       if (typeof base === 'string' && readFileSync(file, 'utf8') !== base) throw new ServiceError(CHANGED_OUTSIDE);
       writeFileSync(file, text, 'utf8');
+      return readFile(project, rel);
+    },
+
+    htmlComments: (project: string, rel: string) => {
+      const file = projectPath(project, rel);
+      if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
+      return failing(() => htmlComments(projectDir(project), rel));
+    },
+    addHtmlComment: (project: string, rel: string, anchor: unknown, text: unknown) => {
+      const file = projectPath(project, rel);
+      if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
+      if (!isHtmlAnchor(anchor) || typeof text !== 'string') throw new ServiceError('Select a passage and write a comment.');
+      return failing(() => addHtmlComment(projectDir(project), rel, anchor, text, userInfo().username));
+    },
+    removeHtmlComment: (project: string, rel: string, id: string) => {
+      const file = projectPath(project, rel);
+      if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
+      return failing(() => removeHtmlComment(projectDir(project), rel, id));
+    },
+
+    convertOffice: async (project: string, rel: string) => {
+      const file = projectPath(project, rel), extension = extname(file).toLowerCase();
+      if (!['.doc', '.xls'].includes(extension) || !existsSync(file) || !statSync(file).isFile() || statSync(file).size > OFFICE_LIMIT) throw new ServiceError('Choose a legacy Word document or spreadsheet of up to 30 MB.');
+      const stem = rel.slice(0, -extension.length);
+      let target = `${stem}${extension}x`;
+      for (let n = 2; existsSync(projectPath(project, target)); n++) target = `${stem}-${n}${extension}x`;
+      await convertLegacy(file, projectPath(project, target), deps.convertOffice);
+      return target;
+    },
+
+    // Native Office changes are version checked and written atomically; no other package part is rebuilt.
+    editOffice: async (project: string, rel: string, version: unknown, raw: unknown) => {
+      const file = projectPath(project, rel), extension = extname(file).toLowerCase();
+      if (!['.docx', '.xlsx'].includes(extension) || !existsSync(file) || !statSync(file).isFile() || statSync(file).size > OFFICE_LIMIT) throw new ServiceError('Choose a Word document or spreadsheet of up to 30 MB.');
+      if (typeof version !== 'string' || !/^[a-f0-9]{64}$/.test(version) || !raw || typeof raw !== 'object') throw new ServiceError('Invalid Office edit.');
+      const before = readFileSync(file);
+      const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+      if (hash(before) !== version) throw new ServiceError(CHANGED_OUTSIDE);
+      const input = raw as Record<string, unknown>;
+      const change = { ...input, ...(input.op === 'comment' ? { author: userInfo().username } : {}) } as WordChange | SheetChange;
+      const result = failing(() => extension === '.docx' ? changeWord(before, change as WordChange) : changeSheet(before, change as SheetChange));
+      if (hash(readFileSync(file)) !== version) throw new ServiceError(CHANGED_OUTSIDE);
+      const temporary = join(dirname(file), '.moki-office-' + randomBytes(8).toString('hex') + '.tmp');
+      try { writeFileSync(temporary, result, { flag: 'wx' }); renameSync(temporary, file); }
+      finally { if (existsSync(temporary)) rmSync(temporary); }
       return readFile(project, rel);
     },
 
@@ -1731,6 +1830,7 @@ export function createService(root: string, deps: Deps) {
       renameSync(fromPath, projectPath(project, destRel));
       moveFileTags(project, source, destRel, root);
       failing(() => movePdfNotes(projectDir(project), source, destRel));
+      failing(() => moveHtmlComments(projectDir(project), source, destRel));
       return destRel;
     },
 
@@ -1754,6 +1854,7 @@ export function createService(root: string, deps: Deps) {
       renameSync(fromPath, projectPath(project, target));
       moveFileTags(project, source, target, root);
       failing(() => movePdfNotes(projectDir(project), source, target));
+      failing(() => moveHtmlComments(projectDir(project), source, target));
       return target;
     },
 
@@ -1813,6 +1914,9 @@ export function createService(root: string, deps: Deps) {
       for (const run of listRuns(project, root)) {
         const work = join(dir, 'runs', run.id, 'work');
         if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
+        // An empty work/ (older runs made it up front) has nothing to recover: removed, not trashed — sending an empty
+        // folder to the Windows trash can hang the app as the project opens.
+        try { if (!readdirSync(work).length) { rmSync(work, { recursive: true, force: true }); continue; } } catch { continue; }
         try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
       }
       return trashed;
@@ -1879,6 +1983,72 @@ export function createService(root: string, deps: Deps) {
       if (!deps.copy) throw new ServiceError('Copying is not available here.');
       deps.copy(path);
       return path;
+    },
+
+    // The full path of a project file, for an AI terminal (a file dragged from the tree onto it).
+    fullPath: (project: string, rel: unknown) => {
+      const path = projectPath(project, rel);
+      if (!existsSync(path)) throw new ServiceError('File not found.');
+      return path;
+    },
+
+    // An image pasted into an AI terminal: kept in temporary/pasted/ (emptied with the temporary folder), so the
+    // AI gets a file path it can read. Returns the full path.
+    savePastedImage: (project: string, data: unknown, type: unknown) => {
+      projectDir(project);
+      const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' } as Record<string, string>)[String(type)];
+      const bytes = data instanceof Uint8Array ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (!ext || !bytes || !bytes.length) throw new ServiceError('Paste an image (PNG, JPEG, GIF or WebP).');
+      if (bytes.length > IMAGE_LIMIT) throw new ServiceError('Image too large to paste.');
+      const folder = projectPath(project, 'temporary/pasted');
+      mkdirSync(folder, { recursive: true });
+      const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+      let name = `print-${stamp}.${ext}`;
+      for (let n = 2; existsSync(join(folder, name)); n++) name = `print-${stamp}-${n}.${ext}`;
+      const file = join(folder, name);
+      writeFileSync(file, bytes);
+      return file;
+    },
+
+    // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
+    // operations' own folders and journals are not offered: Moki and the skills need them.
+    organizeCandidates: (project: string) => organizeCandidates(project),
+
+    // Applies the steps of Hudson's plan the person approved. "context" moves a Markdown or text file into context/
+    // and lists it in context/index.md; "rename" renames it in its folder; "delete" sends it to the trash.
+    organizeApply: async (project: string, steps: unknown) => {
+      if (!Array.isArray(steps) || steps.length > 200) throw new ServiceError('Nothing to apply.');
+      const base = projectDir(project);
+      const offered = new Set(organizeCandidates(project).map((c) => c.path));
+      const done: string[] = [];
+      const failed: string[] = [];
+      for (const raw of steps) {
+        const step = raw as { path?: unknown; do?: unknown; name?: unknown; why?: unknown };
+        const rel = typeof step.path === 'string' ? step.path : '';
+        if (!offered.has(rel)) { failed.push(rel); continue; }
+        const file = projectPath(project, rel);
+        try {
+          if (step.do === 'delete') await trash(file);
+          else if (step.do === 'rename') {
+            const name = typeof step.name === 'string' ? safeName(step.name, basename(file)) : null;
+            if (!name || existsSync(join(dirname(file), name))) throw new Error('name');
+            renameSync(file, join(dirname(file), name));
+          } else if (step.do === 'context' && /\.(md|txt)$/i.test(file)) {
+            const context = join(base, 'context');
+            mkdirSync(context, { recursive: true });
+            let name = basename(file);
+            for (let n = 2; existsSync(join(context, name)); n++) name = basename(file).replace(/(\.[^.]+)$/, `-${n}$1`);
+            renameSync(file, join(context, name));
+            const index = join(context, 'index.md');
+            const covers = typeof step.why === 'string' && step.why.trim() ? step.why.trim().replace(/[|\r\n]+/g, ' ').slice(0, 200) : 'Brought from a run';
+            const row = `| [${name}](${encodeURI(name)}) | ${covers} | ${new Date().toISOString().slice(0, 10)} |\n`;
+            if (!existsSync(index)) writeFileSync(index, `# Context index\n\n| File | Covers | Last confirmed update |\n|---|---|---|\n${row}`);
+            else appendFileSync(index, `${readFileSync(index, 'utf8').endsWith('\n') ? '' : '\n'}${row}`);
+          } else continue; // keep
+          done.push(rel);
+        } catch { failed.push(rel); }
+      }
+      return { done, failed };
     },
 
     // "Choose my folder": links a folder of this machine (chosen in the native dialog) to the project.

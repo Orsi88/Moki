@@ -90,13 +90,13 @@ test('start-screen sections keep their headings and scroll on their own', async 
 test('a formatted note can be edited, with the title beside the project destination', async () => {
   await page.getByRole('button', { name: 'Nova nota' }).click();
   const note = page.locator('.home-main .note-dialog');
-  const title = note.getByPlaceholder('ex.: Ideias de teste');
+  const title = note.locator('.note-head-title h2');
   const destination = note.locator('select');
   await expect(title).toBeVisible();
   await expect(destination).toBeVisible();
   const titleBox = await title.boundingBox();
   const destinationBox = await destination.boundingBox();
-  expect(titleBox && destinationBox && Math.abs(titleBox.y - destinationBox.y)).toBeLessThan(8);
+  expect(titleBox && destinationBox && Math.abs(titleBox.y + titleBox.height / 2 - destinationBox.y - destinationBox.height / 2)).toBeLessThan(8);
   expect(destinationBox && titleBox && destinationBox.x).toBeGreaterThan(titleBox.x + titleBox.width - 4);
 
   // The note already opens in its formatted editor.

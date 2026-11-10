@@ -12,6 +12,7 @@ import { ROOT, workspaceDir } from '../scripts/lib/repo.mjs';
 import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, which, type ToolKey } from '../scripts/lib/core.ts';
 import { callService, createService, servedFile, type CallResult } from './service.ts';
 import { FILE_SCHEME, createFileGrants } from './file-protocol.ts';
+import { PREVIEW_SCHEME, createPreviewGrants } from './html-preview.ts';
 import { watchProject } from './project-watch.ts';
 import { launchInTerminal, launchTool, openFolder } from './launcher.ts';
 import { notebookKey, noteQuery, parseNoteRequest, type NoteRequest } from './notes.ts';
@@ -20,7 +21,9 @@ import { appChooser } from './open-with.ts';
 import { pdfcraftAvailable, runPdfcraft } from './pdfcraft.ts';
 import { createTerminals, shellSpec } from './terminals.ts';
 import { memoryUsage, planUsage, type AppProcessKind, type WindowKind } from './usage.ts';
-import { fixToolPath } from './tool-path.ts';
+import { fixToolPath, pathReady } from './tool-path.ts';
+import { ASSIST_TOOLS, NOTE_HELPERS, assistPrompt, runAssist, type AssistTool, type NoteHelper } from './note-assist.ts';
+import { organizePrompt, readPlan, type OrganizeCandidate, type OrganizeStep } from './hudson.ts';
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
 import { createParseClient } from './parse-pool.ts';
 
@@ -90,6 +93,7 @@ const noteWindows = new Map<string, BrowserWindow>();
 
 // Every custom scheme of the app goes in this one list: Electron takes the call once, before 'ready'.
 protocol.registerSchemesAsPrivileged([
+  { scheme: PREVIEW_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
   // moki-file://<token>/: a PDF or image of the open project, read by URL with Range (desktop/file-protocol.ts).
   { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
 ]);
@@ -99,17 +103,18 @@ const files = createFileGrants({
   workspace: () => workspaceDir(ROOT),
   bases: (project) => (isProject(project, ROOT) ? [join(projectsDir(ROOT), project), projectRepository(project, ROOT)].filter(Boolean) : null),
 });
+const previews = createPreviewGrants({ workspace: () => workspaceDir(ROOT), bases: (project) => isProject(project, ROOT) ? [join(projectsDir(ROOT), project), projectRepository(project, ROOT)].filter(Boolean) : null });
 const granting = new Set<number>(); // windows whose end is already watched
 
 // A PDF or image the UI reads comes with the URL it loads it from, granted to the window that asked (nothing else sends bytes).
 function withFileUrl(sender: WebContents, project: unknown, result: CallResult): CallResult {
   const file = result.ok ? servedFile(result.value) : undefined;
   if (!result.ok || !file) return result;
-  const url = typeof project === 'string' ? files.grant(sender.id, project, file) : null;
+  const url = typeof project === 'string' ? (result.value as { kind?: string }).kind === 'html' ? previews.grant(sender.id, project, file) : files.grant(sender.id, project, file) : null;
   if (!url) return { ok: false, error: 'File not found.' };
   if (!granting.has(sender.id)) {
     granting.add(sender.id);
-    sender.once('destroyed', () => { granting.delete(sender.id); files.revokeScope(sender.id); });
+    sender.once('destroyed', () => { granting.delete(sender.id); files.revokeScope(sender.id); previews.revokeScope(sender.id); });
   }
   return { ok: true, value: { ...(result.value as object), url } };
 }
@@ -240,6 +245,10 @@ function createWindow(): void {
   }
 
   // The UI never navigates away or opens windows; web links go to the browser.
+  // A preview may follow local links, but cannot navigate its frame to a remote page.
+  win.webContents.on('will-frame-navigate', (event) => {
+    if (!event.isMainFrame && !/^(moki-preview:|moki-file:|blob:|about:blank$)/.test(event.url)) event.preventDefault();
+  });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
@@ -283,6 +292,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
 
+    protocol.handle(PREVIEW_SCHEME, (request) => previews.serve(request.method, request.url));
     protocol.handle(FILE_SCHEME, async (request) => {
       const r = await files.serve(request.method, request.url, request.headers.get('range'));
       return new Response(r.body instanceof Readable ? (Readable.toWeb(r.body) as ReadableStream) : r.body, { status: r.status, headers: r.headers });
@@ -307,7 +317,7 @@ if (!app.requestSingleInstanceLock()) {
     // Watch one project at a time; changes are debounced and sent to the UI.
     ipcMain.handle('qa:watch', (event, project: unknown) => {
       if (!trusted(event)) return false;
-      if (typeof project === 'string' && project) files.revokeOutside(event.sender.id, project);
+      if (typeof project === 'string') { files.revokeOutside(event.sender.id, project); previews.revokeOutside(event.sender.id, project); }
       watcher?.();
       watcher = null;
       linkedWatcher?.();
@@ -390,6 +400,58 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.handle('qa:open-link', (event, url: unknown) => {
       if (trusted(event) && typeof url === 'string' && /^https?:\/\//.test(url)) void shell.openExternal(url);
+    });
+
+    // A quick assistant of a note (desktop/note-assist.ts): one run of Claude Code or Codex, no terminal. The answer
+    // goes back to the note as a suggestion; `id` lets the note cancel it. The preferred tool is used when installed.
+    const assists = new Map<string, () => void>();
+    ipcMain.handle('qa:note-assist', async (event, raw: unknown): Promise<{ answer?: string; tool?: string; error?: string }> => {
+      if (!trusted(event) || !raw || typeof raw !== 'object') return { error: 'invalid' };
+      const { id, helper, text, prefer, language } = raw as Record<string, unknown>;
+      if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id) || !NOTE_HELPERS.includes(helper as NoteHelper) || typeof text !== 'string' || text.length > 200_000) return { error: 'invalid' };
+      const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
+      if (fakeTools) { // UI tests: a fixed answer, as the tool would give it
+        await new Promise((r) => setTimeout(r, 200));
+        const pt = /portuguese/i.test(lang);
+        return { tool: 'claude', answer: helper === 'write' ? `${text.trim()}\n\n${pt ? 'Texto revisado pelo assistente.' : 'Text revised by the assistant.'}` : `## ${helper}\n\n- ${pt ? 'ponto do assistente' : 'a point from the assistant'}` };
+      }
+      await pathReady();
+      const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
+      const found = order.map((tool) => ({ tool, file: which(TOOLS[tool].command ?? tool) })).find((x) => x.file);
+      if (!found?.file) return { error: 'no-tool' };
+      const run = runAssist(found.file, found.tool, helper as NoteHelper, assistPrompt(helper as NoteHelper, text, lang), process.env);
+      assists.set(id, run.cancel);
+      try { return { tool: found.tool, answer: await run.done }; }
+      catch (e) { return { tool: found.tool, error: (e as Error).message }; }
+      finally { assists.delete(id); }
+    });
+    // Hudson's plan for a project's run files (desktop/hudson.ts): the AI only proposes; organizeApply does what was approved.
+    ipcMain.handle('qa:hudson-plan', async (event, raw: unknown): Promise<{ files?: OrganizeCandidate[]; plan?: OrganizeStep[]; tool?: string; error?: string }> => {
+      if (!trusted(event) || !raw || typeof raw !== 'object') return { error: 'invalid' };
+      const { id, project, prefer, language } = raw as Record<string, unknown>;
+      if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id) || typeof project !== 'string' || !isProject(project, ROOT)) return { error: 'invalid' };
+      const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
+      const files = service.organizeCandidates(project);
+      if (!files.length) return { files, plan: [] };
+      if (fakeTools) { // UI tests: a plan as the AI would give it, from the file names
+        const pt = /portuguese/i.test(lang);
+        const kind = (path: string) => (/apoio|rascunho|support|draft/.test(path) ? 'delete' : /definicoes|definitions/.test(path) ? 'context' : /saida|doc1/.test(path) ? 'rename' : 'keep');
+        const why = { delete: pt ? 'Anotações de apoio que ninguém pediu.' : 'Support notes nobody asked for.', context: pt ? 'Definições confirmadas do sistema.' : 'Confirmed definitions of the system.', rename: pt ? 'O nome não diz o que é.' : 'The name does not say what it is.', keep: pt ? 'Entrega que foi pedida.' : 'A deliverable that was asked for.' };
+        const fake = files.map((f) => ({ path: f.path, do: kind(f.path), name: pt ? 'Matriz de revisão US-12.md' : 'US-12 review matrix.md', why: why[kind(f.path)] }));
+        return { tool: 'claude', files, plan: readPlan(JSON.stringify({ actions: fake }), files) };
+      }
+      await pathReady();
+      const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
+      const found = order.map((tool) => ({ tool, file: which(TOOLS[tool].command ?? tool) })).find((x) => x.file);
+      if (!found?.file) return { error: 'no-tool' };
+      const run = runAssist(found.file, found.tool, 'summary', organizePrompt(files, lang), process.env);
+      assists.set(id, run.cancel);
+      try { return { tool: found.tool, files, plan: readPlan(await run.done, files) }; }
+      catch (e) { return { tool: found.tool, error: (e as Error).message }; }
+      finally { assists.delete(id); }
+    });
+    ipcMain.handle('qa:note-assist-cancel', (event, id: unknown) => {
+      if (trusted(event) && typeof id === 'string') assists.get(id)?.();
     });
 
     // From the main window, or from the loose notebook when a note is sent to a project.

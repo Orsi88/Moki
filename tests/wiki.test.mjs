@@ -17,6 +17,17 @@ test('every page of docs/wiki.json is built, with Home, the sidebar and the foot
   assert.match(pages['_Sidebar.md'], /\[Moki na IDE\]\(Moki-na-IDE\)/);
 });
 
+test('the front page comes from docs/home.md in both languages, with the open-source credits; the sidebar has both languages', () => {
+  const pages = buildWiki(root);
+  assert.match(pages['Home.md'], /^> 🇧🇷 \[Leia em português\]\(Início\)/);
+  assert.match(pages['Início.md'], /^> 🇺🇸 \[Read in English\]\(Home\)/);
+  assert.match(pages['Home.md'], /## ❤️ Built with open source/);
+  assert.match(pages['Início.md'], /## ❤️ Feito com software livre/);
+  assert.match(pages['Home.md'], /\]\(Credits-and-licenses\)/, 'the credits page is linked');
+  assert.match(pages['Home.md'], /raw\.githubusercontent\.com\/Orsi88\/moki\/main\/docs\/assets\/wiki\/en\/project\.png/, 'images point to the repository');
+  assert.match(pages['_Sidebar.md'], /\*\*🇺🇸 English\*\*[\s\S]*\*\*Start here\*\*[\s\S]*\*\*🇧🇷 Português\*\*[\s\S]*\*\*Comece por aqui\*\*[\s\S]*\[Primeiros passos\]\(Primeiros-passos\)/);
+});
+
 test('links become wiki pages or GitHub links; a page says where it is edited and links its translation', () => {
   const pages = buildWiki(root, { ref: 'main', sha: '0123456789abcdef' });
   const ide = pages['Moki-in-the-IDE.md'];
@@ -42,6 +53,7 @@ test('another branch gets the in-development note; a broken link stops the build
     cpSync(join(root, 'ide', 'mcp', 'server.ts'), join(copy, 'ide', 'mcp', 'server.ts'));
     for (const d of ['skills', 'agents', 'core', 'templates', 'schemas', 'scripts', 'desktop', 'app', 'adapters', 'examples', 'tests', 'activities']) cpSync(join(root, d), join(copy, d), { recursive: true, filter: (s) => !s.includes('node_modules') && !s.includes(join('app', 'dist')) });
     cpSync(join(root, 'LICENSE'), join(copy, 'LICENSE'));
+    cpSync(join(root, 'package.json'), join(copy, 'package.json')); // the credits page links the dependencies
     buildWiki(copy); // the copy builds
     writeFileSync(join(copy, 'docs', 'troubleshooting.md'), '# T\n\n[gone](nowhere.md)\n');
     assert.throws(() => buildWiki(copy), /docs\/troubleshooting\.md: broken link "nowhere\.md"/);

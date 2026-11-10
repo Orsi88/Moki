@@ -5,7 +5,7 @@
 // Closing its tab (Workspace) is what stops it. The xterm.js terminal (and its scrollback) is only
 // created when the tab is first shown; until then the output is kept as plain text.
 
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css'; // only the styles are static (a side-effect import needs no types); the code loads when a tab is first shown
@@ -13,6 +13,7 @@ import { api } from '../api';
 import { t } from '../i18n';
 import { acceptsItem, droppedItem, ITEM_DRAG } from '../item-drag';
 import { terminalPaths } from '../terminal-links';
+import { pastedImages, pathsText } from '../terminal-drop';
 
 interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void; onDropItem?: (target: { kind: 'skill' | 'agent'; name: string }) => void }
 
@@ -92,6 +93,42 @@ export function TerminalView({ id, project, active, onExit, resolveLink, onLink,
       }));
       fit.fit();
       listeners.push(made.onData((data) => bridge.input(id, data)), made.onResize(({ cols, rows }) => bridge.resize(id, cols, rows)));
+      // Images and files for the AI: a pasted screenshot is saved in the project's temporary/pasted/, and dropped
+      // files (from the computer or the project tree) are given by their path, typed into the prompt (terminal-drop.ts).
+      const give = (paths: string[]) => { if (paths.length) bridge.input(id, pathsText(paths)); made.focus(); };
+      const fail = (e: Error) => write(`\r\n\x1b[31m${e.message}\x1b[0m\r\n`);
+      const onPaste = (e: ClipboardEvent) => {
+        const files = e.clipboardData?.files;
+        const images = pastedImages(files, e.clipboardData?.getData('text/plain') ?? '');
+        if (!files || !images.length) return; // text: xterm pastes it as usual
+        e.preventDefault(); e.stopImmediatePropagation();
+        void Promise.all(images.map(async (i) => api.savePastedImage(project, new Uint8Array(await files[i].arrayBuffer()), files[i].type))).then(give).catch(fail);
+      };
+      const fromTree = (e: DragEvent) => Boolean(e.dataTransfer?.types.includes('application/x-moki-move'));
+      const onDragOver = (e: DragEvent) => {
+        if (!e.dataTransfer || !(e.dataTransfer.types.includes('Files') || fromTree(e))) return;
+        e.preventDefault(); e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        host.classList.add('term-drop');
+      };
+      const onDragLeave = (e: DragEvent) => { if (!host.contains(e.relatedTarget as Node | null)) host.classList.remove('term-drop'); };
+      const onDrop = (e: DragEvent) => {
+        host.classList.remove('term-drop');
+        if (!e.dataTransfer) return;
+        const rel = e.dataTransfer.getData('application/x-moki-move');
+        const files = [...e.dataTransfer.files];
+        if (!rel && !files.length) return;
+        e.preventDefault(); e.stopPropagation(); // not the project's own drop (copying into the inbox)
+        if (rel) { void api.fullPath(project, rel).then((p) => give([p])).catch(fail); return; }
+        const paths = files.map((f) => window.qa?.filePath(f) ?? '').filter(Boolean);
+        const loose = files.filter((f, i) => !paths[i] && /^image\//.test(f.type)); // an image dragged from a browser has no file
+        void Promise.all(loose.map(async (f) => api.savePastedImage(project, new Uint8Array(await f.arrayBuffer()), f.type))).then((saved) => give([...paths, ...saved])).catch(fail);
+      };
+      host.addEventListener('paste', onPaste, true);
+      host.addEventListener('dragover', onDragOver);
+      host.addEventListener('dragleave', onDragLeave);
+      host.addEventListener('drop', onDrop);
+      listeners.push({ dispose: () => { host.removeEventListener('paste', onPaste, true); host.removeEventListener('dragover', onDragOver); host.removeEventListener('dragleave', onDragLeave); host.removeEventListener('drop', onDrop); } });
       view.current = { term: made, fit };
       term = made;
       made.write(pending);
@@ -134,8 +171,8 @@ export function TerminalView({ id, project, active, onExit, resolveLink, onLink,
 
   // A skill or an agent dragged from the project panel (item-drag.ts). On this container, not on xterm: the events of its
   // canvas bubble up to here. Files and anything else are not ours: left alone, so the workspace's own drop still works.
-  const mine = (e: DragEvent) => acceptsItem(Array.from(e.dataTransfer.types), project);
-  const drop = (e: DragEvent) => {
+  const mine = (e: ReactDragEvent) => acceptsItem(Array.from(e.dataTransfer.types), project);
+  const drop = (e: ReactDragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes(ITEM_DRAG)) return;
     e.preventDefault();
     setOver(false);

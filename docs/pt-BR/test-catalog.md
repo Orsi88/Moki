@@ -1,6 +1,6 @@
 # Catálogo de testes
 
-Todos os cenários de teste automatizado do Moki, um por linha: 504 cenários. O cenário é o título do teste, que diz o comportamento verificado; os títulos vêm de `docs/pt-BR/test-scenarios.json` (o original, em inglês, está no código). Como as suítes rodam e como os testes são escritos: [Testes automatizados](testing.md).
+Todos os cenários de teste automatizado do Moki, um por linha: 560 cenários. O cenário é o título do teste, que diz o comportamento verificado; os títulos vêm de `docs/pt-BR/test-scenarios.json` (o original, em inglês, está no código). Como as suítes rodam e como os testes são escritos: [Testes automatizados](testing.md).
 
 > Gerado pelo `npm run test-catalog` a partir dos arquivos de teste; não edite à mão. Rode de novo depois de criar ou renomear um teste.
 
@@ -8,29 +8,29 @@ Todos os cenários de teste automatizado do Moki, um por linha: 504 cenários. O
 
 | Tipo | Cenários |
 |---|---|
-| Unidade | 267 |
-| Integração | 142 |
-| Interface | 95 |
+| Unidade | 292 |
+| Integração | 152 |
+| Interface | 116 |
 
 | Área | Unidade | Integração | Interface |
 |---|---|---|---|
 | [Projetos](#projetos) | 11 | 7 |  |
-| [Arquivos e confinamento](#arquivos-e-confinamento) | 27 | 11 |  |
+| [Arquivos e confinamento](#arquivos-e-confinamento) | 28 | 12 |  |
 | [Abrir com](#abrir-com) | 1 | 1 |  |
 | [PDF (PdfCraft)](#pdf-pdfcraft) | 4 | 4 |  |
-| [Notas](#notas) | 1 | 5 |  |
-| [Renderização](#renderização) | 75 |  |  |
+| [Notas](#notas) | 7 | 5 |  |
+| [Renderização](#renderização) | 90 | 3 |  |
 | [Busca](#busca) | 2 | 6 |  |
 | [Workspaces](#workspaces) | 5 | 1 |  |
 | [Abas e visões](#abas-e-visões) | 11 |  |  |
 | [Tema](#tema) | 3 |  |  |
 | [Diálogos](#diálogos) | 4 |  |  |
 | [Tags](#tags) | 4 | 1 |  |
-| [Abrir as ferramentas de IA](#abrir-as-ferramentas-de-ia) | 35 | 10 |  |
-| [Encontrar as ferramentas de IA](#encontrar-as-ferramentas-de-ia) | 6 | 5 |  |
+| [Abrir as ferramentas de IA](#abrir-as-ferramentas-de-ia) | 37 | 10 |  |
+| [Encontrar as ferramentas de IA](#encontrar-as-ferramentas-de-ia) | 6 | 6 |  |
 | [Atividades](#atividades) | 10 | 4 |  |
 | [Favoritos](#favoritos) | 2 | 1 |  |
-| [Atividades e execuções](#atividades-e-execuções) | 3 | 5 |  |
+| [Atividades e execuções](#atividades-e-execuções) | 3 | 10 |  |
 | [Agentes](#agentes) |  | 8 |  |
 | [Operações multiagente](#operações-multiagente) |  | 8 |  |
 | [Skills e configuração](#skills-e-configuração) |  | 18 |  |
@@ -44,7 +44,7 @@ Todos os cenários de teste automatizado do Moki, um por linha: 504 cenários. O
 | [IDE: contexto e servidor MCP](#ide-contexto-e-servidor-mcp) |  | 8 |  |
 | [Ícone da IDE](#ícone-da-ide) | 2 |  |  |
 | [Framework](#framework) | 24 | 3 |  |
-| [Documentação](#documentação) | 3 |  |  |
+| [Documentação](#documentação) | 4 |  |  |
 | [Download dos apps ArtCraft](#download-dos-apps-artcraft) | 3 | 10 |  |
 | [ (UI)](#-ui) |  |  | 5 |
 | [Configurações (UI)](#configurações-ui) |  |  | 8 |
@@ -69,6 +69,13 @@ Todos os cenários de teste automatizado do Moki, um por linha: 504 cenários. O
 | [Pedidos (UI)](#pedidos-ui) |  |  | 3 |
 | [Padrões do projeto (UI)](#padrões-do-projeto-ui) |  |  | 6 |
 | [Grupos de abas e visões divididas (UI)](#grupos-de-abas-e-visões-divididas-ui) |  |  | 5 |
+| [Renderização (UI)](#renderização-ui) |  |  | 6 |
+| [Atividades e execuções (UI)](#atividades-e-execuções-ui) |  |  | 2 |
+| [Notas (UI)](#notas-ui) |  |  | 3 |
+| [Projetos (UI)](#projetos-ui) |  |  | 3 |
+| [Abrir ferramentas de IA (UI)](#abrir-ferramentas-de-ia-ui) |  |  | 2 |
+| [Documentação (UI)](#documentação-ui) |  |  | 4 |
+| [Editores de documentos (UI)](#editores-de-documentos-ui) |  |  | 1 |
 
 ## Testes de unidade e de integração
 
@@ -82,9 +89,9 @@ Rodam com `npm test`.
 | 2 | excluir um projeto exige a palavra "delete" e remove só a pasta dele | Integração | [desktop.test.ts:102](../../tests/desktop.test.ts#L102) |
 | 3 | a árvore lista o projeto, esconde arquivos com ponto e anota as atividades | Integração | [desktop.test.ts:119](../../tests/desktop.test.ts#L119) |
 | 4 | atualizar o nome e a descrição do projeto preserva todas as outras configurações do projeto | Integração | [desktop.test.ts:647](../../tests/desktop.test.ts#L647) |
-| 5 | as configurações do projeto guardam o nome, as linhas da descrição, os padrões e as instruções do início; um agente padrão é ligado | Integração | [desktop.test.ts:739](../../tests/desktop.test.ts#L739) |
-| 6 | uma IA aberta no projeto começa com os padrões dele: uma atividade sem arquivos roda, qualquer outra coisa espera | Integração | [desktop.test.ts:763](../../tests/desktop.test.ts#L763) |
-| 7 | as configurações do projeto e as do workspace se espelham pela tag do próprio projeto | Integração | [desktop.test.ts:790](../../tests/desktop.test.ts#L790) |
+| 5 | as configurações do projeto guardam o nome, as linhas da descrição, os padrões e as instruções do início; um agente padrão é ligado | Integração | [desktop.test.ts:761](../../tests/desktop.test.ts#L761) |
+| 6 | uma IA aberta no projeto começa com os padrões dele: uma atividade sem arquivos roda, qualquer outra coisa espera | Integração | [desktop.test.ts:785](../../tests/desktop.test.ts#L785) |
+| 7 | as configurações do projeto e as do workspace se espelham pela tag do próprio projeto | Integração | [desktop.test.ts:812](../../tests/desktop.test.ts#L812) |
 | 8 | arrastar o divisor dá a altura à seção para a qual ele se move | Unidade | [home-sections.test.ts:5](../../tests/home-sections.test.ts#L5) |
 | 9 | uma seção não pode ser arrastada abaixo do mínimo | Unidade | [home-sections.test.ts:12](../../tests/home-sections.test.ts#L12) |
 | 10 | os padrões são lidos como uma lista de tipos e ids; qualquer outra coisa, e as repetições, ficam de fora | Unidade | [project-defaults.test.ts:8](../../tests/project-defaults.test.ts#L8) |
@@ -112,8 +119,8 @@ Rodam com `npm test`.
 | 9 | excluir manda um arquivo para a lixeira, esvazia uma pasta fixa e mantém o project.json | Integração | [desktop.test.ts:414](../../tests/desktop.test.ts#L414) |
 | 10 | arquivos e pastas novos: Markdown, texto, planilha e Word vazios, nomes seguros, nunca dentro das atividades | Integração | [desktop.test.ts:432](../../tests/desktop.test.ts#L432) |
 | 11 | onde um item está neste computador: mostrado na pasta dele ou pelo caminho completo, só dentro do projeto | Integração | [desktop.test.ts:463](../../tests/desktop.test.ts#L463) |
-| 12 | isolamento do fs-guard e regras de tipo de arquivo | Unidade | [desktop.test.ts:2768](../../tests/desktop.test.ts#L2768) |
-| 13 | ids de projeto: só um nome de pasta simples com um project.json é um projeto | Unidade | [desktop.test.ts:3159](../../tests/desktop.test.ts#L3159) |
+| 12 | isolamento do fs-guard e regras de tipo de arquivo | Unidade | [desktop.test.ts:2792](../../tests/desktop.test.ts#L2792) |
+| 13 | ids de projeto: só um nome de pasta simples com um project.json é um projeto | Unidade | [desktop.test.ts:3194](../../tests/desktop.test.ts#L3194) |
 | 14 | o moki-file serve o arquivo inteiro com tipo, tamanho e Accept-Ranges, e o HEAD responde o mesmo sem corpo | Unidade | [file-protocol.test.ts:58](../../tests/file-protocol.test.ts#L58) |
 | 15 | o moki-file responde um único Range com 206 e exatamente esses bytes | Unidade | [file-protocol.test.ts:78](../../tests/file-protocol.test.ts#L78) |
 | 16 | o moki-file responde um Range inválido ou não atendível com 416 e Content-Range */tamanho | Unidade | [file-protocol.test.ts:93](../../tests/file-protocol.test.ts#L93) |
@@ -132,13 +139,15 @@ Rodam com `npm test`.
 | 29 | um projeto que desaparece, ou outro workspace sendo aberto, encerra todas as liberações | Unidade | [file-protocol.test.ts:226](../../tests/file-protocol.test.ts#L226) |
 | 30 | o mesmo arquivo e carimbo mantêm um só token; um arquivo alterado recebe um novo; uma janela guarda um número limitado | Unidade | [file-protocol.test.ts:240](../../tests/file-protocol.test.ts#L240) |
 | 31 | os tokens têm 192 bits aleatórios em hexadecimal e nunca se repetem | Unidade | [file-protocol.test.ts:255](../../tests/file-protocol.test.ts#L255) |
-| 32 | uma mudança numa pasta aninhada é informada uma vez por rajada, e uma pasta ignorada não é observada | Unidade | [project-watch.test.ts:15](../../tests/project-watch.test.ts#L15) |
-| 33 | além do maxDirs, as pastas extras ficam sem observação, em silêncio e sem erro | Unidade | [project-watch.test.ts:33](../../tests/project-watch.test.ts#L33) |
-| 34 | só um renomear varre a pasta de novo; uma mudança simples apenas informa | Unidade | [project-watch.test.ts:51](../../tests/project-watch.test.ts#L51) |
-| 35 | uma subpasta criada depois do início é observada | Unidade | [project-watch.test.ts:75](../../tests/project-watch.test.ts#L75) |
-| 36 | uma pasta criada depois do início continua respeitando o maxDirs | Unidade | [project-watch.test.ts:92](../../tests/project-watch.test.ts#L92) |
-| 37 | mudanças contínuas são informadas dentro do maxWaitMs, em vez de adiadas para sempre | Unidade | [project-watch.test.ts:110](../../tests/project-watch.test.ts#L110) |
-| 38 | uma pasta que é link simbólico não é seguida | Unidade | [project-watch.test.ts:130](../../tests/project-watch.test.ts#L130) |
+| 32 | o serviço de comentários HTML limita chamadas a uma página existente do próprio projeto | Integração | [html-comments.test.ts:29](../../tests/html-comments.test.ts#L29) |
+| 33 | a prévia HTML serve módulos e arquivos locais, recusa segredos, caminhos externos e escrita, e expira com janela, workspace ou projeto | Unidade | [html-preview.test.ts:8](../../tests/html-preview.test.ts#L8) |
+| 34 | uma mudança numa pasta aninhada é informada uma vez por rajada, e uma pasta ignorada não é observada | Unidade | [project-watch.test.ts:15](../../tests/project-watch.test.ts#L15) |
+| 35 | além do maxDirs, as pastas extras ficam sem observação, em silêncio e sem erro | Unidade | [project-watch.test.ts:33](../../tests/project-watch.test.ts#L33) |
+| 36 | só um renomear varre a pasta de novo; uma mudança simples apenas informa | Unidade | [project-watch.test.ts:51](../../tests/project-watch.test.ts#L51) |
+| 37 | uma subpasta criada depois do início é observada | Unidade | [project-watch.test.ts:75](../../tests/project-watch.test.ts#L75) |
+| 38 | uma pasta criada depois do início continua respeitando o maxDirs | Unidade | [project-watch.test.ts:92](../../tests/project-watch.test.ts#L92) |
+| 39 | mudanças contínuas são informadas dentro do maxWaitMs, em vez de adiadas para sempre | Unidade | [project-watch.test.ts:110](../../tests/project-watch.test.ts#L110) |
+| 40 | uma pasta que é link simbólico não é seguida | Unidade | [project-watch.test.ts:130](../../tests/project-watch.test.ts#L130) |
 
 ### Abrir com
 
@@ -168,8 +177,14 @@ Rodam com `npm test`.
 | 2 | notas: uma é excluída pela tela inicial; nada fora de notes/ é excluído | Integração | [desktop.test.ts:228](../../tests/desktop.test.ts#L228) |
 | 3 | notas: uma seleção de PDF vira uma nota com título de arquivo e página, com a sua origem | Integração | [desktop.test.ts:237](../../tests/desktop.test.ts#L237) |
 | 4 | notas: exportadas como md, txt e pdf para o arquivo que o diálogo de salvar devolve; nada mais é exportado | Integração | [desktop.test.ts:245](../../tests/desktop.test.ts#L245) |
-| 5 | janelas de nota: só notes/<arquivo>.md de um projeto listado ou o id de uma nota avulsa, uma janela por nota | Integração | [desktop.test.ts:2749](../../tests/desktop.test.ts#L2749) |
-| 6 | um comando com barra substitui só a barra digitada | Unidade | [slash-apply.test.ts:8](../../tests/slash-apply.test.ts#L8) |
+| 5 | janelas de nota: só notes/<arquivo>.md de um projeto listado ou o id de uma nota avulsa, uma janela por nota | Integração | [desktop.test.ts:2773](../../tests/desktop.test.ts#L2773) |
+| 6 | note-assist: o pedido leva a nota e a tarefa e usa o idioma escolhido como padrão | Unidade | [note-assist.test.ts:6](../../tests/note-assist.test.ts#L6) |
+| 7 | note-assist: nenhuma ferramenta escreve ou executa comandos; só a pesquisa busca na web | Unidade | [note-assist.test.ts:15](../../tests/note-assist.test.ts#L15) |
+| 8 | note-assist: remove a cerca ao redor da resposta inteira e posiciona a resposta conforme o assistente | Unidade | [note-assist.test.ts:29](../../tests/note-assist.test.ts#L29) |
+| 9 | note-assist: as diferenças mantêm palavras comuns e marcam remoções e inclusões | Unidade | [note-assist.test.ts:39](../../tests/note-assist.test.ts#L39) |
+| 10 | note-assist: a execução lê a nota pela entrada padrão e responde em Markdown | Unidade | [note-assist.test.ts:51](../../tests/note-assist.test.ts#L51) |
+| 11 | note-assist: a falha mostra as últimas linhas de erro; cancelar ou atingir o tempo limite encerra a execução | Unidade | [note-assist.test.ts:57](../../tests/note-assist.test.ts#L57) |
+| 12 | um comando com barra substitui só a barra digitada | Unidade | [slash-apply.test.ts:8](../../tests/slash-apply.test.ts#L8) |
 
 ### Renderização
 
@@ -181,12 +196,12 @@ Rodam com `npm test`.
 | 4 | o flush roda a chamada pendente na hora, uma única vez, e não faz nada quando não há pendência | Unidade | [debounce.test.ts:22](../../tests/debounce.test.ts#L22) |
 | 5 | o cancel descarta a chamada pendente, e uma chamada posterior volta a funcionar | Unidade | [debounce.test.ts:38](../../tests/debounce.test.ts#L38) |
 | 6 | o flushEdits descarrega todo editor registrado até ele se desregistrar | Unidade | [debounce.test.ts:54](../../tests/debounce.test.ts#L54) |
-| 7 | as tabelas de Markdown desenham células mescladas (<< e ^^) como uma célula só | Unidade | [desktop.test.ts:2592](../../tests/desktop.test.ts#L2592) |
-| 8 | a renderização de Markdown escapa HTML e injeção de atributos | Unidade | [desktop.test.ts:2598](../../tests/desktop.test.ts#L2598) |
-| 9 | imagens relativas do Markdown só são embutidas de dentro do projeto | Unidade | [desktop.test.ts:2606](../../tests/desktop.test.ts#L2606) |
-| 10 | a extração de docx mantém títulos, listas e tabelas | Unidade | [desktop.test.ts:2624](../../tests/desktop.test.ts#L2624) |
-| 11 | a extração de docx mantém formatação, listas numeradas, links, notas, comentários e imagens | Unidade | [desktop.test.ts:2635](../../tests/desktop.test.ts#L2635) |
-| 12 | os formatos de número das planilhas mostram os valores como os programas de planilha mostram | Unidade | [desktop.test.ts:2669](../../tests/desktop.test.ts#L2669) |
+| 7 | as tabelas de Markdown desenham células mescladas (<< e ^^) como uma célula só | Unidade | [desktop.test.ts:2616](../../tests/desktop.test.ts#L2616) |
+| 8 | a renderização de Markdown escapa HTML e injeção de atributos | Unidade | [desktop.test.ts:2622](../../tests/desktop.test.ts#L2622) |
+| 9 | imagens relativas do Markdown só são embutidas de dentro do projeto | Unidade | [desktop.test.ts:2630](../../tests/desktop.test.ts#L2630) |
+| 10 | a extração de docx mantém títulos, listas e tabelas | Unidade | [desktop.test.ts:2648](../../tests/desktop.test.ts#L2648) |
+| 11 | a extração de docx mantém formatação, listas numeradas, links, notas, comentários e imagens | Unidade | [desktop.test.ts:2659](../../tests/desktop.test.ts#L2659) |
+| 12 | os formatos de número das planilhas mostram os valores como os programas de planilha mostram | Unidade | [desktop.test.ts:2693](../../tests/desktop.test.ts#L2693) |
 | 13 | um diagrama guardado é um acerto, um desconhecido é uma falha | Unidade | [diagram-cache.test.ts:6](../../tests/diagram-cache.test.ts#L6) |
 | 14 | idioma, tema e fonte geram chaves diferentes e nunca compartilham um desenho | Unidade | [diagram-cache.test.ts:14](../../tests/diagram-cache.test.ts#L14) |
 | 15 | o limite de entradas descarta o diagrama usado há mais tempo | Unidade | [diagram-cache.test.ts:30](../../tests/diagram-cache.test.ts#L30) |
@@ -221,42 +236,60 @@ Rodam com `npm test`.
 | 44 | excalidraw: o bloco é um bloco excalidraw com o JSON da cena | Unidade | [excalidraw-spec.test.mjs:67](../../tests/excalidraw-spec.test.mjs#L67) |
 | 45 | os títulos do Markdown recebem âncoras estáveis e únicas a partir do texto visível | Unidade | [heading-anchors.test.ts:7](../../tests/heading-anchors.test.ts#L7) |
 | 46 | os IDs dos títulos não dependem da renderização dos comentários e recomeçam em cada documento | Unidade | [heading-anchors.test.ts:12](../../tests/heading-anchors.test.ts#L12) |
-| 47 | um link relativo ao documento leva ao arquivo que ele nomeia | Unidade | [internal-links.test.ts:9](../../tests/internal-links.test.ts#L9) |
-| 48 | um caminho do projeto funciona a partir de qualquer documento, com ou sem a raiz (a menção @ da nota) | Unidade | [internal-links.test.ts:15](../../tests/internal-links.test.ts#L15) |
-| 49 | um caminho que passa pela pasta deste projeto, como as IAs escrevem, é cortado no projeto | Unidade | [internal-links.test.ts:21](../../tests/internal-links.test.ts#L21) |
-| 50 | o que não é um lugar deste projeto não leva a lugar nenhum | Unidade | [internal-links.test.ts:27](../../tests/internal-links.test.ts#L27) |
-| 51 | um link para outro projeto nunca é resolvido dentro deste | Unidade | [internal-links.test.ts:37](../../tests/internal-links.test.ts#L37) |
-| 52 | um arquivo ausente ainda resolve (para dizer que não foi encontrado), relativo ao documento primeiro | Unidade | [internal-links.test.ts:42](../../tests/internal-links.test.ts#L42) |
-| 53 | âncoras: um título, um comentário, uma página de PDF; # sozinho é o mesmo documento | Unidade | [internal-links.test.ts:46](../../tests/internal-links.test.ts#L46) |
-| 54 | os slugs de títulos seguem o GitHub: acentos mantidos, pontuação removida, repetições numeradas | Unidade | [internal-links.test.ts:55](../../tests/internal-links.test.ts#L55) |
-| 55 | hrefTo escreve um link relativo ao documento, que resolveInternal lê de volta | Unidade | [internal-links.test.ts:62](../../tests/internal-links.test.ts#L62) |
-| 56 | findPaths acha palavras com forma de arquivo, não palavras comuns, sem o ponto final | Unidade | [internal-links.test.ts:82](../../tests/internal-links.test.ts#L82) |
-| 57 | um módulo sob demanda roda o import uma vez e guarda o módulo | Unidade | [lazy-module.test.ts:5](../../tests/lazy-module.test.ts#L5) |
-| 58 | cargas simultâneas compartilham o mesmo import | Unidade | [lazy-module.test.ts:16](../../tests/lazy-module.test.ts#L16) |
-| 59 | um import que falhou é esquecido, então a próxima carga tenta de novo | Unidade | [lazy-module.test.ts:26](../../tests/lazy-module.test.ts#L26) |
-| 60 | warm inicia o import antes, não o roda de novo na carga e engole uma falha | Unidade | [lazy-module.test.ts:35](../../tests/lazy-module.test.ts#L35) |
-| 61 | lazyHeavy importa na hora só quando a chave de carga sob demanda está desligada (eager) | Unidade | [lazy-module.test.ts:51](../../tests/lazy-module.test.ts#L51) |
-| 62 | um comentário marca o trecho dele e vai para o bloco no final; qualquer visualizador de Markdown esconde os dois | Unidade | [md-comments.test.ts:20](../../tests/md-comments.test.ts#L20) |
-| 63 | respostas, edições e exclusões mantêm o texto do próprio arquivo | Unidade | [md-comments.test.ts:36](../../tests/md-comments.test.ts#L36) |
-| 64 | as cores dos comentários persistem entre edições e respostas, e os comentários antigos ficam como estavam | Unidade | [md-comments.test.ts:53](../../tests/md-comments.test.ts#L53) |
-| 65 | o editor formatado mantém um comentário quando o texto ao redor muda | Unidade | [md-comments.test.ts:64](../../tests/md-comments.test.ts#L64) |
-| 66 | ler os comentários de um texto com uma sequência muito longa de linhas em branco leva tempo linear e dá o mesmo corpo de antes | Unidade | [md-comments.test.ts:80](../../tests/md-comments.test.ts#L80) |
-| 67 | md-preserve: uma edição reescreve só o seu trecho; as quebras de linha do Windows e o espaçamento original ficam | Unidade | [md-preserve.test.ts:8](../../tests/md-preserve.test.ts#L8) |
-| 68 | md-preserve: o arquivo é dividido no texto desenhado, na sua cauda (linhas em branco, bloco de comentários) e na sua quebra de linha | Unidade | [md-preserve.test.ts:16](../../tests/md-preserve.test.ts#L16) |
-| 69 | parse worker: o worker lê um arquivo Word e uma planilha exatamente como a leitura direta faz | Unidade | [parse-worker.test.ts:39](../../tests/parse-worker.test.ts#L39) |
-| 70 | parse worker: um arquivo corrompido é erro do arquivo, lançado como está e não lido duas vezes | Unidade | [parse-worker.test.ts:52](../../tests/parse-worker.test.ts#L52) |
-| 71 | parse worker: um worker que não inicia, cai, responde lixo ou nunca responde volta para a leitura direta | Unidade | [parse-worker.test.ts:62](../../tests/parse-worker.test.ts#L62) |
-| 72 | parse worker: sem resposta a tempo, o worker é encerrado e a leitura é direta; depois de falhas repetidas o worker não é mais tentado | Unidade | [parse-worker.test.ts:87](../../tests/parse-worker.test.ts#L87) |
-| 73 | parse worker: um worker ocioso é encerrado e o próximo arquivo inicia um novo | Unidade | [parse-worker.test.ts:98](../../tests/parse-worker.test.ts#L98) |
-| 74 | parse worker: os arquivos esperam a vez e cada um recebe a sua resposta | Unidade | [parse-worker.test.ts:110](../../tests/parse-worker.test.ts#L110) |
-| 75 | parse worker: um arquivo grande não bloqueia o event loop (a leitura direta bloqueia) | Unidade | [parse-worker.test.ts:121](../../tests/parse-worker.test.ts#L121) |
+| 47 | comentários HTML persistem sem alterar o código, acompanham a renomeação de pasta e recusam âncoras inválidas | Unidade | [html-comments.test.ts:11](../../tests/html-comments.test.ts#L11) |
+| 48 | um link relativo ao documento leva ao arquivo que ele nomeia | Unidade | [internal-links.test.ts:9](../../tests/internal-links.test.ts#L9) |
+| 49 | um caminho do projeto funciona a partir de qualquer documento, com ou sem a raiz (a menção @ da nota) | Unidade | [internal-links.test.ts:15](../../tests/internal-links.test.ts#L15) |
+| 50 | um caminho que passa pela pasta deste projeto, como as IAs escrevem, é cortado no projeto | Unidade | [internal-links.test.ts:21](../../tests/internal-links.test.ts#L21) |
+| 51 | o que não é um lugar deste projeto não leva a lugar nenhum | Unidade | [internal-links.test.ts:27](../../tests/internal-links.test.ts#L27) |
+| 52 | um link para outro projeto nunca é resolvido dentro deste | Unidade | [internal-links.test.ts:37](../../tests/internal-links.test.ts#L37) |
+| 53 | um arquivo ausente ainda resolve (para dizer que não foi encontrado), relativo ao documento primeiro | Unidade | [internal-links.test.ts:42](../../tests/internal-links.test.ts#L42) |
+| 54 | âncoras: um título, um comentário, uma página de PDF; # sozinho é o mesmo documento | Unidade | [internal-links.test.ts:46](../../tests/internal-links.test.ts#L46) |
+| 55 | os slugs de títulos seguem o GitHub: acentos mantidos, pontuação removida, repetições numeradas | Unidade | [internal-links.test.ts:55](../../tests/internal-links.test.ts#L55) |
+| 56 | hrefTo escreve um link relativo ao documento, que resolveInternal lê de volta | Unidade | [internal-links.test.ts:62](../../tests/internal-links.test.ts#L62) |
+| 57 | findPaths acha palavras com forma de arquivo, não palavras comuns, sem o ponto final | Unidade | [internal-links.test.ts:82](../../tests/internal-links.test.ts#L82) |
+| 58 | um módulo sob demanda roda o import uma vez e guarda o módulo | Unidade | [lazy-module.test.ts:5](../../tests/lazy-module.test.ts#L5) |
+| 59 | cargas simultâneas compartilham o mesmo import | Unidade | [lazy-module.test.ts:16](../../tests/lazy-module.test.ts#L16) |
+| 60 | um import que falhou é esquecido, então a próxima carga tenta de novo | Unidade | [lazy-module.test.ts:26](../../tests/lazy-module.test.ts#L26) |
+| 61 | warm inicia o import antes, não o roda de novo na carga e engole uma falha | Unidade | [lazy-module.test.ts:35](../../tests/lazy-module.test.ts#L35) |
+| 62 | lazyHeavy importa na hora só quando a chave de carga sob demanda está desligada (eager) | Unidade | [lazy-module.test.ts:51](../../tests/lazy-module.test.ts#L51) |
+| 63 | um comentário marca o trecho dele e vai para o bloco no final; qualquer visualizador de Markdown esconde os dois | Unidade | [md-comments.test.ts:20](../../tests/md-comments.test.ts#L20) |
+| 64 | respostas, edições e exclusões mantêm o texto do próprio arquivo | Unidade | [md-comments.test.ts:36](../../tests/md-comments.test.ts#L36) |
+| 65 | as cores dos comentários persistem entre edições e respostas, e os comentários antigos ficam como estavam | Unidade | [md-comments.test.ts:53](../../tests/md-comments.test.ts#L53) |
+| 66 | o editor formatado mantém um comentário quando o texto ao redor muda | Unidade | [md-comments.test.ts:64](../../tests/md-comments.test.ts#L64) |
+| 67 | ler os comentários de um texto com uma sequência muito longa de linhas em branco leva tempo linear e dá o mesmo corpo de antes | Unidade | [md-comments.test.ts:80](../../tests/md-comments.test.ts#L80) |
+| 68 | md-preserve: uma edição reescreve só o seu trecho; as quebras de linha do Windows e o espaçamento original ficam | Unidade | [md-preserve.test.ts:8](../../tests/md-preserve.test.ts#L8) |
+| 69 | md-preserve: o arquivo é dividido no texto desenhado, na sua cauda (linhas em branco, bloco de comentários) e na sua quebra de linha | Unidade | [md-preserve.test.ts:16](../../tests/md-preserve.test.ts#L16) |
+| 70 | md-preserve: mesmo com a escrita própria do editor, a edição reescreve só os blocos alterados | Unidade | [md-preserve.test.ts:25](../../tests/md-preserve.test.ts#L25) |
+| 71 | md-preserve: mantém quebras de linha do Windows e o arquivo inteiro ao acrescentar no fim | Unidade | [md-preserve.test.ts:35](../../tests/md-preserve.test.ts#L35) |
+| 72 | md-raw: o editor formatado grava ${name} exatamente como estava | Unidade | [md-raw.test.ts:30](../../tests/md-raw.test.ts#L30) |
+| 73 | md-raw: br numa célula e a definição de referência mantêm todas as palavras e o texto original | Unidade | [md-raw.test.ts:35](../../tests/md-raw.test.ts#L35) |
+| 74 | md-raw: protege o bloco que perderia palavras e o devolve sem mudanças | Unidade | [md-raw.test.ts:42](../../tests/md-raw.test.ts#L42) |
+| 75 | md-raw: editar um parágrafo de um arquivo da IA reescreve só esse parágrafo | Unidade | [md-raw.test.ts:52](../../tests/md-raw.test.ts#L52) |
+| 76 | a prévia Word mantém fontes, tamanhos, cores e alinhamento; a edição de texto preserva estilos e partes restantes | Unidade | [office-editor.test.ts:27](../../tests/office-editor.test.ts#L27) |
+| 77 | a edição Word preserva texto ao apagar entre trechos, inserir no limite e preencher parágrafos vazios | Unidade | [office-editor.test.ts:40](../../tests/office-editor.test.ts#L40) |
+| 78 | comentários Word são partes nativas com âncora e podem ser removidos sem mudar o texto | Unidade | [office-editor.test.ts:48](../../tests/office-editor.test.ts#L48) |
+| 79 | a edição não desfaz campos ou controle de alterações do Word e nunca expande entidades XML | Unidade | [office-editor.test.ts:60](../../tests/office-editor.test.ts#L60) |
+| 80 | a prévia de planilha lê fontes e preenchimentos; editar um valor mantém estilos, células e abas restantes | Unidade | [office-editor.test.ts:67](../../tests/office-editor.test.ts#L67) |
+| 81 | notas de planilha são comentários nativos e VML, uma por célula e sem arquivo auxiliar | Unidade | [office-editor.test.ts:77](../../tests/office-editor.test.ts#L77) |
+| 82 | editar planilhas acrescenta células e fórmulas e pede recálculo sem mudar a parte de estilos | Unidade | [office-editor.test.ts:90](../../tests/office-editor.test.ts#L90) |
+| 83 | o serviço Office recusa gravações desatualizadas e caminhos fora do projeto ativo | Integração | [office-editor.test.ts:99](../../tests/office-editor.test.ts#L99) |
+| 84 | arquivos Office protegidos ou assinados não podem ser alterados | Unidade | [office-editor.test.ts:118](../../tests/office-editor.test.ts#L118) |
+| 85 | a conversão de formatos antigos preserva o original e não sobrescreve destinos existentes | Integração | [office-editor.test.ts:133](../../tests/office-editor.test.ts#L133) |
+| 86 | Word e Excel abrem arquivos editados com comentários nativos e convertem cópias reais dos formatos antigos | Integração | [office-native.test.ts:17](../../tests/office-native.test.ts#L17) |
+| 87 | parse worker: o worker lê um arquivo Word e uma planilha exatamente como a leitura direta faz | Unidade | [parse-worker.test.ts:39](../../tests/parse-worker.test.ts#L39) |
+| 88 | parse worker: um arquivo corrompido é erro do arquivo, lançado como está e não lido duas vezes | Unidade | [parse-worker.test.ts:52](../../tests/parse-worker.test.ts#L52) |
+| 89 | parse worker: um worker que não inicia, cai, responde lixo ou nunca responde volta para a leitura direta | Unidade | [parse-worker.test.ts:62](../../tests/parse-worker.test.ts#L62) |
+| 90 | parse worker: sem resposta a tempo, o worker é encerrado e a leitura é direta; depois de falhas repetidas o worker não é mais tentado | Unidade | [parse-worker.test.ts:87](../../tests/parse-worker.test.ts#L87) |
+| 91 | parse worker: um worker ocioso é encerrado e o próximo arquivo inicia um novo | Unidade | [parse-worker.test.ts:98](../../tests/parse-worker.test.ts#L98) |
+| 92 | parse worker: os arquivos esperam a vez e cada um recebe a sua resposta | Unidade | [parse-worker.test.ts:110](../../tests/parse-worker.test.ts#L110) |
+| 93 | parse worker: um arquivo grande não bloqueia o event loop (a leitura direta bloqueia) | Unidade | [parse-worker.test.ts:121](../../tests/parse-worker.test.ts#L121) |
 
 ### Busca
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | busca: projetos por nome, arquivos por nome e texto, filtros por tag | Integração | [desktop.test.ts:2835](../../tests/desktop.test.ts#L2835) |
-| 2 | busca expandida: os prefixos distinguem projetos, nomes de arquivo e conteúdos | Integração | [desktop.test.ts:2865](../../tests/desktop.test.ts#L2865) |
+| 1 | busca: projetos por nome, arquivos por nome e texto, filtros por tag | Integração | [desktop.test.ts:2859](../../tests/desktop.test.ts#L2859) |
+| 2 | busca expandida: os prefixos distinguem projetos, nomes de arquivo e conteúdos | Integração | [desktop.test.ts:2889](../../tests/desktop.test.ts#L2889) |
 | 3 | o texto extraído só é reaproveitado para a mesma versão do arquivo | Unidade | [search-cache.test.ts:6](../../tests/search-cache.test.ts#L6) |
 | 4 | o texto usado há mais tempo sai primeiro quando o limite é passado | Unidade | [search-cache.test.ts:13](../../tests/search-cache.test.ts#L13) |
 | 5 | busca expandida: acha por nome e conteúdo, lê um PDF e não segue links simbólicos | Integração | [search.test.ts:11](../../tests/search.test.ts#L11) |
@@ -268,7 +301,7 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | workspaces: cada um tem os próprios projetos; os pedidos citam um workspace fora do padrão | Integração | [desktop.test.ts:2788](../../tests/desktop.test.ts#L2788) |
+| 1 | workspaces: cada um tem os próprios projetos; os pedidos citam um workspace fora do padrão | Integração | [desktop.test.ts:2812](../../tests/desktop.test.ts#L2812) |
 | 2 | uma aba aberta só é lida de novo quando o tamanho ou a data de modificação do arquivo mudou | Unidade | [tab-refresh.test.ts:6](../../tests/tab-refresh.test.ts#L6) |
 | 3 | uma aba sem carimbo conhecido, ou um arquivo ausente da árvore, é lida de novo (o lado seguro) | Unidade | [tab-refresh.test.ts:13](../../tests/tab-refresh.test.ts#L13) |
 | 4 | uma aba de imagem ou PDF toma o carimbo do conteúdo, qualquer outra aba do carimbo da árvore que guardou | Unidade | [tab-refresh.test.ts:20](../../tests/tab-refresh.test.ts#L20) |
@@ -312,7 +345,7 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | as tags compartilham contexto entre projetos; a abertura lista esse contexto e aplica as exclusões | Integração | [desktop.test.ts:868](../../tests/desktop.test.ts#L868) |
+| 1 | as tags compartilham contexto entre projetos; a abertura lista esse contexto e aplica as exclusões | Integração | [desktop.test.ts:892](../../tests/desktop.test.ts#L892) |
 | 2 | uma regra só: sem tag = todos os projetos; a tag do próprio projeto; uma tag compartilhada | Unidade | [tags.test.ts:39](../../tests/tags.test.ts#L39) |
 | 3 | agentes: as listas antigas por projeto viram tags, e cada projeto mantém exatamente o que tinha | Unidade | [tags.test.ts:46](../../tests/tags.test.ts#L46) |
 | 4 | templates: os estilos antigos viram uma lista; cada projeto usa o padrão dele, senão o que não tem tag | Unidade | [tags.test.ts:67](../../tests/tags.test.ts#L67) |
@@ -334,15 +367,15 @@ Rodam com `npm test`.
 | 10 | a linha de QA_PERF lista o que foi aplicado e se os padrões estavam ligados | Unidade | [chromium-switches.test.ts:77](../../tests/chromium-switches.test.ts#L77) |
 | 11 | a abertura confere cada escolha contra listas fixas | Integração | [desktop.test.ts:635](../../tests/desktop.test.ts#L635) |
 | 12 | chamar dentro de um terminal usa o pedido de abertura validado, sem abrir outra ferramenta | Integração | [desktop.test.ts:682](../../tests/desktop.test.ts#L682) |
-| 13 | a abertura monta o pedido; arquivos Word são extraídos | Integração | [desktop.test.ts:855](../../tests/desktop.test.ts#L855) |
-| 14 | plugins por projeto: o caveman é salvo no project.json e só chega às aberturas daquele projeto | Integração | [desktop.test.ts:1536](../../tests/desktop.test.ts#L1536) |
-| 15 | pedidos com caracteres não ASCII chegam às ferramentas no Windows por um arquivo de pedido em UTF-8 | Integração | [desktop.test.ts:2463](../../tests/desktop.test.ts#L2463) |
-| 16 | os plugins do app só carregam nas sessões do app: no Claude por pasta, no Codex como uma linha de instrução *(pulado no Windows)* | Integração | [desktop.test.ts:2474](../../tests/desktop.test.ts#L2474) |
-| 17 | o lançador mantém o texto do usuário fora de qualquer linha de comando de shell | Unidade | [desktop.test.ts:2504](../../tests/desktop.test.ts#L2504) |
-| 18 | planos de instalação: comandos fixos do fabricante por sistema para toda IA de terminal; editores são baixados, não instalados | Integração | [desktop.test.ts:2512](../../tests/desktop.test.ts#L2512) |
-| 19 | uma ferramenta instalável ausente abre o run-tool na aba; o pedido leva a ferramenta e um argumento de prompt *(pulado no Windows)* | Integração | [desktop.test.ts:2529](../../tests/desktop.test.ts#L2529) |
-| 20 | run-tool: uma ferramenta ausente mostra as instruções e pergunta; qualquer resposta diferente de y não instala nada *(pulado no Windows)* | Integração | [desktop.test.ts:2555](../../tests/desktop.test.ts#L2555) |
-| 21 | as abas de terminal só iniciam a ferramenta escolhida, na raiz do framework, com o pedido como um único argumento *(pulado no Windows)* | Integração | [desktop.test.ts:2571](../../tests/desktop.test.ts#L2571) |
+| 13 | a abertura monta o pedido; arquivos Word são extraídos | Integração | [desktop.test.ts:879](../../tests/desktop.test.ts#L879) |
+| 14 | plugins por projeto: o caveman é salvo no project.json e só chega às aberturas daquele projeto | Integração | [desktop.test.ts:1560](../../tests/desktop.test.ts#L1560) |
+| 15 | pedidos com caracteres não ASCII chegam às ferramentas no Windows por um arquivo de pedido em UTF-8 | Integração | [desktop.test.ts:2487](../../tests/desktop.test.ts#L2487) |
+| 16 | os plugins do app só carregam nas sessões do app: no Claude por pasta, no Codex como uma linha de instrução *(pulado no Windows)* | Integração | [desktop.test.ts:2498](../../tests/desktop.test.ts#L2498) |
+| 17 | o lançador mantém o texto do usuário fora de qualquer linha de comando de shell | Unidade | [desktop.test.ts:2528](../../tests/desktop.test.ts#L2528) |
+| 18 | planos de instalação: comandos fixos do fabricante por sistema para toda IA de terminal; editores são baixados, não instalados | Integração | [desktop.test.ts:2536](../../tests/desktop.test.ts#L2536) |
+| 19 | uma ferramenta instalável ausente abre o run-tool na aba; o pedido leva a ferramenta e um argumento de prompt *(pulado no Windows)* | Integração | [desktop.test.ts:2553](../../tests/desktop.test.ts#L2553) |
+| 20 | run-tool: uma ferramenta ausente mostra as instruções e pergunta; qualquer resposta diferente de y não instala nada *(pulado no Windows)* | Integração | [desktop.test.ts:2579](../../tests/desktop.test.ts#L2579) |
+| 21 | as abas de terminal só iniciam a ferramenta escolhida, na raiz do framework, com o pedido como um único argumento *(pulado no Windows)* | Integração | [desktop.test.ts:2595](../../tests/desktop.test.ts#L2595) |
 | 22 | QA_ELECTRON_ARGS: não definido, vazio ou em branco não aplica nada | Unidade | [electron-args.test.ts:5](../../tests/electron-args.test.ts#L5) |
 | 23 | QA_ELECTRON_ARGS: as opções permitidas voltam sem os hífens iniciais, ignorando espaços extras | Unidade | [electron-args.test.ts:9](../../tests/electron-args.test.ts#L9) |
 | 24 | QA_ELECTRON_ARGS: opções com valor o mantêm, inclusive um valor que tem o próprio = (--js-flags) | Unidade | [electron-args.test.ts:15](../../tests/electron-args.test.ts#L15) |
@@ -351,38 +384,41 @@ Rodam com `npm test`.
 | 27 | QA_ELECTRON_ARGS: um item sem -- é rejeitado | Unidade | [electron-args.test.ts:38](../../tests/electron-args.test.ts#L38) |
 | 28 | QA_ELECTRON_ARGS: opção sem valor ou com valor fora do esperado, valor vazio e valor inseguro são rejeitados | Unidade | [electron-args.test.ts:42](../../tests/electron-args.test.ts#L42) |
 | 29 | QA_ELECTRON_ARGS: um item acima do limite de tamanho e itens além do limite de quantidade são rejeitados | Unidade | [electron-args.test.ts:47](../../tests/electron-args.test.ts#L47) |
-| 30 | os links do terminal atravessam linhas quebradas depois de um glifo largo e ficam na linha pedida | Unidade | [terminal-links.test.ts:7](../../tests/terminal-links.test.ts#L7) |
-| 31 | os caminhos de projeto impressos incluem destinos Windows, Unix e Markdown codificados, não URLs | Unidade | [terminal-links.test.ts:25](../../tests/terminal-links.test.ts#L25) |
-| 32 | os links copiados escapam rótulos e caminhos, mantendo a identidade do comentário a partir de qualquer documento | Unidade | [terminal-links.test.ts:32](../../tests/terminal-links.test.ts#L32) |
-| 33 | a cauda da saída do terminal guarda só os últimos caracteres, entre blocos | Unidade | [terminals.test.ts:6](../../tests/terminals.test.ts#L6) |
-| 34 | chamar dentro de um terminal de IA preserva o rascunho e nunca envia Enter nem controles do terminal | Unidade | [terminals.test.ts:28](../../tests/terminals.test.ts#L28) |
-| 35 | chamar recusa outros projetos, shells, editores, terminais fechados e texto inválido | Unidade | [terminals.test.ts:45](../../tests/terminals.test.ts#L45) |
-| 36 | a cauda da saída do terminal mantém a ordem em muitos blocos pequenos e grandes | Unidade | [terminals.test.ts:65](../../tests/terminals.test.ts#L65) |
-| 37 | o agrupador da saída do terminal junta blocos num só envio, em ordem | Unidade | [terminals.test.ts:73](../../tests/terminals.test.ts#L73) |
-| 38 | no agrupador da saída do terminal, o flush envia na hora e o cancel descarta o que espera | Unidade | [terminals.test.ts:85](../../tests/terminals.test.ts#L85) |
-| 39 | o controle de fluxo do terminal pausa acima do limite alto e retoma abaixo do limite baixo | Unidade | [terminals.test.ts:105](../../tests/terminals.test.ts#L105) |
-| 40 | o controle de fluxo do terminal nunca conta abaixo de zero e ignora confirmações não confiáveis | Unidade | [terminals.test.ts:122](../../tests/terminals.test.ts#L122) |
-| 41 | o controle de fluxo do terminal retoma no reset, no release e no dispose, e depois fica livre | Unidade | [terminals.test.ts:135](../../tests/terminals.test.ts#L135) |
-| 42 | o controle de fluxo do terminal retoma uma janela que não confirma nada, e volta a contar depois que ela confirma | Unidade | [terminals.test.ts:151](../../tests/terminals.test.ts#L151) |
-| 43 | o controle de fluxo do terminal mantém pausada uma janela lenta mas que confirma, sem o tempo limite de travamento | Unidade | [terminals.test.ts:165](../../tests/terminals.test.ts#L165) |
-| 44 | o controle de fluxo do terminal sobrevive a um processo que não consegue pausar nem retomar | Unidade | [terminals.test.ts:173](../../tests/terminals.test.ts#L173) |
-| 45 | cada terminal recebe o próprio id como QA_TERMINAL, além do ambiente com que foi preparado | Unidade | [terminals.test.ts:183](../../tests/terminals.test.ts#L183) |
+| 30 | terminal-drop: os caminhos são digitados como arquivos soltos no terminal, com aspas quando necessário e espaço no fim | Unidade | [terminal-drop.test.ts:5](../../tests/terminal-drop.test.ts#L5) |
+| 31 | terminal-drop: só uma colagem com imagens e sem texto é tratada como imagens | Unidade | [terminal-drop.test.ts:13](../../tests/terminal-drop.test.ts#L13) |
+| 32 | os links do terminal atravessam linhas quebradas depois de um glifo largo e ficam na linha pedida | Unidade | [terminal-links.test.ts:7](../../tests/terminal-links.test.ts#L7) |
+| 33 | os caminhos de projeto impressos incluem destinos Windows, Unix e Markdown codificados, não URLs | Unidade | [terminal-links.test.ts:25](../../tests/terminal-links.test.ts#L25) |
+| 34 | os links copiados escapam rótulos e caminhos, mantendo a identidade do comentário a partir de qualquer documento | Unidade | [terminal-links.test.ts:32](../../tests/terminal-links.test.ts#L32) |
+| 35 | a cauda da saída do terminal guarda só os últimos caracteres, entre blocos | Unidade | [terminals.test.ts:6](../../tests/terminals.test.ts#L6) |
+| 36 | chamar dentro de um terminal de IA preserva o rascunho e nunca envia Enter nem controles do terminal | Unidade | [terminals.test.ts:28](../../tests/terminals.test.ts#L28) |
+| 37 | chamar recusa outros projetos, shells, editores, terminais fechados e texto inválido | Unidade | [terminals.test.ts:45](../../tests/terminals.test.ts#L45) |
+| 38 | a cauda da saída do terminal mantém a ordem em muitos blocos pequenos e grandes | Unidade | [terminals.test.ts:65](../../tests/terminals.test.ts#L65) |
+| 39 | o agrupador da saída do terminal junta blocos num só envio, em ordem | Unidade | [terminals.test.ts:73](../../tests/terminals.test.ts#L73) |
+| 40 | no agrupador da saída do terminal, o flush envia na hora e o cancel descarta o que espera | Unidade | [terminals.test.ts:85](../../tests/terminals.test.ts#L85) |
+| 41 | o controle de fluxo do terminal pausa acima do limite alto e retoma abaixo do limite baixo | Unidade | [terminals.test.ts:105](../../tests/terminals.test.ts#L105) |
+| 42 | o controle de fluxo do terminal nunca conta abaixo de zero e ignora confirmações não confiáveis | Unidade | [terminals.test.ts:122](../../tests/terminals.test.ts#L122) |
+| 43 | o controle de fluxo do terminal retoma no reset, no release e no dispose, e depois fica livre | Unidade | [terminals.test.ts:135](../../tests/terminals.test.ts#L135) |
+| 44 | o controle de fluxo do terminal retoma uma janela que não confirma nada, e volta a contar depois que ela confirma | Unidade | [terminals.test.ts:151](../../tests/terminals.test.ts#L151) |
+| 45 | o controle de fluxo do terminal mantém pausada uma janela lenta mas que confirma, sem o tempo limite de travamento | Unidade | [terminals.test.ts:165](../../tests/terminals.test.ts#L165) |
+| 46 | o controle de fluxo do terminal sobrevive a um processo que não consegue pausar nem retomar | Unidade | [terminals.test.ts:173](../../tests/terminals.test.ts#L173) |
+| 47 | cada terminal recebe o próprio id como QA_TERMINAL, além do ambiente com que foi preparado | Unidade | [terminals.test.ts:183](../../tests/terminals.test.ts#L183) |
 
 ### Encontrar as ferramentas de IA
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | minhas IAs: caminho e versão das ferramentas instaladas, nada é executado para as que faltam | Integração | [desktop.test.ts:3105](../../tests/desktop.test.ts#L3105) |
-| 2 | minhas IAs: a extensão do Moki da versão do app é baixada, conferida, instalada e o editor abre | Integração | [desktop.test.ts:3118](../../tests/desktop.test.ts#L3118) |
-| 3 | minhas IAs: só editores instalados que aceitam a extensão, e só um vsix que o GitHub garante | Integração | [desktop.test.ts:3132](../../tests/desktop.test.ts#L3132) |
-| 4 | minhas IAs: num checkout, o vsix gerado em release/ é instalado sem download | Integração | [desktop.test.ts:3145](../../tests/desktop.test.ts#L3145) |
-| 5 | minhas IAs: as ferramentas são achadas pelo PATH, mantidas enquanto ele é o mesmo, e o aiTools procura de novo | Integração | [desktop.test.ts:3190](../../tests/desktop.test.ts#L3190) |
-| 6 | PATH: o PATH mais recente e as pastas de ferramentas de sempre se juntam ao atual, sem repetições | Unidade | [tool-path.test.ts:17](../../tests/tool-path.test.ts#L17) |
-| 7 | PATH: as pastas globais do npm e dos instaladores estão entre as de sempre | Unidade | [tool-path.test.ts:26](../../tests/tool-path.test.ts#L26) |
-| 8 | which: o primeiro executável no PATH, resolvido em JS (síncrono e assíncrono concordam) | Unidade | [tool-path.test.ts:34](../../tests/tool-path.test.ts#L34) |
-| 9 | which: o Windows acrescenta o PATHEXT a menos que o nome já tenha um (simulado numa pasta POSIX) | Unidade | [tool-path.test.ts:52](../../tests/tool-path.test.ts#L52) |
-| 10 | detectTools: o síncrono e o assíncrono acham as mesmas ferramentas de IA pelo PATH, sem iniciar um processo | Unidade | [tool-path.test.ts:66](../../tests/tool-path.test.ts#L66) |
-| 11 | PATH: o shell é lido de forma assíncrona e do mesmo jeito que a leitura bloqueante, marcadores e ruído incluídos | Unidade | [tool-path.test.ts:82](../../tests/tool-path.test.ts#L82) |
+| 1 | minhas IAs: caminho e versão das ferramentas instaladas, nada é executado para as que faltam | Integração | [desktop.test.ts:3129](../../tests/desktop.test.ts#L3129) |
+| 2 | minhas IAs: a extensão do Moki da versão do app é baixada, conferida, instalada e o editor abre | Integração | [desktop.test.ts:3142](../../tests/desktop.test.ts#L3142) |
+| 3 | o atalho da IDE instala uma vez e reutiliza a extensão compatível nas próximas aberturas | Integração | [desktop.test.ts:3156](../../tests/desktop.test.ts#L3156) |
+| 4 | minhas IAs: só editores instalados que aceitam a extensão, e só um vsix que o GitHub garante | Integração | [desktop.test.ts:3167](../../tests/desktop.test.ts#L3167) |
+| 5 | minhas IAs: num checkout, o vsix gerado em release/ é instalado sem download | Integração | [desktop.test.ts:3180](../../tests/desktop.test.ts#L3180) |
+| 6 | minhas IAs: as ferramentas são achadas pelo PATH, mantidas enquanto ele é o mesmo, e o aiTools procura de novo | Integração | [desktop.test.ts:3225](../../tests/desktop.test.ts#L3225) |
+| 7 | PATH: o PATH mais recente e as pastas de ferramentas de sempre se juntam ao atual, sem repetições | Unidade | [tool-path.test.ts:17](../../tests/tool-path.test.ts#L17) |
+| 8 | PATH: as pastas globais do npm e dos instaladores estão entre as de sempre | Unidade | [tool-path.test.ts:26](../../tests/tool-path.test.ts#L26) |
+| 9 | which: o primeiro executável no PATH, resolvido em JS (síncrono e assíncrono concordam) | Unidade | [tool-path.test.ts:34](../../tests/tool-path.test.ts#L34) |
+| 10 | which: o Windows acrescenta o PATHEXT a menos que o nome já tenha um (simulado numa pasta POSIX) | Unidade | [tool-path.test.ts:52](../../tests/tool-path.test.ts#L52) |
+| 11 | detectTools: o síncrono e o assíncrono acham as mesmas ferramentas de IA pelo PATH, sem iniciar um processo | Unidade | [tool-path.test.ts:66](../../tests/tool-path.test.ts#L66) |
+| 12 | PATH: o shell é lido de forma assíncrona e do mesmo jeito que a leitura bloqueante, marcadores e ruído incluídos | Unidade | [tool-path.test.ts:82](../../tests/tool-path.test.ts#L82) |
 
 ### Atividades
 
@@ -418,69 +454,74 @@ Rodam com `npm test`.
 | 1 | detalhes da execução e atividades em aberto | Integração | [desktop.test.ts:628](../../tests/desktop.test.ts#L628) |
 | 2 | o rastreamento de atividade é opcional, validado e nunca cria uma execução | Integração | [desktop.test.ts:669](../../tests/desktop.test.ts#L669) |
 | 3 | uma execução registra a atividade de origem; os pedidos e a árvore a mostram, e o cenário dela | Integração | [desktop.test.ts:711](../../tests/desktop.test.ts#L711) |
-| 4 | npm run new-run grava --activity e recusa uma atividade que o projeto não vê | Integração | [desktop.test.ts:828](../../tests/desktop.test.ts#L828) |
-| 5 | sobras: arquivos temporários antigos e arquivos auxiliares de execuções concluídas saem ao abrir o projeto; saídas não entregues são limpas sob pedido | Integração | [desktop.test.ts:2204](../../tests/desktop.test.ts#L2204) |
-| 6 | uma execução vinda de uma atividade é nomeada por ela e pelas palavras do slug | Unidade | [run-origin.test.ts:8](../../tests/run-origin.test.ts#L8) |
-| 7 | um pedido feito direto à IA não tem atividade; o slug de acompanhamento do app não nomeia cenário | Unidade | [run-origin.test.ts:15](../../tests/run-origin.test.ts#L15) |
-| 8 | uma atividade que não existe mais ainda nomeia as execuções dela (o id); ids estranhos ficam como estão | Unidade | [run-origin.test.ts:21](../../tests/run-origin.test.ts#L21) |
+| 4 | a execução mostra seu título e só as entregas na árvore: estado, entradas, logs e pastas vazias ficam fora | Integração | [desktop.test.ts:739](../../tests/desktop.test.ts#L739) |
+| 5 | npm run new-run grava --activity e recusa uma atividade que o projeto não vê | Integração | [desktop.test.ts:850](../../tests/desktop.test.ts#L850) |
+| 6 | sobras: arquivos temporários antigos e arquivos auxiliares de execuções concluídas saem ao abrir o projeto; saídas não entregues são limpas sob pedido | Integração | [desktop.test.ts:2228](../../tests/desktop.test.ts#L2228) |
+| 7 | hudson: o novo nome mantém a extensão e não contém pasta | Integração | [hudson.test.ts:13](../../tests/hudson.test.ts#L13) |
+| 8 | hudson: o pedido lista cada arquivo com sua execução e prévia e pede apenas JSON | Integração | [hudson.test.ts:21](../../tests/hudson.test.ts#L21) |
+| 9 | hudson: aceita apenas arquivos listados com ação conhecida e mantém o que estiver incerto | Integração | [hudson.test.ts:30](../../tests/hudson.test.ts#L30) |
+| 10 | hudson: o serviço oferece os arquivos deixados pelas execuções, sem estado, entradas ou registros, e aplica só os oferecidos | Integração | [hudson.test.ts:53](../../tests/hudson.test.ts#L53) |
+| 11 | uma execução vinda de uma atividade é nomeada por ela e pelas palavras do slug | Unidade | [run-origin.test.ts:8](../../tests/run-origin.test.ts#L8) |
+| 12 | um pedido feito direto à IA não tem atividade; o slug de acompanhamento do app não nomeia cenário | Unidade | [run-origin.test.ts:15](../../tests/run-origin.test.ts#L15) |
+| 13 | uma atividade que não existe mais ainda nomeia as execuções dela (o id); ids estranhos ficam como estão | Unidade | [run-origin.test.ts:21](../../tests/run-origin.test.ts#L21) |
 
 ### Agentes
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | biblioteca de agentes: os agentes prontos são só leitura, as cópias são editáveis e validadas | Integração | [desktop.test.ts:914](../../tests/desktop.test.ts#L914) |
-| 2 | agentes nas operações: entradas, saídas, servidores MCP e IA são lidos, validados e salvos | Integração | [desktop.test.ts:942](../../tests/desktop.test.ts#L942) |
-| 3 | agentes por projeto: a lista de habilitados no project.json controla a abertura | Integração | [desktop.test.ts:1516](../../tests/desktop.test.ts#L1516) |
-| 4 | agentes criados em Skills e agentes só usam skills instaladas na própria pasta | Integração | [desktop.test.ts:1744](../../tests/desktop.test.ts#L1744) |
-| 5 | ${agent}: a atividade começa a descoberta sem arquivo e a CLI escolhe o mesmo papel | Integração | [specialists.test.ts:40](../../tests/specialists.test.ts#L40) |
-| 6 | ${agent}: as fontes escolhidas ficam no projeto ativo | Integração | [specialists.test.ts:52](../../tests/specialists.test.ts#L52) |
-| 7 | o api-tester continua utilizável independentemente do Sentinela | Integração | [specialists.test.ts:60](../../tests/specialists.test.ts#L60) |
-| 8 | a escolha explícita de um especialista respeita a configuração de agentes do projeto | Integração | [specialists.test.ts:66](../../tests/specialists.test.ts#L66) |
+| 1 | biblioteca de agentes: os agentes prontos são só leitura, as cópias são editáveis e validadas | Integração | [desktop.test.ts:938](../../tests/desktop.test.ts#L938) |
+| 2 | agentes nas operações: entradas, saídas, servidores MCP e IA são lidos, validados e salvos | Integração | [desktop.test.ts:966](../../tests/desktop.test.ts#L966) |
+| 3 | agentes por projeto: a lista de habilitados no project.json controla a abertura | Integração | [desktop.test.ts:1540](../../tests/desktop.test.ts#L1540) |
+| 4 | agentes criados em Skills e agentes só usam skills instaladas na própria pasta | Integração | [desktop.test.ts:1768](../../tests/desktop.test.ts#L1768) |
+| 5 | ${agent}: a atividade começa a descoberta sem arquivo e a CLI escolhe o mesmo papel | Integração | [specialists.test.ts:42](../../tests/specialists.test.ts#L42) |
+| 6 | ${agent}: as fontes escolhidas ficam no projeto ativo | Integração | [specialists.test.ts:54](../../tests/specialists.test.ts#L54) |
+| 7 | o api-tester continua utilizável independentemente do Sentinela | Integração | [specialists.test.ts:62](../../tests/specialists.test.ts#L62) |
+| 8 | a escolha explícita de um especialista respeita a configuração de agentes do projeto | Integração | [specialists.test.ts:68](../../tests/specialists.test.ts#L68) |
 
 ### Operações multiagente
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | operações: uma linha de agentes; as setas passam as saídas, o resto vai para o formulário inicial; salvas na biblioteca | Integração | [desktop.test.ts:1012](../../tests/desktop.test.ts#L1012) |
-| 2 | receita de operação Pente-fino: o revisor de rodadas e o Wiggins se encadeiam sem erro, pedindo só a MF no início | Integração | [desktop.test.ts:1071](../../tests/desktop.test.ts#L1071) |
-| 3 | operações num projeto: vinculadas, iniciadas pelo formulário inicial, executadas passo a passo por arquivos | Integração | [desktop.test.ts:1092](../../tests/desktop.test.ts#L1092) |
-| 4 | as operações desviam pelo resultado de um agente, voltam em loop até um limite e perguntam ao usuário quando nada serve | Integração | [desktop.test.ts:1201](../../tests/desktop.test.ts#L1201) |
-| 5 | operações: um passo cujo terminal fecha falha até ser tentado de novo, um passo reprovado volta com os motivos, cancelar fecha o terminal | Integração | [desktop.test.ts:1301](../../tests/desktop.test.ts#L1301) |
-| 6 | operações: a pergunta de um passo é respondida pelo Moki, no terminal dele ou reabrindo o passo quando o terminal não existe mais | Integração | [desktop.test.ts:1400](../../tests/desktop.test.ts#L1400) |
-| 7 | operações: um passo cuja ferramenta de IA não abre falha uma vez (sem loop de tentativas) e é tentado de novo com outra IA | Integração | [desktop.test.ts:1460](../../tests/desktop.test.ts#L1460) |
-| 8 | operações: na primeira vez, um exemplo no idioma do app; excluído, ele não volta | Integração | [desktop.test.ts:1500](../../tests/desktop.test.ts#L1500) |
+| 1 | operações: uma linha de agentes; as setas passam as saídas, o resto vai para o formulário inicial; salvas na biblioteca | Integração | [desktop.test.ts:1036](../../tests/desktop.test.ts#L1036) |
+| 2 | receita de operação Pente-fino: o revisor de rodadas e o Wiggins se encadeiam sem erro, pedindo só a MF no início | Integração | [desktop.test.ts:1095](../../tests/desktop.test.ts#L1095) |
+| 3 | operações num projeto: vinculadas, iniciadas pelo formulário inicial, executadas passo a passo por arquivos | Integração | [desktop.test.ts:1116](../../tests/desktop.test.ts#L1116) |
+| 4 | as operações desviam pelo resultado de um agente, voltam em loop até um limite e perguntam ao usuário quando nada serve | Integração | [desktop.test.ts:1225](../../tests/desktop.test.ts#L1225) |
+| 5 | operações: um passo cujo terminal fecha falha até ser tentado de novo, um passo reprovado volta com os motivos, cancelar fecha o terminal | Integração | [desktop.test.ts:1325](../../tests/desktop.test.ts#L1325) |
+| 6 | operações: a pergunta de um passo é respondida pelo Moki, no terminal dele ou reabrindo o passo quando o terminal não existe mais | Integração | [desktop.test.ts:1424](../../tests/desktop.test.ts#L1424) |
+| 7 | operações: um passo cuja ferramenta de IA não abre falha uma vez (sem loop de tentativas) e é tentado de novo com outra IA | Integração | [desktop.test.ts:1484](../../tests/desktop.test.ts#L1484) |
+| 8 | operações: na primeira vez, um exemplo no idioma do app; excluído, ele não volta | Integração | [desktop.test.ts:1524](../../tests/desktop.test.ts#L1524) |
 
 ### Skills e configuração
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | registro de skills: busca paginada, instalação verificada por projeto ou global, o pedido cita as skills do projeto | Integração | [desktop.test.ts:1699](../../tests/desktop.test.ts#L1699) |
-| 2 | criar skill: a ferramenta de IA redige uma proposta no projeto; instalar copia a proposta revisada | Integração | [desktop.test.ts:1786](../../tests/desktop.test.ts#L1786) |
-| 3 | aba global e tela inicial: lista, abre e remove (para a lixeira) só o que está instalado para todos os projetos | Integração | [desktop.test.ts:1817](../../tests/desktop.test.ts#L1817) |
-| 4 | configurar: descrição e skills globais vinculadas por referência; os pedidos citam essas skills | Integração | [desktop.test.ts:1864](../../tests/desktop.test.ts#L1864) |
-| 5 | configurar: as skills ArtCraft do framework podem ser vinculadas; os pedidos citam essas skills a partir da raiz do framework | Integração | [desktop.test.ts:1889](../../tests/desktop.test.ts#L1889) |
-| 6 | configurar: o painel do projeto lista as skills e agentes que o projeto usa, da própria pasta, as globais que ele vincula e os padrões do Moki | Integração | [desktop.test.ts:1923](../../tests/desktop.test.ts#L1923) |
-| 7 | configurar: uma skill ou um agente é digitado no terminal da IA sem Enter, só da lista do projeto, sem contexto compartilhado e sem execução | Integração | [desktop.test.ts:1937](../../tests/desktop.test.ts#L1937) |
-| 8 | configurar: arquivos de Contexto e Notas vão para a IA do mesmo jeito; outros arquivos, pastas, nomes ocultos, credenciais e caminhos de fora são recusados | Integração | [desktop.test.ts:1960](../../tests/desktop.test.ts#L1960) |
-| 9 | configurar: uma IA aberta sem escolha é avisada das skills e agentes do projeto; a aba não diz nada quando só eles existem | Integração | [desktop.test.ts:1987](../../tests/desktop.test.ts#L1987) |
-| 10 | projeto em branco: sem arquivos de contexto de QA; o plano da IA é filtrado e aprovado em Configurar | Integração | [desktop.test.ts:2008](../../tests/desktop.test.ts#L2008) |
-| 11 | envio de skills e agentes: a prévia não grava nada, bloqueia por item e instala só o que foi confirmado | Integração | [desktop.test.ts:2105](../../tests/desktop.test.ts#L2105) |
-| 12 | trazer para um projeto: um envio encontra skills, agentes e atividades, põe no workspace para todos os projetos e vincula ao projeto | Integração | [desktop.test.ts:2244](../../tests/desktop.test.ts#L2244) |
-| 13 | trazer para um projeto: mantidos só para o projeto, a skill e o agente ficam na pasta do projeto, sem vínculo, sem tag e sem registro | Integração | [desktop.test.ts:2301](../../tests/desktop.test.ts#L2301) |
-| 14 | configurar: o painel do projeto lista um agente geral trazido por este projeto, e não um trazido por outro | Integração | [desktop.test.ts:2332](../../tests/desktop.test.ts#L2332) |
-| 15 | envio por .zip: formatos aceitos, limites, caminhos inseguros, e uma falha desfaz tudo | Integração | [desktop.test.ts:2358](../../tests/desktop.test.ts#L2358) |
-| 16 | envio de skills e agentes: agentes em subpastas de .claude/agents são oferecidos um a um, nomes repetidos são bloqueados e todos os escolhidos são instalados | Integração | [desktop.test.ts:2395](../../tests/desktop.test.ts#L2395) |
-| 17 | envio de skills e agentes: marcar todos e desmarcar valem por grupo e nunca marcam um item bloqueado | Integração | [desktop.test.ts:2450](../../tests/desktop.test.ts#L2450) |
-| 18 | configurar: uma skill ou um agente arrastado do painel só é aceito por um terminal do próprio projeto, e só como { kind, name } | Integração | [desktop.test.ts:3171](../../tests/desktop.test.ts#L3171) |
+| 1 | registro de skills: busca paginada, instalação verificada por projeto ou global, o pedido cita as skills do projeto | Integração | [desktop.test.ts:1723](../../tests/desktop.test.ts#L1723) |
+| 2 | criar skill: a ferramenta de IA redige uma proposta no projeto; instalar copia a proposta revisada | Integração | [desktop.test.ts:1810](../../tests/desktop.test.ts#L1810) |
+| 3 | aba global e tela inicial: lista, abre e remove (para a lixeira) só o que está instalado para todos os projetos | Integração | [desktop.test.ts:1841](../../tests/desktop.test.ts#L1841) |
+| 4 | configurar: descrição e skills globais vinculadas por referência; os pedidos citam essas skills | Integração | [desktop.test.ts:1888](../../tests/desktop.test.ts#L1888) |
+| 5 | configurar: as skills ArtCraft do framework podem ser vinculadas; os pedidos citam essas skills a partir da raiz do framework | Integração | [desktop.test.ts:1913](../../tests/desktop.test.ts#L1913) |
+| 6 | configurar: o painel do projeto lista as skills e agentes que o projeto usa, da própria pasta, as globais que ele vincula e os padrões do Moki | Integração | [desktop.test.ts:1947](../../tests/desktop.test.ts#L1947) |
+| 7 | configurar: uma skill ou um agente é digitado no terminal da IA sem Enter, só da lista do projeto, sem contexto compartilhado e sem execução | Integração | [desktop.test.ts:1961](../../tests/desktop.test.ts#L1961) |
+| 8 | configurar: arquivos de Contexto e Notas vão para a IA do mesmo jeito; outros arquivos, pastas, nomes ocultos, credenciais e caminhos de fora são recusados | Integração | [desktop.test.ts:1984](../../tests/desktop.test.ts#L1984) |
+| 9 | configurar: uma IA aberta sem escolha é avisada das skills e agentes do projeto; a aba não diz nada quando só eles existem | Integração | [desktop.test.ts:2011](../../tests/desktop.test.ts#L2011) |
+| 10 | projeto em branco: sem arquivos de contexto de QA; o plano da IA é filtrado e aprovado em Configurar | Integração | [desktop.test.ts:2032](../../tests/desktop.test.ts#L2032) |
+| 11 | envio de skills e agentes: a prévia não grava nada, bloqueia por item e instala só o que foi confirmado | Integração | [desktop.test.ts:2129](../../tests/desktop.test.ts#L2129) |
+| 12 | trazer para um projeto: um envio encontra skills, agentes e atividades, põe no workspace para todos os projetos e vincula ao projeto | Integração | [desktop.test.ts:2268](../../tests/desktop.test.ts#L2268) |
+| 13 | trazer para um projeto: mantidos só para o projeto, a skill e o agente ficam na pasta do projeto, sem vínculo, sem tag e sem registro | Integração | [desktop.test.ts:2325](../../tests/desktop.test.ts#L2325) |
+| 14 | configurar: o painel do projeto lista um agente geral trazido por este projeto, e não um trazido por outro | Integração | [desktop.test.ts:2356](../../tests/desktop.test.ts#L2356) |
+| 15 | envio por .zip: formatos aceitos, limites, caminhos inseguros, e uma falha desfaz tudo | Integração | [desktop.test.ts:2382](../../tests/desktop.test.ts#L2382) |
+| 16 | envio de skills e agentes: agentes em subpastas de .claude/agents são oferecidos um a um, nomes repetidos são bloqueados e todos os escolhidos são instalados | Integração | [desktop.test.ts:2419](../../tests/desktop.test.ts#L2419) |
+| 17 | envio de skills e agentes: marcar todos e desmarcar valem por grupo e nunca marcam um item bloqueado | Integração | [desktop.test.ts:2474](../../tests/desktop.test.ts#L2474) |
+| 18 | configurar: uma skill ou um agente arrastado do painel só é aceito por um terminal do próprio projeto, e só como { kind, name } | Integração | [desktop.test.ts:3206](../../tests/desktop.test.ts#L3206) |
 
 ### Pasta vinculada
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | pasta vinculada: vincular registra a pasta e faz backup das configurações de IA dentro dela | Integração | [desktop.test.ts:1547](../../tests/desktop.test.ts#L1547) |
-| 2 | abrir pasta: o nome é seu, a pasta aparece ao vivo na árvore como @folder e abre numa IDE | Integração | [desktop.test.ts:1600](../../tests/desktop.test.ts#L1600) |
-| 3 | pasta vinculada: dá para criar um projeto a partir de uma pasta existente escolhida na janela | Integração | [desktop.test.ts:1659](../../tests/desktop.test.ts#L1659) |
-| 4 | aba do repositório: instalações, agentes e remoções num .claude vinculado exigem confirmação e backup; writeAllowed: false recusa | Integração | [desktop.test.ts:2049](../../tests/desktop.test.ts#L2049) |
+| 1 | pasta vinculada: vincular registra a pasta e faz backup das configurações de IA dentro dela | Integração | [desktop.test.ts:1571](../../tests/desktop.test.ts#L1571) |
+| 2 | abrir pasta: o nome é seu, a pasta aparece ao vivo na árvore como @folder e abre numa IDE | Integração | [desktop.test.ts:1624](../../tests/desktop.test.ts#L1624) |
+| 3 | pasta vinculada: dá para criar um projeto a partir de uma pasta existente escolhida na janela | Integração | [desktop.test.ts:1683](../../tests/desktop.test.ts#L1683) |
+| 4 | aba do repositório: instalações, agentes e remoções num .claude vinculado exigem confirmação e backup; writeAllowed: false recusa | Integração | [desktop.test.ts:2073](../../tests/desktop.test.ts#L2073) |
 
 ### Servidores MCP
 
@@ -509,14 +550,14 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | os pedidos da interface só executam métodos do serviço e devolvem os erros como mensagens | Integração | [desktop.test.ts:2738](../../tests/desktop.test.ts#L2738) |
+| 1 | os pedidos da interface só executam métodos do serviço e devolvem os erros como mensagens | Integração | [desktop.test.ts:2762](../../tests/desktop.test.ts#L2762) |
 
 ### Instalador
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | a sincronização do framework pelo instalador atualiza os arquivos do framework e nunca mexe em workspace/ | Integração | [desktop.test.ts:2691](../../tests/desktop.test.ts#L2691) |
-| 2 | as cópias instaladas mantêm o framework no QA_ROOT, na pasta antiga ou em <Documentos>/Moki | Integração | [desktop.test.ts:2722](../../tests/desktop.test.ts#L2722) |
+| 1 | a sincronização do framework pelo instalador atualiza os arquivos do framework e nunca mexe em workspace/ | Integração | [desktop.test.ts:2715](../../tests/desktop.test.ts#L2715) |
+| 2 | as cópias instaladas mantêm o framework no QA_ROOT, na pasta antiga ou em <Documentos>/Moki | Integração | [desktop.test.ts:2746](../../tests/desktop.test.ts#L2746) |
 
 ### Uso na barra de status
 
@@ -622,26 +663,27 @@ Rodam com `npm test`.
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
 | 1 | toda página do docs/wiki.json é gerada, com a Home, a barra lateral e o rodapé | Unidade | [wiki.test.mjs:12](../../tests/wiki.test.mjs#L12) |
-| 2 | os links viram páginas da wiki ou links do GitHub; uma página diz onde é editada e aponta para a tradução | Unidade | [wiki.test.mjs:20](../../tests/wiki.test.mjs#L20) |
-| 3 | outra branch recebe o aviso de versão em desenvolvimento; um link quebrado para a geração | Unidade | [wiki.test.mjs:36](../../tests/wiki.test.mjs#L36) |
+| 2 | a página inicial vem do documento de início nos dois idiomas, com créditos de código aberto e navegação bilíngue | Unidade | [wiki.test.mjs:20](../../tests/wiki.test.mjs#L20) |
+| 3 | os links viram páginas da wiki ou links do GitHub; uma página diz onde é editada e aponta para a tradução | Unidade | [wiki.test.mjs:31](../../tests/wiki.test.mjs#L31) |
+| 4 | outra branch recebe o aviso de versão em desenvolvimento; um link quebrado para a geração | Unidade | [wiki.test.mjs:47](../../tests/wiki.test.mjs#L47) |
 
 ### Download dos apps ArtCraft
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | apps Craft: lista fixa com ids únicos e um repositório storytold | Unidade | [desktop.test.ts:2898](../../tests/desktop.test.ts#L2898) |
-| 2 | apps Craft: família de pacotes do Linux lida do os-release | Unidade | [desktop.test.ts:2905](../../tests/desktop.test.ts#L2905) |
-| 3 | apps Craft: os arquivos de cada sistema, o recomendado primeiro, e só nomes exatos | Unidade | [desktop.test.ts:2917](../../tests/desktop.test.ts#L2917) |
-| 4 | download Craft: lista os 16 apps e mostra o que seria baixado | Integração | [desktop.test.ts:2972](../../tests/desktop.test.ts#L2972) |
-| 5 | download Craft: o digest do GitHub confere e a pasta é mostrada | Integração | [desktop.test.ts:2983](../../tests/desktop.test.ts#L2983) |
-| 6 | download Craft: o SHA256SUMS.txt é usado quando não há digest | Integração | [desktop.test.ts:2994](../../tests/desktop.test.ts#L2994) |
-| 7 | download Craft: sem digest e sem checksum listado, recusa antes do diálogo | Integração | [desktop.test.ts:3000](../../tests/desktop.test.ts#L3000) |
-| 8 | download Craft: um hash que não confere remove o arquivo | Integração | [desktop.test.ts:3008](../../tests/desktop.test.ts#L3008) |
-| 9 | download Craft: erros do GitHub e falta de rede dizem o que fazer | Integração | [desktop.test.ts:3014](../../tests/desktop.test.ts#L3014) |
-| 10 | download Craft: sem arquivo para este sistema, e nomes inseguros são ignorados | Integração | [desktop.test.ts:3024](../../tests/desktop.test.ts#L3024) |
-| 11 | download Craft: no Fedora se oferece rpm primeiro, AppImage depois, nunca deb nem nomes desconhecidos | Integração | [desktop.test.ts:3030](../../tests/desktop.test.ts#L3030) |
-| 12 | download Craft: uma versão mais nova depois da revisão, e um diálogo cancelado | Integração | [desktop.test.ts:3049](../../tests/desktop.test.ts#L3049) |
-| 13 | download Craft: a URL é montada pelo Moki, a extensão é acrescentada, uma gravação que falha não deixa nada | Integração | [desktop.test.ts:3059](../../tests/desktop.test.ts#L3059) |
+| 1 | apps Craft: lista fixa com ids únicos e um repositório storytold | Unidade | [desktop.test.ts:2922](../../tests/desktop.test.ts#L2922) |
+| 2 | apps Craft: família de pacotes do Linux lida do os-release | Unidade | [desktop.test.ts:2929](../../tests/desktop.test.ts#L2929) |
+| 3 | apps Craft: os arquivos de cada sistema, o recomendado primeiro, e só nomes exatos | Unidade | [desktop.test.ts:2941](../../tests/desktop.test.ts#L2941) |
+| 4 | download Craft: lista os 16 apps e mostra o que seria baixado | Integração | [desktop.test.ts:2996](../../tests/desktop.test.ts#L2996) |
+| 5 | download Craft: o digest do GitHub confere e a pasta é mostrada | Integração | [desktop.test.ts:3007](../../tests/desktop.test.ts#L3007) |
+| 6 | download Craft: o SHA256SUMS.txt é usado quando não há digest | Integração | [desktop.test.ts:3018](../../tests/desktop.test.ts#L3018) |
+| 7 | download Craft: sem digest e sem checksum listado, recusa antes do diálogo | Integração | [desktop.test.ts:3024](../../tests/desktop.test.ts#L3024) |
+| 8 | download Craft: um hash que não confere remove o arquivo | Integração | [desktop.test.ts:3032](../../tests/desktop.test.ts#L3032) |
+| 9 | download Craft: erros do GitHub e falta de rede dizem o que fazer | Integração | [desktop.test.ts:3038](../../tests/desktop.test.ts#L3038) |
+| 10 | download Craft: sem arquivo para este sistema, e nomes inseguros são ignorados | Integração | [desktop.test.ts:3048](../../tests/desktop.test.ts#L3048) |
+| 11 | download Craft: no Fedora se oferece rpm primeiro, AppImage depois, nunca deb nem nomes desconhecidos | Integração | [desktop.test.ts:3054](../../tests/desktop.test.ts#L3054) |
+| 12 | download Craft: uma versão mais nova depois da revisão, e um diálogo cancelado | Integração | [desktop.test.ts:3073](../../tests/desktop.test.ts#L3073) |
+| 13 | download Craft: a URL é montada pelo Moki, a extensão é acrescentada, uma gravação que falha não deixa nada | Integração | [desktop.test.ts:3083](../../tests/desktop.test.ts#L3083) |
 
 ## Testes de interface
 
@@ -654,205 +696,261 @@ Rodam com `npm run test:ui`. Cada área é um bloco de `tests/ui/app.spec.ts`; o
 | 1 | o Moki restaura as abas de documentos, o modo ativo e a rolagem depois de sair, recarregar e apagar um arquivo | Interface | [ui/app.spec.ts:66](../../tests/ui/app.spec.ts#L66) |
 | 2 | o Moki restaura a rolagem depois que as páginas do PDF carregam de forma assíncrona | Interface | [ui/app.spec.ts:139](../../tests/ui/app.spec.ts#L139) |
 | 3 | as notas rápidas do Moki continuam disponíveis sobre um projeto, a barra lateral recolhida e as configurações, sem trocar a tela atual | Interface | [ui/app.spec.ts:166](../../tests/ui/app.spec.ts#L166) |
-| 4 | as confirmações com o tema do Moki esperam uma decisão, prendem o foco e preservam o arquivo quando canceladas | Interface | [ui/app.spec.ts:244](../../tests/ui/app.spec.ts#L244) |
-| 5 | os diálogos do Moki seguem todas as paletas nos dois modos e atualizam um caderno já aberto | Interface | [ui/app.spec.ts:307](../../tests/ui/app.spec.ts#L307) |
+| 4 | as confirmações com o tema do Moki esperam uma decisão, prendem o foco e preservam o arquivo quando canceladas | Interface | [ui/app.spec.ts:248](../../tests/ui/app.spec.ts#L248) |
+| 5 | os diálogos do Moki seguem todas as paletas nos dois modos e atualizam um caderno já aberto | Interface | [ui/app.spec.ts:312](../../tests/ui/app.spec.ts#L312) |
 
 ### Configurações (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | Templates rola e os controles dela têm o mesmo tamanho | Interface | [ui/app.spec.ts:389](../../tests/ui/app.spec.ts#L389) |
-| 2 | um logo escolhido aparece no formulário e na prévia | Interface | [ui/app.spec.ts:411](../../tests/ui/app.spec.ts#L411) |
-| 3 | um texto de marca d'água aparece na página de prévia | Interface | [ui/app.spec.ts:420](../../tests/ui/app.spec.ts#L420) |
-| 4 | templates são uma lista: um novo, marcado com um projeto, vale só para ele | Interface | [ui/app.spec.ts:425](../../tests/ui/app.spec.ts#L425) |
-| 5 | Skills é uma lista como as outras abas: abas de filtro, busca, um detalhe; Adicionar skill tem página própria | Interface | [ui/app.spec.ts:448](../../tests/ui/app.spec.ts#L448) |
-| 6 | um agente mostra o que precisa e entrega; a sua cópia edita isso, incluindo MCPs e IA | Interface | [ui/app.spec.ts:471](../../tests/ui/app.spec.ts#L471) |
-| 7 | o seu agente: descrição e instruções em campos de texto, skills buscadas e acrescentadas, um Salvar só; as tags dizem a quais projetos ele chega | Interface | [ui/app.spec.ts:497](../../tests/ui/app.spec.ts#L497) |
-| 8 | uma operação liga agentes com setas: aprovação, qual saída responde qual entrada, salva na lista | Interface | [ui/app.spec.ts:546](../../tests/ui/app.spec.ts#L546) |
+| 1 | Templates rola e os controles dela têm o mesmo tamanho | Interface | [ui/app.spec.ts:394](../../tests/ui/app.spec.ts#L394) |
+| 2 | um logo escolhido aparece no formulário e na prévia | Interface | [ui/app.spec.ts:416](../../tests/ui/app.spec.ts#L416) |
+| 3 | um texto de marca d'água aparece na página de prévia | Interface | [ui/app.spec.ts:425](../../tests/ui/app.spec.ts#L425) |
+| 4 | templates são uma lista: um novo, marcado com um projeto, vale só para ele | Interface | [ui/app.spec.ts:430](../../tests/ui/app.spec.ts#L430) |
+| 5 | Skills é uma lista como as outras abas: abas de filtro, busca, um detalhe; Adicionar skill tem página própria | Interface | [ui/app.spec.ts:453](../../tests/ui/app.spec.ts#L453) |
+| 6 | um agente mostra o que precisa e entrega; a sua cópia edita isso, incluindo MCPs e IA | Interface | [ui/app.spec.ts:477](../../tests/ui/app.spec.ts#L477) |
+| 7 | o seu agente: descrição e instruções em campos de texto, skills buscadas e acrescentadas, um Salvar só; as tags dizem a quais projetos ele chega | Interface | [ui/app.spec.ts:503](../../tests/ui/app.spec.ts#L503) |
+| 8 | uma operação liga agentes com setas: aprovação, qual saída responde qual entrada, salva na lista | Interface | [ui/app.spec.ts:552](../../tests/ui/app.spec.ts#L552) |
 
 ### Tags (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | uma tag de projeto traz o outro projeto para o contexto da atividade | Interface | [ui/app.spec.ts:688](../../tests/ui/app.spec.ts#L688) |
-| 2 | o ES traduz o seletor de workspace e o resto do app, sobrevive ao recarregar e mantém o EN e o PT-BR funcionando | Interface | [ui/app.spec.ts:714](../../tests/ui/app.spec.ts#L714) |
+| 1 | uma tag de projeto traz o outro projeto para o contexto da atividade | Interface | [ui/app.spec.ts:694](../../tests/ui/app.spec.ts#L694) |
+| 2 | o ES traduz o seletor de workspace e o resto do app, sobrevive ao recarregar e mantém o EN e o PT-BR funcionando | Interface | [ui/app.spec.ts:720](../../tests/ui/app.spec.ts#L720) |
 
 ### Workspaces (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | o app abre na escolha de workspace; um workspace novo abre vazio e dá para voltar ao anterior | Interface | [ui/app.spec.ts:780](../../tests/ui/app.spec.ts#L780) |
-| 2 | um projeto oculto só é excluído de vez depois de digitar delete | Interface | [ui/app.spec.ts:840](../../tests/ui/app.spec.ts#L840) |
-| 3 | criar um projeto abre direto, sem configuração nem planejamento por IA | Interface | [ui/app.spec.ts:863](../../tests/ui/app.spec.ts#L863) |
-| 4 | uma nota avulsa é criada pela barra fixa; as notas salvas abrem no app e nas abas do caderno | Interface | [ui/app.spec.ts:878](../../tests/ui/app.spec.ts#L878) |
+| 1 | o app abre na escolha de workspace; um workspace novo abre vazio e dá para voltar ao anterior | Interface | [ui/app.spec.ts:786](../../tests/ui/app.spec.ts#L786) |
+| 2 | um projeto oculto só é excluído de vez depois de digitar delete | Interface | [ui/app.spec.ts:846](../../tests/ui/app.spec.ts#L846) |
+| 3 | criar um projeto abre direto, sem configuração nem planejamento por IA | Interface | [ui/app.spec.ts:869](../../tests/ui/app.spec.ts#L869) |
+| 4 | uma nota avulsa é criada pela barra fixa; as notas salvas abrem no app e nas abas do caderno | Interface | [ui/app.spec.ts:884](../../tests/ui/app.spec.ts#L884) |
 
 ### Árvore do projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | o clique direito num item da árvore copia o caminho completo dele | Interface | [ui/app.spec.ts:938](../../tests/ui/app.spec.ts#L938) |
-| 2 | o menu ⋯ cria um arquivo que abre pronto para escrever, e uma pasta na raiz do projeto | Interface | [ui/app.spec.ts:948](../../tests/ui/app.spec.ts#L948) |
-| 3 | a barra lateral é em blocos: pastas, Acompanhamento e Outros arquivos, depois Configurações do projeto e MCPs; o card de Operações fica no painel do projeto | Interface | [ui/app.spec.ts:984](../../tests/ui/app.spec.ts#L984) |
-| 4 | a barra lateral de arquivos redimensiona, recolhe e lembra a largura dela independentemente do painel da direita | Interface | [ui/app.spec.ts:1024](../../tests/ui/app.spec.ts#L1024) |
-| 5 | uma pasta vinculada aparece primeiro na árvore, ao vivo, com Abrir na IDE; os arquivos dela abrem no app | Interface | [ui/app.spec.ts:1079](../../tests/ui/app.spec.ts#L1079) |
-| 6 | digitar / numa nota lista os comandos de formatação; um checklist continua no Enter | Interface | [ui/app.spec.ts:1107](../../tests/ui/app.spec.ts#L1107) |
-| 7 | a estrela transforma uma nota numa favorita dourada, a primeira da pasta de notas | Interface | [ui/app.spec.ts:1150](../../tests/ui/app.spec.ts#L1150) |
-| 8 | uma nota do projeto abre dentro do app, e no caderno dele com cada nota do projeto como uma aba | Interface | [ui/app.spec.ts:1182](../../tests/ui/app.spec.ts#L1182) |
+| 1 | o clique direito num item da árvore copia o caminho completo dele | Interface | [ui/app.spec.ts:949](../../tests/ui/app.spec.ts#L949) |
+| 2 | o menu ⋯ cria um arquivo que abre pronto para escrever, e uma pasta na raiz do projeto | Interface | [ui/app.spec.ts:959](../../tests/ui/app.spec.ts#L959) |
+| 3 | a barra lateral é em blocos: pastas, Acompanhamento e Outros arquivos, depois Configurações do projeto e MCPs; o card de Operações fica no painel do projeto | Interface | [ui/app.spec.ts:995](../../tests/ui/app.spec.ts#L995) |
+| 4 | a barra lateral de arquivos redimensiona, recolhe e lembra a largura dela independentemente do painel da direita | Interface | [ui/app.spec.ts:1035](../../tests/ui/app.spec.ts#L1035) |
+| 5 | uma pasta vinculada aparece primeiro na árvore, ao vivo, com Abrir na IDE; os arquivos dela abrem no app | Interface | [ui/app.spec.ts:1090](../../tests/ui/app.spec.ts#L1090) |
+| 6 | digitar / numa nota lista os comandos de formatação; um checklist continua no Enter | Interface | [ui/app.spec.ts:1118](../../tests/ui/app.spec.ts#L1118) |
+| 7 | a estrela transforma uma nota numa favorita dourada, a primeira da pasta de notas | Interface | [ui/app.spec.ts:1164](../../tests/ui/app.spec.ts#L1164) |
+| 8 | uma nota do projeto abre dentro do app, e no caderno dele com cada nota do projeto como uma aba | Interface | [ui/app.spec.ts:1196](../../tests/ui/app.spec.ts#L1196) |
 
 ### Operações num projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | uma operação é iniciada pelo formulário e avança conforme cada agente entrega os arquivos | Interface | [ui/app.spec.ts:1256](../../tests/ui/app.spec.ts#L1256) |
-| 2 | uma operação começa pelo cartão do assistente: os passos mantêm o agente e cada IA é trocada com a mesma escolha | Interface | [ui/app.spec.ts:1359](../../tests/ui/app.spec.ts#L1359) |
-| 3 | o resultado escolhe a seta: rejected vai para o fixer e volta para a revisão; sem resultado válido, pergunta ao usuário | Interface | [ui/app.spec.ts:1383](../../tests/ui/app.spec.ts#L1383) |
+| 1 | uma operação é iniciada pelo formulário e avança conforme cada agente entrega os arquivos | Interface | [ui/app.spec.ts:1273](../../tests/ui/app.spec.ts#L1273) |
+| 2 | uma operação começa pelo cartão do assistente: os passos mantêm o agente e cada IA é trocada com a mesma escolha | Interface | [ui/app.spec.ts:1376](../../tests/ui/app.spec.ts#L1376) |
+| 3 | o resultado escolhe a seta: rejected vai para o fixer e volta para a revisão; sem resultado válido, pergunta ao usuário | Interface | [ui/app.spec.ts:1400](../../tests/ui/app.spec.ts#L1400) |
 
 ### Terminais que continuam fora do projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | sair do projeto não fecha o terminal dele; abrir o projeto de novo traz a aba de volta | Interface | [ui/app.spec.ts:1444](../../tests/ui/app.spec.ts#L1444) |
-| 2 | o + das abas abre categorias no lugar; Arquivo cria uma planilha vazia na Entrada e a mostra | Interface | [ui/app.spec.ts:1467](../../tests/ui/app.spec.ts#L1467) |
-| 3 | o menu + fica dentro da janela quando o + está na borda direita, em todos os níveis | Interface | [ui/app.spec.ts:1489](../../tests/ui/app.spec.ts#L1489) |
-| 4 | o menu + oferece os apps ArtCraft: 16 apps, o lançador primeiro e um botão Baixar para cada um | Interface | [ui/app.spec.ts:1516](../../tests/ui/app.spec.ts#L1516) |
+| 1 | sair do projeto não fecha o terminal dele; abrir o projeto de novo traz a aba de volta | Interface | [ui/app.spec.ts:1461](../../tests/ui/app.spec.ts#L1461) |
+| 2 | o + das abas abre categorias no lugar; Arquivo cria uma planilha vazia na Entrada e a mostra | Interface | [ui/app.spec.ts:1484](../../tests/ui/app.spec.ts#L1484) |
+| 3 | o menu + fica dentro da janela quando o + está na borda direita, em todos os níveis | Interface | [ui/app.spec.ts:1506](../../tests/ui/app.spec.ts#L1506) |
+| 4 | o menu + oferece os apps ArtCraft: 16 apps, o lançador primeiro e um botão Baixar para cada um | Interface | [ui/app.spec.ts:1533](../../tests/ui/app.spec.ts#L1533) |
 
 ### Lista de servidores MCP (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | um servidor fica global ou é dado a projetos escolhidos a partir da linha dele | Interface | [ui/app.spec.ts:1552](../../tests/ui/app.spec.ts#L1552) |
-| 2 | um servidor HTTP aceita um cliente OAuth opcional (id e porta de retorno) em Headers, salvo sem nenhum segredo | Interface | [ui/app.spec.ts:1589](../../tests/ui/app.spec.ts#L1589) |
+| 1 | um servidor fica global ou é dado a projetos escolhidos a partir da linha dele | Interface | [ui/app.spec.ts:1569](../../tests/ui/app.spec.ts#L1569) |
+| 2 | um servidor HTTP aceita um cliente OAuth opcional (id e porta de retorno) em Headers, salvo sem nenhum segredo | Interface | [ui/app.spec.ts:1606](../../tests/ui/app.spec.ts#L1606) |
 
 ### Comentários em PDF (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | todo controle da barra de ferramentas do PDF tem a mesma altura | Interface | [ui/app.spec.ts:1682](../../tests/ui/app.spec.ts#L1682) |
-| 2 | uma seleção é comentada direto na página; o comentário fica ao lado, ligado por uma linha | Interface | [ui/app.spec.ts:1695](../../tests/ui/app.spec.ts#L1695) |
-| 3 | notas podem ser inseridas entre páginas do PDF, editadas e restauradas | Interface | [ui/app.spec.ts:1755](../../tests/ui/app.spec.ts#L1755) |
-| 4 | um arquivo .md abre no editor e é comentado ali; o comentário fica dentro do arquivo, invisível para outros leitores | Interface | [ui/app.spec.ts:1835](../../tests/ui/app.spec.ts#L1835) |
-| 5 | a edição visual de Markdown mantém títulos, negrito, listas e quebras de linha do Windows | Interface | [ui/app.spec.ts:1899](../../tests/ui/app.spec.ts#L1899) |
-| 6 | a edição visual preserva o espaçamento original e os comentários quando um título encosta numa lista | Interface | [ui/app.spec.ts:1927](../../tests/ui/app.spec.ts#L1927) |
-| 7 | a edição visual preserva títulos e lista adjacentes com quebras de linha do Windows | Interface | [ui/app.spec.ts:1950](../../tests/ui/app.spec.ts#L1950) |
-| 8 | o visualizador nativo tem ícone e as propriedades do PDF continuam visíveis e são salvas | Interface | [ui/app.spec.ts:1962](../../tests/ui/app.spec.ts#L1962) |
+| 1 | todo controle da barra de ferramentas do PDF tem a mesma altura | Interface | [ui/app.spec.ts:1699](../../tests/ui/app.spec.ts#L1699) |
+| 2 | uma seleção é comentada direto na página; o comentário fica ao lado, ligado por uma linha | Interface | [ui/app.spec.ts:1712](../../tests/ui/app.spec.ts#L1712) |
+| 3 | notas podem ser inseridas entre páginas do PDF, editadas e restauradas | Interface | [ui/app.spec.ts:1772](../../tests/ui/app.spec.ts#L1772) |
+| 4 | um arquivo .md abre no editor e é comentado ali; o comentário fica dentro do arquivo, invisível para outros leitores | Interface | [ui/app.spec.ts:1853](../../tests/ui/app.spec.ts#L1853) |
+| 5 | a edição visual de Markdown mantém títulos, negrito, listas e quebras de linha do Windows | Interface | [ui/app.spec.ts:1917](../../tests/ui/app.spec.ts#L1917) |
+| 6 | a edição visual preserva o espaçamento original e os comentários quando um título encosta numa lista | Interface | [ui/app.spec.ts:1945](../../tests/ui/app.spec.ts#L1945) |
+| 7 | a edição visual preserva títulos e lista adjacentes com quebras de linha do Windows | Interface | [ui/app.spec.ts:1968](../../tests/ui/app.spec.ts#L1968) |
+| 8 | o visualizador nativo tem ícone e as propriedades do PDF continuam visíveis e são salvas | Interface | [ui/app.spec.ts:1980](../../tests/ui/app.spec.ts#L1980) |
 
 ### Atividades (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | uma atividade nova é criada em Configurações, marcada com estrela, e aparece primeiro ao abrir a ferramenta de IA | Interface | [ui/app.spec.ts:2018](../../tests/ui/app.spec.ts#L2018) |
-| 2 | atividades só de texto exigem um pedido e o mantêm na edição | Interface | [ui/app.spec.ts:2045](../../tests/ui/app.spec.ts#L2045) |
-| 3 | várias skills sobrevivem ao salvar e reabrir, e o pedido preparado inclui todas | Interface | [ui/app.spec.ts:2065](../../tests/ui/app.spec.ts#L2065) |
-| 4 | um agente pode ser criado com instruções e sem skills | Interface | [ui/app.spec.ts:2089](../../tests/ui/app.spec.ts#L2089) |
+| 1 | uma atividade nova é criada em Configurações, marcada com estrela, e aparece primeiro ao abrir a ferramenta de IA | Interface | [ui/app.spec.ts:2036](../../tests/ui/app.spec.ts#L2036) |
+| 2 | atividades só de texto exigem um pedido e o mantêm na edição | Interface | [ui/app.spec.ts:2063](../../tests/ui/app.spec.ts#L2063) |
+| 3 | várias skills sobrevivem ao salvar e reabrir, e o pedido preparado inclui todas | Interface | [ui/app.spec.ts:2083](../../tests/ui/app.spec.ts#L2083) |
+| 4 | um agente pode ser criado com instruções e sem skills | Interface | [ui/app.spec.ts:2107](../../tests/ui/app.spec.ts#L2107) |
 
 ### Configurações sem projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | Skills lista as skills do Moki; sem projeto, só o envio de skills adiciona (para todos os projetos) | Interface | [ui/app.spec.ts:2121](../../tests/ui/app.spec.ts#L2121) |
+| 1 | Skills lista as skills do Moki; sem projeto, só o envio de skills adiciona (para todos os projetos) | Interface | [ui/app.spec.ts:2139](../../tests/ui/app.spec.ts#L2139) |
 
 ### Favoritos (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | agentes, operações, templates e skills são marcados com estrela pelo card e aparecem primeiro | Interface | [ui/app.spec.ts:2167](../../tests/ui/app.spec.ts#L2167) |
+| 1 | agentes, operações, templates e skills são marcados com estrela pelo card e aparecem primeiro | Interface | [ui/app.spec.ts:2185](../../tests/ui/app.spec.ts#L2185) |
 
 ### Minhas IAs e o painel do projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | a IA padrão é definida em Minhas IAs e uma atividade que escolhe outra a mantém | Interface | [ui/app.spec.ts:2213](../../tests/ui/app.spec.ts#L2213) |
-| 2 | um catálogo Chamar lista atividades, agentes, skills e operações | Interface | [ui/app.spec.ts:2240](../../tests/ui/app.spec.ts#L2240) |
-| 3 | o catálogo Chamar busca em todos os tipos e informa quando não há resultado | Interface | [ui/app.spec.ts:2256](../../tests/ui/app.spec.ts#L2256) |
-| 4 | o painel mostra o nome e a descrição do projeto; eles são editados nas configurações do projeto | Interface | [ui/app.spec.ts:2269](../../tests/ui/app.spec.ts#L2269) |
-| 5 | um pedido de atividade aparece nas execuções e acompanha a execução registrada | Interface | [ui/app.spec.ts:2289](../../tests/ui/app.spec.ts#L2289) |
-| 6 | chamar uma atividade mantém os arquivos obrigatórios, o agente opcional e as escolhas de destino | Interface | [ui/app.spec.ts:2320](../../tests/ui/app.spec.ts#L2320) |
+| 1 | a IA padrão é definida em Minhas IAs e uma atividade que escolhe outra a mantém | Interface | [ui/app.spec.ts:2231](../../tests/ui/app.spec.ts#L2231) |
+| 2 | um catálogo Chamar lista atividades, agentes, skills e operações por tipo | Interface | [ui/app.spec.ts:2268](../../tests/ui/app.spec.ts#L2268) |
+| 3 | a busca do catálogo Chamar conta resultados por tipo e informa quando não encontra nada | Interface | [ui/app.spec.ts:2286](../../tests/ui/app.spec.ts#L2286) |
+| 4 | o painel mostra o nome e a descrição do projeto; eles são editados nas configurações do projeto | Interface | [ui/app.spec.ts:2301](../../tests/ui/app.spec.ts#L2301) |
+| 5 | um pedido de atividade aparece nas execuções e acompanha a execução registrada | Interface | [ui/app.spec.ts:2321](../../tests/ui/app.spec.ts#L2321) |
+| 6 | chamar uma atividade mantém os arquivos obrigatórios, o agente opcional e as escolhas de destino | Interface | [ui/app.spec.ts:2352](../../tests/ui/app.spec.ts#L2352) |
 
 ### Painel de detalhes da execução (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | o cartão de execuções mostra todas as execuções concluídas de atividades e operações nas abas certas | Interface | [ui/app.spec.ts:2341](../../tests/ui/app.spec.ts#L2341) |
-| 2 | mostra só a atividade ou operação selecionada e distingue nomes de arquivo repetidos | Interface | [ui/app.spec.ts:2377](../../tests/ui/app.spec.ts#L2377) |
+| 1 | o cartão de execuções mostra todas as execuções concluídas de atividades e operações nas abas certas | Interface | [ui/app.spec.ts:2373](../../tests/ui/app.spec.ts#L2373) |
+| 2 | mostra só a atividade ou operação selecionada e distingue nomes de arquivo repetidos | Interface | [ui/app.spec.ts:2409](../../tests/ui/app.spec.ts#L2409) |
 
 ### Renomear na árvore (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | Renomear digita o nome sobre a linha, mantém a extensão, e a aba aberta acompanha com o texto | Interface | [ui/app.spec.ts:2467](../../tests/ui/app.spec.ts#L2467) |
-| 2 | F2 inicia o renomear e Esc volta; um nome recusado é explicado sob a linha e o campo continua aberto | Interface | [ui/app.spec.ts:2505](../../tests/ui/app.spec.ts#L2505) |
-| 3 | uma nota é renomeada pelo título: o arquivo dela, e os links para ele, continuam | Interface | [ui/app.spec.ts:2534](../../tests/ui/app.spec.ts#L2534) |
-| 4 | o que mantém o nome mostra Renomear desativado, com o motivo embaixo; F2 ali explica o porquê | Interface | [ui/app.spec.ts:2548](../../tests/ui/app.spec.ts#L2548) |
+| 1 | Renomear digita o nome sobre a linha, mantém a extensão, e a aba aberta acompanha com o texto | Interface | [ui/app.spec.ts:2502](../../tests/ui/app.spec.ts#L2502) |
+| 2 | F2 inicia o renomear e Esc volta; um nome recusado é explicado sob a linha e o campo continua aberto | Interface | [ui/app.spec.ts:2540](../../tests/ui/app.spec.ts#L2540) |
+| 3 | uma nota é renomeada pelo título: o arquivo dela, e os links para ele, continuam | Interface | [ui/app.spec.ts:2569](../../tests/ui/app.spec.ts#L2569) |
+| 4 | o que mantém o nome mostra Renomear desativado, com o motivo embaixo; F2 ali explica o porquê | Interface | [ui/app.spec.ts:2583](../../tests/ui/app.spec.ts#L2583) |
 
 ### Renomear na tela inicial (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | uma nota avulsa é renomeada pelo menu de contexto, no lugar, sem mudar de posição na lista | Interface | [ui/app.spec.ts:2617](../../tests/ui/app.spec.ts#L2617) |
-| 2 | uma nota de projeto é renomeada pelo título (F2), e o arquivo dela continua | Interface | [ui/app.spec.ts:2637](../../tests/ui/app.spec.ts#L2637) |
-| 3 | um projeto ganha um novo nome; a pasta e o id continuam | Interface | [ui/app.spec.ts:2653](../../tests/ui/app.spec.ts#L2653) |
+| 1 | uma nota avulsa é renomeada pelo menu de contexto, no lugar, sem mudar de posição na lista | Interface | [ui/app.spec.ts:2652](../../tests/ui/app.spec.ts#L2652) |
+| 2 | uma nota de projeto é renomeada pelo título (F2), e o arquivo dela continua | Interface | [ui/app.spec.ts:2672](../../tests/ui/app.spec.ts#L2672) |
+| 3 | um projeto ganha um novo nome; a pasta e o id continuam | Interface | [ui/app.spec.ts:2688](../../tests/ui/app.spec.ts#L2688) |
 
 ### Seleção no Markdown (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | selecionar desde o início não move nada: o botão Comentar flutua, desativado, com o motivo | Interface | [ui/app.spec.ts:2695](../../tests/ui/app.spec.ts#L2695) |
-| 2 | uma seleção dentro de um parágrafo ainda é copiada com Ctrl+C; a caixa só abre pelo botão | Interface | [ui/app.spec.ts:2710](../../tests/ui/app.spec.ts#L2710) |
-| 3 | o botão some quando a seleção some | Interface | [ui/app.spec.ts:2732](../../tests/ui/app.spec.ts#L2732) |
+| 1 | selecionar desde o início não move nada: o botão Comentar flutua, desativado, com o motivo | Interface | [ui/app.spec.ts:2732](../../tests/ui/app.spec.ts#L2732) |
+| 2 | uma seleção dentro de um parágrafo ainda é copiada com Ctrl+C; a caixa só abre pelo botão | Interface | [ui/app.spec.ts:2747](../../tests/ui/app.spec.ts#L2747) |
+| 3 | o botão some quando a seleção some | Interface | [ui/app.spec.ts:2769](../../tests/ui/app.spec.ts#L2769) |
 
 ### Comentários no editor (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | o editor mostra os comentários ao lado do texto, ligados às palavras deles | Interface | [ui/app.spec.ts:2789](../../tests/ui/app.spec.ts#L2789) |
-| 2 | texto com formatação dentro é comentado pelo editor e salvo na hora | Interface | [ui/app.spec.ts:2796](../../tests/ui/app.spec.ts#L2796) |
-| 3 | uma seleção em dois parágrafos, ou em código, não pode ser comentada: o motivo está no botão | Interface | [ui/app.spec.ts:2813](../../tests/ui/app.spec.ts#L2813) |
-| 4 | um comentário é respondido, recolorido e apagado pelo editor; as palavras ficam | Interface | [ui/app.spec.ts:2822](../../tests/ui/app.spec.ts#L2822) |
-| 5 | um comentário feito durante a edição salva as edições digitadas antes dele | Interface | [ui/app.spec.ts:2843](../../tests/ui/app.spec.ts#L2843) |
+| 1 | o editor mostra os comentários ao lado do texto, ligados às palavras deles | Interface | [ui/app.spec.ts:2826](../../tests/ui/app.spec.ts#L2826) |
+| 2 | texto com formatação dentro é comentado pelo editor e salvo na hora | Interface | [ui/app.spec.ts:2833](../../tests/ui/app.spec.ts#L2833) |
+| 3 | uma seleção em dois parágrafos, ou em código, não pode ser comentada: o motivo está no botão | Interface | [ui/app.spec.ts:2850](../../tests/ui/app.spec.ts#L2850) |
+| 4 | um comentário é respondido, recolorido e apagado pelo editor; as palavras ficam | Interface | [ui/app.spec.ts:2859](../../tests/ui/app.spec.ts#L2859) |
+| 5 | um comentário feito durante a edição salva as edições digitadas antes dele | Interface | [ui/app.spec.ts:2880](../../tests/ui/app.spec.ts#L2880) |
 
 ### Uma visão para o Markdown (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | Ctrl+E mostra o código-fonte Markdown, para ler e copiar, não para editar | Interface | [ui/app.spec.ts:2902](../../tests/ui/app.spec.ts#L2902) |
-| 2 | uma mudança feita fora do Moki durante a edição nunca é sobrescrita: manter a minha, ou ver a nova versão | Interface | [ui/app.spec.ts:2923](../../tests/ui/app.spec.ts#L2923) |
-| 3 | o que o editor faria com um arquivo é informado: nada, só a formatação, ou perda de partes dele | Interface | [ui/app.spec.ts:2949](../../tests/ui/app.spec.ts#L2949) |
-| 4 | um arquivo grande é só para leitura e comentários | Interface | [ui/app.spec.ts:2974](../../tests/ui/app.spec.ts#L2974) |
-| 5 | um clique em um link coloca o cursor ali; Ctrl+clique o abre | Interface | [ui/app.spec.ts:2981](../../tests/ui/app.spec.ts#L2981) |
+| 1 | Ctrl+E mostra o código Markdown editável como texto e permite copiá-lo inteiro | Interface | [ui/app.spec.ts:2938](../../tests/ui/app.spec.ts#L2938) |
+| 2 | uma mudança feita fora do Moki durante a edição nunca é sobrescrita: manter a minha, ou ver a nova versão | Interface | [ui/app.spec.ts:2959](../../tests/ui/app.spec.ts#L2959) |
+| 3 | todo arquivo abre editável no editor formatado, sem aviso, qualquer que seja seu conteúdo | Interface | [ui/app.spec.ts:2985](../../tests/ui/app.spec.ts#L2985) |
+| 4 | um arquivo grande abre no código editável e o modo de leitura o mostra formatado | Interface | [ui/app.spec.ts:2995](../../tests/ui/app.spec.ts#L2995) |
+| 5 | um clique em um link coloca o cursor ali; Ctrl+clique o abre | Interface | [ui/app.spec.ts:3004](../../tests/ui/app.spec.ts#L3004) |
 
 ### Tabelas no editor (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | linhas e colunas são adicionadas e removidas pelo balão da tabela, e salvas | Interface | [ui/app.spec.ts:3031](../../tests/ui/app.spec.ts#L3031) |
-| 2 | a linha de cabeçalho não ganha uma linha acima nem pode ser apagada: uma tabela Markdown precisa dela | Interface | [ui/app.spec.ts:3058](../../tests/ui/app.spec.ts#L3058) |
-| 3 | Tab na última célula adiciona uma linha; uma linha e depois a tabela são apagadas | Interface | [ui/app.spec.ts:3068](../../tests/ui/app.spec.ts#L3068) |
+| 1 | linhas e colunas são adicionadas e removidas pelo balão da tabela, e salvas | Interface | [ui/app.spec.ts:3054](../../tests/ui/app.spec.ts#L3054) |
+| 2 | a linha de cabeçalho não ganha uma linha acima nem pode ser apagada: uma tabela Markdown precisa dela | Interface | [ui/app.spec.ts:3081](../../tests/ui/app.spec.ts#L3081) |
+| 3 | Tab na última célula adiciona uma linha; uma linha e depois a tabela são apagadas | Interface | [ui/app.spec.ts:3091](../../tests/ui/app.spec.ts#L3091) |
 
 ### Pedidos (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | cada pedido mostra a atividade de origem e o cenário dele, ou que foi um pedido livre | Interface | [ui/app.spec.ts:3113](../../tests/ui/app.spec.ts#L3113) |
-| 2 | os pedidos são filtrados por atividade, e o filtro só aparece quando eles vêm de mais de um lugar | Interface | [ui/app.spec.ts:3133](../../tests/ui/app.spec.ts#L3133) |
-| 3 | o Chamar do Moki cola no terminal de IA atual e espera o Enter | Interface | [ui/app.spec.ts:3148](../../tests/ui/app.spec.ts#L3148) |
+| 1 | cada pedido mostra a atividade de origem e o cenário dele, ou que foi um pedido livre | Interface | [ui/app.spec.ts:3136](../../tests/ui/app.spec.ts#L3136) |
+| 2 | os pedidos são filtrados por atividade, e o filtro só aparece quando eles vêm de mais de um lugar | Interface | [ui/app.spec.ts:3156](../../tests/ui/app.spec.ts#L3156) |
+| 3 | o Chamar do Moki cola no terminal de IA atual e espera o Enter | Interface | [ui/app.spec.ts:3171](../../tests/ui/app.spec.ts#L3171) |
 
 ### Padrões do projeto (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | as configurações abrem pelo menu do projeto e pelo painel, uma seção por tipo | Interface | [ui/app.spec.ts:3245](../../tests/ui/app.spec.ts#L3245) |
-| 2 | um agente e uma skill padrão com instruções: uma nova IA assume o papel, usa a skill e espera | Interface | [ui/app.spec.ts:3261](../../tests/ui/app.spec.ts#L3261) |
-| 3 | uma IA ainda pode abrir sem os padrões do projeto | Interface | [ui/app.spec.ts:3296](../../tests/ui/app.spec.ts#L3296) |
-| 4 | uma atividade que não pede arquivos, como único padrão, começa sozinha; os padrões vêm primeiro no Chamar | Interface | [ui/app.spec.ts:3303](../../tests/ui/app.spec.ts#L3303) |
-| 5 | atividades e modelos são vinculados aqui ou nas configurações do workspace, as mesmas tags vistas dos dois lados | Interface | [ui/app.spec.ts:3320](../../tests/ui/app.spec.ts#L3320) |
-| 6 | trazer para este projeto: um envio é separado por tipo, vinculado aqui e marcado nas configurações do workspace | Interface | [ui/app.spec.ts:3361](../../tests/ui/app.spec.ts#L3361) |
+| 1 | as configurações abrem pelo menu do projeto e pelo painel, uma seção por tipo | Interface | [ui/app.spec.ts:3268](../../tests/ui/app.spec.ts#L3268) |
+| 2 | um agente e uma skill padrão com instruções: uma nova IA assume o papel, usa a skill e espera | Interface | [ui/app.spec.ts:3284](../../tests/ui/app.spec.ts#L3284) |
+| 3 | uma IA ainda pode abrir sem os padrões do projeto | Interface | [ui/app.spec.ts:3319](../../tests/ui/app.spec.ts#L3319) |
+| 4 | uma atividade que não pede arquivos, como único padrão, começa sozinha; os padrões vêm primeiro no Chamar | Interface | [ui/app.spec.ts:3326](../../tests/ui/app.spec.ts#L3326) |
+| 5 | atividades e modelos são vinculados aqui ou nas configurações do workspace, as mesmas tags vistas dos dois lados | Interface | [ui/app.spec.ts:3343](../../tests/ui/app.spec.ts#L3343) |
+| 6 | trazer para este projeto: um envio é separado por tipo, vinculado aqui e marcado nas configurações do workspace | Interface | [ui/app.spec.ts:3384](../../tests/ui/app.spec.ts#L3384) |
 
 ### Grupos de abas e visões divididas (UI)
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | cada IA abre o próprio grupo; um grupo é renomeado e colorido como um grupo de abas do navegador | Interface | [ui/app.spec.ts:3435](../../tests/ui/app.spec.ts#L3435) |
-| 2 | uma entrega da execução de um terminal abre no grupo dele sozinha, marcada como nova, sem tomar a tela | Interface | [ui/app.spec.ts:3456](../../tests/ui/app.spec.ts#L3456) |
-| 3 | a tela se divide: cada visão tem o próprio grupo e as próprias abas; uma aba é arrastada para a outra visão | Interface | [ui/app.spec.ts:3475](../../tests/ui/app.spec.ts#L3475) |
-| 4 | uma nota no topo (sobre as Configurações) é redimensionada pelo canto inferior direito | Interface | [ui/app.spec.ts:3499](../../tests/ui/app.spec.ts#L3499) |
-| 5 | com muitas abas, só as abas rolam: os botões de dividir e Novo ficam fixos no fim, do mesmo tamanho | Interface | [ui/app.spec.ts:3516](../../tests/ui/app.spec.ts#L3516) |
+| 1 | cada IA abre o próprio grupo; um grupo é renomeado e colorido como um grupo de abas do navegador | Interface | [ui/app.spec.ts:3458](../../tests/ui/app.spec.ts#L3458) |
+| 2 | uma entrega da execução de um terminal abre no grupo dele sozinha, marcada como nova, sem tomar a tela | Interface | [ui/app.spec.ts:3479](../../tests/ui/app.spec.ts#L3479) |
+| 3 | a tela se divide: cada visão tem o próprio grupo e as próprias abas; uma aba é arrastada para a outra visão | Interface | [ui/app.spec.ts:3498](../../tests/ui/app.spec.ts#L3498) |
+| 4 | uma nota no topo (sobre as Configurações) é redimensionada pelo canto inferior direito | Interface | [ui/app.spec.ts:3522](../../tests/ui/app.spec.ts#L3522) |
+| 5 | com muitas abas, só as abas rolam: os botões de dividir e Novo ficam fixos no fim, do mesmo tamanho | Interface | [ui/app.spec.ts:3539](../../tests/ui/app.spec.ts#L3539) |
+
+### Renderização (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | a nota desenha o diagrama Mermaid e a cena Excalidraw | Interface | [ui/diagrams.spec.ts:61](../../tests/ui/diagrams.spec.ts#L61) |
+| 2 | digitar barra num arquivo Markdown lista comandos, incluindo diagramas | Interface | [ui/diagrams.spec.ts:78](../../tests/ui/diagrams.spec.ts#L78) |
+| 3 | links do projeto navegam por títulos, comentários Markdown e PDF, páginas e menções sem reescrever as fontes | Interface | [ui/internal-links.spec.ts:13](../../tests/ui/internal-links.spec.ts#L13) |
+| 4 | um Markdown escrito pela IA abre no editor formatado, preserva o que não desenha e salva só o parágrafo alterado | Interface | [ui/md-edit.spec.ts:78](../../tests/ui/md-edit.spec.ts#L78) |
+| 5 | um Markdown grande abre no código editável com um aviso explicando o motivo | Interface | [ui/md-edit.spec.ts:111](../../tests/ui/md-edit.spec.ts#L111) |
+| 6 | um arquivo alterado fora do Moki durante a edição mostra o aviso de conflito e suas duas opções | Interface | [ui/md-edit.spec.ts:129](../../tests/ui/md-edit.spec.ts#L129) |
+
+### Atividades e execuções (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | arquivos de execução mostram cada execução pelo título e apenas suas entregas | Interface | [ui/hudson.spec.ts:55](../../tests/ui/hudson.spec.ts#L55) |
+| 2 | Hudson propõe, a pessoa desmarca um item e somente as ações mantidas são aplicadas | Interface | [ui/hudson.spec.ts:65](../../tests/ui/hudson.spec.ts#L65) |
+
+### Notas (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | melhorar a escrita é uma sugestão: mostra as diferenças e só Aceitar altera a nota | Interface | [ui/note-assist.spec.ts:71](../../tests/ui/note-assist.spec.ts#L71) |
+| 2 | a pesquisa acrescenta sua seção ao fim da nota quando aceita | Interface | [ui/note-assist.spec.ts:97](../../tests/ui/note-assist.spec.ts#L97) |
+| 3 | nota avulsa: renomeia o título no cabeçalho junto do projeto de destino, sem campo de título nem lápis de código | Interface | [ui/note-assist.spec.ts:108](../../tests/ui/note-assist.spec.ts#L108) |
+
+### Projetos (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | fases de execução são botões separados e o mais não é uma delas | Interface | [ui/notes-layout.spec.ts:57](../../tests/ui/notes-layout.spec.ts#L57) |
+| 2 | seções da tela inicial mantêm os títulos e rolam de forma independente | Interface | [ui/notes-layout.spec.ts:65](../../tests/ui/notes-layout.spec.ts#L65) |
+| 3 | a nota formatada pode ser editada com o título ao lado do projeto de destino | Interface | [ui/notes-layout.spec.ts:90](../../tests/ui/notes-layout.spec.ts#L90) |
+
+### Abrir ferramentas de IA (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | uma captura colada no terminal de IA é salva e seu caminho digitado; colagem de texto continua sendo texto | Interface | [ui/terminal-images.spec.ts:48](../../tests/ui/terminal-images.spec.ts#L48) |
+| 2 | arrastar um arquivo da árvore para o terminal de IA digita seu caminho completo, sem copiá-lo | Interface | [ui/terminal-images.spec.ts:77](../../tests/ui/terminal-images.spec.ts#L77) |
+
+### Documentação (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | tela do projeto com uma história aberta no editor | Interface | [ui/wiki-shots.spec.ts:128](../../tests/ui/wiki-shots.spec.ts#L128) |
+| 2 | Chamar: uma lista de atividades, agentes, skills e operações | Interface | [ui/wiki-shots.spec.ts:136](../../tests/ui/wiki-shots.spec.ts#L136) |
+| 3 | nota com sugestão de um assistente rápido | Interface | [ui/wiki-shots.spec.ts:144](../../tests/ui/wiki-shots.spec.ts#L144) |
+| 4 | Hudson organizando os arquivos deixados por uma execução | Interface | [ui/wiki-shots.spec.ts:159](../../tests/ui/wiki-shots.spec.ts#L159) |
+
+### Editores de documentos (UI)
+
+| # | Cenário | Tipo | Onde |
+|---|---|---|---|
+| 1 | edição e comentários Office nativos, HTML executável isolado e atalho da IDE na barra fixa funcionam no app | Interface | [ui/workspace-features.spec.ts:12](../../tests/ui/workspace-features.spec.ts#L12) |

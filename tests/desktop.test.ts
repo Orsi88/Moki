@@ -736,6 +736,28 @@ test('a run records the activity it came from; the requests and the tree show it
   }
 });
 
+test('a run shows its title and only its deliverables in the tree: outputs come up, its state, inputs, logs and empty folders stay out', () => {
+  const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
+  const id = '20261109-1500-requirements-review-us-12';
+  const dir = join(runs, id);
+  for (const sub of ['inputs', 'logs', 'work', 'outputs', 'evidence', 'empty']) mkdirSync(join(dir, sub), { recursive: true });
+  writeFileSync(join(dir, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', skill: 'requirements-review', title: 'Revisão da US-12', status: 'completed', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x' }));
+  writeFileSync(join(dir, 'inputs', 'us-12.md'), 'x');
+  writeFileSync(join(dir, 'logs', 'publication.jsonl'), '{}');
+  writeFileSync(join(dir, 'work', 'draft.md'), 'x');
+  writeFileSync(join(dir, 'outputs', 'final-report.md'), '# Report');
+  writeFileSync(join(dir, 'evidence', 'print.png'), 'x');
+  try {
+    const node = service.tree('acme').find((n) => n.name === 'runs')?.children?.find((n) => n.name === id);
+    assert.equal(node?.run?.title, 'Revisão da US-12');
+    assert.deepEqual(node?.children?.map((c) => c.path).sort(), [`runs/${id}/evidence`, `runs/${id}/outputs/final-report.md`]);
+    assert.ok(existsSync(join(dir, 'logs', 'publication.jsonl'))); // out of sight, not deleted
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
 test('project settings keep the name, the description\'s lines, the defaults and the instructions at start; a default agent is turned on', () => {
   const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
   const before = readFileSync(file, 'utf8');
@@ -832,11 +854,13 @@ test('npm run new-run records --activity, and refuses an activity the project do
     writeFileSync(join(ws, 'projects', 'loja', 'project.json'), JSON.stringify({ project: 'loja', name: 'Loja' }));
     const run = (...extra: string[]) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', 'carrinho', ...extra],
       { cwd: ROOT, env: { ...process.env, QA_WORKSPACE: ws }, encoding: 'utf8' });
-    const ok = run('--activity', 'tests');
+    const ok = run('--activity', 'tests', '--title', '  Casos do   carrinho ');
     assert.equal(ok.status, 0, ok.stderr);
     const dir = readdirSync(join(ws, 'projects', 'loja', 'runs'))[0];
     assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).activity, 'tests');
-    for (const sub of ['inputs', 'outputs', 'evidence', 'logs', 'work']) assert.ok(existsSync(join(ws, 'projects', 'loja', 'runs', dir, sub)), sub); // work/: helper files, never deliverables
+    assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).title, 'Casos do carrinho');
+    // The run starts with its state only: folders are made when a file goes there, never empty.
+    assert.deepEqual(readdirSync(join(ws, 'projects', 'loja', 'runs', dir)), ['state.json']);
     assert.equal(JSON.parse(readFileSync(join(ws, 'projects', 'loja', 'runs', dir, 'state.json'), 'utf8')).terminal, undefined, 'outside a Moki terminal: no terminal');
     // Inside a Moki terminal, the run records which one (QA_TERMINAL); anything else is ignored.
     const inTerminal = (value: string, slug: string) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'new-run.mjs'), '--project', 'loja', '--skill', 'test-design', '--slug', slug],
@@ -3127,6 +3151,17 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal(existsSync(install![2]), false); // the download is removed
     assert.ok(runs.some((a) => a[0] === 'code' && a[1] === root));
     assert.equal((await svc.aiTools()).find((s) => s.id === 'vscode')?.extension, '9.9.9');
+  });
+
+  test('IDE shortcut installs once and reuses the matching companion on later opens', async () => {
+    const { svc, runs, urls } = mk();
+    await svc.openMokiInEditor('vscode', 'acme');
+    const downloads = urls.length;
+    await svc.openMokiInEditor('vscode', 'acme');
+    assert.equal(urls.length, downloads);
+    assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
+    assert.equal(runs.filter((a) => a[0] === 'code' && a[1] === root).length, 2);
+    await assert.rejects(svc.openMokiInEditor('../code', 'acme'), /does not take/);
   });
 
   test('my AIs: only installed editors that take the extension, and only a vsix GitHub vouches for', async () => {

@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Download Moki for Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe">Moki.Setup.0.5.2.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe">Moki.Setup.0.5.3.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
 
@@ -20,11 +20,11 @@ It started as software quality work: review a story, design tests, look at a fai
 
 ## Install
 
-1. Download [Moki.Setup.0.5.2.exe](https://github.com/Orsi88/moki/releases/download/v0.5.2/Moki.Setup.0.5.2.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
+1. Download [Moki.Setup.0.5.3.exe](https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
 2. If Windows says it protected your PC, choose **More info → Run anyway**. The installer is not digitally signed yet.
 3. Install an AI tool too (Claude Code, Cursor, Codex, Gemini, or a chat you already use).
 
-For VS Code, download [moki-0.5.2.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.2/moki-0.5.2.vsix) and run `code --install-extension moki-0.5.2.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
+For VS Code, download [moki-0.5.3.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.3/moki-0.5.3.vsix) and run `code --install-extension moki-0.5.3.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
 
 Your projects live in **Documents\Moki**, and a newer installer never touches them. macOS, Linux and running from the source: [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
@@ -49,12 +49,13 @@ Your projects live in **Documents\Moki**, and a newer installer never touches th
 
 Agents chain these into **multi-agent operations**, MCP servers give the AI your tools (Playwright, Azure DevOps, Jira…), and the **VS Code extension** brings the project's context to the AI of your editor.
 
-## New in 0.5.2
+## New in 0.5.3
 
-- **The complete agent catalog.** Sherlock investigates with sources; Moriarty challenges deliverables; Watson organizes, designs and checks documents with Mermaid and editable Excalidraw; Lestrade prepares tracker items using the type and template you choose. All have activities in the app. See [QA skills and agents](docs/qa-skills.md).
-- **MF reviews and trackers.** Read Azure DevOps/Jira items, check changes at the start and resume, review requirements in rounds, and publish only the exact preview you approve. Item registration asks the type first and follows its project template. See [Azure DevOps and Jira](docs/trackers.md).
-- **The New menu stays visible.** The + menu and its submenus stay inside the window when opened near the edge.
-- **Engineering and project links.** Includes Cartógrafo, Inventor, Artesão and Sentinela, plus precise links to sections, comments and PDF pages, copying references and Ctrl+click navigation from terminals. See [Engineering specialists](docs/engineering-specialists.md) and [Project links](docs/internal-links.md).
+- **Word and Excel in the editor.** Edit text, cell values and formulas, keep the original styles, and add native comments. Click a comment to return to its paragraph or cell. Convert older .doc/.xls files into a new editable copy. See [Files and the editor](docs/files-and-editor.md).
+- **Interactive HTML previews.** Run a local page with its scripts and assets, switch viewport sizes and comment on selected passages. The page stays isolated; comments stay in the project without changing the HTML source.
+- **Notes, tools and project skills.** Improve notes with quick assistants, send notes and context to an AI terminal, and invoke the project's skills and agents from its side panel. The cat icon above New note opens Moki in your IDE and installs or updates its extension when needed.
+- **Hudson and clearer controls.** Review Hudson's organization suggestions before applying them, with a clear result when everything can stay as it is. Document controls share one compact bar, and comment panels can be closed.
+- **A new bilingual wiki.** Focused guides, updated screenshots and a tour of the app in English and Portuguese. Memory reporting separates Moki from AI processes, and search and PDF previews use less memory.
 
 ## Documentation
 
@@ -62,13 +63,19 @@ The full documentation is in the [wiki](https://github.com/Orsi88/moki/wiki):
 
 | Guide | What is in it |
 |---|---|
+| [What is Moki](https://github.com/Orsi88/moki/wiki/What-is-Moki) | The idea, the words you will see, how Moki behaves |
 | [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started) | Install, workspaces, projects, running from the source |
-| [Using Moki](https://github.com/Orsi88/moki/wiki/Using-Moki) | Inside a project, opening the AI tool, settings, tags, coming back later, where things live |
+| [A tour of the screen](https://github.com/Orsi88/moki/wiki/A-tour-of-the-screen) | Every part of the window, explained |
+| [Projects and workspaces](https://github.com/Orsi88/moki/wiki/Projects-and-workspaces) | Context, tags, sharing, coming back later, where things live |
+| [Notes and quick assistants](https://github.com/Orsi88/moki/wiki/Notes-and-quick-assistants) | Notes, and improving them with the AI in one click |
+| [Calling activities, agents and skills](https://github.com/Orsi88/moki/wiki/Calling-activities,-agents-and-skills) | Everything **Call…** can do, and the activities that come with Moki |
+| [Runs and deliverables](https://github.com/Orsi88/moki/wiki/Runs-and-deliverables) | What the AI delivers, and Hudson, who organizes it |
 | [QA skills and agents](https://github.com/Orsi88/moki/wiki/QA-skills-and-agents) | The activities, their status, your own skills |
 | [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) | Agents, contracts and multi-agent operations |
 | [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) | The tools the AI gets, per project |
 | [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE) | The VS Code extension: install, configure, every way to use it |
 | [Troubleshooting](https://github.com/Orsi88/moki/wiki/Troubleshooting) | Common problems and what to do |
+| [Credits and licenses](https://github.com/Orsi88/moki/wiki/Credits-and-licenses) | The open-source projects Moki is built with — thank you |
 
 The wiki is published from [docs/](docs/), where the documentation is edited.
 
