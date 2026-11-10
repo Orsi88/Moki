@@ -17,6 +17,7 @@ import { preferredTool } from '../prefs';
 import { isFavorite, looseNotes, noteTitle, removeLooseNote, saveLooseNote, setFavorite, touchNote, type NoteRef } from '../side-menu';
 import { ActivityCatalog } from './ActivityCatalog';
 import { LazyTipTap } from './LazyTipTap';
+import { AssistButtons, AssistPanel, useNoteAssist } from './NoteAssist';
 import type { TipTapCommand, TipTapHandle } from './TipTapEditor';
 import { DiagramSourceEditor } from './DiagramSourceEditor';
 import { CatIcon } from './CatIcon';
@@ -197,6 +198,8 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     now.dirty = loose ? value !== now.saved || now.title !== now.savedTitle : value !== now.saved;
     setText(value);
   };
+  // The quick assistants: an accepted suggestion is an edit like any other, saved on its own.
+  const assist = useNoteAssist({ text, onApply: edit });
   const persist = (): Promise<NoteRef | null> => {
     flushEdits();
     const run = queue.current.catch(() => null).then(async (): Promise<NoteRef | null> => {
@@ -529,6 +532,8 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
           {tool_(IMAGE_ICON, t('Image (paste or drop it too)'), () => picker.current?.click())}
           {tool_('@', t('Mention a project file'), act('mention', () => insert('@')))}
           <span className="statusbar-spacer" />
+          <AssistButtons assist={assist} empty={!text.trim()} />
+          <span className="sep" />
           <button type="button" className={`icon-btn note-ai-toggle${ai ? ' on' : ''}`} onClick={() => setAi((v) => !v)} aria-expanded={ai} title={t('Use this note with the AI')}>
             <IconPlay size={14} /> <span>{t('Use with the AI')}</span>
           </button>
@@ -537,6 +542,8 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
             : <button type="button" className="icon-btn" onClick={() => setMode('edit')} title={t('Markdown source')}><IconEdit size={17} /></button>}
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void addImages(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
         </div>
+
+        <AssistPanel assist={assist} text={text} project={target} path={curPath} onMyAis={onMyAis} />
 
         {ai && (
           <div className="note-ai">
