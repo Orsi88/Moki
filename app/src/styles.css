@@ -488,6 +488,7 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tab-term.exited > svg, .tab-term.exited .tab-name { color: var(--faint); }
 .term-pane { flex: 1; min-height: 0; padding: 6px 0 0 10px; background: var(--cli-bg); color: var(--cli-text); }
 .term-pane[hidden] { display: none; }
+.term-pane.term-drop { outline: 2px dashed var(--cli-accent); outline-offset: -4px; } /* files dragged over: they go to the AI as paths */
 .menu-backdrop { position: fixed; inset: 0; z-index: 20; }
 .term-menu { position: fixed; min-width: 260px; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
 .term-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 0.88rem; text-align: left; cursor: pointer; }

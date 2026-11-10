@@ -16,7 +16,7 @@
 
 **This terminal** pastes at the current cursor without sending or clearing your draft. Add context and press Enter when ready. It requires a running AI terminal in this project. **New terminal** lets you choose the AI tool; your default comes from **Settings › My AIs**, and a different choice applies only to this request.
 
-Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent open in a terminal tab. Cursor and VS Code open the folder with the request copied. Web chats and *Just show the request* prepare text to copy. An operation always opens its own start form because every step uses its own terminal; its list entry explains this.
+Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent open in a terminal tab. Paste a screenshot there (Ctrl+V) and it is saved in the project's `temporary/pasted/` and its path typed in the prompt, so the AI reads the image; files dragged onto the terminal, from the computer or the project tree, are typed by their path. Cursor and VS Code open the folder with the request copied. Web chats and *Just show the request* prepare text to copy. An operation always opens its own start form because every step uses its own terminal; its list entry explains this.
 
 To talk through an idea, choose an agent in **Call…** and add the subject as an optional note. No run starts unless its procedure or your request calls for one.
 

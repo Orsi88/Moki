@@ -1837,6 +1837,31 @@ export function createService(root: string, deps: Deps) {
       return path;
     },
 
+    // The full path of a project file, for an AI terminal (a file dragged from the tree onto it).
+    fullPath: (project: string, rel: unknown) => {
+      const path = projectPath(project, rel);
+      if (!existsSync(path)) throw new ServiceError('File not found.');
+      return path;
+    },
+
+    // An image pasted into an AI terminal: kept in temporary/pasted/ (emptied with the temporary folder), so the
+    // AI gets a file path it can read. Returns the full path.
+    savePastedImage: (project: string, data: unknown, type: unknown) => {
+      projectDir(project);
+      const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' } as Record<string, string>)[String(type)];
+      const bytes = data instanceof Uint8Array ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (!ext || !bytes || !bytes.length) throw new ServiceError('Paste an image (PNG, JPEG, GIF or WebP).');
+      if (bytes.length > IMAGE_LIMIT) throw new ServiceError('Image too large to paste.');
+      const folder = projectPath(project, 'temporary/pasted');
+      mkdirSync(folder, { recursive: true });
+      const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+      let name = `print-${stamp}.${ext}`;
+      for (let n = 2; existsSync(join(folder, name)); n++) name = `print-${stamp}-${n}.${ext}`;
+      const file = join(folder, name);
+      writeFileSync(file, bytes);
+      return file;
+    },
+
     // "Choose my folder": links a folder of this machine (chosen in the native dialog) to the project.
     // Only project.json changes; the folder's AI settings are backed up inside it, nothing else in it is touched.
     linkRepository: async (project: string) => {
