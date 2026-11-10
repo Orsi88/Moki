@@ -5,7 +5,7 @@ import { api, describeRun, statusLabel, type OpenRun, type ProjectSummary, type 
 import { t } from '../i18n';
 import { preferredTool } from '../prefs';
 import { IconChevron, IconGraph, IconPanel, IconPlay, IconSliders } from './Icons';
-import { AiPick, QUICK_KINDS } from './ToolCatalog';
+import { QUICK_KINDS } from './ToolCatalog';
 
 interface Props {
   project: ProjectSummary;
@@ -34,11 +34,8 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
   const [planPending, setPlanPending] = useState(false); // the AI left a plan.json to review
   const [descriptionOpen, setDescriptionOpen] = useState(false); // the whole description, read-only
   const quick = tools.filter((x) => x.available && QUICK_KINDS.includes(x.kind));
-  // Starts on the default AI (Settings › My AIs); another choice here is for this panel only.
-  // It is the one AI of the card: calling an agent and starting an activity use the same pick.
-  const [toolId, setToolId] = useState('');
-  const tool = quick.find((x) => x.id === toolId) ?? preferredTool(quick);
-  const [launchMsg, setLaunchMsg] = useState('');
+  // The default AI (Settings › My AIs) comes preselected in the Call flow, where it is chosen.
+  const tool = preferredTool(quick);
 
   useEffect(() => {
     if (runId) api.run(project.id, runId).then(setRun).catch(() => setRun(null));
@@ -49,8 +46,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
     api.openRuns(project.id).then(setRuns).catch(() => setRuns([]));
     api.readPlan(project.id).then((p) => setPlanPending(Boolean(p && !p.approved))).catch(() => setPlanPending(false));
   }, [project.id, refreshKey]);
-
-  const pickTool = (id: string) => { setToolId(id); setLaunchMsg(''); };
 
   const prefix = `workspace/projects/${project.id}/`;
   const local = (p: string) => (p.startsWith(prefix) ? p.slice(prefix.length) : null);
@@ -67,7 +62,6 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
         {needsYou.length > 0 && (
           <button type="button" className="rail-badge" onClick={onToggle} title={t('{n} need you', { n: needsYou.length })}>{needsYou.length}</button>
         )}
-        {launchMsg && <span className="rail-msg-dot" title={launchMsg} />}
       </aside>
     );
   }
@@ -144,9 +138,7 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
         <button type="button" className="btn btn-block" onClick={() => onLaunch({ tool: tool?.id })} title={t('Call… (Ctrl+Shift+K / ⌘⇧K)')}>
           <IconPlay size={15} /> {t('Call…')}
         </button>
-        {tool ? <AiPick label={t('In')} tools={tools} value={tool.id} onChange={pickTool} onInstall={onMyAis} />
-          : <p className="pp-hint">{t('No AI tool found on this computer.')} <button type="button" className="link" onClick={onMyAis}>{t('Install in Settings › My AIs')}</button></p>}
-        {launchMsg && <p className="pp-msg" role="status">{launchMsg}</p>}
+        {!tool && <p className="pp-hint">{t('No AI tool found on this computer.')} <button type="button" className="link" onClick={onMyAis}>{t('Install in Settings › My AIs')}</button></p>}
       </section>
 
       {needsYou.length > 0 && (
