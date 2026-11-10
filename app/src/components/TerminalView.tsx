@@ -5,20 +5,22 @@
 // Closing its tab (Workspace) is what stops it. The xterm.js terminal (and its scrollback) is only
 // created when the tab is first shown; until then the output is kept as plain text.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css'; // only the styles are static (a side-effect import needs no types); the code loads when a tab is first shown
 import { api } from '../api';
 import { t } from '../i18n';
+import { acceptsItem, droppedItem, ITEM_DRAG } from '../item-drag';
 import { terminalPaths } from '../terminal-links';
 
-interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void }
+interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void; onDropItem?: (target: { kind: 'skill' | 'agent'; name: string }) => void }
 
 const css = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const KEEP = 128 * 1024; // as much plain output as the main process keeps (desktop/terminals.ts), for a tab not shown yet
 
-export function TerminalView({ id, project, active, onExit, resolveLink, onLink }: Props) {
+export function TerminalView({ id, project, active, onExit, resolveLink, onLink, onDropItem }: Props) {
+  const [over, setOver] = useState(false); // a skill or agent of the panel is above this terminal
   const links = useRef({ resolveLink, onLink });
   links.current = { resolveLink, onLink };
   const box = useRef<HTMLDivElement>(null);
@@ -130,5 +132,23 @@ export function TerminalView({ id, project, active, onExit, resolveLink, onLink 
     view.current.term.focus();
   }, [active]);
 
-  return <div ref={box} className="term-pane" hidden={!active} />;
+  // A skill or an agent dragged from the project panel (item-drag.ts). On this container, not on xterm: the events of its
+  // canvas bubble up to here. Files and anything else are not ours: left alone, so the workspace's own drop still works.
+  const mine = (e: DragEvent) => acceptsItem(Array.from(e.dataTransfer.types), project);
+  const drop = (e: DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes(ITEM_DRAG)) return;
+    e.preventDefault();
+    setOver(false);
+    const target = droppedItem(e.dataTransfer.getData(ITEM_DRAG), project);
+    if (!target) return;
+    box.current?.querySelector('textarea')?.focus();
+    onDropItem?.(target);
+  };
+  return (
+    <div ref={box} className={`term-pane${over ? ' item-over' : ''}`} data-term={id} hidden={!active}
+      onDragEnter={(e) => { if (mine(e)) { e.preventDefault(); setOver(true); } }}
+      onDragOver={(e) => { if (mine(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
+      onDrop={drop} />
+  );
 }

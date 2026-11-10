@@ -9,7 +9,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildStartPrompt, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
+  CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildInvokePrompt, buildStartPrompt, type InvokeTarget, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
   listRuns, listSkills, openRuns, projectAgentsDir, projectRepository, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
@@ -32,6 +32,8 @@ import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favo
 import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
+import { artcraftSkills as artcraftSkillsOf, linkedGlobalSkills as linkedSkillsOf, projectItems as listProjectItems, type ProjectItem } from '../scripts/lib/project-items.ts';
+import { PATTERNS as SECRET_PATTERNS } from '../scripts/lib/secret-patterns.mjs';
 import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
@@ -342,8 +344,7 @@ export function createService(root: string, deps: Deps) {
   const globalAgentsDir = join(home, '.claude', 'agents');
 
   // Moki's own ArtCraft skills (the ones the built-in artcraft agents use) can be linked to a project like global skills.
-  const artcraftSkills = () => [...new Set(listAgents(root).filter((a) => a.source === 'builtin' && a.category === 'artcraft').flatMap((a) => a.skills))]
-    .filter((n) => isUsable(n, root)).sort();
+  const artcraftSkills = () => artcraftSkillsOf(root);
   const linkableSkills = () => new Set([...globalSkillDirs.flatMap(skillFolders), ...artcraftSkills()]);
 
   // A project's defaults: activities it sees (not the app's own actions), usable agents and skills, operations that exist.
@@ -423,13 +424,8 @@ export function createService(root: string, deps: Deps) {
     return join(globalAgentsDir, `${String(name)}.md`);
   };
 
-  // Global and ArtCraft skills the project links by name (project.json linkedSkills); skills no longer installed are left out.
-  // ArtCraft skills are named relative to the framework root, where AI tools start.
-  const linkedGlobalSkills = (project: string) => projectSummary(project, root).linkedSkills.flatMap((name) => {
-    const base = globalSkillDirs.find((dir) => skillFolders(dir).includes(name));
-    if (base) return [{ name, path: join(base, name, 'SKILL.md') }];
-    return artcraftSkills().includes(name) ? [{ name, path: `skills/${name}/SKILL.md` }] : [];
-  });
+  // Global and ArtCraft skills the project links by name, as the requests name them (scripts/lib/project-items.ts).
+  const linkedGlobalSkills = (project: string) => linkedSkillsOf(project, root, home);
 
   // Skill and agent folders of each install scope. `label` is how agents name the skills folder:
   // relative to the framework root for a project (where AI tools start), absolute for global.
@@ -495,8 +491,9 @@ export function createService(root: string, deps: Deps) {
     agents: new Set(listAgents(root).filter((a) => a.source === 'builtin').map((a) => a.name)),
     activities: new Set(listActivities(root).filter((a) => a.source !== 'library').map((a) => a.id)),
   });
-  // "bring" (a project's settings): everything goes where the workspace keeps it - skills for all projects, the
-  // person's agents and activities - linked to the project (its tag, its linked skills), so both settings show it.
+  // "bring" (a project's settings, "All projects"): everything goes where the workspace keeps it, for every project -
+  // skills in the user folders, the person's agents and activities without a tag - and is linked to the project it
+  // came from (its linked skills, library/uploads.json), so the project and the workspace settings both show it.
   const uploadFolders = (id: string, scope: unknown) => {
     if (scope !== 'bring') return scopeFolders(id, scope);
     projectDir(id);
@@ -515,7 +512,7 @@ export function createService(root: string, deps: Deps) {
     const items = upload.entries.map((e) => {
       const taken = !e.blocked && uploadTaken(e, f, scope);
       return {
-        kind: e.kind, name: e.name, description: e.description.slice(0, 300), files: e.files.length, bytes: e.files.reduce((n, x) => n + x.data.length, 0),
+        kind: e.kind, name: e.name, from: e.from, description: e.description.slice(0, 300), files: e.files.length, bytes: e.files.reduce((n, x) => n + x.data.length, 0),
         discarded: e.discarded, blocked: e.blocked ?? (taken ? { reason: 'installed' as const } : undefined),
       };
     });
@@ -872,6 +869,53 @@ export function createService(root: string, deps: Deps) {
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, prompt, tool };
   }
+
+  // What the project panel's ▶ and "Use in the terminal" send (scripts/lib/core.ts, buildInvokePrompt). The path of a skill or
+  // an agent comes from the project's own list (scripts/lib/project-items.ts), never from the UI; a file only from Context or Notes.
+  const MAX_INVOKE_FILES = 20;
+  const INVOKE_FILE_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm', '.pdf', '.docx', '.xlsx', '.pptx']);
+  const SCANNED_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm']); // text: read for credentials; the Office files and PDFs are not
+  const SCAN_LIMIT = 2 * 1024 * 1024;
+  const invokeFile = (project: string, rel: unknown): string => {
+    const file = projectPath(project, rel);
+    const local = posix(relative(realpathSync(projectDir(project)), file));
+    if (!/^(context|notes)\//.test(local) || local.split('/').some((part) => part.startsWith('.'))) throw new ServiceError('Only files of Context and Notes can be used this way.');
+    if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('File not found.');
+    const ext = extname(file).toLowerCase();
+    if (!INVOKE_FILE_TYPES.has(ext)) throw new ServiceError('This kind of file cannot be used this way.');
+    if (SCANNED_TYPES.has(ext)) {
+      if (statSync(file).size > SCAN_LIMIT) throw new ServiceError('File too large to check for credentials.');
+      const text = readFileSync(file, 'utf8');
+      const hit = (SECRET_PATTERNS as [string, RegExp][]).find(([, re]) => re.test(text));
+      if (hit) throw new ServiceError(`${local} looks like it holds a credential (${hit[0]}): it is not sent to an AI.`);
+    }
+    return `${workspaceLabel(root)}/projects/${project}/${local}`;
+  };
+  const invokePrompt = (project: unknown, raw: unknown, language: unknown): string => {
+    const id = isProject(project, root) ? project : null;
+    if (!id) throw new ServiceError('Unknown project.');
+    const r = (raw ?? {}) as { kind?: unknown; name?: unknown; paths?: unknown };
+    let target: InvokeTarget;
+    if (r.kind === 'file') {
+      const paths = Array.isArray(r.paths) ? [...new Set(r.paths.map(String))] : [];
+      if (!paths.length || paths.length > MAX_INVOKE_FILES) throw new ServiceError(`Choose from 1 to ${MAX_INVOKE_FILES} files.`);
+      target = { kind: 'file', paths: paths.map((p) => invokeFile(id, p)) };
+    } else if (r.kind === 'skill' || r.kind === 'agent') {
+      const item = listProjectItems(id, root, home).find((i) => i.kind === r.kind && i.name === r.name);
+      if (!item || item.missing) throw new ServiceError(`This ${r.kind} is not available in this project.`);
+      target = { kind: item.kind, name: item.name, path: item.path };
+    } else throw new ServiceError('Unknown kind.');
+    return buildInvokePrompt({ project: id, target, language: LANGUAGES.includes(String(language)) ? String(language) : 'English',
+      repository: projectRepository(id, root), workspace: workspaceLabel(root) });
+  };
+  // Where a skill or agent file is in the app: relative to the project, "@folder/…" in its linked folder; undefined elsewhere (not opened here).
+  const appPathOf = (project: string, path: string): string | undefined => {
+    const own = `${workspaceLabel(root)}/projects/${project}/`;
+    if (path.startsWith(own)) return path.slice(own.length);
+    const linked = projectRepository(project, root);
+    const prefix = linked ? `${linked.split(sep).join('/')}/` : '';
+    return prefix && path.startsWith(prefix) ? `${LINKED}/${path.slice(prefix.length)}` : undefined;
+  };
 
   return {
     session: () => ({ version: appVersion(), platform: process.platform }),
@@ -2052,9 +2096,10 @@ export function createService(root: string, deps: Deps) {
       const bring = scope === 'bring';
       const repo = bring ? '' : linkedWrite(id, scope, allowClaudeWrite, 'install');
       const f = uploadFolders(id, scope);
-      // An activity brought to (or uploaded for) a project gets its tag; one for all projects gets none.
-      const activityTags = scope === 'global' ? [] : [projectTag(id)];
-      const entries = (upload as Scan).entries.filter((e) => keys.includes(`${e.kind}:${e.name}`));
+      // An activity kept only for a project gets its tag; one for all projects (global or brought) gets none.
+      const activityTags = scope === 'project' ? [projectTag(id)] : [];
+      // A repeated agent name is blocked in the scan and shares its key with the one offered: install only the latter.
+      const entries = (upload as Scan).entries.filter((e) => !e.blocked && keys.includes(`${e.kind}:${e.name}`));
       const backup = repo ? backupAiConfig(backupsDir(id), repo, 'claude', ['.claude']) : undefined;
       // Everything is new (installed names are blocked), so undoing a failure is removing what was created.
       const created: string[] = [];
@@ -2080,7 +2125,7 @@ export function createService(root: string, deps: Deps) {
             const saved = saveLibraryActivity(e.name, activityMarkdown({ ...activity, tags: activityTags }), root);
             if (saved.path) { created.push(saved.path); folders.push(saved.path); }
           } else if (bring) {
-            // One of the person's agents, in Moki's format, reaching this project by its tag.
+            // One of the person's agents, in Moki's format, without a tag: it reaches every project.
             const { text, category } = libraryAgentText(e.files[0].data.toString('utf8'), e.name);
             const dir = join(f.agents, category);
             make(dir);
@@ -2103,8 +2148,8 @@ export function createService(root: string, deps: Deps) {
       }
       upload = null;
       if (bring) {
-        // Linked to the project, as its settings would do: agents by its tag, skills by name; then remembered as brought.
-        for (const i of installed.filter((x) => x.kind === 'agent')) setAgentTags(i.name, [projectTag(id)], root);
+        // Linked to the project it came from: skills by name (agents and activities have no tag, they are for all);
+        // then remembered as brought (library/uploads.json: the project panel lists the agents from it).
         const skills = installed.filter((x) => x.kind === 'skill').map((x) => x.name);
         if (skills.length) {
           const file = join(projectDir(id), 'project.json');
@@ -2294,10 +2339,11 @@ export function createService(root: string, deps: Deps) {
         } catch { /* not available now: start as the other defaults do */ }
       }
       const prompt = buildStartPrompt({ project, defaults: summary.defaults, instructions: summary.startInstructions, language: lang,
-        repository: projectRepository(project, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(project), root });
+        repository: projectRepository(project, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(project), items: listProjectItems(project, root, home), root });
       if (!prompt) return { prompt: '', label: '', several: false };
       const names = set.map((d) => (d.kind === 'activity' ? listActivities(root, project).find((a) => a.id === d.id)?.label ?? d.id : d.id));
-      return { prompt, label: names.length === 1 ? names[0] : '', several: names.length !== 1 };
+      // Only the skills and agents the AI is told about (nothing set as a default, no instructions): the tab says nothing.
+      return { prompt, label: names.length === 1 ? names[0] : '', several: names.length ? names.length > 1 : Boolean(summary.startInstructions.trim()) };
     },
 
     openGlobal: (kind: unknown, name: unknown) => {
@@ -2359,6 +2405,24 @@ export function createService(root: string, deps: Deps) {
       if (!targets) throw new ServiceError('Unknown kind.');
       for (const t of targets) await trash(t);
       return true;
+    },
+
+    // The skills and agents the project uses (the project panel's section; projectItems above is what is installed in it). `open`: the file in the app, when it is the project's.
+    usedItems: (project: unknown): (ProjectItem & { open?: string })[] => {
+      projectDir(project); // unknown projects are refused
+      const id = String(project);
+      return listProjectItems(id, root, home).map((i) => ({ ...i, ...(i.path && appPathOf(id, i.path) ? { open: appPathOf(id, i.path) } : {}) }));
+    },
+
+    // The request for a skill, an agent or files of Context and Notes ({ kind, name } or { kind: 'file', paths }), for a new AI to start with.
+    invokePrompt,
+
+    // The same request typed into a running AI terminal of the project: pasted, never submitted.
+    invokeItem: (project: unknown, target: unknown, language: unknown, terminalId: unknown) => {
+      if (typeof terminalId !== 'string') throw new ServiceError('Choose a running AI terminal in this project.');
+      const prompt = invokePrompt(project, target, language);
+      if (!deps.pasteRequest?.(String(project), terminalId, prompt)) throw new ServiceError('Choose a running AI terminal in this project.');
+      return { prepared: true, prompt };
     },
 
     invokeInTerminal: (req: LaunchRequest, terminalId: unknown) => {

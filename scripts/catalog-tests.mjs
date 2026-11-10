@@ -20,23 +20,23 @@ const I = 'Integration';
 const RULES = {
   'project-watch.test.ts': [[/./, 'Files and confinement', U]],
   'desktop.test.ts': [
-    [/^projects and project creation|^project name and description|^deleting a project|^tree lists/, 'Projects', I],
+    [/^projects and project creation|^project name and description|^deleting a project|^tree lists|^project settings|^an AI opened in the project starts/, 'Projects', I],
     [/^fs-guard/, 'Files and confinement', U],
     [/^project ids:/, 'Files and confinement', U],
-    [/^readFile|^file access|^a file moves|^delete sends a file|^editing is limited|^files dropped|^open folder|^new files and folders|^where an item is/, 'Files and confinement', I],
+    [/^readFile|^file access|^a file moves|^delete sends a file|^editing is limited|^a save from the text|^files dropped|^open folder|^new files and folders|^where an item is|^a file or folder is renamed/, 'Files and confinement', I],
     [/^gio mime/, 'Open with', U],
     [/^"open with"/, 'Open with', I],
     [/^pdfcraft-cli|^a selection on drawn pages|^the comment cards beside a PDF/, 'PDF (PdfCraft)', U],
     [/^PdfCraft|^PDF/, 'PDF (PdfCraft)', I],
     [/^notes:|^note windows/, 'Notes', I],
     [/^MCPs:/, 'MCP servers', I],
-    [/^run details|^activity tracking/, 'Activities and runs', I],
+    [/^run details|^activity tracking|^a run records the activity|^npm run new-run|^leftovers/, 'Activities and runs', I],
     [/^launcher keeps user text/, 'Launching AI tools', U],
-    [/^launch |^install plans|^a missing installable|^run-tool:|^non-ASCII|^app plugins|^plugins per project|^terminal tabs/, 'Launching AI tools', I],
+    [/^launch |^install plans|^a missing installable|^run-tool:|^non-ASCII|^app plugins|^plugins per project|^terminal tabs|^calling into a terminal/, 'Launching AI tools', I],
     [/^tags /, 'Tags', I],
-    [/^operations/, 'Multi-agent operations', I],
+    [/^operations|^operation recipe/, 'Multi-agent operations', I],
     [/^agent library|^agents in operations|^agents per project|^agents created/, 'Agents', I],
-    [/^skill registry|^create skill|^global tab|^set up:|^blank project|^upload of skills and agents|^upload from a zip/, 'Skills and set up', I],
+    [/^skill registry|^create skill|^global tab|^set up:|^blank project|^upload of skills and agents|^upload from a zip|^bring to a project/, 'Skills and set up', I],
     [/^linked folder|^open a folder|^repository tab/, 'Linked folder', I],
     [/^markdown|^docx extraction|^spreadsheet number/, 'Rendering', U],
     [/^installer|^installed copies/, 'Installer', I],
@@ -57,6 +57,19 @@ const RULES = {
   ],
   'companion.test.ts': [[/./, 'IDE: context and MCP server', I]],
   'companion-api.test.ts': [[/./, 'IDE: panel API', I]],
+  'dialogs.test.ts': [[/./, 'Dialogs', U]],
+  'doc-check.test.mjs': [[/./, 'Rendering', U]],
+  'doc-render.test.mjs': [[/./, 'Rendering', U]],
+  'excalidraw-spec.test.mjs': [[/./, 'Rendering', U]],
+  'heading-anchors.test.ts': [[/./, 'Rendering', U]],
+  'internal-links.test.ts': [[/./, 'Rendering', U]],
+  'project-defaults.test.ts': [[/./, 'Projects', U]],
+  'run-origin.test.ts': [[/./, 'Activities and runs', U]],
+  'specialists.test.ts': [[/./, 'Agents', I]],
+  'tab-groups.test.ts': [[/./, 'Tabs and views', U]],
+  'workspace-view-state.test.ts': [[/./, 'Tabs and views', U]],
+  'terminal-links.test.ts': [[/./, 'Launching AI tools', U]],
+  'theme.test.ts': [[/./, 'Theme', U]],
   'tags.test.ts': [[/./, 'Tags', U]],
   'tool-path.test.ts': [[/./, 'Finding the AI tools', U]],
   'md-comments.test.ts': [[/./, 'Rendering', U]],
@@ -121,7 +134,7 @@ const blockName = (b) => { const n = b.replace(/^Moki /, ''); return `${n.charAt
 for (const t of scan('tests/ui/app.spec.ts')) rows.push({ ...t, file: 'tests/ui/app.spec.ts', area: blockName(t.block), kind: 'Interface' });
 
 // Areas in reading order: the app's main objects first, then the IDE, then the framework and tooling.
-const ORDER = ['Projects', 'Files and confinement', 'Open with', 'PDF (PdfCraft)', 'Notes', 'Rendering', 'Search', 'Workspaces', 'Tags', 'Launching AI tools', 'Finding the AI tools', 'Activities', 'Favorites', 'Activities and runs', 'Agents', 'Multi-agent operations', 'Skills and set up', 'Linked folder', 'MCP servers', 'App bridge (IPC)', 'Installer', 'Status bar usage', 'Translations', 'IDE: panel API', 'IDE: context and MCP server', 'IDE icon', 'Framework', 'Documentation'];
+const ORDER = ['Projects', 'Files and confinement', 'Open with', 'PDF (PdfCraft)', 'Notes', 'Rendering', 'Search', 'Workspaces', 'Tabs and views', 'Theme', 'Dialogs', 'Tags', 'Launching AI tools', 'Finding the AI tools', 'Activities', 'Favorites', 'Activities and runs', 'Agents', 'Multi-agent operations', 'Skills and set up', 'Linked folder', 'MCP servers', 'App bridge (IPC)', 'Installer', 'Status bar usage', 'Translations', 'IDE: panel API', 'IDE: context and MCP server', 'IDE icon', 'Framework', 'Documentation'];
 const rank = (a) => { const i = ORDER.indexOf(a); return i < 0 ? ORDER.length : i; };
 
 // The texts of the page in each language; the scenarios stay as the test titles (English, as in the code).
@@ -152,12 +165,17 @@ const TEXT = {
       'Activities and runs': 'Atividades e execuções', Agents: 'Agentes', 'Multi-agent operations': 'Operações multiagente', 'Skills and set up': 'Skills e configuração',
       'Linked folder': 'Pasta vinculada', 'MCP servers': 'Servidores MCP', 'App bridge (IPC)': 'Ponte do app (IPC)', Installer: 'Instalador',
       'Status bar usage': 'Uso na barra de status', Translations: 'Traduções', 'IDE: panel API': 'IDE: API do painel', 'IDE: context and MCP server': 'IDE: contexto e servidor MCP',
+      'Tabs and views': 'Abas e visões', Theme: 'Tema', Dialogs: 'Diálogos',
       'IDE icon': 'Ícone da IDE', Framework: 'Framework', Documentation: 'Documentação',
       'Settings (UI)': 'Configurações (UI)', 'Tags (UI)': 'Tags (UI)', 'Workspaces (UI)': 'Workspaces (UI)', 'Project tree (UI)': 'Árvore do projeto (UI)',
       'Operations in a project (UI)': 'Operações num projeto (UI)', 'Terminals outlive the project screen (UI)': 'Terminais que continuam fora do projeto (UI)',
       'MCP servers list (UI)': 'Lista de servidores MCP (UI)', 'PDF comments (UI)': 'Comentários em PDF (UI)',
       'Finding the AI tools': 'Encontrar as ferramentas de IA', Activities: 'Atividades', 'Activities (UI)': 'Atividades (UI)', Favorites: 'Favoritos', 'Favorites (UI)': 'Favoritos (UI)', 'Settings without a project (UI)': 'Configurações sem projeto (UI)',
       'My AIs and the project panel (UI)': 'Minhas IAs e o painel do projeto (UI)',
+      'Run details panel (UI)': 'Painel de detalhes da execução (UI)', 'Tree rename (UI)': 'Renomear na árvore (UI)', 'Start screen rename (UI)': 'Renomear na tela inicial (UI)',
+      'Markdown selection (UI)': 'Seleção no Markdown (UI)', 'Comments in the editor (UI)': 'Comentários no editor (UI)', 'One view for Markdown (UI)': 'Uma visão para o Markdown (UI)',
+      'Tables in the editor (UI)': 'Tabelas no editor (UI)', 'Requests (UI)': 'Pedidos (UI)', 'Project defaults (UI)': 'Padrões do projeto (UI)',
+      'Tab groups and split views (UI)': 'Grupos de abas e visões divididas (UI)', 'ArtCraft apps download': 'Download dos apps ArtCraft',
     },
   },
 };

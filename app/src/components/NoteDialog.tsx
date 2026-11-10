@@ -46,6 +46,7 @@ interface Props {
   active?: boolean; // in a notebook: only the shown tab takes the keys
   onMyAis?: () => void; // Settings › My AIs, to install an AI not found here (not in a note window)
   onLink?: (href: string) => void;
+  onUseInTerminal?: (path: string) => void; // the saved note, for the AI terminal (main window only: a note window has no terminals)
 }
 
 const QUICK = ['terminal', 'editor'];
@@ -79,7 +80,7 @@ function imageToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis, onLink }: Props) {
+export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis, onLink, onUseInTerminal }: Props) {
   const titleId = useId();
   const container = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState('');
@@ -427,6 +428,17 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLaunching(false); }
   };
 
+  // "Use in the terminal": the saved note goes to the AI terminal in focus, or to a new one (the same as the file's menu in the tree).
+  const useInTerminal = async () => {
+    if (!project || !onUseInTerminal) return;
+    flushEdits();
+    try {
+      const done = await persist();
+      const file = done && 'path' in done ? done.path : curPath;
+      if (file) onUseInTerminal(file);
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!active || (inline && !container.current?.contains(document.activeElement))) return; // a hidden tab or an unfocused inline note
@@ -532,6 +544,11 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
           <button type="button" className={`icon-btn note-ai-toggle${ai ? ' on' : ''}`} onClick={() => setAi((v) => !v)} aria-expanded={ai} title={t('Use this note with the AI')}>
             <IconPlay size={14} /> <span>{t('Use with the AI')}</span>
           </button>
+          {onUseInTerminal && project && curPath && (
+            <button type="button" className="icon-btn" onClick={() => { void useInTerminal(); }} title={t('Use in the terminal')}>
+              <IconTerminal size={14} /> <span>{t('Use in the terminal')}</span>
+            </button>
+          )}
           {mode === 'edit'
             ? <button type="button" className="icon-btn" onClick={() => setMode('preview')} title={t('Reading view (Ctrl+E)')}><IconEye size={17} /></button>
             : <button type="button" className="icon-btn" onClick={() => setMode('edit')} title={t('Markdown source')}><IconEdit size={17} /></button>}

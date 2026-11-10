@@ -1,8 +1,8 @@
 // Skills: "Already installed" lists what each project has and what is global,
 // each row saying where it lives. "Add a skill" searches the SkillMD registry
 // or asks the AI tool to draft a proposal. Embedded (Settings › Skills › Add a skill, see
-// SkillsPage) it is only the add part, installing for every project in the user folder; the
-// dialog opened from a project also offers that project. "Plugins" turns caveman or superpowers on per project (ponytail and
+// SkillsPage) it is only the add part, starting on every project (the user folder) and also offering
+// the open project; the dialog opened from a project starts on the remembered choice. "Plugins" turns caveman or superpowers on per project (ponytail and
 // rtk are always on). Agents are not created here.
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -117,8 +117,8 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
   const [addMode, setAddMode] = useState<AddMode>('find');
   const [query, setQuery] = useState(initialQuery.slice(0, 200));
   const [preset, setPreset] = useState('');
-  const [chosen, setScope] = useState<SkillScope>(recall('qa-skill-scope') === 'global' ? 'global' : 'project');
-  const scope: SkillScope = embedded ? 'global' : chosen; // Settings is for the whole workspace: no project to choose
+  // Settings (embedded) starts on every project; the remembered choice is the project dialog's own.
+  const [scope, setScope] = useState<SkillScope>(embedded || recall('qa-skill-scope') === 'global' ? 'global' : 'project');
   const [criteria, setCriteria] = useState({ query: '', category: '' }); // of the results shown, for paging
   const [results, setResults] = useState<SkillSearchPage | null>(null);
   const listTop = useRef<HTMLDivElement>(null);
@@ -190,8 +190,8 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
 
         <div className="modal-body" role="tabpanel">
           {embedded && <p className="muted small skills-intro">{current.intro}</p>}
-          {embedded && (tab === 'add' || tab === 'library') && <p className="muted small">{t('Installed for every project, in your user folder: every AI tool finds it.')}</p>}
-          {!embedded && tab === 'add' && <div className="field inline">
+          {scope === 'global' && embedded && (tab === 'add' || tab === 'library') && <p className="muted small">{t('Installed for every project, in your user folder: every AI tool finds it.')}</p>}
+          {tab === 'add' && <div className="field inline">
             <span className="label">{t('Install for')}</span>
             <div className="choice-grid scope-grid">
               {([
@@ -199,7 +199,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
                 ['global', t('All projects'), t('your user folder, every AI tool')],
               ] as const).map(([id, title, hint]) => (
                 <label key={id} className={`choice${scope === id ? ' on' : ''}`}>
-                  <input type="radio" name="scope" disabled={writing} checked={scope === id} onChange={() => { setScope(id); remember('qa-skill-scope', id); }} />
+                  <input type="radio" name="scope" disabled={writing} checked={scope === id} onChange={() => { setScope(id); if (!embedded) remember('qa-skill-scope', id); }} />
                   <span className="choice-title">{title}</span>
                   <span className="choice-hint">{hint}</span>
                 </label>

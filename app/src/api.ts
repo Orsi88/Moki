@@ -210,9 +210,9 @@ export type SkillScope = 'project' | 'global';
 // Where an upload goes: a scope, or 'bring' (a project's settings: into the workspace, linked to the project).
 export type UploadTarget = SkillScope | 'bring';
 // Upload of skills, agents and activities from a .claude folder, a .zip or a .md (desktop/claude-import.ts). reason: why an item cannot be installed.
-export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
+export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity' | 'duplicate';
 export interface UploadItem {
-  kind: 'skill' | 'agent' | 'activity'; name: string; description: string; files: number; bytes: number; discarded: string[];
+  kind: 'skill' | 'agent' | 'activity'; name: string; from?: string; description: string; files: number; bytes: number; discarded: string[];
   blocked?: { reason: UploadBlock; detail?: string; file?: string };
 }
 export interface UploadPreview {
@@ -226,6 +226,13 @@ export interface ProjectItems {
   skills: { name: string; description: string }[];
   agents: { name: string; description: string; contract?: AgentContract }[];
 }
+// The skills and agents a project uses (the project panel's section): its own, the global ones it links and Moki's tagged for it.
+export interface UsedItem {
+  kind: 'skill' | 'agent'; name: string; scope: 'project' | 'global' | 'moki'; description: string;
+  default?: boolean; missing?: boolean; open?: string; // open: the file, in the project's own tree, when it is inside the project
+}
+// What ▶ and "Use in the terminal" send: a skill or agent by name, or files of Context and Notes by path; the service writes the request.
+export type InvokeTarget = { kind: 'skill' | 'agent'; name: string } | { kind: 'file'; paths: string[] };
 export interface GlobalItems {
   skills: { name: string; description: string; folders: string[]; linkedBy: string[] }[];
   agents: { name: string; description: string; file: string; contract?: AgentContract }[];
@@ -278,7 +285,7 @@ export interface Bridge {
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
     // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
-    create(tool: string, project?: string, options?: { plain?: boolean; language?: string }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
+    create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
     start(id: string, cols: number, rows: number, project: string): Promise<string>;
     input(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
@@ -458,6 +465,9 @@ export const api = {
   scopeAgents: (project: string, scope: SkillScope) => call<ScopeAgents>('scopeAgents', project, scope),
   createScopeAgent: (project: string, req: ScopeAgentRequest, allowClaudeWrite = false) => call<{ name: string; file: string; backup?: string }>('createScopeAgent', project, req, allowClaudeWrite),
   projectItems: (project: string) => call<ProjectItems>('projectItems', project),
+  usedItems: (project: string) => call<UsedItem[]>('usedItems', project),
+  // Pasted into a running AI terminal of the project, never submitted.
+  invokeItem: (project: string, target: InvokeTarget, language: string, terminalId: string) => call<{ prepared: boolean; prompt: string }>('invokeItem', project, target, language, terminalId),
   removeProjectItem: (project: string, kind: 'skill' | 'agent', name: string, allowClaudeWrite = false) => call<{ backup?: string }>('removeProjectItem', project, kind, name, allowClaudeWrite),
   globalItems: () => call<GlobalItems>('globalItems'),
   // name, defaults and startInstructions are written only when given.

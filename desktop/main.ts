@@ -338,9 +338,12 @@ if (!app.requestSingleInstanceLock()) {
       if (!terminals.available()) return { error: 'Terminals inside the app are not available on this computer (node-pty is not installed).' };
       if (tool === '') return { terminal: { id: terminals.prepare({ ...shellSpec(ROOT), title: 'Terminal' }), title: 'Terminal' } };
       if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].command || TOOLS[tool].clipboard) return { error: 'Unknown tool.' };
-      const opts = (options ?? {}) as { plain?: unknown; language?: unknown };
+      const opts = (options ?? {}) as { plain?: unknown; language?: unknown; invoke?: unknown };
       let start: { prompt: string; label: string; several: boolean } | null = null;
-      if (isProject(project, ROOT) && opts.plain !== true) { try { start = service.startOf(project, tool, opts.language); } catch { start = null; } }
+      if (isProject(project, ROOT) && opts.invoke !== undefined) {
+        // A skill, an agent or files of the project to start with: the service checks the target and writes the request, never the window's text.
+        try { start = { prompt: service.invokePrompt(project, opts.invoke, opts.language), label: '', several: false }; } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+      } else if (isProject(project, ROOT) && opts.plain !== true) { try { start = service.startOf(project, tool, opts.language); } catch { start = null; } }
       const started = start?.prompt ? { start: { label: start.label, several: start.several } } : {};
       // UI tests get an echo input, never a real AI. Its submission marker proves Call did not press Enter; [start] shows what it was opened with.
       if (fakeTools) {
