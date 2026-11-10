@@ -50,6 +50,8 @@ Uma **operação** sempre abre o próprio formulário de início, porque cada et
 | **Modelar dados com o Cartógrafo** | Entidades, relacionamentos, dicionários e estruturas de banco de dados. |
 | **Prototipar uma interface com o Artesão** | Um protótipo de interface funcionando, revisado no navegador. |
 
+O cartão **Skills e agentes** do painel do projeto é um atalho: o ▶ dele pede para a IA usar aquela skill ou agente, no terminal de IA em foco ou num novo.
+
 Você pode escrever **as suas próprias atividades** em **Configurações › Atividades**. Mais: [Atividades](activities.md) · [Skills de QA e agentes](qa-skills.md) · [Agentes e operações](../agents.md).
 
 ## O que acontece depois

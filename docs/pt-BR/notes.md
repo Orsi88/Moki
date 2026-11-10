@@ -19,6 +19,7 @@ A nota abre na área principal. O botão ↗ abre no **bloco de notas**, uma jan
 - **Digite `/`** para o menu de comandos, **`@`** para citar um arquivo do projeto, e **cole ou solte imagens** direto na nota.
 - **Ctrl+E** mostra o código-fonte Markdown; o botão do olho traz a nota formatada de volta.
 - A ☆ marca como favorita; as tags (numa nota de projeto) compartilham a nota com outros projetos.
+- **Usar no terminal** (o `>_` no cabeçalho de uma nota de projeto) manda a nota para a IA como contexto para o que você pedir em seguida.
 - **Exporte** uma nota de projeto como **PDF**, **Markdown** ou **texto**: uma janela pergunta onde salvar.
 - Num PDF, **Criar nota daqui** transforma uma seleção numa nota com a citação e a fonte; e uma nota pode ser **arrastada para dentro de um PDF**, entre as páginas.
 

@@ -16,7 +16,7 @@
 | 🔗 **Vincular uma pasta** | Vincula ao projeto uma pasta do computador (o código do sistema, os documentos dele); ela aparece ao vivo no topo da árvore. Fica destacado quando há pasta vinculada. |
 | ⚙️ **Configurações** | Agentes, atividades, suas IAs, operações, skills, servidores MCP e templates. Veja [Configurações](settings.md). |
 | 🔄 **Atualizar** | Lê o projeto do disco de novo. |
-| Gato **Moki na sua IDE** | Instala ou atualiza a extensão quando necessário e abre no editor escolhido. |
+| 🐾 **Moki na sua IDE** | Abre o Moki dentro do VS Code ou do Cursor, instalando ou atualizando a extensão quando precisa. Veja [Moki na IDE](ide.md). |
 | 📝 **Nova nota** (embaixo) | Uma nota avulsa, aberta na área principal — fica neste computador até você encaminhá-la a um projeto. |
 | ◧ (embaixo) | Mostra ou esconde a barra de arquivos. |
 
@@ -44,6 +44,7 @@ A barra acima de um documento tem, da esquerda para a direita: o modo de leitura
 
 - O **nome e a descrição** do projeto; os controles deslizantes abrem as **configurações do projeto**.
 - **Chamar…** — o que a IA deve fazer: atividades, agentes, skills e operações. Veja [Chamar atividades, agentes e skills](call.md).
+- **Skills e agentes** — os que o projeto tem: os próprios, as skills globais vinculadas e os padrões. Um nome abre o arquivo; o ▶ pede para a IA usá-lo.
 - **Execuções** — *Pedidos* (cada atividade que você começou e onde ela está) e *Operações*, com o que precisa de você no topo.
 
 O botão ◧ no alto recolhe o painel numa barra fina.
