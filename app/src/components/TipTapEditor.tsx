@@ -1,7 +1,7 @@
 // Formatted Markdown: TipTap reads and writes the same .md file. Images, lists and
 // typing belong to the editor. The reading view and the source editor stay as they are.
 
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
@@ -22,6 +22,11 @@ import { MokiCodeBlock } from './CodeBlockCard';
 import { IconTrash } from './Icons';
 
 const IMAGE_MAX = 1200;
+// The menus' props, made once: BubbleMenu answers a changed prop (a new object or function on each render) with a
+// transaction, and the table menu redraws on every transaction, so it fed itself and never stopped.
+const TABLE_MENU = { placement: 'top-start', offset: 8 } as const;
+const LINK_MENU = { placement: 'bottom', offset: 8 } as const;
+const IMAGE_MENU = { placement: 'top', offset: 8 } as const;
 const TYPING_PAUSE = 150; // ms: the markdown is serialized and sent to the owner once typing pauses (a note can hold ~50 images as text)
 
 // onRewrite: told once, when the file opens, if what the editor draws cannot be mapped back onto the file's own text
@@ -191,16 +196,17 @@ function TableBubble({ editor }: { editor: Editor }) {
   );
   const headerWhy = t('the first row is the table\'s header');
   // Above the whole table, not above the caret: there it would cover the row above, whose cells could not be clicked.
-  const tableBox = () => {
+  const tableBox = useCallback(() => {
     const at = editor.view.domAtPos(editor.state.selection.from).node;
     const table = (at instanceof Element ? at : at.parentElement)?.closest('table');
     if (!table) return null;
     const box = table.getBoundingClientRect();
     return { getBoundingClientRect: () => box, getClientRects: () => [box] };
-  };
+  }, [editor]);
+  const inTable = useCallback(() => editor.isActive('table') && !editor.isActive('link') && !editor.isActive('image'), [editor]);
   return (
-    <BubbleMenu editor={editor} pluginKey="tableMenu" shouldShow={() => editor.isActive('table') && !editor.isActive('link') && !editor.isActive('image')}
-      getReferencedVirtualElement={tableBox} options={{ placement: 'top-start', offset: 8 }}>
+    <BubbleMenu editor={editor} pluginKey="tableMenu" shouldShow={inTable}
+      getReferencedVirtualElement={tableBox} options={TABLE_MENU}>
       <div className="image-bubble table-bubble" role="toolbar" aria-label={t('Table')}>
         <span className="table-bubble-label">{t('Row')}</span>
         {button(t('Add a row above'), '+↑', (c) => c.addRowBefore(), !header && editor.can().addRowBefore(), headerWhy)}
@@ -261,8 +267,9 @@ function LinkBubble({ editor, onLink = openLink }: { editor: Editor; onLink?: (h
     if (event.key === 'Enter') { event.preventDefault(); apply(value); }
     event.stopPropagation();
   };
+  const atLink = useCallback(() => editor.isActive('link'), [editor]);
   return (
-    <BubbleMenu editor={editor} pluginKey="linkMenu" shouldShow={() => editor.isActive('link')} options={{ placement: 'bottom', offset: 8 }}>
+    <BubbleMenu editor={editor} pluginKey="linkMenu" shouldShow={atLink} options={LINK_MENU}>
       <div className="image-bubble link-bubble" role="toolbar" aria-label={t('Link')}>
         <label className="link-row">
           <span>{t('Text')}</span>
@@ -572,6 +579,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
     kept.current = { ...splitSource(text, readComments(text).body), before: drawn(editor) };
   }, [editor, text]);
 
+  const onImage = useCallback(() => editor?.isActive('image') ?? false, [editor]);
   if (!editor) return null;
   const run = (command: () => boolean) => { command(); };
   const pickImage = (list: FileList | null) => { void insertImages(editor, imageFiles(list)); if (file.current) file.current.value = ''; };
@@ -592,7 +600,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
         <input ref={file} type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files)} />
       </div>}
       <EditorContent editor={editor} />
-      <BubbleMenu editor={editor} pluginKey="imageMenu" shouldShow={() => editor.isActive('image')} options={{ placement: 'top', offset: 8 }}>
+      <BubbleMenu editor={editor} pluginKey="imageMenu" shouldShow={onImage} options={IMAGE_MENU}>
         <div className="image-bubble" role="toolbar" aria-label={t('Image')}>
           <button type="button" className="icon-btn" title={t('Zoom out')} aria-label={t('Zoom out')} onMouseDown={(e) => e.preventDefault()} onClick={() => scaleImage(editor, 0.85)}>−</button>
           <button type="button" className="icon-btn" title={t('Zoom in')} aria-label={t('Zoom in')} onMouseDown={(e) => e.preventDefault()} onClick={() => scaleImage(editor, 1.15)}>+</button>
