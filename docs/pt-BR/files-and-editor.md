@@ -4,7 +4,7 @@
 
 - **Solte arquivos na janela** e eles são copiados para a **Entrada** — até 40 arquivos, 200 MB cada (pastas são ignoradas).
 - **Solte um arquivo numa pasta** da árvore para copiá-lo para lá; **arraste um arquivo** da árvore para outra pasta para movê-lo.
-- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, e **apagar** — para a lixeira.
+- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, **usar no terminal** (arquivos do Contexto e de Notas: a IA lê como contexto para o que você pedir em seguida), e **apagar** — para a lixeira.
 - As pastas fixas (Contexto, Entrada, Notas, Temporários, Arquivos de execuções) são esvaziadas, nunca removidas. Os arquivos que a IA salva aparecem na árvore assim que chegam.
 
 ## Markdown: um editor para ler, escrever e comentar
@@ -41,10 +41,29 @@ Os PDFs abrem com texto selecionável. Você pode:
 
 Um arquivo da entrada, e qualquer edição de página, é salvo como uma cópia `-edited.pdf`, para o original ficar como estava.
 
-## Word, Excel e outros arquivos
+## Word e Excel
 
-- O **Word** (`.docx`) mostra uma prévia do texto; o **Excel** (`.xlsx`) mostra os valores, aba por aba, com células mescladas e linhas e colunas ocultas marcadas. Um aviso acima da prévia diz o que não aparece.
-- **Imagens** abrem num visualizador; **HTML** aparece num quadro seguro, separado do resto.
+Arquivos `.docx` e `.xlsx` abrem **com a formatação** — fontes, tamanhos, cores, alinhamento, preenchimentos — e podem ser **editados e comentados** no próprio Moki:
+
+- **Word**: clique num parágrafo para mudar o texto dele; o resto do documento, os estilos e as outras partes ficam como estavam.
+- **Excel**: clique numa célula para mudar o valor ou a fórmula; os formatos, as outras células e as outras abas ficam como estavam.
+- **Comentários**: selecione um parágrafo ou uma célula e use **Adicionar comentário**. São comentários de verdade do Word e do Excel, gravados dentro do arquivo, então o Word e o Excel também mostram.
+- **Salva sozinho**, e nunca por cima de uma versão que outra pessoa salvou nesse meio-tempo. O zoom fica no topo do arquivo.
+- Uma aba protegida, ou um arquivo protegido ou com assinatura digital, abre só para leitura. Parágrafos com controle de alterações ou campos são editados no Word.
+
+**Formatos antigos** (`.doc`, `.xls`): **Converter e editar uma cópia** gera uma cópia editável `.docx` ou `.xlsx` usando o Microsoft Office ou o LibreOffice instalado no seu computador. O original é mantido.
+
+## Páginas HTML
+
+Um arquivo `.html` abre **funcionando**, com JavaScript, junto com o CSS, os scripts e as imagens que estão ao lado dele — como um pequeno navegador dentro do Moki:
+
+- a página roda **isolada**: não alcança o Moki, os seus arquivos fora do projeto nem a internet (páginas que carregam bibliotecas de uma CDN precisam delas salvas ao lado da página);
+- escolha a largura — **Ajustar ao painel**, **Tablet** ou **Celular** — para conferir um layout, **recarregue**, ou **abra no seu navegador**;
+- **selecione um trecho e comente**: os comentários ficam guardados ao lado da página, sem mudar o código dela, e acompanham o trecho quando a página muda.
+
+## Imagens e outros arquivos
+
+- **Imagens** abrem num visualizador.
 - O botão ↗ abre o arquivo no programa dele; **⋯ › Abrir com…** deixa escolher qual (Excel, Word e PDF), e lembra a escolha.
 
 ## Abas, grupos e telas divididas

@@ -38,6 +38,8 @@ Primeira vez? Leia **[O que é o Moki](what-is-moki.md)** e faça o **[tour pela
 | 🐞 | Pré-analisar um erro a partir do log | [Skills de QA e agentes](qa-skills.md) |
 | 📸 | Montar evidências de teste (planilha e Word) | [Skills de QA e agentes](qa-skills.md) |
 | 🎫 | Abrir bugs e tarefas no Azure DevOps ou no Jira | [Azure DevOps e Jira](trackers.md) |
+| 📄 | Editar e comentar arquivos Word e Excel | [Arquivos e editor](files-and-editor.md) |
+| 🌐 | Ver uma página HTML funcionando, com JavaScript | [Arquivos e editor](files-and-editor.md) |
 | 🔎 | Pesquisar um assunto a fundo, com fontes | [Skills de QA e agentes](qa-skills.md) |
 | ✍️ | Melhorar a escrita de uma nota com um clique | [Notas e assistentes rápidos](notes.md) |
 | 🧹 | Limpar os arquivos que a IA deixou para trás | [Execuções e entregas](runs.md) |

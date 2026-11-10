@@ -4,7 +4,7 @@
 
 - **Drop files on the window** and they are copied into **Inbox** — up to 40 files, 200 MB each (folders are skipped).
 - **Drop a file on a folder** of the tree to copy it there; **drag a file** of the tree onto another folder to move it.
-- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, and **delete** — to the trash.
+- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, **use in the terminal** (Context and Notes files: the AI reads it as context for what you ask next), and **delete** — to the trash.
 - The fixed folders (Context, Inbox, Notes, Temporary, Execution files) are emptied, never removed. Files the AI saves show up in the tree as they land.
 
 ## Markdown: one editor for reading, writing and commenting
@@ -41,10 +41,29 @@ PDFs open with selectable text. You can:
 
 A file from the inbox, and any page edit, is saved as an `-edited.pdf` copy, so the original stays as it was.
 
-## Word, Excel and other files
+## Word and Excel
 
-- **Word** (`.docx`) shows a text preview; **Excel** (`.xlsx`) shows its values, sheet by sheet, with merged cells and hidden rows and columns marked. A note above the preview says what is not shown.
-- **Images** open in a viewer; **HTML** is shown in a safe frame of its own.
+`.docx` and `.xlsx` files open **with their formatting** — fonts, sizes, colors, alignment, fills — and can be **edited and commented** right in Moki:
+
+- **Word**: click a paragraph to change its text; the rest of the document, its styles and its other parts stay as they were.
+- **Excel**: click a cell to change its value or formula; formats, other cells and other sheets stay as they were.
+- **Comments**: select a paragraph or a cell and **Add comment**. They are real Word and Excel comments, saved inside the file, so Word and Excel show them too.
+- It **saves on its own**, and never over a version someone else saved meanwhile. The zoom is at the top of the file.
+- A protected sheet, or a protected or digitally signed file, opens for reading only. Paragraphs with tracked changes or fields are edited in Word.
+
+**Old formats** (`.doc`, `.xls`): **Convert and edit a copy** makes an editable `.docx` or `.xlsx` copy with Microsoft Office or LibreOffice installed on your computer. The original is kept.
+
+## HTML pages
+
+An `.html` file opens **running**, JavaScript included, with the CSS, scripts and images next to it — like a small browser inside Moki:
+
+- the page runs **isolated**: it cannot reach Moki, your files outside the project, or the internet (pages that load libraries from a CDN need them saved next to the page);
+- choose the width — **Fit to the panel**, **Tablet** or **Phone** — to check a layout, **reload** it, or **open it in your browser**;
+- **select a passage and comment on it**: comments are kept next to the page, without changing its code, and follow the passage when the page changes.
+
+## Images and other files
+
+- **Images** open in a viewer.
 - The ↗ button opens a file in its own program; **⋯ › Open with…** lets you choose which one (Excel, Word and PDF), and remembers it.
 
 ## Tabs, groups and split views

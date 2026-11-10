@@ -16,6 +16,7 @@ This is what you see with a project open, from left to right.
 | 🔗 **Link a folder** | Links a folder of your computer (the system's code, its documents) to the project; it shows live at the top of the tree. Highlighted when a folder is linked. |
 | ⚙️ **Settings** | Agents, activities, your AIs, operations, skills, MCP servers and templates. See [Settings](settings.md). |
 | 🔄 **Refresh** | Reads the project from disk again. |
+| 🐾 **Moki in your IDE** | Opens Moki inside VS Code or Cursor, installing or updating its extension when needed. See [Moki in the IDE](ide.md). |
 | 📝 **New note** (bottom) | A loose note, opened in the main area — it stays on this computer until you send it to a project. |
 | ◧ (bottom) | Shows or hides the file sidebar. |
 
@@ -43,6 +44,7 @@ The bar above a document has, from left to right: the reading view (eye), tags, 
 
 - The project's **name and description**; the sliders open the **project settings**.
 - **Call…** — what the AI should do: activities, agents, skills and operations. See [Calling activities, agents and skills](call.md).
+- **Skills and agents** — the ones this project has: its own, the global skills it links, and its defaults. A name opens its file; ▶ asks the AI to use it.
 - **Executions** — *Requests* (each activity you started and where it is) and *Operations*, with what needs you on top.
 
 The ◧ button at the top collapses the panel into a thin rail.

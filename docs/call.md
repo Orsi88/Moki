@@ -50,6 +50,8 @@ An **operation** always opens its own start form instead, because each of its st
 | **Model data with Cartógrafo** | Entities, relationships, dictionaries and database structures. |
 | **Prototype an interface with Artesão** | A working interface prototype, reviewed in the browser. |
 
+The **Skills and agents** card of the project panel is a shortcut: its ▶ asks the AI to use that skill or agent, in the AI terminal in focus or a new one.
+
 You can write **your own activities** in **Settings › Activities**. More: [Activities](activities.md) · [QA skills and agents](qa-skills.md) · [Agents and operations](agents.md).
 
 ## What happens after

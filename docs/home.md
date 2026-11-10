@@ -38,6 +38,8 @@ New here? Read **[What is Moki](what-is-moki.md)** and take the **[tour of the s
 | 🐞 | Pre-analyse an error from a log | [QA skills and agents](qa-skills.md) |
 | 📸 | Build test evidence (spreadsheet and Word) | [QA skills and agents](qa-skills.md) |
 | 🎫 | Open bugs and tasks in Azure DevOps or Jira | [Azure DevOps and Jira](trackers.md) |
+| 📄 | Edit and comment Word and Excel files | [Files and the editor](files-and-editor.md) |
+| 🌐 | Preview an HTML page, with its JavaScript | [Files and the editor](files-and-editor.md) |
 | 🔎 | Research a subject in depth, with sources | [QA skills and agents](qa-skills.md) |
 | ✍️ | Improve a note's writing with one click | [Notes and quick assistants](notes.md) |
 | 🧹 | Clean up the files the AI left behind | [Runs and deliverables](runs.md) |
