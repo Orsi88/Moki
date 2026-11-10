@@ -44,6 +44,7 @@ New here? Read **[What is Moki](what-is-moki.md)** and take the **[tour of the s
 | ✍️ | Improve a note's writing with one click | [Notes and quick assistants](notes.md) |
 | 🧹 | Clean up the files the AI left behind | [Runs and deliverables](runs.md) |
 | 🖥️ | Use Moki inside VS Code or Cursor | [Moki in the IDE](ide.md) |
+| 🎨 | Download the ArtCraft apps, or ask about one | [ArtCraft apps](artcraft.md) |
 | 🔌 | Give the AI tools such as a browser or a database | [MCP servers](mcp-servers.md) |
 
 ---

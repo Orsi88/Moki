@@ -4,7 +4,7 @@ O Claude Code, o Codex, o Gemini CLI, o Antigravity CLI e o Cursor Agent rodam e
 
 ## Abrindo um
 
-- O **+** no fim das abas abre o menu **Novo**: **Terminal** (o seu shell), **IA** (cada ferramenta de IA instalada), **Arquivo** (um arquivo novo e vazio na entrada) e **Apps ArtCraft**.
+- O **+** no fim das abas abre o menu **Novo**: **Terminal** (o seu shell), **IA** (cada ferramenta de IA instalada), **Arquivo** (um arquivo novo e vazio na entrada) e **Apps ArtCraft** (veja [Apps ArtCraft](artcraft.md)).
 - Ou clique em **Chamar…** e escolha **Num terminal novo** — o pedido já vai pronto. Veja [Chamar atividades, agentes e skills](call.md).
 
 Uma IA aberta em **Novo › IA** começa com os padrões do projeto (definidos nas configurações do projeto): o papel do agente padrão, as skills padrão e as suas instruções. A aba diz isso — *Claude Code · failure-analyst*. **Sem o padrão do projeto** abre uma IA sem nada disso.

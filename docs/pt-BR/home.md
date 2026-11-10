@@ -44,6 +44,7 @@ Primeira vez? Leia **[O que é o Moki](what-is-moki.md)** e faça o **[tour pela
 | ✍️ | Melhorar a escrita de uma nota com um clique | [Notas e assistentes rápidos](notes.md) |
 | 🧹 | Limpar os arquivos que a IA deixou para trás | [Execuções e entregas](runs.md) |
 | 🖥️ | Usar o Moki dentro do VS Code ou do Cursor | [Moki na IDE](ide.md) |
+| 🎨 | Baixar os apps ArtCraft, ou perguntar sobre um deles | [Apps ArtCraft](artcraft.md) |
 | 🔌 | Dar ferramentas à IA, como um navegador ou um banco de dados | [Servidores MCP](../mcp-servers.md) |
 
 ---

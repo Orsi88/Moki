@@ -4,7 +4,7 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent run in **termin
 
 ## Opening one
 
-- The **+** at the end of the tabs opens the **New** menu: **Terminal** (your shell), **AI** (each AI tool installed), **File** (a new empty file in the inbox) and **ArtCraft apps**.
+- The **+** at the end of the tabs opens the **New** menu: **Terminal** (your shell), **AI** (each AI tool installed), **File** (a new empty file in the inbox) and **ArtCraft apps** (see [ArtCraft apps](artcraft.md)).
 - Or press **Call…** and choose **New terminal** — the request goes in ready. See [Calling activities, agents and skills](call.md).
 
 An AI opened from **New › AI** starts with the project's defaults (set in the project settings): the default agent's role, the default skills and your instructions. Its tab says so — *Claude Code · failure-analyst*. **Without the project defaults** opens a plain one.
