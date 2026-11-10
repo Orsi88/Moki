@@ -4,7 +4,7 @@ Claude Code, Codex, Gemini CLI, Antigravity CLI and Cursor Agent run in **termin
 
 ## Opening one
 
-- The **+** at the end of the tabs opens the **New** menu: **Terminal** (your shell), **AI** (each AI tool installed), **File** (a new empty file in the inbox) and **ArtCraft apps**.
+- The **+** at the end of the tabs opens the **New** menu: **Terminal** (your shell), **AI** (each AI tool installed), **File** (a new empty file in the inbox) and **ArtCraft apps** (see [ArtCraft apps](artcraft.md)).
 - Or press **Call…** and choose **New terminal** — the request goes in ready. See [Calling activities, agents and skills](call.md).
 
 An AI opened from **New › AI** starts with the project's defaults (set in the project settings): the default agent's role, the default skills and your instructions. Its tab says so — *Claude Code · failure-analyst*. **Without the project defaults** opens a plain one.
@@ -16,6 +16,8 @@ A terminal **keeps running** when you go back to the start screen or to another 
 - 📋 **Paste a screenshot** (Ctrl+V): it is saved in the project's `temporary/pasted/` and its path is typed in the prompt, so the AI reads the image. A text paste stays a text paste.
 - 🖱️ **Drag files onto the terminal** — from the computer or from the project tree: their full paths are typed in the prompt (quoted when they have spaces). Nothing is copied into the inbox.
 - 📎 **Call…** with **This terminal** pastes a ready request at the cursor, without sending it — add what you want and press Enter.
+- 📄 **Use in the terminal** — right-click a file of **Context** or **Notes** (or the button of an open note): the AI is asked to read it and use it as context for what you ask next. It goes to the AI terminal in focus, or opens a new one; a file that looks like it holds a credential is refused.
+- 🧩 In the **Skills and agents** card of the project panel, ▶ asks the AI to use that skill or agent, the same way.
 
 ## Following what the AI does
 

@@ -10,7 +10,7 @@ Seven tabs; besides *My AIs*, each is a list with filters and a search field. Th
 | **Activities** | The ready-made requests of **Call…**: Moki's, and your own — what to ask, of which skill, agent, workflow or operation, with which files. See [Activities](activities.md). |
 | **My AIs** | The AI tools Moki opens, each with its version. **Make default** sets the one requests start in. **Install** a missing terminal AI (it shows the official command and runs it only after you type `y`). For VS Code and Cursor, install the Moki extension — see [Moki in the IDE](ide.md). |
 | **Operations** | Agents linked by arrows into a multi-agent operation. See [Agents and operations](agents.md). |
-| **Skills** | What is installed, what ships with Moki, and **Add a skill**: search the public [SkillMD](https://skillmd.com) registry, describe one for your AI to draft, or **upload** skills and agents from a `.claude` folder or a `.zip`. You choose and confirm before anything is installed. |
+| **Skills** | What is installed, what ships with Moki, and **Add a skill**: search the public [SkillMD](https://skillmd.com) registry, describe one for your AI to draft, or **upload** skills and agents from a `.claude` folder (agents in subfolders included) or a `.zip`. With a project open you choose **all projects** or **this project only**. You choose and confirm before anything is installed. |
 | **MCP servers** | The tools the AI gets — browsers, databases, trackers — for every project or for chosen ones. See [MCP servers](mcp-servers.md). |
 | **Templates** | Font, colors, header, footer, logo and watermark of the PDF, Word and Excel files activities generate; tags say which projects use each one. |
 
@@ -31,7 +31,14 @@ An AI opened in the project starts with these defaults: with **one activity that
 
 ### Bring to this project
 
-At the top of the project settings: drop a `.md`, a skill folder, a whole `.claude` folder or a `.zip`. Moki sorts what it finds — skills, agents, activities — blocks what is unsafe or already there, and installs only what you confirm.
+At the top of the project settings: drop a `.md`, a skill folder, a whole `.claude` folder (agents in subfolders included) or a `.zip`. Moki sorts what it finds — skills, agents, activities — blocks what is unsafe or already there, and installs only what you confirm. **Select all** and **Clear selection** work per kind and per folder.
+
+Choose where it goes:
+
+- **All projects** (the default) — skills go to your user folder and are linked here; agents and activities go among yours, so every project has them;
+- **This project only** — everything goes into this project's own folders.
+
+What the project has then shows in the **Skills and agents** card of its panel.
 
 ## See also
 
