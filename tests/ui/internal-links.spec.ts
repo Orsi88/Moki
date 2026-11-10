@@ -96,7 +96,8 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('[story.md](/inbox/story.md)');
     // A freshly inserted @ mention writes a document-relative destination.
     await view.locator('.tree-row[title="notes/legacy.md"]').click();
-    await view.locator('.note-host').getByTitle('Markdown source', { exact: true }).click();
+    await view.locator('.note-host .tiptap-body').click();
+    await view.keyboard.press('Control+e'); // the note's Markdown source
     const noteSource = view.locator('.note-host textarea.note-editor');
     await noteSource.click();
     await noteSource.press('Control+End');

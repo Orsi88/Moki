@@ -880,8 +880,11 @@ test.describe.serial('Moki workspaces', () => {
     const note = wsPage.locator('.home-main .note-dialog'); // in the main area, like the notes opened from the list
     await expect(note).toBeVisible();
     await expect(wsPage.locator('.modal-backdrop > .note-dialog')).toHaveCount(0);
+    await note.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Lista');
-    await note.getByRole('button', { name: 'Código Markdown' }).click(); // a note opens in its formatted editor; the source is one click away
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await note.locator('.tiptap-body').click();
+    await wsPage.keyboard.press('Control+e'); // a note opens in its formatted editor; Ctrl+E shows the source
     await note.locator('textarea.note-editor').fill('leite');
     await expect(note.getByRole('button', { name: 'Salvar' })).toHaveCount(0); // it saves on its own
     await expect(note.getByText(/^Salvo às/)).toBeVisible();
@@ -892,7 +895,8 @@ test.describe.serial('Moki workspaces', () => {
     // A click opens it here again; the icon beside it opens the notebook window.
     await wsPage.locator('.home-row', { hasText: 'Lista' }).last().locator('.home-project').click();
     const embedded = wsPage.locator('.home-main .note-dialog');
-    await embedded.getByRole('button', { name: 'Código Markdown' }).click();
+    await embedded.locator('.tiptap-body').click();
+    await wsPage.keyboard.press('Control+e');
     await expect(embedded.locator('textarea.note-editor')).toHaveValue('leite');
     // A new note takes the main area in its place (one note at a time there).
     await wsPage.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
@@ -906,7 +910,8 @@ test.describe.serial('Moki workspaces', () => {
     await wsPage.getByRole('menuitem', { name: 'Abrir no bloco de notas' }).click();
     const book = await opened;
     await expect(book.getByRole('tab')).toHaveText(['Lista']);
-    await book.getByRole('button', { name: 'Código Markdown' }).click();
+    await book.locator('.tiptap-body').click();
+    await book.keyboard.press('Control+e');
     await expect(book.locator('textarea.note-editor')).toHaveValue('leite');
 
     await book.getByRole('button', { name: 'Nova nota' }).click();
@@ -1108,8 +1113,11 @@ test.describe.serial('Moki project tree', () => {
     await treePage.locator('.tree-row[title="notes"]').click();
     await treePage.locator('.sidebar').getByRole('button', { name: 'Nova nota' }).click();
     const note = treePage.locator('.note-dialog'); // its name follows the title typed below
+    await note.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Compras');
-    await note.getByRole('button', { name: 'Código Markdown' }).click();
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await note.locator('.tiptap-body').click();
+    await treePage.keyboard.press('Control+e');
     const editor = note.locator('textarea.note-editor');
     const commands = note.getByRole('listbox', { name: 'Comandos' });
 
@@ -1200,8 +1208,11 @@ test.describe.serial('Moki project tree', () => {
     // + writes a new note of the project; saved, it stays open as its own tab.
     await book.getByRole('button', { name: 'Nova nota' }).click();
     const page = book.locator('.notebook-page:not([hidden])');
+    await page.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await page.getByPlaceholder('ex.: Ideias de teste').fill('terceira');
-    await page.getByRole('button', { name: 'Código Markdown' }).click();
+    await page.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await page.locator('.tiptap-body').click();
+    await book.keyboard.press('Control+e');
     const editor = page.locator('textarea.note-editor');
     await editor.fill('texto');
     await expect(book.getByRole('tab', { name: 'terceira' })).toHaveAttribute('aria-selected', 'true'); // saved on its own
@@ -1776,7 +1787,8 @@ test.describe.serial('Moki PDF comments', () => {
     await expect(card.getByRole('toolbar', { name: 'Formatação' })).toBeHidden();
     await card.getByRole('button', { name: 'Mostrar ferramentas da nota' }).click();
     await expect(card.getByRole('toolbar', { name: 'Formatação' })).toBeVisible();
-    await card.getByRole('button', { name: 'Código Markdown' }).click(); // the source is in the tools; the note opens formatted
+    await card.locator('.tiptap-body').click();
+    await card.locator('.tiptap-body').press('Control+e'); // the note opens formatted; Ctrl+E shows the source
     await card.getByRole('button', { name: 'Recolher ferramentas da nota' }).click();
     const noteEditor = card.locator('textarea.note-editor');
     await noteEditor.fill(`Uma anotação entre páginas${'\n'.repeat(8)}`);

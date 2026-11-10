@@ -609,10 +609,6 @@
   "Column 2": "Columna 2",
   "Column 3": "Columna 3",
   "image": "imagen",
-  "Use my note {file} as input (read it first; the paths in it are relative to {base}).": "Usa mi nota {file} como entrada (léela primero; las rutas que contiene son relativas a {base}).",
-  "My note:": "Mi nota:",
-  "Only the start of the note was sent. Save it in the project to send all of it.": "Solo se envió el inicio de la nota. Guárdala en el proyecto para enviarla completa.",
-  "Opened in {tool}, in the Moki window.": "Abierto en {tool}, dentro de la ventana de Moki.",
   "Opened in {tool}.": "Abierto en {tool}.",
   "Numbered list": "Lista numerada",
   "Quote": "Cita",
@@ -621,9 +617,6 @@
   "Divider": "Separador",
   "Image (paste or drop it too)": "Imagen (también puedes pegarla o soltarla)",
   "Mention a project file": "Mencionar un archivo del proyecto",
-  "Use this note with the AI": "Usar esta nota con la IA",
-  "Use with the AI": "Usar con la IA",
-  "Send the note to a project first (below), so the AI knows where to work.": "Envía primero la nota a un proyecto (abajo) para que la IA sepa dónde trabajar.",
   "There is an unsaved draft of this note from {time}.": "Hay un borrador sin guardar de esta nota de las {time}.",
   "Restore the draft": "Restaurar el borrador",
   "Discard it": "Descartarlo",
@@ -632,7 +625,6 @@
   "Send the note to a project to mention its files.": "Envía la nota a un proyecto para mencionar sus archivos.",
   "No file matches \"{q}\".": "No hay archivos que coincidan con \"{q}\".",
   "Draft kept at {time}": "Borrador conservado a las {time}",
-  "Uses inbox files: start it from the project panel": "Usa archivos de la bandeja de entrada: iníciala desde el panel del proyecto",
   "Documents": "Documentos",
   "How the PDF, Word and Excel files that your activities and agents generate look. Every AI tool gets the same result.": "El aspecto de los archivos PDF, Word y Excel que generan tus actividades y agentes. Todas las herramientas de IA obtienen el mismo resultado.",
   "This project has its own style": "Este proyecto tiene su propio estilo",
@@ -1826,5 +1818,7 @@
   "{n} files organized.": "{n} archivos organizados.",
   "{n} could not be changed (moved or open elsewhere).": "{n} no se pudieron cambiar (movidos o abiertos en otro lugar).",
   "Applying…": "Aplicando…",
-  "Apply ({n})": "Aplicar ({n})"
+  "Apply ({n})": "Aplicar ({n})",
+  "Double-click to rename": "Haz doble clic para renombrar",
+  "Back to the formatted note (Ctrl+E)": "Volver a la nota con formato (Ctrl+E)"
 }

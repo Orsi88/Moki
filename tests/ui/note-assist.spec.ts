@@ -48,6 +48,14 @@ test.afterAll(async () => {
   }
 });
 
+// An assistant's button; in a narrow note the group is folded into "✦ IA" first.
+async function pick(note: ReturnType<Page['locator']>, name: string) {
+  const group = note.getByRole('group', { name: 'Assistentes rápidos' });
+  const button = group.getByRole('button', { name });
+  if (!(await button.isVisible())) await group.locator('.note-assist-mark').click();
+  await button.click();
+}
+
 const onDisk = () => readFileSync(join(project, 'notes', 'ideias.md'), 'utf8');
 
 async function shots(name: string, target = page.locator('.note-dialog')) {
@@ -65,9 +73,11 @@ test('improving the writing is a suggestion: the differences show, and only Acce
   await page.locator('.tree-row[title="notes/ideias.md"]').click();
   const note = page.locator('.note-dialog');
   const assistants = note.getByRole('group', { name: 'Assistentes rápidos' });
+  if (!(await assistants.getByRole('button', { name: 'Resumir' }).isVisible())) await assistants.locator('.note-assist-mark').click(); // a narrow note folds them
   for (const name of ['Melhorar a escrita', 'Resumir', 'Pesquisar (Sherlock)', 'Revisar criticamente (Moriarty)']) await expect(assistants.getByRole('button', { name })).toBeEnabled();
+  await assistants.locator('.note-assist-mark').click();
 
-  await assistants.getByRole('button', { name: 'Melhorar a escrita' }).click();
+  await pick(note, 'Melhorar a escrita');
   const panel = note.getByRole('region', { name: 'Assistentes rápidos' });
   await expect(panel).toContainText('Texto revisado pelo assistente.');
   await expect(panel).toContainText('Aceitar troca a nota por esta versão.');
@@ -79,18 +89,49 @@ test('improving the writing is a suggestion: the differences show, and only Acce
   await expect(panel).toHaveCount(0);
   expect(onDisk()).toBe(NOTE);
 
-  await assistants.getByRole('button', { name: 'Melhorar a escrita' }).click();
+  await pick(note, 'Melhorar a escrita');
   await note.getByRole('region', { name: 'Assistentes rápidos' }).getByRole('button', { name: 'Aceitar' }).click();
   await expect.poll(onDisk, { timeout: 10_000 }).toContain('Texto revisado pelo assistente.');
 });
 
 test('research adds its section at the end of the note when accepted', async () => {
   const note = page.locator('.note-dialog');
-  await note.getByRole('group', { name: 'Assistentes rápidos' }).getByRole('button', { name: 'Pesquisar (Sherlock)' }).click();
+  await pick(note, 'Pesquisar (Sherlock)');
   const panel = note.getByRole('region', { name: 'Assistentes rápidos' });
   await expect(panel).toContainText('ponto do assistente');
   await expect(panel).toContainText('Aceitar coloca isto no fim da nota.');
   await shots('note-assist-research');
   await panel.getByRole('button', { name: 'Aceitar' }).click();
   await expect.poll(onDisk, { timeout: 10_000 }).toMatch(/Texto revisado pelo assistente\.\n\n## research\n\n- ponto do assistente\n$/);
+});
+
+test('a loose note: the title is renamed in place in the header, beside the project it can be sent to; no title field, no source pencil', async () => {
+  await page.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
+  const note = page.locator('.note-dialog').last();
+  await expect(note).toBeVisible();
+  await expect(note.getByLabel('Título', { exact: true })).toHaveCount(0); // no separate title field
+  await expect(note.getByRole('button', { name: 'Usar com a IA' })).toHaveCount(0);
+  await expect(note.getByRole('button', { name: 'Código Markdown' })).toHaveCount(0);
+  await expect(note.locator('.note-head-title select')).toBeVisible(); // send to a project, in the header
+  await note.locator('.note-head-title h2').click({ button: 'right' });
+  await note.locator('.note-title-input').fill('Ideias soltas');
+  await note.locator('.note-title-input').press('Enter');
+  await expect(note.locator('.note-head-title h2')).toHaveText('Ideias soltas');
+  await note.locator('.tiptap-body').click();
+  await page.keyboard.type('Uma ideia.');
+  // Narrow: the tools stay on one line and the AI group is only "✦ IA" until clicked.
+  const tools = note.getByRole('toolbar', { name: 'Formatação' });
+  const group = note.getByRole('group', { name: 'Assistentes rápidos' });
+  if (((await tools.boundingBox())?.width ?? 2000) < 1030) {
+    await expect(group.getByRole('button', { name: 'Resumir' })).toBeHidden();
+    await group.locator('.note-assist-mark').click();
+    await expect(group.getByRole('button', { name: 'Resumir' })).toBeVisible();
+    await shots('note-loose-open', note);
+    await note.locator('.tiptap-body').click(); // clicking elsewhere folds it again
+    await expect(group.getByRole('button', { name: 'Resumir' })).toBeHidden();
+  }
+  // One line of tools: every tool's middle at the same height (separators are shorter than buttons).
+  const middles = await tools.evaluate((el) => [...el.children].filter((c) => (c as HTMLElement).offsetParent).map((c) => { const r = (c as HTMLElement).getBoundingClientRect(); return r.top + r.height / 2; }));
+  expect(Math.max(...middles) - Math.min(...middles)).toBeLessThan(6);
+  await shots('note-loose-header', note);
 });

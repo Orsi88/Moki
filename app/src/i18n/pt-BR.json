@@ -609,10 +609,6 @@
   "Column 2": "Coluna 2",
   "Column 3": "Coluna 3",
   "image": "imagem",
-  "Use my note {file} as input (read it first; the paths in it are relative to {base}).": "Use a minha nota {file} como entrada (leia-a primeiro; os caminhos nela são relativos a {base}).",
-  "My note:": "Minha nota:",
-  "Only the start of the note was sent. Save it in the project to send all of it.": "Só o começo da nota foi enviado. Salve-a no projeto para enviar ela inteira.",
-  "Opened in {tool}, in the Moki window.": "Aberto no {tool}, na janela do Moki.",
   "Opened in {tool}.": "Aberto no {tool}.",
   "Numbered list": "Lista numerada",
   "Quote": "Citação",
@@ -621,9 +617,6 @@
   "Divider": "Linha divisória",
   "Image (paste or drop it too)": "Imagem (também dá para colar ou arrastar)",
   "Mention a project file": "Mencionar um arquivo do projeto",
-  "Use this note with the AI": "Usar esta nota com a IA",
-  "Use with the AI": "Usar com a IA",
-  "Send the note to a project first (below), so the AI knows where to work.": "Envie a nota para um projeto primeiro (abaixo), para a IA saber onde trabalhar.",
   "There is an unsaved draft of this note from {time}.": "Há um rascunho não salvo desta nota, das {time}.",
   "Restore the draft": "Restaurar o rascunho",
   "Discard it": "Descartar",
@@ -632,7 +625,6 @@
   "Send the note to a project to mention its files.": "Envie a nota para um projeto para mencionar os arquivos dele.",
   "No file matches \"{q}\".": "Nenhum arquivo corresponde a \"{q}\".",
   "Draft kept at {time}": "Rascunho guardado às {time}",
-  "Uses inbox files: start it from the project panel": "Usa arquivos da Entrada: comece pelo painel do projeto",
   "Documents": "Modelos",
   "How the PDF, Word and Excel files that your activities and agents generate look. Every AI tool gets the same result.": "Como ficam os arquivos PDF, Word e Excel que as suas atividades e agentes geram. Qualquer ferramenta de IA chega ao mesmo resultado.",
   "This project has its own style": "Este projeto tem um estilo próprio",
@@ -1826,5 +1818,7 @@
   "{n} files organized.": "{n} arquivos organizados.",
   "{n} could not be changed (moved or open elsewhere).": "{n} não puderam ser alterados (movidos ou abertos em outro lugar).",
   "Applying…": "Aplicando…",
-  "Apply ({n})": "Aplicar ({n})"
+  "Apply ({n})": "Aplicar ({n})",
+  "Double-click to rename": "Clique duas vezes para renomear",
+  "Back to the formatted note (Ctrl+E)": "Voltar à nota formatada (Ctrl+E)"
 }

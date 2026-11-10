@@ -1454,7 +1454,13 @@ kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font:
 .note-ai .btn { white-space: nowrap; }
 
 /* The quick assistants of a note (NoteAssist.tsx): icons in the toolbar, the suggestion under it. */
-.note-assist-buttons { display: inline-flex; align-items: center; gap: 2px; }
+.note-assist-buttons {
+  display: inline-flex; align-items: center; gap: 1px; padding: 2px 3px 2px 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 5%, transparent));
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.note-assist-buttons .icon-btn { width: 28px; height: 28px; border-radius: 999px; }
 .note-assist-buttons .icon-btn.on { color: var(--accent); background: var(--accent-soft); }
 .note-assist { display: flex; flex-direction: column; gap: 8px; padding: 10px 20px 12px; border-bottom: 1px solid var(--border); background: var(--bg-2); max-height: 45%; min-height: 0; }
 .note-assist-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -2263,3 +2269,29 @@ span.mcp-row-main { cursor: default; }
 .hudson-delete h3 { color: var(--err); }
 .hudson-context h3 { color: var(--accent); }
 .hudson-keep .hudson-item { cursor: default; padding-left: 12px; }
+/* A note's header: its title (double-click or right-click to rename, in place) and, for a loose note, the project to send it to. */
+.note-head-title { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.note-head-title h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+.note-head-title h2:hover { background: var(--bg-2); }
+.note-title-input { flex: 1; min-width: 120px; max-width: 420px; font: inherit; font-size: 1.15rem; font-weight: 700; padding: 2px 6px; margin-left: -6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--text); cursor: text; user-select: text; }
+.note-send { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; cursor: default; } /* at the right, beside the header buttons, apart from the title */
+.note-send select { max-width: 220px; height: 30px; padding: 0 8px; font-size: 13px; }
+.note-head-title + .statusbar-spacer { display: none; } /* the title block takes the room; the buttons stay at the end */
+.note-head-title h2 { flex: 0 1 auto; }
+
+/* The note's tools stay on one line; when the note is narrow the AI group folds into "✦ AI" and opens below it. */
+.note-dialog .note-tools { container-type: inline-size; flex-wrap: nowrap; }
+.note-assist-buttons { position: relative; flex-shrink: 0; }
+.note-assist-mark { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; cursor: default; }
+.note-assist-list { display: inline-flex; align-items: center; gap: 1px; }
+@container (max-width: 990px) {
+  .note-assist-buttons { padding: 2px 10px; }
+  .note-assist-mark { margin-right: 0; height: 26px; cursor: pointer; }
+  .note-assist-buttons:not(.open) .note-assist-list { display: none; }
+  .note-assist-buttons.open .note-assist-list {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; padding: 3px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--bg-2);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+  }
+}
+@container (max-width: 640px) { .note-dialog .note-tools { flex-wrap: wrap; } } /* a very narrow note: wrapping beats hiding tools */
