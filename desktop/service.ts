@@ -15,6 +15,7 @@ import {
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
 import { pathReady } from './tool-path.ts';
+import { safeName, type OrganizeCandidate } from './hudson.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
 import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
@@ -881,6 +882,31 @@ export function createService(root: string, deps: Deps) {
     const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, prompt, tool };
+  }
+
+  function organizeCandidates(project: string): OrganizeCandidate[] {
+    const base = projectDir(project);
+    const out: OrganizeCandidate[] = [];
+    for (const run of listRuns(project, root)) {
+      const dir = join(base, 'runs', run.id);
+      const artifacts = new Set((Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => posix(String(a)).replace(/^.*?\/runs\//, 'runs/')));
+      const walk = (folder: string, depth: number) => {
+        if (depth > 6 || !existsSync(folder)) return;
+        for (const e of readdirSync(folder, { withFileTypes: true })) {
+          if (e.name.startsWith('.') || out.length >= 200) continue;
+          const full = join(folder, e.name);
+          const rel = posix(relative(base, full));
+          if (depth === 0 && ['state.json', 'inputs', 'logs', 'handoff', 'waiting'].includes(e.name)) continue;
+          if (e.isDirectory()) { walk(full, depth + 1); continue; }
+          if (!e.isFile() || /\.jsonl$|^step-state\.json$/.test(e.name)) continue;
+          const size = statSync(full).size;
+          const preview = /\.(md|txt|json|csv|html?)$/i.test(e.name) && size < 2_000_000 ? readFileSync(full, 'utf8').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+          out.push({ path: rel, size, run: run.id, title: typeof run.title === 'string' ? run.title : '', status: String(run.status ?? ''), deliverable: artifacts.has(rel), preview });
+        }
+      };
+      walk(dir, 0);
+    }
+    return out;
   }
 
   return {
@@ -1779,6 +1805,9 @@ export function createService(root: string, deps: Deps) {
       for (const run of listRuns(project, root)) {
         const work = join(dir, 'runs', run.id, 'work');
         if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
+        // An empty work/ (older runs made it up front) has nothing to recover: removed, not trashed — sending an empty
+        // folder to the Windows trash can hang the app as the project opens.
+        try { if (!readdirSync(work).length) { rmSync(work, { recursive: true, force: true }); continue; } } catch { continue; }
         try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
       }
       return trashed;
@@ -1845,6 +1874,47 @@ export function createService(root: string, deps: Deps) {
       if (!deps.copy) throw new ServiceError('Copying is not available here.');
       deps.copy(path);
       return path;
+    },
+
+    // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
+    // operations' own folders and journals are not offered: Moki and the skills need them.
+    organizeCandidates: (project: string) => organizeCandidates(project),
+
+    // Applies the steps of Hudson's plan the person approved. "context" moves a Markdown or text file into context/
+    // and lists it in context/index.md; "rename" renames it in its folder; "delete" sends it to the trash.
+    organizeApply: async (project: string, steps: unknown) => {
+      if (!Array.isArray(steps) || steps.length > 200) throw new ServiceError('Nothing to apply.');
+      const base = projectDir(project);
+      const offered = new Set(organizeCandidates(project).map((c) => c.path));
+      const done: string[] = [];
+      const failed: string[] = [];
+      for (const raw of steps) {
+        const step = raw as { path?: unknown; do?: unknown; name?: unknown; why?: unknown };
+        const rel = typeof step.path === 'string' ? step.path : '';
+        if (!offered.has(rel)) { failed.push(rel); continue; }
+        const file = projectPath(project, rel);
+        try {
+          if (step.do === 'delete') await trash(file);
+          else if (step.do === 'rename') {
+            const name = typeof step.name === 'string' ? safeName(step.name, basename(file)) : null;
+            if (!name || existsSync(join(dirname(file), name))) throw new Error('name');
+            renameSync(file, join(dirname(file), name));
+          } else if (step.do === 'context' && /\.(md|txt)$/i.test(file)) {
+            const context = join(base, 'context');
+            mkdirSync(context, { recursive: true });
+            let name = basename(file);
+            for (let n = 2; existsSync(join(context, name)); n++) name = basename(file).replace(/(\.[^.]+)$/, `-${n}$1`);
+            renameSync(file, join(context, name));
+            const index = join(context, 'index.md');
+            const covers = typeof step.why === 'string' && step.why.trim() ? step.why.trim().replace(/[|\r\n]+/g, ' ').slice(0, 200) : 'Brought from a run';
+            const row = `| [${name}](${encodeURI(name)}) | ${covers} | ${new Date().toISOString().slice(0, 10)} |\n`;
+            if (!existsSync(index)) writeFileSync(index, `# Context index\n\n| File | Covers | Last confirmed update |\n|---|---|---|\n${row}`);
+            else appendFileSync(index, `${readFileSync(index, 'utf8').endsWith('\n') ? '' : '\n'}${row}`);
+          } else continue; // keep
+          done.push(rel);
+        } catch { failed.push(rel); }
+      }
+      return { done, failed };
     },
 
     // "Choose my folder": links a folder of this machine (chosen in the native dialog) to the project.

@@ -1810,5 +1810,18 @@
   "Differences": "Diferenças",
   "The note changed while the assistant worked: accepting replaces those changes too.": "A nota mudou enquanto o assistente trabalhava: aceitar substitui essas mudanças também.",
   "Discard": "Descartar",
-  "Accept": "Aceitar"
+  "Accept": "Aceitar",
+  "Organize with Hudson": "Organizar com o Hudson",
+  "Take to the project context": "Levar para o contexto do projeto",
+  "Delete (to the trash)": "Apagar (vai para a lixeira)",
+  "Keep as it is": "Manter como está",
+  "Hudson is looking at the files the runs left…": "O Hudson está olhando os arquivos que as execuções deixaram…",
+  "Hudson uses Claude Code or Codex, and neither was found on this computer.": "O Hudson usa o Claude Code ou o Codex, e nenhum dos dois foi encontrado neste computador.",
+  "Hudson could not finish.": "O Hudson não conseguiu terminar.",
+  "There is nothing to organize: the runs left no files.": "Não há nada para organizar: as execuções não deixaram arquivos.",
+  "Nothing changes until you apply. Uncheck what you do not want; a deleted file goes to the trash.": "Nada muda até você aplicar. Desmarque o que não quiser; um arquivo apagado vai para a lixeira.",
+  "{n} files organized.": "{n} arquivos organizados.",
+  "{n} could not be changed (moved or open elsewhere).": "{n} não puderam ser alterados (movidos ou abertos em outro lugar).",
+  "Applying…": "Aplicando…",
+  "Apply ({n})": "Aplicar ({n})"
 }
