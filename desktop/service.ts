@@ -1899,6 +1899,8 @@ export function createService(root: string, deps: Deps) {
       const file = join(folder, name);
       writeFileSync(file, bytes);
       return file;
+    },
+
     // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
     // operations' own folders and journals are not offered: Moki and the skills need them.
     organizeCandidates: (project: string) => organizeCandidates(project),
