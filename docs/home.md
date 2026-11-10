@@ -58,20 +58,34 @@ New here? Read **[What is Moki](what-is-moki.md)** and take the **[tour of the s
 
 Moki stands on the shoulders of free and open-source projects. **Thank you** to every person who builds and maintains them.
 
-| Project | What it does in Moki | License |
+### 🏗️ Frameworks
+
+| Framework | What it does in Moki | License |
 |---|---|---|
 | [Electron](https://www.electronjs.org) | The desktop app itself, on Windows, macOS and Linux | MIT |
 | [React](https://react.dev) | Every screen of the app | MIT |
-| [TipTap](https://tiptap.dev) and [ProseMirror](https://prosemirror.net) | The Markdown editor of documents and notes | MIT |
-| [marked](https://marked.js.org) | Reading Markdown for the editor | MIT |
-| [xterm.js](https://xtermjs.org) and [node-pty](https://github.com/microsoft/node-pty) | The terminals where the AI tools run | MIT |
-| [PDF.js](https://mozilla.github.io/pdf.js/) and [pdf-lib](https://pdf-lib.js.org) | Reading, highlighting and commenting PDFs | Apache-2.0 · MIT |
+| [TipTap](https://tiptap.dev) | The Markdown editor of documents and notes | MIT |
+| [ProseMirror](https://prosemirror.net) | The editing engine under TipTap | MIT |
+| [Playwright](https://playwright.dev) | The automated tests that click through the app — and take this wiki's screenshots | Apache-2.0 |
+
+### 🧰 Other open-source tools
+
+| Tool | What it does in Moki | License |
+|---|---|---|
+| [Node.js](https://nodejs.org) | Moki's scripts and the app's engine | MIT |
+| [TypeScript](https://www.typescriptlang.org) | The language Moki is written in, and its type checks | Apache-2.0 |
+| [Vite](https://vite.dev) and [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react) | Building the app's screens | MIT |
+| [esbuild](https://esbuild.github.io) | Building the app's main process and the IDE extension | MIT |
+| [xterm.js](https://xtermjs.org) and [@xterm/addon-fit](https://github.com/xtermjs/xterm.js) | Drawing the terminals where the AI tools run, at the size of their tab | MIT |
+| [node-pty](https://github.com/microsoft/node-pty) | A real shell process behind each terminal | MIT |
+| [PDF.js](https://mozilla.github.io/pdf.js/) | Showing PDFs with selectable text | Apache-2.0 |
+| [pdf-lib](https://pdf-lib.js.org) | Writing highlights, comments and page edits into PDFs | MIT |
 | [Mermaid](https://mermaid.js.org) | Diagrams drawn inside documents | MIT |
 | [Excalidraw](https://excalidraw.com) | Hand-drawn style drawings you can edit | MIT |
-| [Vite](https://vite.dev), [esbuild](https://esbuild.github.io) and [TypeScript](https://www.typescriptlang.org) | Building the app | MIT · MIT · Apache-2.0 |
-| [Playwright](https://playwright.dev) | The automated tests that click through the app | Apache-2.0 |
-| [electron-builder](https://www.electron.build) and [vsce](https://github.com/microsoft/vscode-vsce) | The installers and the VS Code extension | MIT |
-| [Node.js](https://nodejs.org) | Moki's scripts and the app's engine | MIT |
+| [marked](https://marked.js.org) | Reading Markdown for the editor | MIT |
+| [electron-builder](https://www.electron.build) | The installers | MIT |
+| [vsce](https://github.com/microsoft/vscode-vsce) | Packaging the VS Code extension | MIT |
+| [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped) | The types of Node.js, React and VS Code used while building | MIT |
 
 The full list, with what each one does and where its license is: **[Credits and licenses](credits.md)**.
 
