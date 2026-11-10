@@ -562,6 +562,7 @@ export interface Request {
   root?: string; // the framework whose activities/ and workspace library hold the activity (tests use another)
   workspace?: string; // workspaceLabel: "workspace", or the folder of another workspace
   skill?: string; // the skill named by the project panel's "Use a skill" start
+  skillPath?: string; // where that skill's SKILL.md is, when it is not Moki's own (skills/<name>/SKILL.md): a project's or a global skill
 }
 
 function promptHead(project: string, workspace: string, repository: string): string[] {
@@ -574,13 +575,52 @@ function promptHead(project: string, workspace: string, repository: string): str
   return parts;
 }
 
+// A skill or agent of the project as the start prompt names it (scripts/lib/project-items.ts, ProjectItem).
+export interface StartItem { kind: 'skill' | 'agent'; name: string; path: string; description: string; missing?: boolean }
+const START_ITEMS_LIMIT = 40; // more than this and only names are listed (the folders hold the rest)
+const START_DESCRIPTION_LIMIT = 140;
+
+function startItemLines(items: StartItem[], project: string, repository: string, workspace: string): string[] {
+  const long = items.length > START_ITEMS_LIMIT;
+  const shown = long ? items.slice(0, START_ITEMS_LIMIT) : items;
+  const line = (i: StartItem) => {
+    if (long) return i.name;
+    const text = i.description.length > START_DESCRIPTION_LIMIT ? `${i.description.slice(0, START_DESCRIPTION_LIMIT - 1).trimEnd()}…` : i.description;
+    return `${i.name} (${i.path})${text ? `: ${text}` : ''}`;
+  };
+  const more = (kind: 'skills' | 'agents') => (long ? ` Others of this project are in ${folderLabel(project, repository, kind, workspace)}: read the folder when the task needs one.` : '');
+  const skills = shown.filter((i) => i.kind === 'skill');
+  const agents = shown.filter((i) => i.kind === 'agent');
+  return [
+    ...(skills.length ? [`Skills of this project: read the SKILL.md before acting when the task fits one, and follow its procedure and approval gates: ${skills.map(line).join('; ')}.${more('skills')}`] : []),
+    ...(agents.length ? [`Agents of this project: when I ask for one, or the task fits it, read its file and follow it, using only the skills it lists: ${agents.map(line).join('; ')}.${more('agents')}`] : []),
+  ];
+}
+
+// What the project panel's ▶ and "Use in the terminal" send: a skill, an agent or files of the project, as one short request
+// to type into an AI that is already open (pasted, never submitted) or to open a new one with. No shared context from tags and
+// no run of its own: the Call dialog is where those are reviewed.
+export type InvokeTarget = { kind: 'skill' | 'agent'; name: string; path: string } | { kind: 'file'; paths: string[] };
+export function buildInvokePrompt({ project, target, language = 'English', repository = '', workspace = 'workspace' }: {
+  project: string; target: InvokeTarget; language?: string; repository?: string; workspace?: string;
+}): string {
+  const parts = promptHead(project, workspace, repository);
+  if (target.kind === 'file') {
+    if (!target.paths.length) throw new Error('Choose at least one file.');
+    parts.push(`Read ${target.paths.join(', ')} and use ${target.paths.length > 1 ? 'them' : 'it'} as context for what I ask next.`);
+  } else if (target.kind === 'skill') parts.push(`Use the ${target.name} skill: read ${target.path} and follow its procedure and approval gates.`);
+  else parts.push(`Act as the ${target.name} agent: read ${target.path} and follow it.`);
+  parts.push(`Talk to me in ${language}.`);
+  return parts.join(' ');
+}
+
 // What an AI opened in the project without a choice starts with, when its defaults are not a single activity
 // without files (that one starts as its own request, like any activity): the agents, skills and activities set
 // for the project and its instructions; then the AI says in a line or two what is set up and what it needs, and
 // waits. Operations run step by step in terminals of their own, so they are not part of it ('' = nothing set).
-export function buildStartPrompt({ project, defaults, instructions = '', language = 'English', repository = '', workspace = 'workspace', globalSkills = [], root = ROOT }: {
+export function buildStartPrompt({ project, defaults, instructions = '', language = 'English', repository = '', workspace = 'workspace', globalSkills = [], items = [], root = ROOT }: {
   project: string; defaults: ProjectDefault[]; instructions?: string; language?: string; repository?: string; workspace?: string;
-  globalSkills?: { name: string; path: string }[]; root?: string;
+  globalSkills?: { name: string; path: string }[]; items?: StartItem[]; root?: string;
 }): string {
   const agents = defaults.flatMap((d) => (d.kind === 'agent' ? listAgents(root).filter((a) => a.name === d.id && isUsableAgent(a)) : []));
   const skills = defaults.flatMap((d) => {
@@ -594,11 +634,15 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
     return def && def.target.kind !== 'operation' && def.target.kind !== 'moki' ? [def] : [];
   });
   const text = instructions.trim();
-  if (!agents.length && !skills.length && !activities.length && !text) return '';
+  // The project's skills and agents the defaults do not already name: the AI knows they exist and where they are.
+  const named = new Set(defaults.filter((d) => d.kind === 'skill' || d.kind === 'agent').map((d) => `${d.kind}:${d.id}`));
+  const known = items.filter((i) => !i.missing && !named.has(`${i.kind}:${i.name}`));
+  if (!agents.length && !skills.length && !activities.length && !text && !known.length) return '';
   const parts = promptHead(project, workspace, repository);
   if (agents.length === 1) parts.push(`Act as the ${agents[0].name} agent: read ${agents[0].path} and follow it.`);
   else if (agents.length > 1) parts.push(`This project's agents: ${agents.map((a) => `${a.name} (${a.path})`).join(', ')}. For each request act as the one that fits, or ask me which.`);
   if (skills.length) parts.push(`Use these skills whenever they fit, following each one's procedure and approval gates: ${skills.join(', ')}.`);
+  parts.push(...startItemLines(known, project, repository, workspace));
   if (activities.length) {
     parts.push(`This project's activities, to follow when I ask for one: ${activities.map((a) => `"${a.label}"${a.files === 'required' ? ' (it needs files: ask me for them)' : ''}: ${activityRequest(a, [], project)}`).join(' ')}`);
   }
@@ -608,7 +652,7 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
   return parts.join(' ');
 }
 
-export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], root = ROOT, workspace = 'workspace', skill = '' }: Request): string {
+export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], root = ROOT, workspace = 'workspace', skill = '', skillPath = '' }: Request): string {
   // Resolve an activity's agent here too, so the terminal menu and the app ask for the same role.
   const definition = getActivity(activity, root);
   if (!agent && definition?.target.kind === 'agent') {
@@ -650,7 +694,7 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
     case 'skill': {
       const name = skill.trim();
       if (!name) throw new Error('Using a skill needs its name.');
-      parts.push(`Use the ${name} skill: read skills/${name}/SKILL.md and follow its procedure and approval gates.`);
+      parts.push(`Use the ${name} skill: read ${skillPath.trim() || `skills/${name}/SKILL.md`} and follow its procedure and approval gates.`);
       break;
     }
     case 'talk':

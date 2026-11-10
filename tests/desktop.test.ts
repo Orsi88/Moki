@@ -13,6 +13,8 @@ import type { TermSpec } from '../desktop/terminals.ts';
 import { parseGioMime } from '../desktop/open-with.ts';
 import { parsePdfChange, pdfcraftCandidates, pdfScript, toComments, type PdfChange, type PdfStep } from '../desktop/pdfcraft.ts';
 import { selectionMarks, selectionNote, stackCards } from '../app/src/pdf-quads.ts';
+import { allMarked, toggleMarked } from '../app/src/upload-select.ts';
+import { acceptsItem, droppedItem, ITEM_DRAG, itemPayload, parseItem } from '../app/src/item-drag.ts';
 import { docxToMarkdown, readableInputs } from '../scripts/lib/docx.ts';
 import { frameworkTarget, syncFramework } from '../desktop/framework.ts';
 import { noteKey, noteQuery, parseNoteRequest } from '../desktop/notes.ts';
@@ -1919,6 +1921,114 @@ test('set up: ArtCraft skills of the framework can be linked; requests name them
   rmSync(join(root, 'skills', 'wordcraft'), { recursive: true, force: true });
 });
 
+// A project with a skill of its own, a global skill it links, a default of Moki's and a link that is gone, for the project panel's card.
+function usesFixture(name: string) {
+  const home = join(root, `home-${name}`);
+  const pasted: { project: string; id: string; prompt: string }[] = [];
+  const svc = createService(root, {
+    launch: () => { throw new Error('must not start a tool'); }, openFolder: () => {}, openPath: () => {}, home,
+    pasteRequest: (project, id, prompt) => { pasted.push({ project, id, prompt }); return id === 'ai-1'; },
+  });
+  const id = svc.createProject(name).id;
+  const dir = join(root, 'workspace', 'projects', id);
+  mkdirSync(join(dir, 'skills', 'my-skill'), { recursive: true });
+  writeFileSync(join(dir, 'skills', 'my-skill', 'SKILL.md'), '---\nname: my-skill\ndescription: Checks the billing rules.\nsecond: line\n---\nBody');
+  mkdirSync(join(dir, 'agents'), { recursive: true });
+  writeFileSync(join(dir, 'agents', 'helper.md'), '---\nname: helper\ndescription: Helps with billing.\n---\nBody');
+  for (const skill of ['react-dev', 'gone-skill']) {
+    mkdirSync(join(home, '.claude', 'skills', skill), { recursive: true });
+    writeFileSync(join(home, '.claude', 'skills', skill, 'SKILL.md'), `---\nname: ${skill}\ndescription: A global skill.\n---`);
+  }
+  svc.setupProject(id, { description: '', linkedSkills: ['react-dev', 'gone-skill'], defaults: [{ kind: 'skill', id: 'failure-analysis' }] });
+  rmSync(join(home, '.claude', 'skills', 'gone-skill'), { recursive: true, force: true });
+  return { svc, id, dir, home, pasted };
+}
+
+test('set up: the project panel lists the skills and agents the project uses, from its own folder, the global ones it links and Moki\'s defaults', () => {
+  const { svc, id, home } = usesFixture('Uses Panel');
+  const list = svc.usedItems(id);
+  const by = (kind: string, name: string) => list.find((i) => i.kind === kind && i.name === name);
+  assert.deepEqual(list.map((i) => `${i.kind}:${i.name}`), ['skill:failure-analysis', 'skill:gone-skill', 'skill:my-skill', 'skill:react-dev', 'agent:helper']);
+  assert.deepEqual({ scope: by('skill', 'my-skill')?.scope, description: by('skill', 'my-skill')?.description, open: by('skill', 'my-skill')?.open }, { scope: 'project', description: 'Checks the billing rules.', open: 'skills/my-skill/SKILL.md' });
+  assert.deepEqual({ scope: by('skill', 'react-dev')?.scope, open: by('skill', 'react-dev')?.open, path: by('skill', 'react-dev')?.path }, { scope: 'global', open: undefined, path: join(home, '.claude', 'skills', 'react-dev', 'SKILL.md') });
+  assert.deepEqual({ scope: by('skill', 'failure-analysis')?.scope, default: by('skill', 'failure-analysis')?.default }, { scope: 'moki', default: true });
+  assert.deepEqual({ missing: by('skill', 'gone-skill')?.missing, path: by('skill', 'gone-skill')?.path }, { missing: true, path: '' });
+  assert.equal(by('agent', 'helper')?.open, 'agents/helper.md');
+  assert.ok(!list.some((i) => i.kind === 'agent' && i.scope === 'moki'), 'Moki\'s agents for every project are not listed');
+  assert.throws(() => svc.usedItems('ghost'), /Unknown project/);
+});
+
+test('set up: a skill or an agent is typed into the AI terminal without Enter, from the project\'s list only, with no shared context and no run', () => {
+  const { svc, id, home, pasted } = usesFixture('Uses Paste');
+  const runs = svc.activityRuns(id);
+  const skill = svc.invokeItem(id, { kind: 'skill', name: 'my-skill' }, 'Portuguese (pt-BR)', 'ai-1');
+  assert.equal(skill.prepared, true);
+  assert.match(skill.prompt, /^Follow AGENTS\.md\. Project: uses-paste\. Use the my-skill skill: read workspace\/projects\/uses-paste\/skills\/my-skill\/SKILL\.md and follow its procedure and approval gates\. Talk to me in Portuguese \(pt-BR\)\.$/);
+  assert.ok(svc.invokeItem(id, { kind: 'skill', name: 'react-dev' }, 'English', 'ai-1').prompt.includes(`read ${join(home, '.claude', 'skills', 'react-dev', 'SKILL.md')} and follow`));
+  assert.match(svc.invokeItem(id, { kind: 'agent', name: 'helper' }, 'English', 'ai-1').prompt, /Act as the helper agent: read workspace\/projects\/uses-paste\/agents\/helper\.md and follow it\./);
+  assert.equal(pasted.length, 3);
+  assert.ok(pasted.every((x) => x.project === id && x.id === 'ai-1' && !/[\r\n]/.test(x.prompt)), 'plain text: nothing that submits it');
+  assert.ok(pasted.every((x) => !/--activity|new-run|shared|Context from/i.test(x.prompt)), 'no run and no context from tags');
+  assert.deepEqual(svc.activityRuns(id), runs);
+  // Only what the project's own list holds: not a path, not a skill the project does not use, not one that is gone, not another kind.
+  for (const target of [{ kind: 'skill', name: 'dispatch' }, { kind: 'skill', name: 'gone-skill' }, { kind: 'skill', name: '../../etc/passwd' }, { kind: 'agent', name: 'my-skill' }]) {
+    assert.throws(() => svc.invokeItem(id, target, 'English', 'ai-1'), /is not available in this project/, JSON.stringify(target));
+  }
+  assert.throws(() => svc.invokeItem(id, { kind: 'robot', name: 'x' }, 'English', 'ai-1'), /Unknown kind/);
+  assert.throws(() => svc.invokeItem('ghost', { kind: 'skill', name: 'my-skill' }, 'English', 'ai-1'), /Unknown project/);
+  assert.throws(() => svc.invokeItem(id, { kind: 'skill', name: 'my-skill' }, 'English', 'ai-2'), /Choose a running AI terminal/);
+  assert.throws(() => svc.invokeItem(id, { kind: 'skill', name: 'my-skill' }, 'English', undefined), /Choose a running AI terminal/);
+  assert.match(svc.invokePrompt(id, { kind: 'skill', name: 'my-skill' }, 'Klingon'), /Talk to me in English\.$/, 'a language that is not on the list falls back to English');
+});
+
+test('set up: files of Context and Notes go to the AI the same way; other files, folders, hidden names, credentials and paths outside are refused', () => {
+  const { svc, id, dir, pasted } = usesFixture('Uses Files');
+  writeFileSync(join(dir, 'context', 'rules.md'), '# Rules');
+  const note = svc.createNote(id, 'Ideias', 'a note');
+  writeFileSync(join(dir, 'context', 'leaky.md'), 'password = "hunter2hunter2"\n'); // qa-agents:allow-secret (a fake value, to prove the refusal)
+  writeFileSync(join(dir, 'context', '.hidden.md'), 'x');
+  writeFileSync(join(dir, 'context', 'run.sh'), 'echo');
+  mkdirSync(join(dir, 'context', 'sub'));
+  const one = svc.invokeItem(id, { kind: 'file', paths: ['context/rules.md'] }, 'English', 'ai-1');
+  assert.equal(one.prompt, 'Follow AGENTS.md. Project: uses-files. Read workspace/projects/uses-files/context/rules.md and use it as context for what I ask next. Talk to me in English.');
+  const many = svc.invokePrompt(id, { kind: 'file', paths: ['context/rules.md', note, 'context/rules.md'] }, 'English');
+  assert.ok(many.includes(`Read workspace/projects/uses-files/context/rules.md, workspace/projects/uses-files/${note} and use them as context`));
+  assert.deepEqual(pasted.map((x) => x.id), ['ai-1']);
+  const refused: [string, RegExp][] = [
+    ['inbox/us-1.md', /Only files of Context and Notes/], ['project.json', /Only files of Context and Notes/], ['context', /Only files of Context and Notes/],
+    ['context/sub', /File not found/], ['context/missing.md', /File not found/], ['context/.hidden.md', /Only files of Context and Notes/],
+    ['context/run.sh', /This kind of file cannot be used/], ['context/leaky.md', /looks like it holds a credential/],
+    ['context/../inbox/us-1.md', /Only files of Context and Notes/], ['../acme/context/index.md', /outside|Only files/], ['/etc/passwd', /Absolute paths/], ['@folder/x.md', /no linked folder/],
+  ];
+  for (const [path, why] of refused) assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: [path] }, 'English'), why, path);
+  assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: [] }, 'English'), /Choose from 1 to 20 files/);
+  assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: Array.from({ length: 21 }, (_, i) => `context/${i}.md`) }, 'English'), /Choose from 1 to 20 files/);
+  assert.throws(() => svc.invokePrompt('ghost', { kind: 'file', paths: ['context/rules.md'] }, 'English'), /Unknown project/);
+  // One file refused refuses the whole request: nothing half sent.
+  assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: ['context/rules.md', 'context/leaky.md'] }, 'English'), /credential/);
+});
+
+test('set up: an AI opened without a choice is told about the project\'s skills and agents; the tab says nothing when only they are there', () => {
+  const { svc, id, dir } = usesFixture('Uses Start');
+  const start = svc.startOf(id, 'claude', 'English');
+  assert.match(start.prompt, /Skills of this project: read the SKILL\.md before acting when the task fits one, and follow its procedure and approval gates: .*my-skill \(workspace\/projects\/uses-start\/skills\/my-skill\/SKILL\.md\): Checks the billing rules\./);
+  assert.match(start.prompt, /react-dev \([^)]*SKILL\.md\): A global skill\./);
+  assert.match(start.prompt, /Agents of this project: .*helper \(workspace\/projects\/uses-start\/agents\/helper\.md\): Helps with billing\./);
+  assert.doesNotMatch(start.prompt, /gone-skill/, 'a link that is gone is not offered');
+  assert.doesNotMatch(start.prompt.slice(start.prompt.indexOf('Skills of this project:')), /failure-analysis/, 'the default is named once, in its own sentence');
+  assert.match(start.prompt, /Use these skills whenever they fit[^.]*failure-analysis/);
+  // Nothing set as a default and no instructions: the skills and agents alone start it, and the tab is not labelled.
+  svc.setupProject(id, { description: '', linkedSkills: ['react-dev'], defaults: [] });
+  const only = svc.startOf(id, 'claude', 'English');
+  assert.match(only.prompt, /my-skill/);
+  assert.deepEqual({ label: only.label, several: only.several }, { label: '', several: false });
+  // A project that uses nothing keeps starting with nothing.
+  rmSync(join(dir, 'skills'), { recursive: true, force: true });
+  rmSync(join(dir, 'agents'), { recursive: true, force: true });
+  svc.setupProject(id, { description: '', linkedSkills: [], defaults: [] });
+  assert.deepEqual(svc.startOf(id, 'claude', 'English'), { prompt: '', label: '', several: false });
+});
+
 test('blank project: no QA context files; the AI plan is filtered and approved from Set up', () => {
   const home = join(root, 'home-plan');
   const svc = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {}, home });
@@ -2155,7 +2265,7 @@ test('leftovers: old scratch files and finished runs\' helper files go when the 
   }
 });
 
-test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace and links them to the project', async () => {
+test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace for all projects and links them to the project', async () => {
   const home = mkdtempSync(join(tmpdir(), 'qa-bring-home-'));
   const src = mkdtempSync(join(tmpdir(), 'qa-bring-src-'));
   const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
@@ -2181,13 +2291,13 @@ test('bring to a project: one upload finds skills, agents and activities, puts t
     // The skill for all projects, linked to acme.
     assert.ok(existsSync(join(home, '.claude', 'skills', 'log-reader', 'SKILL.md')));
     assert.ok(projectSummary('acme', root).linkedSkills.includes('log-reader'));
-    // The agent as one of the person's, in Moki's format (read-only: it had no editing tools), reaching acme by its tag.
+    // The agent as one of the person's, in Moki's format (read-only: it had no editing tools), with no tag: every project has it.
     const agent = readFileSync(join(library, 'agents', 'uploaded', 'log-scout.md'), 'utf8');
     assert.match(agent, /^---\nname: log-scout\ndescription: "Finds the failing line"\ncategory: uploaded\naccess: read-only\nmodel: sonnet\nmetadata:\n {2}version: "1\.0\.0"\n {2}status: draft\n---\n\nLook at the log first\.\n$/);
     assert.ok(svc.projectAgents('acme').includes('log-scout'));
-    assert.deepEqual(svc.agentTags()['log-scout'], ['project:acme']);
-    // The activity among the person's, with acme's tag only (the tag it came with belongs to another workspace).
-    assert.deepEqual(listActivities(root).find((a) => a.id === 'log-triage')?.tags, ['project:acme']);
+    assert.equal(svc.agentTags()['log-scout'], undefined);
+    // The activity among the person's, with no tag (the tag it came with belongs to another workspace).
+    assert.deepEqual(listActivities(root).find((a) => a.id === 'log-triage')?.tags, []);
     // Remembered as brought from acme, for the workspace's lists.
     const uploads = svc.uploads();
     assert.deepEqual(Object.keys(uploads).sort(), ['activity:log-triage', 'agent:log-scout', 'skill:log-reader']);
@@ -2209,6 +2319,63 @@ test('bring to a project: one upload finds skills, agents and activities, puts t
     rmSync(join(library, 'activities', 'log-triage.md'), { force: true });
     rmSync(join(library, 'uploads.json'), { force: true });
     for (const dir of [home, src]) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('bring to a project: kept only for the project, the skill and the agent stay in the project folder, with no link, no tag and no record', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'qa-keep-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'qa-keep-src-'));
+  const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
+  put('kit/.claude/skills/keep-skill/SKILL.md', '---\nname: keep-skill\ndescription: Stays in the project\n---\nBody');
+  put('kit/.claude/agents/keep-agent.md', '---\nname: keep-agent\ndescription: Stays in the project\ntools: Read\n---\nRead first.');
+  const svc = createService(root, { ...noLaunch, home, pickFolder: async () => join(src, 'kit') });
+  const id = svc.createProject('Keep Only').id;
+  const dir = join(root, 'workspace', 'projects', id);
+  const library = join(root, 'workspace', 'library');
+  try {
+    await svc.claudeUploadPick('folder', id, 'bring');
+    const view = svc.claudeUploadPreview(id, 'project');
+    assert.deepEqual(view.items.map((i) => `${i.kind}:${i.name}:${i.blocked?.reason ?? ''}`).sort(), ['agent:keep-agent:', 'skill:keep-skill:']);
+    svc.claudeUploadApply(id, 'project', ['skill:keep-skill', 'agent:keep-agent']);
+    assert.ok(existsSync(join(dir, 'skills', 'keep-skill', 'SKILL.md')));
+    assert.ok(existsSync(join(dir, 'agents', 'keep-agent.md')));
+    assert.deepEqual(projectSummary(id, root).linkedSkills, [], 'nothing linked: it is the project\'s own');
+    assert.equal(svc.agentTags()['keep-agent'], undefined, 'no tag');
+    assert.deepEqual(Object.keys(svc.uploads()).filter((k) => k.includes('keep-')), [], 'no record of being brought');
+    assert.equal(existsSync(join(home, '.claude')), false, 'nothing in the user folder');
+    assert.equal(existsSync(join(library, 'agents', 'uploaded', 'keep-agent.md')), false, 'nothing in the workspace library');
+    assert.deepEqual(svc.usedItems(id).filter((i) => i.name.startsWith('keep-')).map((i) => `${i.kind}:${i.name}:${i.scope}`), ['skill:keep-skill:project', 'agent:keep-agent:project']);
+    // Applying again: both are installed in the project.
+    const again = await svc.claudeUploadPick('folder', id, 'project');
+    assert.deepEqual(again?.items.map((i) => i.blocked?.reason), ['installed', 'installed']);
+  } finally {
+    for (const d of [home, src, dir]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('set up: the project panel lists a general agent brought by this project, and not one brought by another', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'qa-panel-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'qa-panel-src-'));
+  const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
+  put('kit/.claude/agents/panel-agent.md', '---\nname: panel-agent\ndescription: Brought by one project\ntools: Read\n---\nRead first.');
+  const svc = createService(root, { ...noLaunch, home, pickFolder: async () => join(src, 'kit') });
+  const from = svc.createProject('Panel From').id;
+  const other = svc.createProject('Panel Other').id;
+  const library = join(root, 'workspace', 'library');
+  const listed = (project: string) => svc.usedItems(project).filter((i) => i.kind === 'agent' && i.name === 'panel-agent');
+  try {
+    await svc.claudeUploadPick('folder', from, 'bring');
+    svc.claudeUploadApply(from, 'bring', ['agent:panel-agent']);
+    assert.equal(svc.agentTags()['panel-agent'], undefined, 'no tag: for every project');
+    assert.deepEqual(listed(from).map((i) => i.scope), ['moki'], 'the project that brought it lists it');
+    assert.deepEqual(listed(other), [], 'another project does not list it, though it has it');
+    assert.ok(svc.projectAgents(other).includes('panel-agent'));
+    // An agent without a tag that nobody brought stays out of the panel.
+    assert.equal(svc.usedItems(from).some((i) => i.name === 'requirements-analyst'), false);
+  } finally {
+    rmSync(join(library, 'agents', 'uploaded'), { recursive: true, force: true });
+    rmSync(join(library, 'uploads.json'), { force: true });
+    for (const d of [home, src, join(root, 'workspace', 'projects', from), join(root, 'workspace', 'projects', other)]) rmSync(d, { recursive: true, force: true });
   }
 });
 
@@ -2247,6 +2414,74 @@ test('upload from a zip: layouts, limits, unsafe paths, and a failure undoes eve
   assert.equal(existsSync(join(home, '.claude')), false, 'everything created was removed');
   assert.equal(existsSync(join(home, '.agents')), false);
   for (const d of [home, dir]) rmSync(d, { recursive: true, force: true });
+});
+
+test('upload of skills and agents: agents in subfolders of .claude/agents are each offered, same names are blocked and all chosen are installed', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'qa-upa-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'qa-upa-src-'));
+  const agent = (name: string, text: string) => `---\nname: ${name}\ndescription: ${text}\ntools: Read\n---\nBody of ${name}.`;
+  const put = (rel: string, text: string) => { mkdirSync(dirname(join(src, rel)), { recursive: true }); writeFileSync(join(src, rel), text); };
+  put('kit/.claude/agents/ag-flat.md', agent('ag-flat', 'Loose agent'));
+  put('kit/.claude/agents/docs/ag-alpha.md', agent('ag-alpha', 'Alpha from docs'));
+  put('kit/.claude/agents/docs/ag-beta.md', agent('ag-beta', 'Beta from docs'));
+  put('kit/.claude/agents/docs/notes.txt', 'not an agent');
+  put('kit/.claude/agents/kpi/ag-alpha.md', agent('ag-alpha', 'Alpha from kpi'));
+  put('kit/.claude/agents/kpi/ag-delta.md', agent('ag-delta', 'Delta from kpi'));
+  put('kit/.claude/agents/kpi/deep/ag-gamma.md', agent('ag-gamma', 'Gamma in a deep folder'));
+  put('kit/.claude/agents/README.md', '# About these agents');
+  const svc = createService(root, { ...noLaunch, home, pickFolder: async () => join(src, 'kit') });
+  const library = join(root, 'workspace', 'library');
+  const names = ['ag-alpha', 'ag-beta', 'ag-delta', 'ag-flat', 'ag-gamma'];
+  const keys = names.map((n) => `agent:${n}`);
+  try {
+    const view = await svc.claudeUploadPick('folder', 'acme', 'global');
+    assert.ok(view);
+    assert.equal(view.items.length, 6, 'five names, one of them found in two folders');
+    assert.deepEqual(view.items.map((i) => [i.name, i.from ?? '']), [
+      ['ag-flat', ''], ['ag-alpha', 'docs'], ['ag-beta', 'docs'], ['ag-alpha', 'kpi'], ['ag-delta', 'kpi'], ['ag-gamma', 'kpi/deep'],
+    ], 'every agent is offered, in path order, with the folder it came from');
+    const repeated = view.items.filter((i) => i.name === 'ag-alpha');
+    assert.equal(repeated[0].blocked, undefined, 'the first by path is the one offered');
+    assert.deepEqual(repeated[1].blocked, { reason: 'duplicate', detail: 'agents/docs/ag-alpha.md' });
+    assert.equal(view.items.filter((i) => i.blocked).length, 1);
+    assert.deepEqual(view.ignored.map((g) => [g.path, g.reason]).sort(), [['agents/README.md', 'other'], ['agents/docs/notes.txt', 'other']], 'listed by full path, not as a generic "agents"');
+    assert.equal(existsSync(join(home, '.claude')), false, 'the preview writes nothing');
+
+    const done = svc.claudeUploadApply('', 'global', keys);
+    assert.deepEqual(done.installed.map((i) => i.name).sort(), names, 'the blocked repeat is not installed twice');
+    assert.deepEqual(readdirSync(join(home, '.claude', 'agents')).sort(), names.map((n) => `${n}.md`), 'installed flat, whatever folder they came from');
+    assert.match(readFileSync(join(home, '.claude', 'agents', 'ag-alpha.md'), 'utf8'), /Alpha from docs/);
+    // The same kit again: what is installed is blocked, the repeat stays a repeat.
+    const again = await svc.claudeUploadPick('folder', 'acme', 'global');
+    assert.deepEqual(again?.items.map((i) => i.blocked?.reason).sort(), ['duplicate', 'installed', 'installed', 'installed', 'installed', 'installed']);
+
+    // Bring: the person's own agents, one file each, for every project (no tag).
+    await svc.claudeUploadPick('folder', 'acme', 'bring');
+    const brought = svc.claudeUploadApply('acme', 'bring', keys);
+    assert.equal(brought.installed.length, 5);
+    assert.deepEqual(readdirSync(join(library, 'agents', 'uploaded')).sort(), names.map((n) => `${n}.md`));
+    assert.deepEqual(Object.keys(svc.uploads()).sort(), keys);
+    for (const n of names) assert.equal(svc.agentTags()[n], undefined, n);
+    for (const n of names) assert.ok(svc.projectAgents('acme').includes(n), n);
+  } finally {
+    for (const n of names) { try { svc.setAgentTags(n, []); } catch { /* not created */ } }
+    rmSync(join(library, 'agents', 'uploaded'), { recursive: true, force: true });
+    rmSync(join(library, 'uploads.json'), { force: true });
+    for (const dir of [home, src]) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('upload of skills and agents: select all and clear work per group and never mark a blocked item', () => {
+  const item = (name: string, blocked?: boolean) => ({ kind: 'agent', name, blocked: blocked ? { reason: 'duplicate' } : undefined });
+  const docs = [item('a'), item('b'), item('c', true)];
+  const kpi = [item('d'), item('e')];
+  assert.deepEqual(toggleMarked([], docs), ['agent:a', 'agent:b'], 'the blocked item is never marked');
+  assert.deepEqual(toggleMarked(['agent:a'], docs), ['agent:a', 'agent:b'], 'a partial group is completed');
+  assert.equal(allMarked(['agent:a', 'agent:b'], docs), true);
+  assert.deepEqual(toggleMarked(['agent:a', 'agent:b', 'agent:d'], docs), ['agent:d'], 'clearing a group keeps the marks outside it');
+  assert.deepEqual(toggleMarked(['agent:d'], kpi), ['agent:d', 'agent:e']);
+  assert.equal(allMarked([], [item('x', true)]), false, 'a group with nothing selectable is never "all marked"');
+  assert.deepEqual(toggleMarked([], [item('x', true)]), []);
 });
 
 test('non-ASCII prompts reach Windows tools through a UTF-8 request file', () => {
@@ -2918,6 +3153,17 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal((await svc.aiTools()).find((s) => s.id === 'vscode')?.extension, '9.9.9');
   });
 
+  test('IDE shortcut installs once and reuses the matching companion on later opens', async () => {
+    const { svc, runs, urls } = mk();
+    await svc.openMokiInEditor('vscode', 'acme');
+    const downloads = urls.length;
+    await svc.openMokiInEditor('vscode', 'acme');
+    assert.equal(urls.length, downloads);
+    assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
+    assert.equal(runs.filter((a) => a[0] === 'code' && a[1] === root).length, 2);
+    await assert.rejects(svc.openMokiInEditor('../code', 'acme'), /does not take/);
+  });
+
   test('my AIs: only installed editors that take the extension, and only a vsix GitHub vouches for', async () => {
     const { svc, runs } = mk();
     await assert.rejects(svc.installMokiExtension('claude'), /does not take the Moki extension/);
@@ -2955,6 +3201,24 @@ test('project ids: only a plain folder name with a project.json is a project', (
   assert.ok(service.tree('acme').length > 0);
   const other = mkdtempSync(join(tmpdir(), 'qa-other-'));
   try { assert.equal(isProject('acme', other), false, 'another workspace does not know it'); } finally { rmSync(other, { recursive: true, force: true }); }
+});
+
+test('set up: a skill or an agent dragged from the panel is accepted only by a terminal of its own project, and only as { kind, name }', () => {
+  const skill = { project: 'p1', kind: 'skill', name: 'qa-orchestrator' } as const;
+  assert.deepEqual(parseItem(itemPayload(skill)), skill);
+  assert.equal(parseItem('not json'), null);
+  assert.equal(parseItem(JSON.stringify({ ...skill, kind: 'file' })), null, 'only skills and agents');
+  assert.equal(parseItem(JSON.stringify({ ...skill, name: '' })), null);
+  assert.equal(parseItem(JSON.stringify({ kind: 'agent', name: 'x' })), null, 'a project is required');
+  assert.equal(parseItem('null'), null);
+  assert.equal(acceptsItem([ITEM_DRAG], 'p1', skill), true);
+  assert.equal(acceptsItem([ITEM_DRAG], 'p2', skill), false, 'another project');
+  assert.equal(acceptsItem(['Files'], 'p1', skill), false, 'files from the computer are not ours');
+  assert.equal(acceptsItem([ITEM_DRAG], 'p1', null), false, 'nothing is being dragged from the panel');
+  // The drop sends only the target: any extra field of the data (a path, free text) is dropped here and refused by the service.
+  assert.deepEqual(droppedItem(JSON.stringify({ ...skill, path: '/etc/passwd', text: 'run it' }), 'p1'), { kind: 'skill', name: 'qa-orchestrator' });
+  assert.equal(droppedItem(itemPayload(skill), 'p2'), null);
+  assert.equal(droppedItem('', 'p1'), null);
 });
 
 // Finding the AI tools: no detectTools fake, so the real PATH lookup runs, kept 30 s by the service.

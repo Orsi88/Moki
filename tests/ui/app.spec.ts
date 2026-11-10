@@ -198,8 +198,10 @@ test('Moki quick notes stay available over a project, collapsed sidebar and sett
     await expect(note).toBeVisible();
     await expect(view.locator('.modal-backdrop > .note-dialog')).toHaveCount(0);
     await expect(view.locator('.workspace .project-switch')).toHaveText('Acme Library');
-    await expect(note.locator('.note-destination select')).toHaveValue('');
+    await expect(note.locator('.note-send select')).toHaveValue('');
+    await note.locator('.note-head-title h2').dblclick();
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Captura rápida');
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
     await view.keyboard.press('Control+e');
     await note.locator('textarea.note-editor').fill('Anotei sem sair do arquivo.');
     await expect(view.locator('.doc textarea.md-source')).toHaveCount(0); // Ctrl+E belongs only to the note
@@ -225,7 +227,9 @@ test('Moki quick notes stay available over a project, collapsed sidebar and sett
       await themes.click();
       await add.click();
       await expect(onTop).toBeVisible();
+      await onTop.locator('.note-head-title h2').dblclick();
       await onTop.getByPlaceholder('ex.: Ideias de teste').fill(atHome ? 'Na tela inicial' : 'No projeto');
+      await onTop.getByPlaceholder('ex.: Ideias de teste').press('Enter');
       await view.keyboard.press('Escape');
       await expect(onTop).toHaveCount(0);
       await expect(themes).toHaveAttribute('aria-selected', 'true');
@@ -278,20 +282,21 @@ test('Moki themed confirmations wait for a decision, trap focus and preserve the
     await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
     await expect.poll(() => existsSync(file)).toBe(false);
     await expect(view.locator('.tree-row[title="context/disposable.txt"]')).toHaveCount(0);
-    // A catalog opened over a note owns the first Escape; the note and its contents stay underneath.
+    // The assistants popup owns the first Escape; the note and its contents stay underneath.
     const add = view.locator('.ribbon').getByRole('button', { name: 'Nova nota', exact: true });
     await add.click();
-    const note = view.locator('.main .note-host .note-dialog'); // the new note opens in the main area
+    const note = view.locator('.main .note-host .note-dialog');
+    await note.locator('.note-head-title h2').dblclick();
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Sobreposta');
-    await note.locator('.note-destination select').selectOption('acme');
-    await note.getByTitle('Usar esta nota com a IA', { exact: true }).click();
-    const choose = note.getByRole('button', { name: 'Escolher atividade', exact: true });
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    const assistants = note.getByRole('group', { name: 'Assistentes rápidos' });
+    const choose = assistants.locator('.note-assist-mark');
     await choose.click();
-    await expect(view.locator('.modal.catalog')).toBeVisible();
+    await expect(choose).toHaveAttribute('aria-expanded', 'true');
     await view.keyboard.press('Escape');
-    await expect(view.locator('.modal.catalog')).toHaveCount(0);
+    await expect(choose).toHaveAttribute('aria-expanded', 'false');
     await expect(note).toBeVisible();
-    await expect(note.getByPlaceholder('ex.: Ideias de teste')).toHaveValue('Sobreposta');
+    await expect(note.locator('.note-head-title h2')).toHaveText('Sobreposta');
     await expect(choose).toBeFocused();
     await view.keyboard.press('Escape');
     await expect(note).toHaveCount(0);
@@ -464,7 +469,8 @@ test.describe.serial('Moki settings', () => {
     await expect(page.getByRole('tab', { name: 'Criar skill' })).toBeVisible();
     await page.getByRole('tab', { name: 'Enviar', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Escolher arquivo (.zip ou .md)' })).toBeVisible();
-    await expect(page.getByText('Instalar para')).toHaveCount(0); // Settings installs for every project
+    await expect(page.getByText('Instalar para')).toBeVisible(); // Settings offers project and global destinations
+    await expect(page.getByRole('radio', { name: /^Todos os projetos/ })).toBeChecked();
     await page.getByRole('button', { name: 'Voltar para Skills' }).click();
   });
 
@@ -880,8 +886,11 @@ test.describe.serial('Moki workspaces', () => {
     const note = wsPage.locator('.home-main .note-dialog'); // in the main area, like the notes opened from the list
     await expect(note).toBeVisible();
     await expect(wsPage.locator('.modal-backdrop > .note-dialog')).toHaveCount(0);
+    await note.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Lista');
-    await note.getByRole('button', { name: 'Código Markdown' }).click(); // a note opens in its formatted editor; the source is one click away
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await note.locator('.tiptap-body').click();
+    await wsPage.keyboard.press('Control+e'); // a note opens in its formatted editor; Ctrl+E shows the source
     await note.locator('textarea.note-editor').fill('leite');
     await expect(note.getByRole('button', { name: 'Salvar' })).toHaveCount(0); // it saves on its own
     await expect(note.getByText(/^Salvo às/)).toBeVisible();
@@ -892,11 +901,12 @@ test.describe.serial('Moki workspaces', () => {
     // A click opens it here again; the icon beside it opens the notebook window.
     await wsPage.locator('.home-row', { hasText: 'Lista' }).last().locator('.home-project').click();
     const embedded = wsPage.locator('.home-main .note-dialog');
-    await embedded.getByRole('button', { name: 'Código Markdown' }).click();
+    await embedded.locator('.tiptap-body').click();
+    await wsPage.keyboard.press('Control+e');
     await expect(embedded.locator('textarea.note-editor')).toHaveValue('leite');
     // A new note takes the main area in its place (one note at a time there).
     await wsPage.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
-    await expect(embedded.getByPlaceholder('ex.: Ideias de teste')).toHaveValue('');
+    await expect(embedded.locator('.note-head-title h2')).toHaveText('Nova nota');
     await embedded.getByRole('button', { name: 'Fechar (Esc)' }).click();
     await expect(wsPage.locator('.hero')).toBeVisible();
 
@@ -906,7 +916,8 @@ test.describe.serial('Moki workspaces', () => {
     await wsPage.getByRole('menuitem', { name: 'Abrir no bloco de notas' }).click();
     const book = await opened;
     await expect(book.getByRole('tab')).toHaveText(['Lista']);
-    await book.getByRole('button', { name: 'Código Markdown' }).click();
+    await book.locator('.tiptap-body').click();
+    await book.keyboard.press('Control+e');
     await expect(book.locator('textarea.note-editor')).toHaveValue('leite');
 
     await book.getByRole('button', { name: 'Nova nota' }).click();
@@ -1108,8 +1119,11 @@ test.describe.serial('Moki project tree', () => {
     await treePage.locator('.tree-row[title="notes"]').click();
     await treePage.locator('.sidebar').getByRole('button', { name: 'Nova nota' }).click();
     const note = treePage.locator('.note-dialog'); // its name follows the title typed below
+    await note.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await note.getByPlaceholder('ex.: Ideias de teste').fill('Compras');
-    await note.getByRole('button', { name: 'Código Markdown' }).click();
+    await note.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await note.locator('.tiptap-body').click();
+    await treePage.keyboard.press('Control+e');
     const editor = note.locator('textarea.note-editor');
     const commands = note.getByRole('listbox', { name: 'Comandos' });
 
@@ -1200,8 +1214,11 @@ test.describe.serial('Moki project tree', () => {
     // + writes a new note of the project; saved, it stays open as its own tab.
     await book.getByRole('button', { name: 'Nova nota' }).click();
     const page = book.locator('.notebook-page:not([hidden])');
+    await page.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await page.getByPlaceholder('ex.: Ideias de teste').fill('terceira');
-    await page.getByRole('button', { name: 'Código Markdown' }).click();
+    await page.getByPlaceholder('ex.: Ideias de teste').press('Enter');
+    await page.locator('.tiptap-body').click();
+    await book.keyboard.press('Control+e');
     const editor = page.locator('textarea.note-editor');
     await editor.fill('texto');
     await expect(book.getByRole('tab', { name: 'terceira' })).toHaveAttribute('aria-selected', 'true'); // saved on its own
@@ -1776,7 +1793,8 @@ test.describe.serial('Moki PDF comments', () => {
     await expect(card.getByRole('toolbar', { name: 'Formatação' })).toBeHidden();
     await card.getByRole('button', { name: 'Mostrar ferramentas da nota' }).click();
     await expect(card.getByRole('toolbar', { name: 'Formatação' })).toBeVisible();
-    await card.getByRole('button', { name: 'Código Markdown' }).click(); // the source is in the tools; the note opens formatted
+    await card.locator('.tiptap-body').click();
+    await card.locator('.tiptap-body').press('Control+e'); // the note opens formatted; Ctrl+E shows the source
     await card.getByRole('button', { name: 'Recolher ferramentas da nota' }).click();
     const noteEditor = card.locator('textarea.note-editor');
     await noteEditor.fill(`Uma anotação entre páginas${'\n'.repeat(8)}`);
@@ -2985,13 +3003,13 @@ test.describe.serial('Moki one view for Markdown', () => {
 
   test('a click in a link puts the caret there; Ctrl+click opens it', async () => {
     await open('links.md');
-    await op.evaluate(() => { (window as unknown as { opened: string[] }).opened = []; window.open = (url?: string | URL) => { (window as unknown as { opened: string[] }).opened.push(String(url)); return null; }; });
+    await oneApp.evaluate(({ shell }) => { const state = globalThis as unknown as { opened: string[] }; state.opened = []; shell.openExternal = async (url: string) => { state.opened.push(url); }; });
     const link = editor().locator('a', { hasText: 'o site' });
     await link.click();
     await expect(op.getByRole('toolbar', { name: 'Link' })).toBeVisible();
-    expect(await op.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([]);
+    expect(await oneApp.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([]);
     await link.click({ modifiers: ['Control'] });
-    await expect.poll(() => op.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual(['https://example.com/pagina']);
+    await expect.poll(() => oneApp.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual(['https://example.com/pagina']);
   });
 });
 
@@ -3393,8 +3411,8 @@ test.describe.serial('Moki project defaults', () => {
     await settings.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(settings).toBeHidden();
     const root = join(project, '..', '..', '..');
-    expect(readFileSync(join(root, 'workspace', 'library', 'activities', 'log-triage.md'), 'utf8')).toContain('tags: "project:acme"');
-    expect(JSON.parse(readFileSync(join(root, 'workspace', 'library', 'agent-tags.json'), 'utf8')).agents['log-scout']).toEqual(['project:acme']);
+    expect(readFileSync(join(root, 'workspace', 'library', 'activities', 'log-triage.md'), 'utf8')).toContain('tags: ""'); // brought items are global and linked to this project
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'library', 'agent-tags.json'), 'utf8')).agents['log-scout'] ?? []).toEqual([]);
     // The workspace settings list them with the mark of where they came from.
     await dp.getByRole('button', { name: 'Configurações', exact: true }).click();
     await dp.getByRole('tab', { name: 'Agentes' }).click();

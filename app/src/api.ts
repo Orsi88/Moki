@@ -1,3 +1,5 @@
+import type { HtmlAnchor, HtmlComment } from '../../scripts/lib/html-comments.ts';
+import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
 // Client for the desktop app's main process (see desktop/preload.ts and
 // desktop/service.ts). Every call goes through one validated IPC channel.
 
@@ -99,9 +101,9 @@ export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
-  | { kind: 'html'; path: string; text: string } // shown rendered, read-only
-  | { kind: 'docx'; path: string; html: string }
-  | { kind: 'xlsx'; path: string; sheets: {
+  | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
+  | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
+  | { kind: 'xlsx'; path: string; version?: string; workbook?: WorkbookInfo; sheets: {
     name: string; hidden: boolean; drawing: boolean; rows: (string | { n: string })[][]; truncated: boolean;
     merges: number[][]; widths: number[]; hiddenRows: number[]; hiddenCols: number[]; align: Record<string, { h?: string; v?: string; wrap?: boolean }>;
   }[] }
@@ -109,7 +111,7 @@ export type FileContent =
   // (last change, ms) come from one stat and are what the tree's are compared with.
   | { kind: 'image'; path: string; url: string; size: number; mtime: number }
   | { kind: 'pdf'; path: string; url: string; size: number; mtime: number }
-  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string };
+  | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
 export interface RunState {
   id: string; status: string; currentStep?: string; skill?: string; workflow?: string; createdAt?: string; updatedAt?: string;
@@ -219,9 +221,9 @@ export type SkillScope = 'project' | 'global';
 // Where an upload goes: a scope, or 'bring' (a project's settings: into the workspace, linked to the project).
 export type UploadTarget = SkillScope | 'bring';
 // Upload of skills, agents and activities from a .claude folder, a .zip or a .md (desktop/claude-import.ts). reason: why an item cannot be installed.
-export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
+export type UploadBlock = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity' | 'duplicate';
 export interface UploadItem {
-  kind: 'skill' | 'agent' | 'activity'; name: string; description: string; files: number; bytes: number; discarded: string[];
+  kind: 'skill' | 'agent' | 'activity'; name: string; from?: string; description: string; files: number; bytes: number; discarded: string[];
   blocked?: { reason: UploadBlock; detail?: string; file?: string };
 }
 export interface UploadPreview {
@@ -235,6 +237,13 @@ export interface ProjectItems {
   skills: { name: string; description: string }[];
   agents: { name: string; description: string; contract?: AgentContract }[];
 }
+// The skills and agents a project uses (the project panel's section): its own, the global ones it links and Moki's tagged for it.
+export interface UsedItem {
+  kind: 'skill' | 'agent'; name: string; scope: 'project' | 'global' | 'moki'; description: string;
+  default?: boolean; missing?: boolean; open?: string; // open: the file, in the project's own tree, when it is inside the project
+}
+// What ▶ and "Use in the terminal" send: a skill or agent by name, or files of Context and Notes by path; the service writes the request.
+export type InvokeTarget = { kind: 'skill' | 'agent'; name: string } | { kind: 'file'; paths: string[] };
 export interface GlobalItems {
   skills: { name: string; description: string; folders: string[]; linkedBy: string[] }[];
   agents: { name: string; description: string; file: string; contract?: AgentContract }[];
@@ -290,7 +299,7 @@ export interface Bridge {
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
     // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
-    create(tool: string, project?: string, options?: { plain?: boolean; language?: string }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
+    create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
     start(id: string, cols: number, rows: number, project: string): Promise<string>;
     input(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
@@ -360,11 +369,17 @@ export const api = {
   setActivityFavorite: (id: string, on: boolean) => call<string[]>('setActivityFavorite', id, on),
   integrations: () => call<ToolInfo[]>('integrations'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
+  openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string }>('openMokiInEditor', tool, project),
   installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
   tree: (project: string) => call<TreeNode[]>('tree', project),
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
   // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.
   writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
+  editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
+  htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
+  addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text),
+  removeHtmlComment: (project: string, path: string, id: string) => call<HtmlComment[]>('removeHtmlComment', project, path, id),
+  convertOffice: (project: string, path: string) => call<string>('convertOffice', project, path),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
   templates: () => call<DocumentTemplate[]>('templates'),
@@ -472,6 +487,9 @@ export const api = {
   scopeAgents: (project: string, scope: SkillScope) => call<ScopeAgents>('scopeAgents', project, scope),
   createScopeAgent: (project: string, req: ScopeAgentRequest, allowClaudeWrite = false) => call<{ name: string; file: string; backup?: string }>('createScopeAgent', project, req, allowClaudeWrite),
   projectItems: (project: string) => call<ProjectItems>('projectItems', project),
+  usedItems: (project: string) => call<UsedItem[]>('usedItems', project),
+  // Pasted into a running AI terminal of the project, never submitted.
+  invokeItem: (project: string, target: InvokeTarget, language: string, terminalId: string) => call<{ prepared: boolean; prompt: string }>('invokeItem', project, target, language, terminalId),
   removeProjectItem: (project: string, kind: 'skill' | 'agent', name: string, allowClaudeWrite = false) => call<{ backup?: string }>('removeProjectItem', project, kind, name, allowClaudeWrite),
   globalItems: () => call<GlobalItems>('globalItems'),
   // name, defaults and startInstructions are written only when given.
@@ -508,3 +526,5 @@ export const statusLabel = (status: string): string => ({
   'in-progress': t('In progress'), 'awaiting-approval': t('Waiting for your approval'), 'awaiting-input': t('Waiting for input'),
   blocked: t('Blocked'), paused: t('Paused'), completed: t('Completed'), cancelled: t('Cancelled'), unreadable: t('Unreadable'),
 } as Record<string, string>)[status] ?? status;
+
+export type { WordDocument, WordChange, WorkbookInfo, SheetChange };

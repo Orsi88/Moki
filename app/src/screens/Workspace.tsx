@@ -5,12 +5,13 @@
 // each with a group and its own tabs (tab-groups.ts, components/TabGroups.tsx).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react';
-import { api, CHANGED_OUTSIDE, type FileContent, type LaunchPreset, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
+import { api, CHANGED_OUTSIDE, type FileContent, type InvokeTarget, type LaunchPreset, type ProjectSummary, type Tag, type TerminalRef, type ToolInfo, type TreeNode } from '../api';
 import { conversationLanguage, t } from '../i18n';
-import { defaultTool, recall, remember } from '../prefs';
+import { defaultTool, preferredTool, recall, remember } from '../prefs';
 import { DocView, type DocMode } from '../components/DocView';
 import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { NewMenu } from '../components/NewMenu';
+import { IdeDialog } from '../components/IdeDialog';
 import { LaunchDialog } from '../components/LaunchDialog';
 import { HudsonDialog } from '../components/HudsonDialog';
 import { NoteDialog } from '../components/NoteDialog';
@@ -24,7 +25,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconBroom, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -537,18 +538,40 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
 
   // tool '' opens the user's shell; otherwise the AI tool starts right away in the tab.
   // An AI opened here starts with the project's defaults unless plain; its tab says which ("Claude Code · failure-analyst").
-  const newTerminal = (tool: string, plain = false) => {
+  // invoke: a skill, an agent or files to start it with instead of the project's defaults (the main process writes the request).
+  const newTerminal = (tool: string, plain = false, invoke?: InvokeTarget) => {
     setTermMenu(null);
     setError('');
     const bridge = api.term();
     if (!bridge) { setError(t('Terminals are only available in the desktop app.')); return; }
-    bridge.create(tool, project.id, { plain, language: conversationLanguage() })
+    bridge.create(tool, project.id, { plain, language: conversationLanguage(), ...(invoke ? { invoke } : {}) })
       .then((r) => {
         if (!r.terminal) { setError(r.error ?? t('Could not open the terminal.')); return; }
         const mode = r.start ? (r.start.several ? t('project defaults') : t(r.start.label)) : '';
         addTerminal(mode ? { ...r.terminal, title: `${r.terminal.title} · ${mode}` } : r.terminal);
       })
       .catch((e: Error) => setError(e.message));
+  };
+  // A skill, an agent or a file of Context or Notes for the AI (▶ in the panel, "Use in the terminal"): pasted without Enter
+  // into the AI terminal in focus; with none, a new AI opens with it as its request (the AI picked in the panel, else the default).
+  const pasteItem = (target: InvokeTarget, terminalId: string) => {
+    setError('');
+    api.invokeItem(project.id, target, conversationLanguage(), terminalId)
+      .then(() => {
+        apply((b) => show(b, termKey(terminalId)));
+        flash(t('Request pasted. Add context and press Enter when ready.'));
+        requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`.term-pane[data-term="${terminalId}"]:not([hidden]) textarea`)?.focus());
+      })
+      .catch((e: Error) => setError(e.message));
+  };
+  const callItem = (target: InvokeTarget, toolId?: string) => {
+    setError('');
+    const current = terms.find((term) => term.id === activeTerm && term.running && term.tool);
+    if (current) { pasteItem(target, current.id); return; }
+    const usable = tools.filter((x) => x.available && x.kind === 'terminal');
+    const tool = usable.find((x) => x.id === toolId) ?? preferredTool(usable);
+    if (!tool) { setError(t('No AI tool found on this computer.')); return; }
+    newTerminal(tool.id, false, target);
   };
   const openTermMenu = (e: MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -633,6 +656,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     { path: '', label: t('the project folder') },
   ], [tree]);
   // "Open in the IDE" (the linked folder): straight in with one IDE installed, a menu with more (the default AI first).
+  const [ideCompanion, setIdeCompanion] = useState(false);
   const [ideMenu, setIdeMenu] = useState<{ left: number; top: number } | null>(null);
   const editors = tools.filter((x) => x.kind === 'editor' && x.available).sort((a, b) => Number(b.id === defaultTool()) - Number(a.id === defaultTool()));
   const runIde = (tool: string) => {
@@ -644,6 +668,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     if (editors.length === 1) runIde(editors[0].id); else setIdeMenu({ left: Math.min(at.left, window.innerWidth - 240), top: at.top });
   }
   const isNote = (path: string) => /^notes\/[^/]+\.md$/.test(path);
+  // Context and Notes are what "Use in the terminal" sends (the service checks it again).
+  const usableAsContext = (path: string) => /^(context|notes)\//.test(path) && !path.split('/').some((part) => part.startsWith('.'));
   const toggleFavorite = (path: string) => {
     setItemMenu(null);
     setFavorite({ project: project.id, path }, !isFavorite({ project: project.id, path }));
@@ -836,6 +862,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       onCommit={(text) => commit(doc.path, text)}
       onOpenExternal={() => openExternal(doc.path)}
       onReload={() => reloadFile(doc.path)}
+      onConverted={(path) => { void openPath(path); }}
       onLink={(href) => onLinkFrom(doc.path, href)}
       resolveLink={resolveProjectLink}
       jump={doc.jump}
@@ -906,6 +933,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     >
       <Ribbon
         project={project}
+        onIde={() => setIdeCompanion(true)}
         settingsOn={settings !== null}
         onHome={goHome}
         onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
@@ -970,6 +998,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         {note && (
           <div className="note-host">
             <NoteDialog key={note.loose ? 'loose' : note.path ?? 'new'} embedded project={note.loose ? null : project.id} path={note.path} onMyAis={() => onSettings('ai')}
+              onUseInTerminal={note.loose ? undefined : (path) => callItem({ kind: 'file', paths: [path] })}
               onLink={note.loose ? undefined : (href) => onLinkFrom(note.path ?? 'notes/note.md', href)}
               projects={note.loose ? noteProjects : undefined}
               onSaved={(saved) => { if ('path' in saved && saved.path !== note.path) loadTree(); }}
@@ -997,7 +1026,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                 />
                 <div className="pane-body">
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
-                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} />
+                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
                   ))}
                   {pane.active === GRAPH ? (
                     <div className="welcome">
@@ -1022,7 +1051,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         </div>
       </main>
 
-      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onOpenRun={openListedRun} onSetup={() => setShowSetup(true)} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
+      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onOpenRun={openListedRun} onSetup={() => setShowSetup(true)} onInvoke={callItem} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
         operations={(
           <OperationsPanel project={project.id} tick={opsTick} active={activityView ?? opView?.id ?? null} launches={activityLaunches} activityLaunchTick={activityLaunchTick}
             onDismissLaunch={(id) => setActivityLaunches((items) => items.filter((item) => item.id !== id))} onActivityRun={showActivity}
@@ -1047,6 +1076,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
           onFile={(ext) => { setTermMenu(null); setCreating({ parent: tree.some((n) => n.path === 'inbox') ? 'inbox' : '', kind: 'file', ext }); }}
           onCraft={() => { setTermMenu(null); setCraftOpen(true); }} />
       )}
+      {ideCompanion && <IdeDialog project={project.id} tools={tools} onClose={() => setIdeCompanion(false)} onMyAis={() => { setIdeCompanion(false); onSettings('ai'); }} />}
       {ideMenu && (
         <div className="menu-backdrop" onMouseDown={() => setIdeMenu(null)}>
           <ul className="term-menu" role="menu" aria-label={t('Open in the IDE')} style={ideMenu} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setIdeMenu(null); }}>
@@ -1089,6 +1119,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
               </button></li>
               <li><button type="button" role="menuitem" onClick={() => toggleFavorite(itemMenu.path)}>
                 <span className={`star-mark${favorites.has(itemMenu.path) ? '' : ' off'}`}><IconStar size={15} /></span> {favorites.has(itemMenu.path) ? t('Remove from favorites') : t('Add to favorites')}
+              </button></li>
+              <li className="ws-menu-sep" />
+            </>}
+            {usableAsContext(itemMenu.path) && findFile(tree, itemMenu.path)?.type === 'file' && <>
+              <li><button type="button" role="menuitem" onClick={() => { const path = itemMenu.path; setItemMenu(null); callItem({ kind: 'file', paths: [path] }); }}>
+                <IconPlay size={15} /> {t('Use in the terminal')}
               </button></li>
               <li className="ws-menu-sep" />
             </>}

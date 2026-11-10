@@ -4,13 +4,14 @@
 import type { MouseEvent } from 'react';
 import type { ProjectSummary } from '../api';
 import { t } from '../i18n';
-import { IconFolder, IconHome, IconLink, IconNotePlus, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
+import { IconFolder, IconHome, IconLink, IconMoki, IconNotePlus, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
 
 interface Props {
   settingsOn: boolean;
   onHome: () => void;
   onSettings: () => void;
   onNewNote: () => void;
+  onIde: () => void;
   project?: ProjectSummary | null;
   onPlay?: () => void;
   onTerminal?: (e: MouseEvent<HTMLElement>) => void;
@@ -23,7 +24,7 @@ interface Props {
   onSearch?: () => void; // the magnifier: search the workspace
 }
 
-export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch }: Props) {
+export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch }: Props) {
   const ready = Boolean(project);
   return (
     <nav className="ribbon" aria-label={t('Actions')}>
@@ -37,6 +38,7 @@ export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, project, onP
       <button type="button" className={`icon-btn${settingsOn ? ' on' : ''}`} onClick={onSettings} title={t('Settings')}><IconSettings size={19} /></button>
       <button type="button" className="icon-btn" disabled={!ready} onClick={onRefresh} title={t('Refresh')}><IconRefresh size={19} /></button>
       <span className="ribbon-spacer" />
+      <button type="button" className="icon-btn ribbon-ide" onClick={onIde} title={t('Moki in your IDE')} aria-label={t('Moki in your IDE')}><IconMoki size={20} /></button>
       {/* A loose note: the ribbon's own size, its icon in the accent color so it stands out without a block of color. */}
       <button type="button" className="icon-btn ribbon-note" onClick={onNewNote} title={t('New note')} aria-label={t('New note')}><IconNotePlus size={19} /></button>
       <button type="button" className="icon-btn" disabled={!ready || settingsOn} onClick={onPanel} aria-expanded={!sidebarCollapsed}

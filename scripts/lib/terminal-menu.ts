@@ -4,12 +4,14 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { ROOT, SLUG } from './repo.mjs';
 import {
   TOOLS, LANGUAGES, activityProblem, type ActivityKey, type ToolKey, type Request,
   buildPrompt, projectRepository, cleanPath, copyToClipboard, copyToInbox, detectTools, isFile, windowsSafePrompt,
-  launchTool, listProjects, loadPrefs, openRuns, projectsDir, savePrefs,
+  installedAgents, installedSkills, launchTool, listProjects, loadPrefs, openRuns, projectsDir, savePrefs,
 } from './core.ts';
+import { linkedGlobalSkills } from './project-items.ts';
 import { createUI, CancelError, c, type UI } from './tui.ts';
 import { getActivity, isPickable, listActivities } from './activities.ts';
 import { readableInputs } from './docx.ts';
@@ -33,7 +35,11 @@ const plainOut: Out = {
 };
 
 export async function deliver(request: Request & { tool: ToolKey; files: string[] }, out: Out = plainOut): Promise<number> {
-  const prompt = buildPrompt({ ...request, files: readableInputs(request.files, ROOT), repository: projectRepository(request.project, ROOT) });
+  // The skills and agents the project uses, so the AI knows where they are (no shared context: that is chosen per request).
+  const prompt = buildPrompt({
+    skills: installedSkills(request.project, ROOT), agents: installedAgents(request.project, ROOT), globalSkills: linkedGlobalSkills(request.project, ROOT, homedir()),
+    ...request, files: readableInputs(request.files, ROOT), repository: projectRepository(request.project, ROOT),
+  });
   mkdirSync(join(ROOT, 'workspace', 'temporary'), { recursive: true });
   writeFileSync(join(ROOT, 'workspace', 'temporary', 'last-prompt.txt'), `${prompt}\n`);
   const tool = TOOLS[request.tool];

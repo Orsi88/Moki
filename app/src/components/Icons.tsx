@@ -40,6 +40,9 @@ export const IconLock = ({ size }: IconProps) => (
 export const IconInfo = ({ size }: IconProps) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
 );
+export const IconSparkle = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" /><path d="M19 3v4" /><path d="M17 5h4" /></svg>
+);
 export const IconAlert = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
 );
@@ -199,4 +202,9 @@ export const IconStar = ({ size }: IconProps) => (
 );
 export const IconPin = ({ size }: IconProps) => (
   <svg {...base(size)}><path className="pin-head" d="M10 3.5h4v5.2l2.8 3.3H7.2L10 8.7z" /><path d="M8.8 3.5h6.4M12 12v8.3" /></svg>
+);
+
+// Same cat paths as the IDE Activity Bar (ide/vscode/resources/moki-activitybar.svg).
+export const IconMoki = ({ size }: IconProps) => (
+  <svg {...base(size)} strokeWidth={1.5}><path d="M12 19c-4.4 0-7.5-1.6-7.5-4.7 0-1.3.4-2.5 1.1-3.4l-.5-4.7a.8.8 0 0 1 1.3-.7l3.4 2.6a8.6 8.6 0 0 1 4.4 0l3.4-2.6a.8.8 0 0 1 1.3.7l-.5 4.7c.7.9 1.1 2.1 1.1 3.4 0 3.1-3.1 4.7-7.5 4.7Z"/><path d="M9.3 11.5v1.1M14.7 11.5v1.1"/><path d="M10.2 14.1c.3 1 1.5 1.1 1.8 0 .3 1.1 1.5 1 1.8 0"/><path d="M2.4 12.9l3.3.3M2.7 15.3l3-.6M21.6 12.9l-3.3.3M21.3 15.3l-3-.6"/></svg>
 );

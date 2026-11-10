@@ -7,7 +7,7 @@
 // dialog then opens with the plan's skills, agents and context files checked, for the user to approve.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectLinks, type ProjectSummary, type Reach } from '../api';
+import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectLinks, type ProjectSummary, type Reach, type UploadTarget } from '../api';
 import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload, type UploadDone } from './ClaudeUpload';
@@ -81,10 +81,11 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
     api.projectLinks(project.id).then(setLinks).catch(() => setLinks(null));
   }, [project.id]);
   useEffect(loadKinds, [loadKinds]);
-  // What was brought in is already linked to the project (its tag, its linked skills): the fields show it at once,
-  // and saving keeps it.
-  const onBrought = (done: UploadDone) => {
-    const of = (kind: string) => done.installed.filter((i) => i.kind === kind).map((i) => i.name);
+  // What was brought for all projects is already linked to this one (its linked skills; agents have no tag and
+  // reach every project): the fields show it at once, and saving keeps it. What was kept only for the project has
+  // nothing to link (saving would refuse a skill that is not installed for all projects).
+  const onBrought = (done: UploadDone, scope: UploadTarget) => {
+    const of = (kind: string) => scope === 'bring' ? done.installed.filter((i) => i.kind === kind).map((i) => i.name) : [];
     setLinked((s) => [...new Set([...s, ...of('skill')])]);
     setEnabled((s) => [...new Set([...s, ...of('agent')])]);
     api.agents().then((list) => setAgents(list.filter((a) => a.usable))).catch(() => { /* keep */ });
@@ -360,7 +361,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
             <h2 id="upload-title">{t('Bring to this project')}</h2>
             <button type="button" className="icon-btn" disabled={uploadBusy} onClick={() => setUploading(false)} title={t('Close')}><IconX size={18} /></button>
           </header>
-          <div className="modal-body"><ClaudeUpload project={project} scopes={['bring']} onInstalled={onBrought} onBusyChange={setUploadBusy} /></div>
+          <div className="modal-body"><ClaudeUpload project={project} scopes={['bring', 'project']} onInstalled={onBrought} onBusyChange={setUploadBusy} /></div>
           <footer className="modal-foot"><button type="button" className="btn btn-ghost" disabled={uploadBusy} onClick={() => setUploading(false)}>{t('Close')}</button></footer>
       </Modal>
     )}

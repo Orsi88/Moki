@@ -14,13 +14,14 @@ export const LIMITS = { maxFiles: 1000, maxFileBytes: 5 * 1024 * 1024, maxTotalB
 
 export type ImportKind = 'skill' | 'agent' | 'activity';
 // Why an item cannot be installed. 'installed' is added by the service (it knows the destination).
-export type BlockReason = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity';
+export type BlockReason = 'invalid-name' | 'no-skill-md' | 'no-description' | 'secret' | 'moki-name' | 'installed' | 'invalid-activity' | 'duplicate';
 export interface Blocked { reason: BlockReason; detail?: string; file?: string } // secret: its kind (detail) and file, never its value
 export interface ImportFile { path: string; data: Buffer }
 export interface ImportEntry {
   kind: ImportKind; name: string; description: string;
   files: ImportFile[]; // what would be written (agents and activities: one file)
   discarded: string[]; // files left out of a skill (.env*, *.pem, *.key, settings.local.json)
+  from?: string; // an agent kept in a subfolder of agents/: that subfolder (the install is always flat)
   blocked?: Blocked;
 }
 export type IgnoredReason = 'config' | 'symlink' | 'other';
@@ -155,11 +156,16 @@ export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<st
   const activities = reserved.activities ?? new Set<string>();
   if (singleSkill) skills.set('', keys.map((k) => ({ path: k, data: rel.get(k) as Buffer })));
   else {
-    for (const [path, data] of rel) {
+    // Sorted by path: the same folder always gives the same order (and the same "first" of a repeated name).
+    for (const [path, data] of [...rel].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
       const parts = path.split('/');
       if (parts[0] === 'skills' && parts.length >= 3) skills.set(parts[1], [...(skills.get(parts[1]) ?? []), { path: parts.slice(2).join('/'), data }]);
-      else if (parts[0] === 'agents' && parts.length === 2 && parts[1].endsWith('.md')) {
-        entries.push(check({ kind: 'agent', name: parts[1].slice(0, -3), description: describe(data.toString('utf8')), files: [{ path: parts[1], data }], discarded: [] }, reserved.agents));
+      else if (parts[0] === 'agents' && parts.length >= 2) {
+        // Claude Code reads agents at any depth of agents/; a README or a non-.md file is listed by its full path.
+        const file = parts[parts.length - 1];
+        if (!file.endsWith('.md') || file === 'README.md') { ignored.push({ path, reason: 'other' }); continue; }
+        const from = parts.slice(1, -1).join('/');
+        entries.push(check({ kind: 'agent', name: file.slice(0, -3), description: describe(data.toString('utf8')), files: [{ path: file, data }], discarded: [], ...(from && { from }) }, reserved.agents));
       } else if (parts[0] === 'activities' && parts.length === 2 && parts[1].endsWith('.md') && parts[1] !== 'README.md') {
         entries.push(activityEntry(parts[1], data, activities));
       } else if (parts.length === 1 && parts[0].endsWith('.md') && rel.size === 1) {
@@ -179,7 +185,16 @@ export function scan(read: Read, reserved: { skills: Set<string>; agents: Set<st
     const e: ImportEntry = { kind: 'skill', name, description: text ? describe(text) : '', files: keep, discarded: list.filter((f) => SENSITIVE_FILE.test(f.path)).map((f) => f.path) };
     entries.push(text === undefined ? { ...e, blocked: { reason: 'no-skill-md' } } : check(e, reserved.skills));
   }
-  return { entries, ignored };
+  // Agents install flat (agents/<name>.md), so a name kept in two folders is offered once: the first by path.
+  const first = new Map<string, ImportEntry>();
+  const where = (e: ImportEntry) => `agents/${e.from ? `${e.from}/` : ''}${e.files[0].path}`;
+  const marked = entries.map((e) => {
+    if (e.kind !== 'agent') return e;
+    const other = first.get(e.name);
+    if (!other) { first.set(e.name, e); return e; }
+    return { ...e, blocked: e.blocked ?? { reason: 'duplicate' as const, detail: where(other) } };
+  });
+  return { entries: marked, ignored };
 }
 
 // The first reason an item cannot be installed, in a fixed order.

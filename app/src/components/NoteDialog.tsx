@@ -7,24 +7,18 @@
 // Tools: bold, italic, strikethrough, titles, bulleted / numbered / check lists (Enter
 // continues them), quote, code, link (Ctrl+K), table, divider, images (paste, drop or
 // the button; stored inside the note), / for the same tools by typing (like Notion),
-// @ to mention a file of the project, and "Use with the AI" to start an activity with
-// the note as input.
+// @ to mention a file of the project, and the quick assistants (NoteAssist) to improve it with the AI.
 
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type ReactNode, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { api, type ActivityInfo, type Tag, type ToolInfo, type TreeNode } from '../api';
-import { conversationLanguage, t } from '../i18n';
-import { preferredTool } from '../prefs';
+import { api, type Tag, type TreeNode } from '../api';
+import { t } from '../i18n';
 import { isFavorite, looseNotes, noteTitle, removeLooseNote, saveLooseNote, setFavorite, touchNote, type NoteRef } from '../side-menu';
-import { ActivityCatalog } from './ActivityCatalog';
 import { LazyTipTap } from './LazyTipTap';
 import { AssistButtons, AssistPanel, useNoteAssist } from './NoteAssist';
 import type { TipTapCommand, TipTapHandle } from './TipTapEditor';
 import { DiagramSourceEditor } from './DiagramSourceEditor';
-import { CatIcon } from './CatIcon';
-import { ACTIVITY_CAT } from '../icons/cats';
 import { FileIcon } from '../icons';
-import { IconChevron, IconCode, IconEdit, IconExternal, IconFile, IconEye, IconLink, IconNotes, IconPlay, IconRefresh, IconStar, IconTerminal, IconX } from './Icons';
-import { ToolCatalog } from './ToolCatalog';
+import { IconChevron, IconCode, IconExternal, IconFile, IconEye, IconLink, IconNotes, IconRefresh, IconStar, IconTerminal, IconX } from './Icons';
 import { TagPicker } from './TagPicker';
 import { flushEdits } from '../debounce';
 import { TABLE_ICON, useMarkdownEditing } from './useMarkdownEditing';
@@ -47,13 +41,12 @@ interface Props {
   active?: boolean; // in a notebook: only the shown tab takes the keys
   onMyAis?: () => void; // Settings › My AIs, to install an AI not found here (not in a note window)
   onLink?: (href: string) => void;
+  onUseInTerminal?: (path: string) => void; // the saved note, for the AI terminal (main window only: a note window has no terminals)
 }
 
-const QUICK = ['terminal', 'editor'];
 const IMAGE_MAX = 1200; // px, longest side, before the image goes into the note
 const words = (text: string) => (text.replace(/!\[[^\]]*\]\(data:[^)]*\)/g, ' ').match(/[\p{L}\p{N}]+/gu) ?? []).length;
 const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-const toolName = (tool: ToolInfo) => t(tool.label).replace(/ \(.*\)$/, '');
 const IMAGE_ICON = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-9 8.5" /></svg>;
 
 // Every file of the project tree, for @ mentions.
@@ -80,7 +73,7 @@ function imageToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis, onLink }: Props) {
+export function NoteDialog({ project, path, looseId = null, projects = [], floating = false, embedded = false, inline = false, inlineActions, closeLabel, onClose, onSaved, active = true, onMyAis, onLink, onUseInTerminal }: Props) {
   const titleId = useId();
   const container = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState('');
@@ -107,14 +100,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   const looseSavedTitle = useRef('');
   const [files, setFiles] = useState<string[]>([]); // project files, for @
   const [mention, setMention] = useState<{ start: number; query: string; index: number } | null>(null);
-  const [ai, setAi] = useState(false);
-  const [activities, setActivities] = useState<ActivityInfo[]>([]);
-  const [tools, setTools] = useState<ToolInfo[]>([]);
-  const [activityId, setActivityId] = useState('');
-  const [toolId, setToolId] = useState(''); // '' = the default AI (Settings › My AIs); another choice is for this note only
-  const [catalog, setCatalog] = useState<'activity' | 'tool' | null>(null);
-  const [launching, setLaunching] = useState(false);
-  const [aiMsg, setAiMsg] = useState('');
+  const [renaming, setRenaming] = useState(false); // the title, edited in place in the header (double-click or right-click)
   const [tagCatalog, setTagCatalog] = useState<Tag[]>([]);
   const [tags, setTags] = useState<string[]>([]); // a saved project note's tags (shared context)
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -262,12 +248,6 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     api.tree(target).then((nodes) => setFiles(flatten(nodes))).catch(() => setFiles([]));
   }, [target]);
 
-  useEffect(() => {
-    if (!ai) return;
-    api.activities().then((r) => setActivities(r.activities)).catch(() => setActivities([]));
-    api.integrations().then(setTools).catch(() => setTools([]));
-  }, [ai]);
-
   // Closing saves first; if saving fails, the note stays open with the error.
   const close = () => { persist().then(() => onClose()).catch(() => { /* the error is shown */ }); };
   // A notebook page is not an overlay: its tab bar must remain reachable by keyboard.
@@ -399,42 +379,22 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     window.qa?.openInMain?.(target, `${encodeURI(resolved.path).replace(/#/g, '%23')}${fragment}`);
   };
 
-  // ---------- use the note with the AI ----------
-  const choices = activities.filter((a) => a.id !== 'resume' && a.available && a.target.kind !== 'operation'); // a note goes to a request, not to an operation
-  const activity = choices.find((a) => a.id === activityId);
-  const quick = tools.filter((x) => x.available && QUICK.includes(x.kind));
-  const tool = quick.find((x) => x.id === toolId) ?? preferredTool(quick);
-  const startAi = async () => {
-    if (!target || !activity || !tool) return;
-    setLaunching(true); setAiMsg(''); setError('');
+  // "Use in the terminal": the saved note goes to the AI terminal in focus, or to a new one (the same as the file's menu in the tree).
+  const useInTerminal = async () => {
+    if (!project || !onUseInTerminal) return;
     flushEdits();
     try {
-      // A saved project note goes as its path (any length); otherwise its text, on one line.
-      let note: string;
-      const base = `workspace/projects/${target}/`;
-      const done = project ? await persist() : null;
+      const done = await persist();
       const file = done && 'path' in done ? done.path : curPath;
-      if (project && file) {
-        note = t('Use my note {file} as input (read it first; the paths in it are relative to {base}).', { file: `${base}${file}`, base });
-      } else {
-        const body = latest.current.text.replace(/!\[[^\]]*\]\(data:[^)]*\)/g, '[image]').replace(/\s+/g, ' ').trim();
-        note = `${t('My note:')} ${title.trim() ? `${title.trim()} — ` : ''}${body}`.slice(0, 1990);
-        if (body.length > 1900) setAiMsg(t('Only the start of the note was sent. Save it in the project to send all of it.'));
-      }
-      const r = await api.launch({ project: target, activity: activity.id, tool: tool.id, files: [], note, language: conversationLanguage() });
-      if (r.terminal) {
-        if (floating && window.qa?.showTerminal) { window.qa.showTerminal(target, r.terminal); setAiMsg(t('Opened in {tool}, in the Moki window.', { tool: toolName(tool) })); }
-        else setAiMsg(t('Opened in {tool}.', { tool: toolName(tool) }));
-      } else if (!r.opened) setError(r.message || t('Could not open the tool.'));
-      else setAiMsg(r.copied ? t('Request copied. Paste it in the AI chat of {tool}.', { tool: toolName(tool) }) : (r.message || ''));
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLaunching(false); }
+      if (file) onUseInTerminal(file);
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!active || (inline && !container.current?.contains(document.activeElement))) return; // a hidden tab or an unfocused inline note
       if (!isTopModal(container.current)) return; // a quick note or confirmation can cover another note
-      if (e.key === 'Escape') { if (catalog || inline) return; close(); return; }
+      if (e.key === 'Escape') { if (inline) return; close(); return; }
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
       if (k === 's') { e.preventDefault(); void persist().catch(() => { /* the error is shown */ }); }
@@ -479,13 +439,38 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
               onFocus={() => { editingTitle.current = true; }} onChange={(e) => { if (project) setDisplayTitle(e.target.value); else setTitle(e.target.value); }}
               onBlur={() => { if (project) saveInlineTitle(); else editingTitle.current = false; }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
-          </div> : <h2 id={titleId}>{curPath ? displayTitle : (title.trim() || t('New note'))}</h2>}
+          </div> : <div className="note-head-title" onMouseDown={(e) => { if (renaming) e.stopPropagation(); }}>
+            {/* The one place of the title: double-click or right-click it to rename; Enter or leaving the field keeps it. */}
+            {renaming
+              ? <input id={titleId} className="note-title-input" autoFocus aria-label={t('Note title')} maxLength={project && curPath ? 120 : 60}
+                value={project && curPath ? displayTitle : title} placeholder={t('e.g. Test ideas')}
+                onFocus={(e) => { editingTitle.current = true; e.currentTarget.select(); }}
+                onChange={(e) => { if (project && curPath) setDisplayTitle(e.target.value); else setTitle(e.target.value); }}
+                onBlur={() => { setRenaming(false); if (project && curPath) saveInlineTitle(); else editingTitle.current = false; }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
+              : <h2 id={titleId} title={t('Double-click to rename')} onDoubleClick={(e) => { e.stopPropagation(); setRenaming(true); }}
+                onContextMenu={(e) => { e.preventDefault(); setRenaming(true); }}>{project && curPath ? displayTitle : (title.trim() || t('New note'))}</h2>}
+            {loose && projects.length > 0 && (
+              <span className="note-send" onMouseDown={(e) => e.stopPropagation()}>
+                <select value={destination} onChange={(e) => setDestination(e.target.value)} aria-label={t('Send to a project')} title={t('Send to a project')}>
+                  <option value="">{t('Keep as a loose note')}</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                {destination && <button type="button" className="btn btn-sm" onClick={send} disabled={sending}>{sending ? t('Sending…') : t('Send')}</button>}
+              </span>
+            )}
+          </div>}
           <span className="statusbar-spacer" />
           {ref && !inline && <button type="button" className="icon-btn" draggable title={t('Drag this note into a PDF')} aria-label={t('Drag this note into a PDF')}
             onDragStart={(e) => { e.dataTransfer.setData('application/x-moki-note', JSON.stringify(ref)); e.dataTransfer.effectAllowed = 'copy'; }}><IconNotes size={17} /></button>}
           {!floating && (
             <button type="button" className="icon-btn" onClick={toNotebook} title={t('Open in the notebook')} aria-label={t('Open in the notebook')}>
               <IconExternal size={17} />
+            </button>
+          )}
+          {onUseInTerminal && project && curPath && (
+            <button type="button" className="icon-btn" onClick={() => { void useInTerminal(); }} title={t('Use in the terminal')} aria-label={t('Use in the terminal')}>
+              <IconTerminal size={16} />
             </button>
           )}
           {project && curPath && (
@@ -533,65 +518,15 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
           {tool_('@', t('Mention a project file'), act('mention', () => insert('@')))}
           <span className="statusbar-spacer" />
           <AssistButtons assist={assist} empty={!text.trim()} />
-          <span className="sep" />
-          <button type="button" className={`icon-btn note-ai-toggle${ai ? ' on' : ''}`} onClick={() => setAi((v) => !v)} aria-expanded={ai} title={t('Use this note with the AI')}>
-            <IconPlay size={14} /> <span>{t('Use with the AI')}</span>
-          </button>
-          {mode === 'edit'
-            ? <button type="button" className="icon-btn" onClick={() => setMode('preview')} title={t('Reading view (Ctrl+E)')}><IconEye size={17} /></button>
-            : <button type="button" className="icon-btn" onClick={() => setMode('edit')} title={t('Markdown source')}><IconEdit size={17} /></button>}
+          {/* The Markdown source opens with Ctrl+E; from there, this goes back to the formatted note. */}
+          {mode === 'edit' && <button type="button" className="icon-btn" onClick={() => setMode('preview')} title={t('Back to the formatted note (Ctrl+E)')}><IconEye size={17} /></button>}
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void addImages(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
         </div>
 
         <AssistPanel assist={assist} text={text} project={target} path={curPath} onMyAis={onMyAis} />
 
-        {ai && (
-          <div className="note-ai">
-            {!target ? <p className="pp-hint">{t('Send the note to a project first (below), so the AI knows where to work.')}</p> : (
-              <>
-                <button type="button" className={`pp-pick${activity ? '' : ' empty'}`} onClick={() => setCatalog('activity')} aria-haspopup="dialog">
-                  {activity && <CatIcon id={ACTIVITY_CAT[activity.id] ?? 'run'} size={24} />}
-                  <span className="pp-pick-label">{activity ? t(activity.label) : t('Choose an activity')}</span>
-                  <IconChevron size={14} />
-                </button>
-                <button type="button" className="pp-pick" onClick={() => setCatalog('tool')} disabled={!tool} aria-haspopup="dialog">
-                  <span className="pp-pick-kind" aria-hidden="true">{tool?.kind === 'editor' ? <IconCode size={15} /> : <IconTerminal size={15} />}</span>
-                  <span className="pp-pick-label">{tool ? toolName(tool) : t('No AI tool installed')}</span>
-                  <IconChevron size={14} />
-                </button>
-                <button type="button" className="btn" disabled={launching || !activity || !tool} onClick={() => { void startAi(); }}>
-                  <IconPlay size={14} /> {launching ? t('Starting…') : t('Start activity')}
-                </button>
-              </>
-            )}
-            {aiMsg && <p className="pp-msg note-ai-msg" role="status">{aiMsg}</p>}
-          </div>
-        )}
-
         <div className="modal-body">
           {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-          {(loose || !curPath) && (
-            <div className="note-meta">
-              {(loose || !curPath) && (
-                <label className="field">
-                  <span className="label">{t('Title')}</span>
-                  <input value={title} maxLength={60} autoFocus onChange={(e) => setTitle(e.target.value)} placeholder={t('e.g. Test ideas')} />
-                </label>
-              )}
-              {loose && projects.length > 0 && (
-                <label className="field note-destination">
-                  <span className="label">{t('Send to a project')}</span>
-                  <span className="row-actions">
-                    <select value={destination} onChange={(e) => setDestination(e.target.value)}>
-                      <option value="">{t('Keep as a loose note')}</option>
-                      {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    {destination && <button type="button" className="btn" onClick={send} disabled={sending}>{sending ? t('Sending…') : t('Send')}</button>}
-                  </span>
-                </label>
-              )}
-            </div>
-          )}
           {project && curPath && (
             <div className="field inline">
               <span className="label">{t('Tags')}</span>
@@ -648,13 +583,6 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
               <li><button type="button" role="menuitem" onClick={() => exportAs('txt')}>{t('Text file')}</button></li>
             </ul>
           </div>
-        )}
-        {catalog === 'activity' && (
-          <ActivityCatalog activities={activities} selected={activity?.id ?? ''} onPick={setActivityId} onClose={() => setCatalog(null)}
-            blocked={(a) => (a.needsFiles ? t('Uses inbox files: start it from the project panel') : null)} />
-        )}
-        {catalog === 'tool' && (
-          <ToolCatalog tools={tools.filter((x) => QUICK.includes(x.kind))} selected={tool?.id ?? ''} onPick={setToolId} onClose={() => setCatalog(null)} onInstall={onMyAis} />
         )}
       </div>
   );

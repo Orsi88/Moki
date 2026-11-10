@@ -10,6 +10,10 @@ import { createService } from '../desktop/service.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'moki-specialists-'));
 const specialists = [
+  { activity: 'investigate', agent: 'sherlock', category: 'research' },
+  { activity: 'cross-examine', agent: 'moriarty', category: 'research' },
+  { activity: 'document', agent: 'watson', category: 'documentation' },
+  { activity: 'register-item', agent: 'lestrade', category: 'quality' },
   { activity: 'model-data', agent: 'cartografo', category: 'engineering' },
   { activity: 'design-solution', agent: 'inventor', category: 'engineering' },
   { activity: 'prototype-interface', agent: 'artesao', category: 'engineering' },
@@ -21,9 +25,7 @@ const request = { project: 'acme', tool: 'print', files: [], note: 'Review the s
 
 before(() => {
   for (const dir of ['agents', 'activities', 'templates']) cpSync(join(ROOT, dir), join(root, dir), { recursive: true });
-  for (const skill of ['data-modeling', 'database-engineering', 'solution-design', 'interface-prototyping', 'api-assessment', 'api-testing', 'test-design', 'requirements-review', 'project-context']) {
-    cpSync(join(ROOT, 'skills', skill), join(root, 'skills', skill), { recursive: true });
-  }
+  cpSync(join(ROOT, 'skills'), join(root, 'skills'), { recursive: true });
   createProject('acme', 'Acme', root);
   createProject('other', 'Other', root);
   writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'brief.md'), '# Synthetic brief\n');

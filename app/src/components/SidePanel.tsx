@@ -1,11 +1,12 @@
 // Project panel: one Call picker for activities, agents, skills and operations, plus the project's details and executions.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { api, describeRun, statusLabel, type OpenRun, type ProjectSummary, type RunState, type LaunchPreset, type ToolInfo } from '../api';
+import { api, describeRun, statusLabel, type InvokeTarget, type OpenRun, type ProjectSummary, type RunState, type LaunchPreset, type ToolInfo } from '../api';
 import { t } from '../i18n';
 import { preferredTool } from '../prefs';
 import { IconChevron, IconGraph, IconPanel, IconPlay, IconSliders } from './Icons';
 import { QUICK_KINDS } from './ToolCatalog';
+import { ProjectItems } from './ProjectItems';
 
 interface Props {
   project: ProjectSummary;
@@ -17,6 +18,7 @@ interface Props {
   onOperationRun: (run: string) => void;
   onOpenRun: (run: string) => void; // a run from this panel opens in the main area
   onSetup: () => void; // description and the global skills the project uses
+  onInvoke: (target: InvokeTarget, tool?: string) => void; // a skill or an agent of the "Skills and agents" card, with the AI picked here
   collapsed: boolean; // shown as a thin rail
   onToggle: () => void; // collapse / expand
   graphOn: boolean;
@@ -28,7 +30,7 @@ interface Props {
 const statusDot = (s: string): string => (s === 'completed' ? 'dot-ok' : s === 'cancelled' ? 'dot-muted' : s === 'blocked' ? 'dot-err' : 'dot-warn');
 const NEEDS_YOU = ['awaiting-approval', 'awaiting-input', 'blocked'];
 
-export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onOpenRun, onSetup, collapsed, onToggle, graphOn, onGraph, onMyAis, operations }: Props) {
+export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onOpenRun, onSetup, onInvoke, collapsed, onToggle, graphOn, onGraph, onMyAis, operations }: Props) {
   const [run, setRun] = useState<RunState | null>(null);
   const [runs, setRuns] = useState<OpenRun[]>([]);
   const [planPending, setPlanPending] = useState(false); // the AI left a plan.json to review
@@ -160,6 +162,8 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
           </ul>
         </section>
       )}
+      <ProjectItems project={project.id} refreshKey={refreshKey} settings={JSON.stringify([project.linkedSkills, project.defaults, project.repository])} onOpenPath={onOpenPath} onSetup={onSetup} onInvoke={(target) => onInvoke(target, tool?.id)}
+        canInvoke={tools.some((x) => x.available && x.kind === 'terminal')} />
       {operations}
     </aside>
   );

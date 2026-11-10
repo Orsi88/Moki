@@ -489,6 +489,9 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .term-pane { flex: 1; min-height: 0; padding: 6px 0 0 10px; background: var(--cli-bg); color: var(--cli-text); }
 .term-pane[hidden] { display: none; }
 .term-pane.term-drop { outline: 2px dashed var(--cli-accent); outline-offset: -4px; } /* files dragged over: they go to the AI as paths */
+.term-pane { position: relative; }
+/* A skill or agent dragged from the panel is over this terminal: a veil over it, which lets the events through to the drop. */
+.term-pane.item-over::after { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; border: 2px solid var(--accent); background: var(--accent-soft); }
 .menu-backdrop { position: fixed; inset: 0; z-index: 20; }
 .term-menu { position: fixed; min-width: 260px; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
 .term-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 0.88rem; text-align: left; cursor: pointer; }
@@ -1308,6 +1311,24 @@ kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font:
 .pp-run-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-run-status { font-size: 0.74rem; color: var(--faint); white-space: nowrap; }
 
+/* ---------- Skills and agents of the project (components/ProjectItems.tsx): never shrinks; the list scrolls inside ---------- */
+.pp-skills { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.pp-skills-head { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 0.86rem; font-weight: 600; text-align: left; cursor: pointer; }
+.pp-skills-chevron { display: grid; place-items: center; color: var(--muted); transition: transform 0.12s; }
+.pp-skills-chevron.open { transform: rotate(90deg); }
+.pp-skills-list { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow: auto; }
+.pp-group { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; }
+.pp-group-head { flex: 0 0 auto; margin: 0; padding: 4px 6px 0; font-size: 0.72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pp-item { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.pp-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 28px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font: inherit; font-size: 0.84rem; text-align: left; }
+button.pp-item-main { cursor: pointer; }
+button.pp-item-main:hover { background: var(--bg-3); }
+.pp-item-icon { display: grid; place-items: center; flex-shrink: 0; color: var(--muted); }
+.pp-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-item-origin { flex-shrink: 0; font-size: 0.7rem; padding: 1px 7px; }
+.pp-item-run { flex-shrink: 0; width: 26px; height: 26px; }
+.pp-item.draggable:active { opacity: 0.6; }
+
 /* ---------- Add button (components/AddButton.tsx): every icon-only "new / create" ---------- */
 .add-btn {
   display: inline-grid; place-items: center; flex-shrink: 0; padding: 0; border: 0; border-radius: 7px;
@@ -1454,7 +1475,16 @@ kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font:
 .note-ai .btn { white-space: nowrap; }
 
 /* The quick assistants of a note (NoteAssist.tsx): icons in the toolbar, the suggestion under it. */
-.note-assist-buttons { display: inline-flex; align-items: center; gap: 2px; }
+.note-assist-buttons {
+  display: inline-flex; align-items: center; gap: 1px; padding: 2px 3px 2px 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 5%, transparent));
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+  position: relative; flex-shrink: 0;
+}
+.note-assist-mark { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; cursor: default; }
+.note-assist-list { display: inline-flex; align-items: center; gap: 1px; }
+.note-assist-buttons .icon-btn { width: 28px; height: 28px; border-radius: 999px; }
 .note-assist-buttons .icon-btn.on { color: var(--accent); background: var(--accent-soft); }
 .note-assist { display: flex; flex-direction: column; gap: 8px; padding: 10px 20px 12px; border-bottom: 1px solid var(--border); background: var(--bg-2); max-height: 45%; min-height: 0; }
 .note-assist-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -2157,7 +2187,10 @@ span.mcp-row-main { cursor: default; }
 .upload-drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .upload-drop svg { color: var(--accent); }
 .upload-kind { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.upload-kind-head { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.upload-kind-head { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.upload-kind-head .btn, .upload-group-head .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.upload-group { display: flex; flex-direction: column; gap: 6px; }
+.upload-group-head { margin: 4px 0 0; font-size: 0.82rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
 /* Brought from a project's settings: a small mark on the item in the workspace's settings. */
 .brought-mark { display: inline-flex; align-items: center; margin-left: 6px; color: var(--accent); }
 
@@ -2249,6 +2282,28 @@ span.mcp-row-main { cursor: default; }
 /* A note over the screen (the quick note, a note opened from the start screen): resized from its bottom-right corner. */
 .modal-backdrop > .note-dialog:not(.note-embedded):not(.note-inline) { resize: both; min-width: min(420px, 100%); min-height: 320px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }
 
+/* A note's header: its title is renamed in place and the project selector stays beside the header buttons. */
+.note-head-title { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.note-head-title h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+.note-head-title h2:hover { background: var(--bg-2); }
+.note-title-input { flex: 1; min-width: 120px; max-width: 420px; font: inherit; font-size: 1.15rem; font-weight: 700; padding: 2px 6px; margin-left: -6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--text); cursor: text; user-select: text; }
+.note-send { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; cursor: default; }
+.note-send select { max-width: 220px; height: 30px; padding: 0 8px; font-size: 13px; }
+.note-head-title + .statusbar-spacer { display: none; }
+
+/* Narrow notes fold the AI group into its sparkle button so the tools fit on one line. */
+.note-dialog .note-tools { container-type: inline-size; flex-wrap: wrap; }
+@container (max-width: 990px) {
+  .note-assist-buttons { padding: 2px 10px; }
+  .note-assist-mark { margin-right: 0; height: 26px; cursor: pointer; }
+  .note-assist-buttons:not(.open) .note-assist-list { display: none; }
+  .note-assist-buttons.open .note-assist-list {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; padding: 3px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--bg-2);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+  }
+}
+
 /* Hudson's plan (HudsonDialog.tsx): files grouped by what is proposed, each checked to apply. */
 .hudson .modal-body { max-height: min(62vh, 640px); overflow: auto; }
 .hudson-working { display: flex; align-items: center; gap: 10px; color: var(--muted); }
@@ -2263,3 +2318,62 @@ span.mcp-row-main { cursor: default; }
 .hudson-delete h3 { color: var(--err); }
 .hudson-context h3 { color: var(--accent); }
 .hudson-keep .hudson-item { cursor: default; padding-left: 12px; }
+
+/* Project shortcuts to the IDE companion. */
+.ide-shortcut { display: flex; flex-direction: column; gap: 12px; }
+.ide-shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); }
+.ide-shortcut-row p { margin: 4px 0 0; }
+
+/* Runnable HTML stays in its own sandboxed frame. */
+.html-preview { display: flex; flex-direction: column; min-height: 400px; height: 100%; }
+.html-preview-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.html-preview-bar select { width: auto; height: 30px; padding-block: 0; font-size: 0.85rem; }
+.html-preview-bar .icon-btn { width: 30px; height: 30px; padding: 0; }
+.html-preview-stage { flex: 1; min-height: 350px; overflow: auto; background: var(--bg-3); display: flex; justify-content: center; }
+.html-preview-stage iframe { border: 0; max-width: 100%; min-height: 350px; height: 100%; background: white; }
+.doc-body:has(> .html-preview) { padding: 0; overflow: hidden; }
+
+/* Native Office editors retain the source document's own colors and font styles. */
+.doc-body:has(> .office-editor) { padding: 0; overflow: hidden; }
+.office-editor { height: 100%; min-height: 360px; display: flex; flex-direction: column; }
+.office-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.office-layout.with-comments { grid-template-columns: minmax(0, 1fr) 240px; }
+.office-word-scroll { overflow: auto; padding: 28px; background: var(--bg-3); }
+.office-word-paper { max-width: 820px; min-height: 100%; margin: auto; padding: 52px; background: white; color: #111; box-shadow: 0 1px 6px #0002; font: 11pt Calibri, Arial, sans-serif; user-select: text; }
+.office-word-paper p { white-space: pre-wrap; min-height: 1em; line-height: 1.35; margin: 0 0 8pt; }
+.office-word-paper p:focus { outline: 1px solid #b5c9ef; outline-offset: 3px; }
+.office-word-paper table { border-collapse: collapse; width: 100%; }
+.office-word-paper td { border: 1px solid #ccc; padding: 5px; vertical-align: top; }
+.office-word-paper p.has-comment { border-right: 3px solid #dfb449; padding-right: 6px; }
+.office-comments { overflow: auto; padding: 12px; border-left: 1px solid var(--border); background: var(--bg); }
+.office-comments h3 { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0 0 12px; }
+.office-comments article { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px; padding: 8px; }
+.office-comments article.selected { border-color: var(--accent); }
+.office-comment-head { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.office-comments p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; margin: 8px 0 0; }
+.office-comments textarea { resize: vertical; width: 100%; box-sizing: border-box; }
+.office-sheet { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.office-formula { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+.office-formula strong { min-width: 48px; }
+.office-formula input { flex: 1; min-width: 0; font-family: var(--mono); }
+.office-sheet-grid { flex: 1; min-height: 180px; background: white; color: #111; }
+.office-sheet-grid table { width: max-content; table-layout: fixed; }
+.office-sheet-grid th { background: #f1f3f5; color: #555; }
+.office-sheet-grid td { position: relative; min-width: 80px; height: 24px; padding: 3px 5px; cursor: cell; user-select: text; }
+.office-sheet-grid td[aria-selected="true"] { outline: 2px solid #43836c; outline-offset: -2px; z-index: 1; }
+.office-sheet-grid td.has-comment::after { content: ''; position: absolute; right: 0; top: 0; border-top: 7px solid #d89d35; border-left: 7px solid transparent; }
+.office-sheet-grid td input { position: absolute; inset: 0; width: 100%; border: 0; border-radius: 0; padding: 3px; background: white; color: #111; font: inherit; }
+.office-sheet-note { margin: 6px 10px; }
+.legacy-office { max-width: 440px; text-align: center; }
+@media (max-width: 850px) { .office-layout.with-comments { grid-template-columns: minmax(0, 1fr) 190px; } .office-word-scroll { padding: 12px; } .office-word-paper { padding: 24px; } }
+
+.html-preview-content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.html-preview-content.with-comments { grid-template-columns: minmax(0, 1fr) 240px; }
+.html-comment-quote { display: block; width: 100%; max-height: 100px; overflow: auto; padding: 7px; margin-top: 8px; border: 0; border-left: 3px solid var(--accent); border-radius: 2px; background: var(--bg-2); color: var(--muted); text-align: left; font: inherit; font-size: 12px; white-space: pre-wrap; cursor: pointer; }
+.html-comment-selection { max-height: 110px; overflow: auto; margin: 12px 0; padding: 6px 8px; border-left: 3px solid var(--accent); font-size: 12px; white-space: pre-wrap; }
+@media (max-width: 800px) { .html-preview-content.with-comments { grid-template-columns: minmax(0, 1fr) 190px; } }
+
+.office-add-comment { margin-left: auto; color: var(--accent); }
+.doc-actions > button[aria-label] { flex-shrink: 0; }
+
+.doc-actions .office-zoom { width: auto; min-width: 38px; padding-inline: 4px; font-size: 11px; }

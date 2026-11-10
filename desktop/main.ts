@@ -12,6 +12,7 @@ import { ROOT, workspaceDir } from '../scripts/lib/repo.mjs';
 import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, which, type ToolKey } from '../scripts/lib/core.ts';
 import { callService, createService, servedFile, type CallResult } from './service.ts';
 import { FILE_SCHEME, createFileGrants } from './file-protocol.ts';
+import { PREVIEW_SCHEME, createPreviewGrants } from './html-preview.ts';
 import { watchProject } from './project-watch.ts';
 import { launchInTerminal, launchTool, openFolder } from './launcher.ts';
 import { notebookKey, noteQuery, parseNoteRequest, type NoteRequest } from './notes.ts';
@@ -92,6 +93,7 @@ const noteWindows = new Map<string, BrowserWindow>();
 
 // Every custom scheme of the app goes in this one list: Electron takes the call once, before 'ready'.
 protocol.registerSchemesAsPrivileged([
+  { scheme: PREVIEW_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
   // moki-file://<token>/: a PDF or image of the open project, read by URL with Range (desktop/file-protocol.ts).
   { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
 ]);
@@ -101,17 +103,18 @@ const files = createFileGrants({
   workspace: () => workspaceDir(ROOT),
   bases: (project) => (isProject(project, ROOT) ? [join(projectsDir(ROOT), project), projectRepository(project, ROOT)].filter(Boolean) : null),
 });
+const previews = createPreviewGrants({ workspace: () => workspaceDir(ROOT), bases: (project) => isProject(project, ROOT) ? [join(projectsDir(ROOT), project), projectRepository(project, ROOT)].filter(Boolean) : null });
 const granting = new Set<number>(); // windows whose end is already watched
 
 // A PDF or image the UI reads comes with the URL it loads it from, granted to the window that asked (nothing else sends bytes).
 function withFileUrl(sender: WebContents, project: unknown, result: CallResult): CallResult {
   const file = result.ok ? servedFile(result.value) : undefined;
   if (!result.ok || !file) return result;
-  const url = typeof project === 'string' ? files.grant(sender.id, project, file) : null;
+  const url = typeof project === 'string' ? (result.value as { kind?: string }).kind === 'html' ? previews.grant(sender.id, project, file) : files.grant(sender.id, project, file) : null;
   if (!url) return { ok: false, error: 'File not found.' };
   if (!granting.has(sender.id)) {
     granting.add(sender.id);
-    sender.once('destroyed', () => { granting.delete(sender.id); files.revokeScope(sender.id); });
+    sender.once('destroyed', () => { granting.delete(sender.id); files.revokeScope(sender.id); previews.revokeScope(sender.id); });
   }
   return { ok: true, value: { ...(result.value as object), url } };
 }
@@ -242,6 +245,10 @@ function createWindow(): void {
   }
 
   // The UI never navigates away or opens windows; web links go to the browser.
+  // A preview may follow local links, but cannot navigate its frame to a remote page.
+  win.webContents.on('will-frame-navigate', (event) => {
+    if (!event.isMainFrame && !/^(moki-preview:|moki-file:|blob:|about:blank$)/.test(event.url)) event.preventDefault();
+  });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
@@ -285,6 +292,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
 
+    protocol.handle(PREVIEW_SCHEME, (request) => previews.serve(request.method, request.url));
     protocol.handle(FILE_SCHEME, async (request) => {
       const r = await files.serve(request.method, request.url, request.headers.get('range'));
       return new Response(r.body instanceof Readable ? (Readable.toWeb(r.body) as ReadableStream) : r.body, { status: r.status, headers: r.headers });
@@ -309,7 +317,7 @@ if (!app.requestSingleInstanceLock()) {
     // Watch one project at a time; changes are debounced and sent to the UI.
     ipcMain.handle('qa:watch', (event, project: unknown) => {
       if (!trusted(event)) return false;
-      if (typeof project === 'string' && project) files.revokeOutside(event.sender.id, project);
+      if (typeof project === 'string') { files.revokeOutside(event.sender.id, project); previews.revokeOutside(event.sender.id, project); }
       watcher?.();
       watcher = null;
       linkedWatcher?.();
@@ -340,9 +348,12 @@ if (!app.requestSingleInstanceLock()) {
       if (!terminals.available()) return { error: 'Terminals inside the app are not available on this computer (node-pty is not installed).' };
       if (tool === '') return { terminal: { id: terminals.prepare({ ...shellSpec(ROOT), title: 'Terminal' }), title: 'Terminal' } };
       if (typeof tool !== 'string' || !isTool(tool) || !TOOLS[tool].command || TOOLS[tool].clipboard) return { error: 'Unknown tool.' };
-      const opts = (options ?? {}) as { plain?: unknown; language?: unknown };
+      const opts = (options ?? {}) as { plain?: unknown; language?: unknown; invoke?: unknown };
       let start: { prompt: string; label: string; several: boolean } | null = null;
-      if (isProject(project, ROOT) && opts.plain !== true) { try { start = service.startOf(project, tool, opts.language); } catch { start = null; } }
+      if (isProject(project, ROOT) && opts.invoke !== undefined) {
+        // A skill, an agent or files of the project to start with: the service checks the target and writes the request, never the window's text.
+        try { start = { prompt: service.invokePrompt(project, opts.invoke, opts.language), label: '', several: false }; } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+      } else if (isProject(project, ROOT) && opts.plain !== true) { try { start = service.startOf(project, tool, opts.language); } catch { start = null; } }
       const started = start?.prompt ? { start: { label: start.label, several: start.several } } : {};
       // UI tests get an echo input, never a real AI. Its submission marker proves Call did not press Enter; [start] shows what it was opened with.
       if (fakeTools) {
