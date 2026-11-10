@@ -12,6 +12,7 @@ import { DocView, type DocMode } from '../components/DocView';
 import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { NewMenu } from '../components/NewMenu';
 import { LaunchDialog } from '../components/LaunchDialog';
+import { HudsonDialog } from '../components/HudsonDialog';
 import { NoteDialog } from '../components/NoteDialog';
 import { OperationsPanel } from '../components/OperationsPanel';
 import { OperationLaunch } from '../components/OperationLaunch';
@@ -23,7 +24,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -188,6 +189,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const [craftOpen, setCraftOpen] = useState(false); // download of the ArtCraft apps
   // The tree item menu (right click or ⋯); path '' is the project folder. canCreate: a folder outside runs/.
   const [itemMenu, setItemMenu] = useState<{ path: string; canCreate: boolean; left: number; top: number } | null>(null);
+  const [hudson, setHudson] = useState(false); // Hudson organizing the files the runs left (HudsonDialog)
   const [renaming, setRenaming] = useState<string | null>(null); // the tree item whose name is being typed over
   const [focusPath, setFocusPath] = useState<string | null>(null); // a renamed item: its row takes the focus when the tree shows it
   const [creating, setCreating] = useState<{ parent: string; kind: 'file' | 'folder'; ext?: string } | null>(null); // ext: from New › File, which also lets the folder be chosen
@@ -1064,11 +1066,16 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <TabMenu at={tabMenu} groups={board.groups} current={board.tabs[tabMenu.key].group} onClose={() => setTabMenu(null)}
           onMove={(group) => apply((b) => moveToGroup(b, tabMenu.key, group))} onNewGroup={() => newGroupFor(tabMenu.key, tabMenu)} />
       )}
+      {hudson && <HudsonDialog project={project.id} onClose={() => setHudson(false)} onDone={() => { void loadTree(); }} onMyAis={() => { setHudson(false); onSettings('ai'); }} />}
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
           <ul className="term-menu item-menu" role="menu" style={{ left: itemMenu.left, top: itemMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setItemMenu(null); }}>
             {itemMenu.path === '' && <>
               <li><button type="button" role="menuitem" onClick={() => { setItemMenu(null); setShowSetup(true); }}><IconSliders size={15} /> {t('Project settings')}</button></li>
+              <li className="ws-menu-sep" />
+            </>}
+            {itemMenu.path === 'runs' && <>
+              <li><button type="button" role="menuitem" autoFocus onClick={() => { setItemMenu(null); setHudson(true); }}><IconBroom size={15} /> {t('Organize with Hudson')}</button></li>
               <li className="ws-menu-sep" />
             </>}
             {itemMenu.canCreate && <>

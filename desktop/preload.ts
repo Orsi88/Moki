@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('qa', {
   openLink: (url: string) => ipcRenderer.invoke('qa:open-link', url),
   noteAssist: (request: { id: string; helper: string; text: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:note-assist', request),
   noteAssistCancel: (id: string) => ipcRenderer.invoke('qa:note-assist-cancel', id),
+  hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:hudson-plan', request),
   usage: (refresh: boolean) => ipcRenderer.invoke('qa:usage', refresh),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }) => ipcRenderer.invoke('qa:note-window', target),
   openSearchWindow: () => ipcRenderer.invoke('qa:search-window'),

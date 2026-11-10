@@ -22,6 +22,7 @@ import { createTerminals, shellSpec } from './terminals.ts';
 import { memoryUsage, planUsage, type AppProcessKind, type WindowKind } from './usage.ts';
 import { fixToolPath, pathReady } from './tool-path.ts';
 import { ASSIST_TOOLS, NOTE_HELPERS, assistPrompt, runAssist, type AssistTool, type NoteHelper } from './note-assist.ts';
+import { organizePrompt, readPlan, type OrganizeCandidate, type OrganizeStep } from './hudson.ts';
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
 import { createParseClient } from './parse-pool.ts';
 
@@ -409,6 +410,28 @@ if (!app.requestSingleInstanceLock()) {
       const run = runAssist(found.file, found.tool, helper as NoteHelper, assistPrompt(helper as NoteHelper, text, lang), process.env);
       assists.set(id, run.cancel);
       try { return { tool: found.tool, answer: await run.done }; }
+      catch (e) { return { tool: found.tool, error: (e as Error).message }; }
+      finally { assists.delete(id); }
+    });
+    // Hudson's plan for a project's run files (desktop/hudson.ts): the AI only proposes; organizeApply does what was approved.
+    ipcMain.handle('qa:hudson-plan', async (event, raw: unknown): Promise<{ files?: OrganizeCandidate[]; plan?: OrganizeStep[]; tool?: string; error?: string }> => {
+      if (!trusted(event) || !raw || typeof raw !== 'object') return { error: 'invalid' };
+      const { id, project, prefer, language } = raw as Record<string, unknown>;
+      if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id) || typeof project !== 'string' || !isProject(project, ROOT)) return { error: 'invalid' };
+      const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
+      const files = service.organizeCandidates(project);
+      if (!files.length) return { files, plan: [] };
+      if (fakeTools) { // UI tests: a plan as the AI would give it, from the file names
+        const fake = files.map((f) => ({ path: f.path, do: /apoio|rascunho/.test(f.path) ? 'delete' : /definicoes/.test(f.path) ? 'context' : /saida/.test(f.path) ? 'rename' : 'keep', name: 'Relatório final.md', why: `motivo de ${f.path.split('/').pop()}` }));
+        return { tool: 'claude', files, plan: readPlan(JSON.stringify({ actions: fake }), files) };
+      }
+      await pathReady();
+      const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
+      const found = order.map((tool) => ({ tool, file: which(TOOLS[tool].command ?? tool) })).find((x) => x.file);
+      if (!found?.file) return { error: 'no-tool' };
+      const run = runAssist(found.file, found.tool, 'summary', organizePrompt(files, lang), process.env);
+      assists.set(id, run.cancel);
+      try { return { tool: found.tool, files, plan: readPlan(await run.done, files) }; }
       catch (e) { return { tool: found.tool, error: (e as Error).message }; }
       finally { assists.delete(id); }
     });

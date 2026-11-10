@@ -75,6 +75,7 @@ An **agent** is a role with instructions, optional skills and an access level. B
 | `sherlock` | research | draft | deduction, project-context | project-write |
 | `moriarty` | research | draft | cross-examination, project-context | project-write |
 | `watson` | documentation | draft | chronicle, document-design, blueprint, document-quality, project-context | project-write |
+| `hudson` | documentation | draft | project-context | project-write |
 | `round-reviewer` | quality | draft | requirements-review, dispatch, project-context | project-write |
 | `wiggins` | quality | draft | dispatch, project-context | project-write |
 | `lestrade` | quality | draft | item-report, dispatch, project-context | project-write |

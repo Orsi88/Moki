@@ -7,6 +7,11 @@ import { lang, t } from './i18n';
 // A quick assistant of a note (desktop/note-assist.ts): the answer, or what went wrong ('no-tool': neither Claude Code nor Codex).
 export type { NoteHelper } from './note-assist';
 import type { NoteHelper } from './note-assist';
+// Hudson's plan for the files the runs left (desktop/hudson.ts): each file with an action the person approves.
+export type OrganizeAction = 'context' | 'rename' | 'delete' | 'keep';
+export interface OrganizeCandidate { path: string; size: number; run: string; title: string; status: string; deliverable: boolean; preview: string }
+export interface OrganizeStep { path: string; do: OrganizeAction; name?: string; why: string }
+export interface HudsonPlan { files?: OrganizeCandidate[]; plan?: OrganizeStep[]; tool?: string; error?: string }
 export interface NoteAssistResult { answer?: string; tool?: string; error?: string }
 export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
@@ -269,6 +274,7 @@ export interface Bridge {
   openLink(url: string): Promise<void>;
   noteAssist?(request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult>;
   noteAssistCancel?(id: string): Promise<void>;
+  hudsonPlan?(request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan>;
   usage?(refresh: boolean): Promise<Usage | null>;
   openNoteWindow(target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }): Promise<boolean>;
   openSearchWindow?(): Promise<boolean>;
@@ -481,6 +487,8 @@ export const api = {
   openLink: (url: string) => window.qa?.openLink(url),
   noteAssist: (request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult> => window.qa?.noteAssist?.(request) ?? Promise.resolve({ error: 'no-app' }),
   noteAssistCancel: (id: string) => window.qa?.noteAssistCancel?.(id) ?? Promise.resolve(),
+  hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan> => window.qa?.hudsonPlan?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  organizeApply: (project: string, steps: OrganizeStep[]) => call<{ done: string[]; failed: string[] }>('organizeApply', project, steps),
   usage: (refresh = false) => window.qa?.usage?.(refresh) ?? Promise.resolve(null),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
