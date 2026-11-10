@@ -1,7 +1,8 @@
 // The quick assistants of a note, on the page's side: where an accepted answer goes, and the differences between
 // the note and a rewritten version, word by word. Pure. The run itself is desktop/note-assist.ts.
 
-import type { NoteHelper } from './api.ts';
+// The four quick assistants (desktop/note-assist.ts lists the same).
+export type NoteHelper = 'write' | 'summary' | 'research' | 'critique';
 
 // Where the answer goes when accepted: the whole note, above it, or below it.
 export const PLACEMENT: Record<NoteHelper, 'replace' | 'prepend' | 'append'> = { write: 'replace', summary: 'prepend', research: 'append', critique: 'append' };

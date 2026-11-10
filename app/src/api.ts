@@ -5,7 +5,8 @@ import { lang, t } from './i18n';
 
 // A project's default (project.json defaults): several of each kind may be set.
 // A quick assistant of a note (desktop/note-assist.ts): the answer, or what went wrong ('no-tool': neither Claude Code nor Codex).
-export type NoteHelper = 'write' | 'summary' | 'research' | 'critique';
+export type { NoteHelper } from './note-assist';
+import type { NoteHelper } from './note-assist';
 export interface NoteAssistResult { answer?: string; tool?: string; error?: string }
 export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
