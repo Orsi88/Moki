@@ -2397,7 +2397,9 @@ test.describe('Moki run details panel', () => {
       const page = opened.page;
       await page.locator('.tree-row[title="runs"]').click();
       await page.locator(`.tree-row[title*="${activity}"]`).click(); // the tooltip names the run first, then its folder
-      await page.locator(`.tree-row[title="runs/${activity}/state.json"]`).click();
+      await expect(page.locator(`.tree-row[title="runs/${activity}/state.json"]`)).toHaveCount(0); // a run shows its deliverables, not its state
+      await page.locator(`.tree-row[title="runs/${activity}/outputs/s1"]`).click(); // outputs/ comes straight under the run
+      await page.locator(`.tree-row[title="runs/${activity}/outputs/s1/revisao.md"]`).click();
       await expect(page.locator('.panel.run-detail')).toHaveCount(0);
       await expect(page.locator('.panel.pp')).toBeVisible();
       const card = page.getByRole('region', { name: 'Execuções' });
@@ -2424,7 +2426,8 @@ test.describe('Moki run details panel', () => {
       expect(existsSync(join(project, 'runs', activity, 'outputs', 's2', 'revisao.md'))).toBe(true);
       await details.getByRole('button', { name: 'Fechar' }).click();
       await page.locator(`.tree-row[title*="${operation}"]`).click();
-      await page.locator(`.tree-row[title="runs/${operation}/state.json"]`).click();
+      await page.locator(`.tree-row[title="runs/${operation}/outputs/s1"]`).click();
+      await page.locator(`.tree-row[title="runs/${operation}/outputs/s1/revisao.md"]`).click();
       const operationDetails = page.locator('.panel.run-detail');
       await expect(operationDetails).toHaveAttribute('aria-label', 'Operação');
       await expect(operationDetails.getByRole('heading', { name: 'Fluxo de teste' })).toBeVisible();
