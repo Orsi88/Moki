@@ -4,6 +4,10 @@
 import { lang, t } from './i18n';
 
 // A project's default (project.json defaults): several of each kind may be set.
+// A quick assistant of a note (desktop/note-assist.ts): the answer, or what went wrong ('no-tool': neither Claude Code nor Codex).
+export type { NoteHelper } from './note-assist';
+import type { NoteHelper } from './note-assist';
+export interface NoteAssistResult { answer?: string; tool?: string; error?: string }
 export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
 export interface ProjectSummary {
   id: string; name: string; description: string; onboardingStatus: string; deliverableLanguage: string; runs: number; openRuns: number;
@@ -263,6 +267,8 @@ export interface Bridge {
   watch(project: string | null): Promise<boolean>;
   onChanged(callback: (project: string) => void): () => void;
   openLink(url: string): Promise<void>;
+  noteAssist?(request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult>;
+  noteAssistCancel?(id: string): Promise<void>;
   usage?(refresh: boolean): Promise<Usage | null>;
   openNoteWindow(target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }): Promise<boolean>;
   openSearchWindow?(): Promise<boolean>;
@@ -471,6 +477,8 @@ export const api = {
   watch: (project: string | null) => window.qa?.watch(project ?? '') ?? Promise.resolve(false),
   onChanged: (cb: (project: string) => void) => window.qa?.onChanged(cb) ?? (() => {}),
   openLink: (url: string) => window.qa?.openLink(url),
+  noteAssist: (request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult> => window.qa?.noteAssist?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  noteAssistCancel: (id: string) => window.qa?.noteAssistCancel?.(id) ?? Promise.resolve(),
   usage: (refresh = false) => window.qa?.usage?.(refresh) ?? Promise.resolve(null),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
