@@ -1258,7 +1258,7 @@ test.describe.serial('Moki operations in a project', () => {
     const assistant = opsPage.getByRole('region', { name: 'Assistente de IA' });
     await assistant.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = opsPage.getByRole('dialog');
-    await dialog.getByRole('tab', { name: 'Operações', exact: true }).click();
+    await dialog.getByRole('tab', { name: /^Operações/ }).click();
     await dialog.getByRole('searchbox').fill('fluxo');
     await expect(dialog.locator('.invoke-row')).toHaveCount(1);
     await expect(dialog.locator('.invoke-row')).toContainText('Cada etapa usa seu próprio terminal');
@@ -1360,7 +1360,7 @@ test.describe.serial('Moki operations in a project', () => {
     const card = opsPage.getByRole('region', { name: 'Assistente de IA' });
     await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = opsPage.getByRole('dialog');
-    await dialog.getByRole('tab', { name: 'Operações', exact: true }).click();
+    await dialog.getByRole('tab', { name: /^Operações/ }).click();
     await dialog.getByRole('searchbox').fill('fluxo');
     await expect(dialog.locator('.invoke-row')).toHaveCount(1);
     await dialog.locator('.invoke-row').click();
@@ -1383,7 +1383,7 @@ test.describe.serial('Moki operations in a project', () => {
   test('a result picks the arrow: rejected goes to the fixer and back to the review; no valid result asks the user', async () => {
     const assistant = opsPage.getByRole('region', { name: 'Assistente de IA' });
     await assistant.getByRole('button', { name: 'Chamar…', exact: true }).click();
-    await opsPage.getByRole('dialog').getByRole('tab', { name: 'Operações', exact: true }).click();
+    await opsPage.getByRole('dialog').getByRole('tab', { name: /^Operações/ }).click();
     await opsPage.getByRole('dialog').locator('.invoke-row').filter({ hasText: 'Revisa até aprovar' }).click();
     await opsPage.getByRole('region', { name: 'Iniciar Revisa até aprovar' }).getByRole('button', { name: 'Iniciar operação' }).click();
 
@@ -2229,35 +2229,49 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await expect(gemini.getByRole('button', { name: 'Mais opções de Gemini CLI' })).toHaveCount(0);
 
     await aiPage.keyboard.press('Escape');
-    const where = aiPage.locator('.pp-field').filter({ has: aiPage.locator('.pp-field-label', { hasText: /^Onde$/ }) }).locator('.pp-pick');
-    await expect(where).toContainText('Gemini CLI');
-    await where.click();
-    await aiPage.locator('.catalog-card').filter({ hasText: 'OpenAI Codex CLI' }).click();
-    await expect(where).toContainText('OpenAI Codex CLI');
-    expect(await aiPage.evaluate(() => localStorage.getItem('qa-tool'))).toBe('gemini');
+    // The AI is chosen in the Call flow, not in the panel: the panel card has only the Call button.
+    const card = aiPage.getByRole('region', { name: 'Assistente de IA' });
+    await expect(card.locator('.pp-field')).toHaveCount(0);
+    await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const dialog = aiPage.getByRole('dialog');
+    await dialog.getByRole('tab', { name: /^Agentes/ }).click();
+    await dialog.locator('.invoke-row').filter({ hasText: /^requirements-analyst/ }).click();
+    await dialog.getByRole('button', { name: 'Continuar sem arquivos' }).click();
+    await dialog.getByRole('button', { name: 'Nada mais — continuar' }).click();
+    await dialog.getByRole('button', { name: /Num terminal novo/ }).click();
+    await expect(dialog.locator('.answer.on')).toContainText('Gemini CLI'); // the default comes chosen
+    await dialog.locator('.answer').filter({ hasText: 'OpenAI Codex CLI' }).click();
+    await expect(dialog.locator('.answer')).toHaveCount(0); // on to the review, which lists the chosen AI
+    await expect(dialog).toContainText('OpenAI Codex CLI');
+    expect(await aiPage.evaluate(() => localStorage.getItem('qa-tool'))).toBe('gemini'); // only this call changed
+    await aiPage.keyboard.press('Escape');
   });
 
-  test('one Call catalog lists activities, agents, skills and operations', async () => {
+  test('one Call catalog lists activities, agents, skills and operations, by kind', async () => {
     const card = aiPage.getByRole('region', { name: 'Assistente de IA' });
     await expect(card.getByRole('tab')).toHaveCount(0);
     await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = aiPage.getByRole('dialog');
-    for (const name of ['Todos', 'Atividades', 'Agentes', 'Skills', 'Operações']) await expect(dialog.getByRole('tab', { name, exact: true })).toBeVisible();
-    await dialog.getByRole('tab', { name: 'Agentes', exact: true }).click();
+    await expect(dialog.getByRole('tab', { name: /^Todos/ })).toHaveCount(0);
+    for (const name of [/^Atividades/, /^Agentes/, /^Skills/, /^Operações/]) await expect(dialog.getByRole('tab', { name })).toBeVisible();
+    await expect(dialog.getByRole('tab', { name: /^Atividades/ })).toHaveAttribute('aria-selected', 'true'); // starts on the activities
+    await dialog.getByRole('tab', { name: /^Agentes/ }).click();
     await dialog.getByRole('searchbox').fill('requirements-analyst');
-    await expect(dialog.locator('.invoke-row')).toHaveCount(1);
+    await expect(dialog.locator('.invoke-row').first()).toContainText('requirements-analyst');
     await aiPage.screenshot({ path: test.info().outputPath('call-picker.png') });
-    await dialog.locator('.invoke-row').click();
+    await dialog.locator('.invoke-row').first().click();
     await dialog.getByRole('button', { name: 'Continuar sem arquivos' }).click();
     await expect(dialog.locator('textarea')).toBeVisible();
     await aiPage.keyboard.press('Escape');
   });
 
-  test('the Call catalog searches across kinds and reports an empty result', async () => {
+  test('the Call catalog search counts what each kind finds and reports an empty result', async () => {
     await aiPage.getByRole('region', { name: 'Assistente de IA' }).getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = aiPage.getByRole('dialog');
     const all = await dialog.locator('.invoke-row').count();
     expect(all).toBeGreaterThan(1);
+    await dialog.getByRole('searchbox').fill('lestrade');
+    await expect(dialog.getByRole('tab', { name: /^Agentes/ }).locator('.list-tab-count')).not.toHaveText('0'); // found in another tab
     await dialog.getByRole('searchbox').fill('zzzz-nada');
     await expect(dialog.locator('.invoke-row')).toHaveCount(0);
     await expect(dialog.getByText('Nada corresponde a esta busca.')).toBeVisible();
@@ -2321,7 +2335,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     writeFileSync(join(dirs[0], 'workspace', 'projects', 'acme', 'inbox', 'us-1.md'), '# US-1');
     await aiPage.getByRole('region', { name: 'Assistente de IA' }).getByRole('button', { name: 'Chamar…', exact: true }).click();
     const wizard = aiPage.getByRole('dialog');
-    await wizard.getByRole('tab', { name: 'Atividades', exact: true }).click();
+    await wizard.getByRole('tab', { name: /^Atividades/ }).click();
     await wizard.getByRole('searchbox').fill('requirements-review');
     // Two activities use the skill (pasted stories, and an MF read from the tracker); this one requires files.
     await wizard.locator('.invoke-row', { hasText: 'Revisar histórias de usuário' }).click();
@@ -3161,7 +3175,7 @@ test('Moki call pastes into the current AI terminal and waits for Enter', async 
     await page.keyboard.type('meu contexto: ');
     await page.keyboard.press('Control+Shift+K');
     const wizard = page.getByRole('dialog');
-    await wizard.getByRole('tab', { name: 'Skills', exact: true }).click();
+    await wizard.getByRole('tab', { name: /^Skills/ }).click();
     await wizard.getByRole('searchbox').fill('test-design');
     await wizard.locator('.invoke-row').click();
     await wizard.getByRole('button', { name: 'Continuar sem arquivos' }).click();
@@ -3188,7 +3202,7 @@ test('Moki call pastes into the current AI terminal and waits for Enter', async 
     // The same list opens from the keyboard while the AI terminal is in front (no extra bar on the screen).
     await expect(page.locator('.terminal-callbar')).toHaveCount(0);
     await page.keyboard.press('Control+Shift+K');
-    await expect(page.getByRole('dialog').getByRole('tab', { name: 'Atividades', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('tab', { name: /^Atividades/ })).toBeVisible();
     await page.keyboard.press('Escape');
   } finally {
     await window?.close();
