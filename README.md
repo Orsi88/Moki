@@ -62,13 +62,19 @@ The full documentation is in the [wiki](https://github.com/Orsi88/moki/wiki):
 
 | Guide | What is in it |
 |---|---|
+| [What is Moki](https://github.com/Orsi88/moki/wiki/What-is-Moki) | The idea, the words you will see, how Moki behaves |
 | [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started) | Install, workspaces, projects, running from the source |
-| [Using Moki](https://github.com/Orsi88/moki/wiki/Using-Moki) | Inside a project, opening the AI tool, settings, tags, coming back later, where things live |
+| [A tour of the screen](https://github.com/Orsi88/moki/wiki/A-tour-of-the-screen) | Every part of the window, explained |
+| [Projects and workspaces](https://github.com/Orsi88/moki/wiki/Projects-and-workspaces) | Context, tags, sharing, coming back later, where things live |
+| [Notes and quick assistants](https://github.com/Orsi88/moki/wiki/Notes-and-quick-assistants) | Notes, and improving them with the AI in one click |
+| [Calling activities, agents and skills](https://github.com/Orsi88/moki/wiki/Calling-activities,-agents-and-skills) | Everything **Call…** can do, and the activities that come with Moki |
+| [Runs and deliverables](https://github.com/Orsi88/moki/wiki/Runs-and-deliverables) | What the AI delivers, and Hudson, who organizes it |
 | [QA skills and agents](https://github.com/Orsi88/moki/wiki/QA-skills-and-agents) | The activities, their status, your own skills |
 | [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) | Agents, contracts and multi-agent operations |
 | [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) | The tools the AI gets, per project |
 | [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE) | The VS Code extension: install, configure, every way to use it |
 | [Troubleshooting](https://github.com/Orsi88/moki/wiki/Troubleshooting) | Common problems and what to do |
+| [Credits and licenses](https://github.com/Orsi88/moki/wiki/Credits-and-licenses) | The open-source projects Moki is built with — thank you |
 
 The wiki is published from [docs/](docs/), where the documentation is edited.
 

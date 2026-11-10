@@ -48,7 +48,11 @@ function rewrite(text, from, ctx) {
 export function buildWiki(root, { ref = 'main', sha = '' } = {}) {
   const manifest = JSON.parse(readFileSync(join(root, 'docs', 'wiki.json'), 'utf8'));
   const pages = wikiPages(manifest);
-  const ctx = { root, repo: manifest.repo, ref, byFile: new Map(pages.map((p) => [`docs/${p.file}`, p.page])) };
+  const home = manifest.home; // { file, pt, ptPage }: the front pages, written in docs/ like the others
+  const ctx = { root, repo: manifest.repo, ref, byFile: new Map([
+    ...pages.map((p) => [`docs/${p.file}`, p.page]),
+    ...(home ? [[`docs/${home.file}`, 'Home'], [`docs/${home.pt}`, home.ptPage]] : []),
+  ]) };
   const source = (file) => `https://github.com/${manifest.repo}/blob/${ref}/docs/${file}`;
   const out = {};
   for (const p of pages) {
@@ -65,8 +69,22 @@ export function buildWiki(root, { ref = 'main', sha = '' } = {}) {
   const link = (title) => `[${title}](${pageName(title)})`;
   const en = manifest.sections.map((s) => `### ${s.title}\n\n${s.pages.map((p) => `- ${link(p.page)}${p.pt ? ` · ${link(p.pt.page)} (pt-BR)` : ''}`).join('\n')}`);
   const pt = pages.filter((p) => p.lang === 'pt').map((p) => `- ${link(p.page)}`);
-  out['Home.md'] = `# Moki\n\n${rewrite(manifest.intro, join(root, 'docs', 'wiki.json'), ctx)}\n\n${en.join('\n\n')}\n\n## Em português\n\n${manifest.introPt}\n\n${pt.join('\n')}\n`;
-  out['_Sidebar.md'] = `**[Home](Home)**\n\n${manifest.sections.map((s) => `**${s.title}**\n\n${s.pages.map((p) => `- ${link(p.page)}`).join('\n')}`).join('\n\n')}\n\n**Português**\n\n${pt.join('\n')}\n`;
+  if (home) {
+    // The front page in each language, with a switch to the other one at the top.
+    const front = (file) => rewrite(readFileSync(join(root, 'docs', file), 'utf8'), join(root, 'docs', file), ctx).trim();
+    out['Home.md'] = `> 🇧🇷 [Leia em português](${pageName(home.ptPage)})\n\n${front(home.file)}\n`;
+    out[`${pageName(home.ptPage)}.md`] = `> 🇺🇸 [Read in English](Home)\n\n${front(home.pt)}\n`;
+  } else {
+    out['Home.md'] = `# Moki\n\n${rewrite(manifest.intro, join(root, 'docs', 'wiki.json'), ctx)}\n\n${en.join('\n\n')}\n\n## Em português\n\n${manifest.introPt}\n\n${pt.join('\n')}\n`;
+  }
+  // The sidebar: every section in English, then every section in Portuguese (a page without a translation is listed in English).
+  const side = (lang) => manifest.sections.map((s) => {
+    const items = s.pages.map((p) => `- ${link(lang === 'pt' && p.pt ? p.pt.page : p.page)}`);
+    return `**${lang === 'pt' ? s.titlePt ?? s.title : s.title}**\n\n${items.join('\n')}`;
+  }).join('\n\n');
+  out['_Sidebar.md'] = home
+    ? `**[🏠 Home](Home)** · **[Início](${pageName(home.ptPage)})**\n\n**🇺🇸 English**\n\n${side('en')}\n\n---\n\n**🇧🇷 Português**\n\n${side('pt')}\n`
+    : `**[Home](Home)**\n\n${manifest.sections.map((s) => `**${s.title}**\n\n${s.pages.map((p) => `- ${link(p.page)}`).join('\n')}`).join('\n\n')}\n\n**Português**\n\n${pt.join('\n')}\n`;
   out['_Footer.md'] = `Generated from [docs/](https://github.com/${manifest.repo}/tree/${ref}/docs) of ${manifest.repo} at \`${ref}\`${sha ? ` (${sha.slice(0, 7)})` : ''}. Edit the files there; changes made in the wiki are replaced.\n`;
   return out;
 }

@@ -401,7 +401,8 @@ if (!app.requestSingleInstanceLock()) {
       const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
       if (fakeTools) { // UI tests: a fixed answer, as the tool would give it
         await new Promise((r) => setTimeout(r, 200));
-        return { tool: 'claude', answer: helper === 'write' ? `${text.trim()}\n\nTexto revisado pelo assistente.` : `## ${helper}\n\n- ponto do assistente` };
+        const pt = /portuguese/i.test(lang);
+        return { tool: 'claude', answer: helper === 'write' ? `${text.trim()}\n\n${pt ? 'Texto revisado pelo assistente.' : 'Text revised by the assistant.'}` : `## ${helper}\n\n- ${pt ? 'ponto do assistente' : 'a point from the assistant'}` };
       }
       await pathReady();
       const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
@@ -422,7 +423,10 @@ if (!app.requestSingleInstanceLock()) {
       const files = service.organizeCandidates(project);
       if (!files.length) return { files, plan: [] };
       if (fakeTools) { // UI tests: a plan as the AI would give it, from the file names
-        const fake = files.map((f) => ({ path: f.path, do: /apoio|rascunho/.test(f.path) ? 'delete' : /definicoes/.test(f.path) ? 'context' : /saida/.test(f.path) ? 'rename' : 'keep', name: 'Relatório final.md', why: `motivo de ${f.path.split('/').pop()}` }));
+        const pt = /portuguese/i.test(lang);
+        const kind = (path: string) => (/apoio|rascunho|support|draft/.test(path) ? 'delete' : /definicoes|definitions/.test(path) ? 'context' : /saida|doc1/.test(path) ? 'rename' : 'keep');
+        const why = { delete: pt ? 'Anotações de apoio que ninguém pediu.' : 'Support notes nobody asked for.', context: pt ? 'Definições confirmadas do sistema.' : 'Confirmed definitions of the system.', rename: pt ? 'O nome não diz o que é.' : 'The name does not say what it is.', keep: pt ? 'Entrega que foi pedida.' : 'A deliverable that was asked for.' };
+        const fake = files.map((f) => ({ path: f.path, do: kind(f.path), name: pt ? 'Matriz de revisão US-12.md' : 'US-12 review matrix.md', why: why[kind(f.path)] }));
         return { tool: 'claude', files, plan: readPlan(JSON.stringify({ actions: fake }), files) };
       }
       await pathReady();

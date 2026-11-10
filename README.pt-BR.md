@@ -62,11 +62,17 @@ A documentação completa está na [wiki](https://github.com/Orsi88/moki/wiki):
 
 | Guia | O que tem |
 |---|---|
+| [O que é o Moki](https://github.com/Orsi88/moki/wiki/O-que-é-o-Moki) | A ideia, as palavras que você vai ver, como o Moki se comporta |
 | [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos) | Instalação, workspaces, projetos, rodar a partir do código |
-| [Usando o Moki](https://github.com/Orsi88/moki/wiki/Usando-o-Moki) | Dentro de um projeto, abrir a ferramenta de IA, configurações, tags, voltar depois, onde fica cada coisa |
+| [Tour pela tela](https://github.com/Orsi88/moki/wiki/Tour-pela-tela) | Cada parte da janela, explicada |
+| [Projetos e workspaces](https://github.com/Orsi88/moki/wiki/Projetos-e-workspaces) | Contexto, tags, compartilhamento, voltar depois, onde fica cada coisa |
+| [Notas e assistentes rápidos](https://github.com/Orsi88/moki/wiki/Notas-e-assistentes-rápidos) | As notas, e como melhorá-las com a IA num clique |
+| [Chamar atividades, agentes e skills](https://github.com/Orsi88/moki/wiki/Chamar-atividades,-agentes-e-skills) | Tudo o que o **Chamar…** faz, e as atividades que vêm com o Moki |
+| [Execuções e entregas](https://github.com/Orsi88/moki/wiki/Execuções-e-entregas) | O que a IA entrega, e o Hudson, que organiza |
 | [Skills de QA e agentes](https://github.com/Orsi88/moki/wiki/Skills-de-QA-e-agentes) | As atividades, o estado de cada uma, as suas próprias skills |
 | [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE) | A extensão do VS Code: instalar, configurar, todos os caminhos de uso |
 | [Problemas comuns](https://github.com/Orsi88/moki/wiki/Problemas-comuns) | Problemas comuns e o que fazer |
+| [Créditos e licenças](https://github.com/Orsi88/moki/wiki/Créditos-e-licenças) | Os projetos de código aberto com que o Moki é feito — obrigado |
 | [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) (em inglês) | Agentes, contratos e operações multiagente |
 | [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) (em inglês) | As ferramentas que a IA recebe, por projeto |
 
