@@ -40,6 +40,9 @@ export const IconLock = ({ size }: IconProps) => (
 export const IconInfo = ({ size }: IconProps) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
 );
+export const IconAlert = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+);
 export const IconSearch = ({ size }: IconProps) => (
   <svg {...base(size)}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
 );

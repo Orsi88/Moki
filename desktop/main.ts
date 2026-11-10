@@ -20,7 +20,8 @@ import { appChooser } from './open-with.ts';
 import { pdfcraftAvailable, runPdfcraft } from './pdfcraft.ts';
 import { createTerminals, shellSpec } from './terminals.ts';
 import { memoryUsage, planUsage, type AppProcessKind, type WindowKind } from './usage.ts';
-import { fixToolPath } from './tool-path.ts';
+import { fixToolPath, pathReady } from './tool-path.ts';
+import { ASSIST_TOOLS, NOTE_HELPERS, assistPrompt, runAssist, type AssistTool, type NoteHelper } from './note-assist.ts';
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
 import { createParseClient } from './parse-pool.ts';
 
@@ -387,6 +388,32 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.handle('qa:open-link', (event, url: unknown) => {
       if (trusted(event) && typeof url === 'string' && /^https?:\/\//.test(url)) void shell.openExternal(url);
+    });
+
+    // A quick assistant of a note (desktop/note-assist.ts): one run of Claude Code or Codex, no terminal. The answer
+    // goes back to the note as a suggestion; `id` lets the note cancel it. The preferred tool is used when installed.
+    const assists = new Map<string, () => void>();
+    ipcMain.handle('qa:note-assist', async (event, raw: unknown): Promise<{ answer?: string; tool?: string; error?: string }> => {
+      if (!trusted(event) || !raw || typeof raw !== 'object') return { error: 'invalid' };
+      const { id, helper, text, prefer, language } = raw as Record<string, unknown>;
+      if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id) || !NOTE_HELPERS.includes(helper as NoteHelper) || typeof text !== 'string' || text.length > 200_000) return { error: 'invalid' };
+      const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
+      if (fakeTools) { // UI tests: a fixed answer, as the tool would give it
+        await new Promise((r) => setTimeout(r, 200));
+        return { tool: 'claude', answer: helper === 'write' ? `${text.trim()}\n\nTexto revisado pelo assistente.` : `## ${helper}\n\n- ponto do assistente` };
+      }
+      await pathReady();
+      const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
+      const found = order.map((tool) => ({ tool, file: which(TOOLS[tool].command ?? tool) })).find((x) => x.file);
+      if (!found?.file) return { error: 'no-tool' };
+      const run = runAssist(found.file, found.tool, helper as NoteHelper, assistPrompt(helper as NoteHelper, text, lang), process.env);
+      assists.set(id, run.cancel);
+      try { return { tool: found.tool, answer: await run.done }; }
+      catch (e) { return { tool: found.tool, error: (e as Error).message }; }
+      finally { assists.delete(id); }
+    });
+    ipcMain.handle('qa:note-assist-cancel', (event, id: unknown) => {
+      if (trusted(event) && typeof id === 'string') assists.get(id)?.();
     });
 
     // From the main window, or from the loose notebook when a note is sent to a project.
