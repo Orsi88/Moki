@@ -4,7 +4,7 @@
 
 - **Solte arquivos na janela** e eles são copiados para a **Entrada** — até 40 arquivos, 200 MB cada (pastas são ignoradas).
 - **Solte um arquivo numa pasta** da árvore para copiá-lo para lá; **arraste um arquivo** da árvore para outra pasta para movê-lo.
-- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, e **apagar** — para a lixeira.
+- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, **usar no terminal** (arquivos do Contexto e de Notas: a IA lê como contexto para o que você pedir em seguida), e **apagar** — para a lixeira.
 - As pastas fixas (Contexto, Entrada, Notas, Temporários, Arquivos de execuções) são esvaziadas, nunca removidas. Os arquivos que a IA salva aparecem na árvore assim que chegam.
 
 ## Markdown: um editor para ler, escrever e comentar
@@ -49,11 +49,13 @@ Um arquivo da entrada, e qualquer edição de página, é salvo como uma cópia 
 - O programa de planilhas recalcula as fórmulas ao abrir o arquivo salvo; o Moki não faz esse cálculo. Planilhas protegidas, arquivos assinados, modelos e formatos com macros ficam somente para leitura. Campos complexos e fórmulas compartilhadas ou matriciais precisam do programa original.
 - **Arquivos antigos** (`.doc`, `.xls`): **Converter e editar uma cópia** usa o Microsoft Word/Excel ou o LibreOffice instalado para criar um arquivo `.docx`/`.xlsx`. O original permanece intacto, e uma cópia convertida que já existe nunca é sobrescrita.
 
-## HTML e imagens
+## Páginas HTML
 
 O **HTML** executa JavaScript local, módulos e arquivos web relativos numa prévia isolada, sem acesso ao Moki nem a recursos externos de rede. A barra única do arquivo reúne o seletor de largura (painel, tablet ou celular), comentários, recarregar e abrir no navegador.
 
 Para comentar, abra o ícone de balão, **selecione um trecho na prévia**, escreva o comentário e pressione **+**. Clique no trecho citado para encontrá-lo de novo. Os comentários ficam no projeto, separados do código HTML; copie o projeto para levá-los junto. Se a página mudar e o trecho não for mais encontrado, o comentário continua com um aviso.
+
+## Imagens e outros arquivos
 
 **Imagens** abrem num visualizador. O botão ↗ abre um arquivo no programa dele; **⋯ › Abrir com…** deixa escolher qual para Excel, Word e PDF, e lembra a escolha.
 

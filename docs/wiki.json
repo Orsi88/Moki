@@ -27,7 +27,8 @@
     { "title": "Integrations", "titlePt": "Integrações", "pages": [
       { "file": "trackers.md", "page": "Azure DevOps and Jira", "pt": { "file": "pt-BR/trackers.md", "page": "Azure DevOps e Jira" } },
       { "file": "mcp-servers.md", "page": "MCP servers" },
-      { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } }
+      { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } },
+      { "file": "artcraft.md", "page": "ArtCraft apps", "pt": { "file": "pt-BR/artcraft.md", "page": "Apps ArtCraft" } }
     ] },
     { "title": "Help", "titlePt": "Ajuda", "pages": [
       { "file": "troubleshooting.md", "page": "Troubleshooting", "pt": { "file": "pt-BR/troubleshooting.md", "page": "Problemas comuns" } },

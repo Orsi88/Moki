@@ -24,6 +24,8 @@ test('the front page comes from docs/home.md in both languages, with the open-so
   assert.match(pages['Home.md'], /## ❤️ Built with open source/);
   assert.match(pages['Início.md'], /## ❤️ Feito com software livre/);
   assert.match(pages['Home.md'], /\]\(Credits-and-licenses\)/, 'the credits page is linked');
+  assert.match(pages['Home.md'], /### 🏗️ Frameworks[\s\S]*### 🧰 Other open-source tools/, 'frameworks apart from the other tools');
+  assert.match(pages['Início.md'], /### 🏗️ Frameworks[\s\S]*### 🧰 Outras ferramentas de código aberto/);
   assert.match(pages['Home.md'], /raw\.githubusercontent\.com\/Orsi88\/moki\/main\/docs\/assets\/wiki\/en\/project\.png/, 'images point to the repository');
   assert.match(pages['_Sidebar.md'], /\*\*🇺🇸 English\*\*[\s\S]*\*\*Start here\*\*[\s\S]*\*\*🇧🇷 Português\*\*[\s\S]*\*\*Comece por aqui\*\*[\s\S]*\[Primeiros passos\]\(Primeiros-passos\)/);
 });

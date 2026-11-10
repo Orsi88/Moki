@@ -4,7 +4,7 @@
 
 - **Drop files on the window** and they are copied into **Inbox** — up to 40 files, 200 MB each (folders are skipped).
 - **Drop a file on a folder** of the tree to copy it there; **drag a file** of the tree onto another folder to move it.
-- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, and **delete** — to the trash.
+- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, **use in the terminal** (Context and Notes files: the AI reads it as context for what you ask next), and **delete** — to the trash.
 - The fixed folders (Context, Inbox, Notes, Temporary, Execution files) are emptied, never removed. Files the AI saves show up in the tree as they land.
 
 ## Markdown: one editor for reading, writing and commenting
@@ -49,11 +49,13 @@ A file from the inbox, and any page edit, is saved as an `-edited.pdf` copy, so 
 - Spreadsheet programs recalculate formulas when they open the saved file; Moki does not calculate them. Protected sheets, signed files, templates and macro-enabled formats remain read only. Complex fields and shared/array formulas need the original program.
 - **Older files** (`.doc`, `.xls`): **Convert and edit a copy** uses installed Microsoft Word/Excel or LibreOffice to create a new `.docx`/`.xlsx` file. The original stays untouched, and an existing converted file is never overwritten.
 
-## HTML and images
+## HTML pages
 
 **HTML** runs local JavaScript, modules and relative web assets in an isolated preview, without access to Moki or external network resources. The single file bar includes the width selector (fit, tablet or phone), comments, reload and open in browser.
 
 To comment, open the speech-bubble icon, **select a passage in the preview**, write the comment and press **+**. Click a quoted passage to find it again. Comments are stored with the project, separately from the HTML source; copy the project to take them with you. If the page changes and the passage no longer matches, the comment stays with a notice.
+
+## Images and other files
 
 **Images** open in a viewer. The ↗ button opens a file in its own program; **⋯ › Open with…** lets you choose which one for Excel, Word and PDF, and remembers it.
 
