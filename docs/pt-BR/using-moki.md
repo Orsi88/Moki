@@ -16,7 +16,7 @@
 
 **Neste terminal** cola no cursor, sem enviar nem apagar o que você escreveu. Acrescente contexto e pressione Enter quando quiser. Essa opção exige um terminal de IA em execução neste projeto. **Num terminal novo** permite escolher a ferramenta; a padrão vem de **Configurações › Minhas IAs**, e uma escolha diferente vale só para este pedido.
 
-Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de terminal. Cursor e VS Code abrem a pasta com o pedido copiado. Chats web e *Só mostrar a solicitação* preparam texto para copiar. Uma operação sempre abre seu próprio formulário porque cada etapa usa um terminal próprio; a lista explica esse comportamento.
+Claude Code, Codex, Gemini CLI, Antigravity CLI e Cursor Agent abrem numa aba de terminal. Cole um print ali (Ctrl+V) e ele é salvo em `temporary/pasted/` do projeto, com o caminho digitado no prompt, para a IA ler a imagem; arquivos arrastados para o terminal, do computador ou da árvore do projeto, entram pelo caminho. Cursor e VS Code abrem a pasta com o pedido copiado. Chats web e *Só mostrar a solicitação* preparam texto para copiar. Uma operação sempre abre seu próprio formulário porque cada etapa usa um terminal próprio; a lista explica esse comportamento.
 
 Para conversar sobre uma ideia, escolha um agente em **Chamar…** e acrescente o assunto como observação opcional. Uma execução só começa quando o procedimento ou seu pedido exigir.
 
