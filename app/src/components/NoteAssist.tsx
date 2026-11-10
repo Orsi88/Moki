@@ -7,7 +7,7 @@ import { api, type NoteHelper } from '../api';
 import { t } from '../i18n';
 import { applyAnswer, PLACEMENT, wordDiff } from '../note-assist';
 import { defaultTool, recall } from '../prefs';
-import { IconAlert, IconHighlight, IconList, IconSearch, IconX } from './Icons';
+import { IconAlert, IconHighlight, IconList, IconSearch, IconSparkle, IconX } from './Icons';
 
 interface Running { id: string; helper: NoteHelper; base: string }
 type State =
@@ -46,10 +46,12 @@ export function useNoteAssist({ text, onApply }: { text: string; onApply: (next:
   return { state, run, stop, accept, busy: state?.status === 'running' };
 }
 
-// The four buttons, as icons with their names as tooltips, for the note's toolbar.
+// The four buttons, as icons with their names as tooltips, for the note's toolbar: one group set apart from the
+// formatting tools, a sparkle and "AI" in front, so it reads as the AI's.
 export function AssistButtons({ assist, empty }: { assist: ReturnType<typeof useNoteAssist>; empty: boolean }) {
   return (
-    <span className="note-assist-buttons" role="group" aria-label={t('Quick assistants')}>
+    <span className="note-assist-buttons" role="group" aria-label={t('Quick assistants')} title={t('Quick assistants')}>
+      <span className="note-assist-mark" aria-hidden="true"><IconSparkle size={14} /> {t('AI')}</span>
       {HELPERS.map((helper) => {
         const why = empty ? t('Write something in the note first.') : assist.busy ? t('An assistant is working on this note.') : '';
         return (

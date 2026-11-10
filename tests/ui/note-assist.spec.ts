@@ -94,3 +94,20 @@ test('research adds its section at the end of the note when accepted', async () 
   await panel.getByRole('button', { name: 'Aceitar' }).click();
   await expect.poll(onDisk, { timeout: 10_000 }).toMatch(/Texto revisado pelo assistente\.\n\n## research\n\n- ponto do assistente\n$/);
 });
+
+test('a loose note: the title is renamed in place in the header, beside the project it can be sent to; no title field, no source pencil', async () => {
+  await page.locator('.ribbon').getByRole('button', { name: 'Nova nota' }).click();
+  const note = page.locator('.note-dialog').last();
+  await expect(note).toBeVisible();
+  await expect(note.getByLabel('Título', { exact: true })).toHaveCount(0); // no separate title field
+  await expect(note.getByRole('button', { name: 'Usar com a IA' })).toHaveCount(0);
+  await expect(note.getByRole('button', { name: 'Código Markdown' })).toHaveCount(0);
+  await expect(note.locator('.note-head-title select')).toBeVisible(); // send to a project, in the header
+  await note.locator('.note-head-title h2').click({ button: 'right' });
+  await note.locator('.note-title-input').fill('Ideias soltas');
+  await note.locator('.note-title-input').press('Enter');
+  await expect(note.locator('.note-head-title h2')).toHaveText('Ideias soltas');
+  await note.locator('.tiptap-body').click();
+  await page.keyboard.type('Uma ideia.');
+  await shots('note-loose-header', note);
+});

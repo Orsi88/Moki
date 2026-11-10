@@ -1419,7 +1419,14 @@ kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font:
 .note-ai .btn { white-space: nowrap; }
 
 /* The quick assistants of a note (NoteAssist.tsx): icons in the toolbar, the suggestion under it. */
-.note-assist-buttons { display: inline-flex; align-items: center; gap: 2px; }
+.note-assist-buttons {
+  display: inline-flex; align-items: center; gap: 1px; padding: 2px 3px 2px 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 5%, transparent));
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.note-assist-mark { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; color: var(--accent); font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; }
+.note-assist-buttons .icon-btn { width: 28px; height: 28px; border-radius: 999px; }
 .note-assist-buttons .icon-btn.on { color: var(--accent); background: var(--accent-soft); }
 .note-assist { display: flex; flex-direction: column; gap: 8px; padding: 10px 20px 12px; border-bottom: 1px solid var(--border); background: var(--bg-2); max-height: 45%; min-height: 0; }
 .note-assist-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -2213,3 +2220,13 @@ span.mcp-row-main { cursor: default; }
 
 /* A note over the screen (the quick note, a note opened from the start screen): resized from its bottom-right corner. */
 .modal-backdrop > .note-dialog:not(.note-embedded):not(.note-inline) { resize: both; min-width: min(420px, 100%); min-height: 320px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }
+
+/* A note's header: its title (double-click or right-click to rename, in place) and, for a loose note, the project to send it to. */
+.note-head-title { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.note-head-title h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+.note-head-title h2:hover { background: var(--bg-2); }
+.note-title-input { flex: 1; min-width: 120px; max-width: 420px; font: inherit; font-size: 1.15rem; font-weight: 700; padding: 2px 6px; margin-left: -6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--text); cursor: text; user-select: text; }
+.note-send { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; cursor: default; }
+.note-send select { max-width: 220px; height: 30px; padding: 0 8px; font-size: 13px; }
+.note-head-title + .statusbar-spacer { display: none; } /* the title block takes the room; the buttons stay at the end */
+.note-head-title h2 { flex: 0 1 auto; }
