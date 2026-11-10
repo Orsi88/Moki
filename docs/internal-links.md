@@ -17,7 +17,7 @@ In Reading view, existing file paths written as plain text or inline code also b
 Note mentions inserted with `@` in the source editor use document-relative paths. Older project-relative mentions still work. Navigation remains inside the active project. A missing file or anchor produces a message instead of silently opening a different document.
 ## Copy and follow references
 
-In a file's tree menu, **Copy link** copies a Markdown link rooted at the active project. Markdown and PDF comment cards have **Copy link to comment**, preserving the stored comment id. A copied link works from any document in the same Moki project. When authoring a portable Markdown deliverable for another viewer, make the destination relative to that document.
+In a file's tree menu, **Copy link** copies a Markdown link rooted at the active project. A copied link works from any document in the same Moki project. When authoring a portable Markdown deliverable for another viewer, make the destination relative to that document.
 
 In Reading view, the **#** beside a heading copies a link to that section. A Markdown link pasted or typed in the formatted editor becomes a link, so a copied link is pasted as a reference.
 

@@ -1,6 +1,6 @@
 # Catálogo de testes
 
-Todos os cenários de teste automatizado do Moki, um por linha: 560 cenários. O cenário é o título do teste, que diz o comportamento verificado; os títulos vêm de `docs/pt-BR/test-scenarios.json` (o original, em inglês, está no código). Como as suítes rodam e como os testes são escritos: [Testes automatizados](testing.md).
+Todos os cenários de teste automatizado do Moki, um por linha: 561 cenários. O cenário é o título do teste, que diz o comportamento verificado; os títulos vêm de `docs/pt-BR/test-scenarios.json` (o original, em inglês, está no código). Como as suítes rodam e como os testes são escritos: [Testes automatizados](testing.md).
 
 > Gerado pelo `npm run test-catalog` a partir dos arquivos de teste; não edite à mão. Rode de novo depois de criar ou renomear um teste.
 
@@ -9,7 +9,7 @@ Todos os cenários de teste automatizado do Moki, um por linha: 560 cenários. O
 | Tipo | Cenários |
 |---|---|
 | Unidade | 292 |
-| Integração | 152 |
+| Integração | 153 |
 | Interface | 116 |
 
 | Área | Unidade | Integração | Interface |
@@ -30,7 +30,7 @@ Todos os cenários de teste automatizado do Moki, um por linha: 560 cenários. O
 | [Encontrar as ferramentas de IA](#encontrar-as-ferramentas-de-ia) | 6 | 6 |  |
 | [Atividades](#atividades) | 10 | 4 |  |
 | [Favoritos](#favoritos) | 2 | 1 |  |
-| [Atividades e execuções](#atividades-e-execuções) | 3 | 10 |  |
+| [Atividades e execuções](#atividades-e-execuções) | 3 | 11 |  |
 | [Agentes](#agentes) |  | 8 |  |
 | [Operações multiagente](#operações-multiagente) |  | 8 |  |
 | [Skills e configuração](#skills-e-configuração) |  | 18 |  |
@@ -119,8 +119,8 @@ Rodam com `npm test`.
 | 9 | excluir manda um arquivo para a lixeira, esvazia uma pasta fixa e mantém o project.json | Integração | [desktop.test.ts:414](../../tests/desktop.test.ts#L414) |
 | 10 | arquivos e pastas novos: Markdown, texto, planilha e Word vazios, nomes seguros, nunca dentro das atividades | Integração | [desktop.test.ts:432](../../tests/desktop.test.ts#L432) |
 | 11 | onde um item está neste computador: mostrado na pasta dele ou pelo caminho completo, só dentro do projeto | Integração | [desktop.test.ts:463](../../tests/desktop.test.ts#L463) |
-| 12 | isolamento do fs-guard e regras de tipo de arquivo | Unidade | [desktop.test.ts:2792](../../tests/desktop.test.ts#L2792) |
-| 13 | ids de projeto: só um nome de pasta simples com um project.json é um projeto | Unidade | [desktop.test.ts:3194](../../tests/desktop.test.ts#L3194) |
+| 12 | isolamento do fs-guard e regras de tipo de arquivo | Unidade | [desktop.test.ts:2823](../../tests/desktop.test.ts#L2823) |
+| 13 | ids de projeto: só um nome de pasta simples com um project.json é um projeto | Unidade | [desktop.test.ts:3225](../../tests/desktop.test.ts#L3225) |
 | 14 | o moki-file serve o arquivo inteiro com tipo, tamanho e Accept-Ranges, e o HEAD responde o mesmo sem corpo | Unidade | [file-protocol.test.ts:58](../../tests/file-protocol.test.ts#L58) |
 | 15 | o moki-file responde um único Range com 206 e exatamente esses bytes | Unidade | [file-protocol.test.ts:78](../../tests/file-protocol.test.ts#L78) |
 | 16 | o moki-file responde um Range inválido ou não atendível com 416 e Content-Range */tamanho | Unidade | [file-protocol.test.ts:93](../../tests/file-protocol.test.ts#L93) |
@@ -177,7 +177,7 @@ Rodam com `npm test`.
 | 2 | notas: uma é excluída pela tela inicial; nada fora de notes/ é excluído | Integração | [desktop.test.ts:228](../../tests/desktop.test.ts#L228) |
 | 3 | notas: uma seleção de PDF vira uma nota com título de arquivo e página, com a sua origem | Integração | [desktop.test.ts:237](../../tests/desktop.test.ts#L237) |
 | 4 | notas: exportadas como md, txt e pdf para o arquivo que o diálogo de salvar devolve; nada mais é exportado | Integração | [desktop.test.ts:245](../../tests/desktop.test.ts#L245) |
-| 5 | janelas de nota: só notes/<arquivo>.md de um projeto listado ou o id de uma nota avulsa, uma janela por nota | Integração | [desktop.test.ts:2773](../../tests/desktop.test.ts#L2773) |
+| 5 | janelas de nota: só notes/<arquivo>.md de um projeto listado ou o id de uma nota avulsa, uma janela por nota | Integração | [desktop.test.ts:2804](../../tests/desktop.test.ts#L2804) |
 | 6 | note-assist: o pedido leva a nota e a tarefa e usa o idioma escolhido como padrão | Unidade | [note-assist.test.ts:6](../../tests/note-assist.test.ts#L6) |
 | 7 | note-assist: nenhuma ferramenta escreve ou executa comandos; só a pesquisa busca na web | Unidade | [note-assist.test.ts:15](../../tests/note-assist.test.ts#L15) |
 | 8 | note-assist: remove a cerca ao redor da resposta inteira e posiciona a resposta conforme o assistente | Unidade | [note-assist.test.ts:29](../../tests/note-assist.test.ts#L29) |
@@ -196,12 +196,12 @@ Rodam com `npm test`.
 | 4 | o flush roda a chamada pendente na hora, uma única vez, e não faz nada quando não há pendência | Unidade | [debounce.test.ts:22](../../tests/debounce.test.ts#L22) |
 | 5 | o cancel descarta a chamada pendente, e uma chamada posterior volta a funcionar | Unidade | [debounce.test.ts:38](../../tests/debounce.test.ts#L38) |
 | 6 | o flushEdits descarrega todo editor registrado até ele se desregistrar | Unidade | [debounce.test.ts:54](../../tests/debounce.test.ts#L54) |
-| 7 | as tabelas de Markdown desenham células mescladas (<< e ^^) como uma célula só | Unidade | [desktop.test.ts:2616](../../tests/desktop.test.ts#L2616) |
-| 8 | a renderização de Markdown escapa HTML e injeção de atributos | Unidade | [desktop.test.ts:2622](../../tests/desktop.test.ts#L2622) |
-| 9 | imagens relativas do Markdown só são embutidas de dentro do projeto | Unidade | [desktop.test.ts:2630](../../tests/desktop.test.ts#L2630) |
-| 10 | a extração de docx mantém títulos, listas e tabelas | Unidade | [desktop.test.ts:2648](../../tests/desktop.test.ts#L2648) |
-| 11 | a extração de docx mantém formatação, listas numeradas, links, notas, comentários e imagens | Unidade | [desktop.test.ts:2659](../../tests/desktop.test.ts#L2659) |
-| 12 | os formatos de número das planilhas mostram os valores como os programas de planilha mostram | Unidade | [desktop.test.ts:2693](../../tests/desktop.test.ts#L2693) |
+| 7 | as tabelas de Markdown desenham células mescladas (<< e ^^) como uma célula só | Unidade | [desktop.test.ts:2647](../../tests/desktop.test.ts#L2647) |
+| 8 | a renderização de Markdown escapa HTML e injeção de atributos | Unidade | [desktop.test.ts:2653](../../tests/desktop.test.ts#L2653) |
+| 9 | imagens relativas do Markdown só são embutidas de dentro do projeto | Unidade | [desktop.test.ts:2661](../../tests/desktop.test.ts#L2661) |
+| 10 | a extração de docx mantém títulos, listas e tabelas | Unidade | [desktop.test.ts:2679](../../tests/desktop.test.ts#L2679) |
+| 11 | a extração de docx mantém formatação, listas numeradas, links, notas, comentários e imagens | Unidade | [desktop.test.ts:2690](../../tests/desktop.test.ts#L2690) |
+| 12 | os formatos de número das planilhas mostram os valores como os programas de planilha mostram | Unidade | [desktop.test.ts:2724](../../tests/desktop.test.ts#L2724) |
 | 13 | um diagrama guardado é um acerto, um desconhecido é uma falha | Unidade | [diagram-cache.test.ts:6](../../tests/diagram-cache.test.ts#L6) |
 | 14 | idioma, tema e fonte geram chaves diferentes e nunca compartilham um desenho | Unidade | [diagram-cache.test.ts:14](../../tests/diagram-cache.test.ts#L14) |
 | 15 | o limite de entradas descarta o diagrama usado há mais tempo | Unidade | [diagram-cache.test.ts:30](../../tests/diagram-cache.test.ts#L30) |
@@ -288,8 +288,8 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | busca: projetos por nome, arquivos por nome e texto, filtros por tag | Integração | [desktop.test.ts:2859](../../tests/desktop.test.ts#L2859) |
-| 2 | busca expandida: os prefixos distinguem projetos, nomes de arquivo e conteúdos | Integração | [desktop.test.ts:2889](../../tests/desktop.test.ts#L2889) |
+| 1 | busca: projetos por nome, arquivos por nome e texto, filtros por tag | Integração | [desktop.test.ts:2890](../../tests/desktop.test.ts#L2890) |
+| 2 | busca expandida: os prefixos distinguem projetos, nomes de arquivo e conteúdos | Integração | [desktop.test.ts:2920](../../tests/desktop.test.ts#L2920) |
 | 3 | o texto extraído só é reaproveitado para a mesma versão do arquivo | Unidade | [search-cache.test.ts:6](../../tests/search-cache.test.ts#L6) |
 | 4 | o texto usado há mais tempo sai primeiro quando o limite é passado | Unidade | [search-cache.test.ts:13](../../tests/search-cache.test.ts#L13) |
 | 5 | busca expandida: acha por nome e conteúdo, lê um PDF e não segue links simbólicos | Integração | [search.test.ts:11](../../tests/search.test.ts#L11) |
@@ -301,7 +301,7 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | workspaces: cada um tem os próprios projetos; os pedidos citam um workspace fora do padrão | Integração | [desktop.test.ts:2812](../../tests/desktop.test.ts#L2812) |
+| 1 | workspaces: cada um tem os próprios projetos; os pedidos citam um workspace fora do padrão | Integração | [desktop.test.ts:2843](../../tests/desktop.test.ts#L2843) |
 | 2 | uma aba aberta só é lida de novo quando o tamanho ou a data de modificação do arquivo mudou | Unidade | [tab-refresh.test.ts:6](../../tests/tab-refresh.test.ts#L6) |
 | 3 | uma aba sem carimbo conhecido, ou um arquivo ausente da árvore, é lida de novo (o lado seguro) | Unidade | [tab-refresh.test.ts:13](../../tests/tab-refresh.test.ts#L13) |
 | 4 | uma aba de imagem ou PDF toma o carimbo do conteúdo, qualquer outra aba do carimbo da árvore que guardou | Unidade | [tab-refresh.test.ts:20](../../tests/tab-refresh.test.ts#L20) |
@@ -369,13 +369,13 @@ Rodam com `npm test`.
 | 12 | chamar dentro de um terminal usa o pedido de abertura validado, sem abrir outra ferramenta | Integração | [desktop.test.ts:682](../../tests/desktop.test.ts#L682) |
 | 13 | a abertura monta o pedido; arquivos Word são extraídos | Integração | [desktop.test.ts:879](../../tests/desktop.test.ts#L879) |
 | 14 | plugins por projeto: o caveman é salvo no project.json e só chega às aberturas daquele projeto | Integração | [desktop.test.ts:1560](../../tests/desktop.test.ts#L1560) |
-| 15 | pedidos com caracteres não ASCII chegam às ferramentas no Windows por um arquivo de pedido em UTF-8 | Integração | [desktop.test.ts:2487](../../tests/desktop.test.ts#L2487) |
-| 16 | os plugins do app só carregam nas sessões do app: no Claude por pasta, no Codex como uma linha de instrução *(pulado no Windows)* | Integração | [desktop.test.ts:2498](../../tests/desktop.test.ts#L2498) |
-| 17 | o lançador mantém o texto do usuário fora de qualquer linha de comando de shell | Unidade | [desktop.test.ts:2528](../../tests/desktop.test.ts#L2528) |
-| 18 | planos de instalação: comandos fixos do fabricante por sistema para toda IA de terminal; editores são baixados, não instalados | Integração | [desktop.test.ts:2536](../../tests/desktop.test.ts#L2536) |
-| 19 | uma ferramenta instalável ausente abre o run-tool na aba; o pedido leva a ferramenta e um argumento de prompt *(pulado no Windows)* | Integração | [desktop.test.ts:2553](../../tests/desktop.test.ts#L2553) |
-| 20 | run-tool: uma ferramenta ausente mostra as instruções e pergunta; qualquer resposta diferente de y não instala nada *(pulado no Windows)* | Integração | [desktop.test.ts:2579](../../tests/desktop.test.ts#L2579) |
-| 21 | as abas de terminal só iniciam a ferramenta escolhida, na raiz do framework, com o pedido como um único argumento *(pulado no Windows)* | Integração | [desktop.test.ts:2595](../../tests/desktop.test.ts#L2595) |
+| 15 | pedidos com caracteres não ASCII chegam às ferramentas no Windows por um arquivo de pedido em UTF-8 | Integração | [desktop.test.ts:2518](../../tests/desktop.test.ts#L2518) |
+| 16 | os plugins do app só carregam nas sessões do app: no Claude por pasta, no Codex como uma linha de instrução *(pulado no Windows)* | Integração | [desktop.test.ts:2529](../../tests/desktop.test.ts#L2529) |
+| 17 | o lançador mantém o texto do usuário fora de qualquer linha de comando de shell | Unidade | [desktop.test.ts:2559](../../tests/desktop.test.ts#L2559) |
+| 18 | planos de instalação: comandos fixos do fabricante por sistema para toda IA de terminal; editores são baixados, não instalados | Integração | [desktop.test.ts:2567](../../tests/desktop.test.ts#L2567) |
+| 19 | uma ferramenta instalável ausente abre o run-tool na aba; o pedido leva a ferramenta e um argumento de prompt *(pulado no Windows)* | Integração | [desktop.test.ts:2584](../../tests/desktop.test.ts#L2584) |
+| 20 | run-tool: uma ferramenta ausente mostra as instruções e pergunta; qualquer resposta diferente de y não instala nada *(pulado no Windows)* | Integração | [desktop.test.ts:2610](../../tests/desktop.test.ts#L2610) |
+| 21 | as abas de terminal só iniciam a ferramenta escolhida, na raiz do framework, com o pedido como um único argumento *(pulado no Windows)* | Integração | [desktop.test.ts:2626](../../tests/desktop.test.ts#L2626) |
 | 22 | QA_ELECTRON_ARGS: não definido, vazio ou em branco não aplica nada | Unidade | [electron-args.test.ts:5](../../tests/electron-args.test.ts#L5) |
 | 23 | QA_ELECTRON_ARGS: as opções permitidas voltam sem os hífens iniciais, ignorando espaços extras | Unidade | [electron-args.test.ts:9](../../tests/electron-args.test.ts#L9) |
 | 24 | QA_ELECTRON_ARGS: opções com valor o mantêm, inclusive um valor que tem o próprio = (--js-flags) | Unidade | [electron-args.test.ts:15](../../tests/electron-args.test.ts#L15) |
@@ -407,12 +407,12 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | minhas IAs: caminho e versão das ferramentas instaladas, nada é executado para as que faltam | Integração | [desktop.test.ts:3129](../../tests/desktop.test.ts#L3129) |
-| 2 | minhas IAs: a extensão do Moki da versão do app é baixada, conferida, instalada e o editor abre | Integração | [desktop.test.ts:3142](../../tests/desktop.test.ts#L3142) |
-| 3 | o atalho da IDE instala uma vez e reutiliza a extensão compatível nas próximas aberturas | Integração | [desktop.test.ts:3156](../../tests/desktop.test.ts#L3156) |
-| 4 | minhas IAs: só editores instalados que aceitam a extensão, e só um vsix que o GitHub garante | Integração | [desktop.test.ts:3167](../../tests/desktop.test.ts#L3167) |
-| 5 | minhas IAs: num checkout, o vsix gerado em release/ é instalado sem download | Integração | [desktop.test.ts:3180](../../tests/desktop.test.ts#L3180) |
-| 6 | minhas IAs: as ferramentas são achadas pelo PATH, mantidas enquanto ele é o mesmo, e o aiTools procura de novo | Integração | [desktop.test.ts:3225](../../tests/desktop.test.ts#L3225) |
+| 1 | minhas IAs: caminho e versão das ferramentas instaladas, nada é executado para as que faltam | Integração | [desktop.test.ts:3160](../../tests/desktop.test.ts#L3160) |
+| 2 | minhas IAs: a extensão do Moki da versão do app é baixada, conferida, instalada e o editor abre | Integração | [desktop.test.ts:3173](../../tests/desktop.test.ts#L3173) |
+| 3 | o atalho da IDE instala uma vez e reutiliza a extensão compatível nas próximas aberturas | Integração | [desktop.test.ts:3187](../../tests/desktop.test.ts#L3187) |
+| 4 | minhas IAs: só editores instalados que aceitam a extensão, e só um vsix que o GitHub garante | Integração | [desktop.test.ts:3198](../../tests/desktop.test.ts#L3198) |
+| 5 | minhas IAs: num checkout, o vsix gerado em release/ é instalado sem download | Integração | [desktop.test.ts:3211](../../tests/desktop.test.ts#L3211) |
+| 6 | minhas IAs: as ferramentas são achadas pelo PATH, mantidas enquanto ele é o mesmo, e o aiTools procura de novo | Integração | [desktop.test.ts:3256](../../tests/desktop.test.ts#L3256) |
 | 7 | PATH: o PATH mais recente e as pastas de ferramentas de sempre se juntam ao atual, sem repetições | Unidade | [tool-path.test.ts:17](../../tests/tool-path.test.ts#L17) |
 | 8 | PATH: as pastas globais do npm e dos instaladores estão entre as de sempre | Unidade | [tool-path.test.ts:26](../../tests/tool-path.test.ts#L26) |
 | 9 | which: o primeiro executável no PATH, resolvido em JS (síncrono e assíncrono concordam) | Unidade | [tool-path.test.ts:34](../../tests/tool-path.test.ts#L34) |
@@ -457,13 +457,14 @@ Rodam com `npm test`.
 | 4 | a execução mostra seu título e só as entregas na árvore: estado, entradas, logs e pastas vazias ficam fora | Integração | [desktop.test.ts:739](../../tests/desktop.test.ts#L739) |
 | 5 | npm run new-run grava --activity e recusa uma atividade que o projeto não vê | Integração | [desktop.test.ts:850](../../tests/desktop.test.ts#L850) |
 | 6 | sobras: arquivos temporários antigos e arquivos auxiliares de execuções concluídas saem ao abrir o projeto; saídas não entregues são limpas sob pedido | Integração | [desktop.test.ts:2228](../../tests/desktop.test.ts#L2228) |
-| 7 | hudson: o novo nome mantém a extensão e não contém pasta | Integração | [hudson.test.ts:13](../../tests/hudson.test.ts#L13) |
-| 8 | hudson: o pedido lista cada arquivo com sua execução e prévia e pede apenas JSON | Integração | [hudson.test.ts:21](../../tests/hudson.test.ts#L21) |
-| 9 | hudson: aceita apenas arquivos listados com ação conhecida e mantém o que estiver incerto | Integração | [hudson.test.ts:30](../../tests/hudson.test.ts#L30) |
-| 10 | hudson: o serviço oferece os arquivos deixados pelas execuções, sem estado, entradas ou registros, e aplica só os oferecidos | Integração | [hudson.test.ts:53](../../tests/hudson.test.ts#L53) |
-| 11 | uma execução vinda de uma atividade é nomeada por ela e pelas palavras do slug | Unidade | [run-origin.test.ts:8](../../tests/run-origin.test.ts#L8) |
-| 12 | um pedido feito direto à IA não tem atividade; o slug de acompanhamento do app não nomeia cenário | Unidade | [run-origin.test.ts:15](../../tests/run-origin.test.ts#L15) |
-| 13 | uma atividade que não existe mais ainda nomeia as execuções dela (o id); ids estranhos ficam como estão | Unidade | [run-origin.test.ts:21](../../tests/run-origin.test.ts#L21) |
+| 7 | limpeza após o contexto: as saídas de uma execução concluída vão para a lixeira só quando o projeto pede e todas as entregas estão em context/ | Integração | [desktop.test.ts:2268](../../tests/desktop.test.ts#L2268) |
+| 8 | hudson: o novo nome mantém a extensão e não contém pasta | Integração | [hudson.test.ts:13](../../tests/hudson.test.ts#L13) |
+| 9 | hudson: o pedido lista cada arquivo com sua execução e prévia e pede apenas JSON | Integração | [hudson.test.ts:21](../../tests/hudson.test.ts#L21) |
+| 10 | hudson: aceita apenas arquivos listados com ação conhecida e mantém o que estiver incerto | Integração | [hudson.test.ts:30](../../tests/hudson.test.ts#L30) |
+| 11 | hudson: o serviço oferece os arquivos deixados pelas execuções, sem estado, entradas ou registros, e aplica só os oferecidos | Integração | [hudson.test.ts:53](../../tests/hudson.test.ts#L53) |
+| 12 | uma execução vinda de uma atividade é nomeada por ela e pelas palavras do slug | Unidade | [run-origin.test.ts:8](../../tests/run-origin.test.ts#L8) |
+| 13 | um pedido feito direto à IA não tem atividade; o slug de acompanhamento do app não nomeia cenário | Unidade | [run-origin.test.ts:15](../../tests/run-origin.test.ts#L15) |
+| 14 | uma atividade que não existe mais ainda nomeia as execuções dela (o id); ids estranhos ficam como estão | Unidade | [run-origin.test.ts:21](../../tests/run-origin.test.ts#L21) |
 
 ### Agentes
 
@@ -506,13 +507,13 @@ Rodam com `npm test`.
 | 9 | configurar: uma IA aberta sem escolha é avisada das skills e agentes do projeto; a aba não diz nada quando só eles existem | Integração | [desktop.test.ts:2011](../../tests/desktop.test.ts#L2011) |
 | 10 | projeto em branco: sem arquivos de contexto de QA; o plano da IA é filtrado e aprovado em Configurar | Integração | [desktop.test.ts:2032](../../tests/desktop.test.ts#L2032) |
 | 11 | envio de skills e agentes: a prévia não grava nada, bloqueia por item e instala só o que foi confirmado | Integração | [desktop.test.ts:2129](../../tests/desktop.test.ts#L2129) |
-| 12 | trazer para um projeto: um envio encontra skills, agentes e atividades, põe no workspace para todos os projetos e vincula ao projeto | Integração | [desktop.test.ts:2268](../../tests/desktop.test.ts#L2268) |
-| 13 | trazer para um projeto: mantidos só para o projeto, a skill e o agente ficam na pasta do projeto, sem vínculo, sem tag e sem registro | Integração | [desktop.test.ts:2325](../../tests/desktop.test.ts#L2325) |
-| 14 | configurar: o painel do projeto lista um agente geral trazido por este projeto, e não um trazido por outro | Integração | [desktop.test.ts:2356](../../tests/desktop.test.ts#L2356) |
-| 15 | envio por .zip: formatos aceitos, limites, caminhos inseguros, e uma falha desfaz tudo | Integração | [desktop.test.ts:2382](../../tests/desktop.test.ts#L2382) |
-| 16 | envio de skills e agentes: agentes em subpastas de .claude/agents são oferecidos um a um, nomes repetidos são bloqueados e todos os escolhidos são instalados | Integração | [desktop.test.ts:2419](../../tests/desktop.test.ts#L2419) |
-| 17 | envio de skills e agentes: marcar todos e desmarcar valem por grupo e nunca marcam um item bloqueado | Integração | [desktop.test.ts:2474](../../tests/desktop.test.ts#L2474) |
-| 18 | configurar: uma skill ou um agente arrastado do painel só é aceito por um terminal do próprio projeto, e só como { kind, name } | Integração | [desktop.test.ts:3206](../../tests/desktop.test.ts#L3206) |
+| 12 | trazer para um projeto: um envio encontra skills, agentes e atividades, põe no workspace para todos os projetos e vincula ao projeto | Integração | [desktop.test.ts:2299](../../tests/desktop.test.ts#L2299) |
+| 13 | trazer para um projeto: mantidos só para o projeto, a skill e o agente ficam na pasta do projeto, sem vínculo, sem tag e sem registro | Integração | [desktop.test.ts:2356](../../tests/desktop.test.ts#L2356) |
+| 14 | configurar: o painel do projeto lista um agente geral trazido por este projeto, e não um trazido por outro | Integração | [desktop.test.ts:2387](../../tests/desktop.test.ts#L2387) |
+| 15 | envio por .zip: formatos aceitos, limites, caminhos inseguros, e uma falha desfaz tudo | Integração | [desktop.test.ts:2413](../../tests/desktop.test.ts#L2413) |
+| 16 | envio de skills e agentes: agentes em subpastas de .claude/agents são oferecidos um a um, nomes repetidos são bloqueados e todos os escolhidos são instalados | Integração | [desktop.test.ts:2450](../../tests/desktop.test.ts#L2450) |
+| 17 | envio de skills e agentes: marcar todos e desmarcar valem por grupo e nunca marcam um item bloqueado | Integração | [desktop.test.ts:2505](../../tests/desktop.test.ts#L2505) |
+| 18 | configurar: uma skill ou um agente arrastado do painel só é aceito por um terminal do próprio projeto, e só como { kind, name } | Integração | [desktop.test.ts:3237](../../tests/desktop.test.ts#L3237) |
 
 ### Pasta vinculada
 
@@ -550,14 +551,14 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | os pedidos da interface só executam métodos do serviço e devolvem os erros como mensagens | Integração | [desktop.test.ts:2762](../../tests/desktop.test.ts#L2762) |
+| 1 | os pedidos da interface só executam métodos do serviço e devolvem os erros como mensagens | Integração | [desktop.test.ts:2793](../../tests/desktop.test.ts#L2793) |
 
 ### Instalador
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | a sincronização do framework pelo instalador atualiza os arquivos do framework e nunca mexe em workspace/ | Integração | [desktop.test.ts:2715](../../tests/desktop.test.ts#L2715) |
-| 2 | as cópias instaladas mantêm o framework no QA_ROOT, na pasta antiga ou em <Documentos>/Moki | Integração | [desktop.test.ts:2746](../../tests/desktop.test.ts#L2746) |
+| 1 | a sincronização do framework pelo instalador atualiza os arquivos do framework e nunca mexe em workspace/ | Integração | [desktop.test.ts:2746](../../tests/desktop.test.ts#L2746) |
+| 2 | as cópias instaladas mantêm o framework no QA_ROOT, na pasta antiga ou em <Documentos>/Moki | Integração | [desktop.test.ts:2777](../../tests/desktop.test.ts#L2777) |
 
 ### Uso na barra de status
 
@@ -671,19 +672,19 @@ Rodam com `npm test`.
 
 | # | Cenário | Tipo | Onde |
 |---|---|---|---|
-| 1 | apps Craft: lista fixa com ids únicos e um repositório storytold | Unidade | [desktop.test.ts:2922](../../tests/desktop.test.ts#L2922) |
-| 2 | apps Craft: família de pacotes do Linux lida do os-release | Unidade | [desktop.test.ts:2929](../../tests/desktop.test.ts#L2929) |
-| 3 | apps Craft: os arquivos de cada sistema, o recomendado primeiro, e só nomes exatos | Unidade | [desktop.test.ts:2941](../../tests/desktop.test.ts#L2941) |
-| 4 | download Craft: lista os 16 apps e mostra o que seria baixado | Integração | [desktop.test.ts:2996](../../tests/desktop.test.ts#L2996) |
-| 5 | download Craft: o digest do GitHub confere e a pasta é mostrada | Integração | [desktop.test.ts:3007](../../tests/desktop.test.ts#L3007) |
-| 6 | download Craft: o SHA256SUMS.txt é usado quando não há digest | Integração | [desktop.test.ts:3018](../../tests/desktop.test.ts#L3018) |
-| 7 | download Craft: sem digest e sem checksum listado, recusa antes do diálogo | Integração | [desktop.test.ts:3024](../../tests/desktop.test.ts#L3024) |
-| 8 | download Craft: um hash que não confere remove o arquivo | Integração | [desktop.test.ts:3032](../../tests/desktop.test.ts#L3032) |
-| 9 | download Craft: erros do GitHub e falta de rede dizem o que fazer | Integração | [desktop.test.ts:3038](../../tests/desktop.test.ts#L3038) |
-| 10 | download Craft: sem arquivo para este sistema, e nomes inseguros são ignorados | Integração | [desktop.test.ts:3048](../../tests/desktop.test.ts#L3048) |
-| 11 | download Craft: no Fedora se oferece rpm primeiro, AppImage depois, nunca deb nem nomes desconhecidos | Integração | [desktop.test.ts:3054](../../tests/desktop.test.ts#L3054) |
-| 12 | download Craft: uma versão mais nova depois da revisão, e um diálogo cancelado | Integração | [desktop.test.ts:3073](../../tests/desktop.test.ts#L3073) |
-| 13 | download Craft: a URL é montada pelo Moki, a extensão é acrescentada, uma gravação que falha não deixa nada | Integração | [desktop.test.ts:3083](../../tests/desktop.test.ts#L3083) |
+| 1 | apps Craft: lista fixa com ids únicos e um repositório storytold | Unidade | [desktop.test.ts:2953](../../tests/desktop.test.ts#L2953) |
+| 2 | apps Craft: família de pacotes do Linux lida do os-release | Unidade | [desktop.test.ts:2960](../../tests/desktop.test.ts#L2960) |
+| 3 | apps Craft: os arquivos de cada sistema, o recomendado primeiro, e só nomes exatos | Unidade | [desktop.test.ts:2972](../../tests/desktop.test.ts#L2972) |
+| 4 | download Craft: lista os 16 apps e mostra o que seria baixado | Integração | [desktop.test.ts:3027](../../tests/desktop.test.ts#L3027) |
+| 5 | download Craft: o digest do GitHub confere e a pasta é mostrada | Integração | [desktop.test.ts:3038](../../tests/desktop.test.ts#L3038) |
+| 6 | download Craft: o SHA256SUMS.txt é usado quando não há digest | Integração | [desktop.test.ts:3049](../../tests/desktop.test.ts#L3049) |
+| 7 | download Craft: sem digest e sem checksum listado, recusa antes do diálogo | Integração | [desktop.test.ts:3055](../../tests/desktop.test.ts#L3055) |
+| 8 | download Craft: um hash que não confere remove o arquivo | Integração | [desktop.test.ts:3063](../../tests/desktop.test.ts#L3063) |
+| 9 | download Craft: erros do GitHub e falta de rede dizem o que fazer | Integração | [desktop.test.ts:3069](../../tests/desktop.test.ts#L3069) |
+| 10 | download Craft: sem arquivo para este sistema, e nomes inseguros são ignorados | Integração | [desktop.test.ts:3079](../../tests/desktop.test.ts#L3079) |
+| 11 | download Craft: no Fedora se oferece rpm primeiro, AppImage depois, nunca deb nem nomes desconhecidos | Integração | [desktop.test.ts:3085](../../tests/desktop.test.ts#L3085) |
+| 12 | download Craft: uma versão mais nova depois da revisão, e um diálogo cancelado | Integração | [desktop.test.ts:3104](../../tests/desktop.test.ts#L3104) |
+| 13 | download Craft: a URL é montada pelo Moki, a extensão é acrescentada, uma gravação que falha não deixa nada | Integração | [desktop.test.ts:3114](../../tests/desktop.test.ts#L3114) |
 
 ## Testes de interface
 

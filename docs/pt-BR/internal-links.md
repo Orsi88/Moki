@@ -17,7 +17,7 @@ No Modo de leitura, caminhos de arquivos existentes escritos como texto ou códi
 Menções inseridas com `@` no editor de código-fonte das notas usam caminhos relativos ao documento. As menções antigas relativas ao projeto continuam funcionando. A navegação fica dentro do projeto ativo. Se um arquivo ou âncora não existir, o app exibe uma mensagem.
 ## Copiar e seguir referências
 
-No menu de um arquivo na árvore, **Copiar link** copia um link Markdown a partir da raiz do projeto ativo. Cartões de comentário de Markdown e PDF têm **Copiar link do comentário**, preservando o id salvo. O link copiado funciona de qualquer documento no mesmo projeto do Moki. Ao escrever uma entrega Markdown portátil para outro visualizador, ajuste o destino para partir daquele documento.
+No menu de um arquivo na árvore, **Copiar link** copia um link Markdown a partir da raiz do projeto ativo. O link copiado funciona de qualquer documento no mesmo projeto do Moki. Ao escrever uma entrega Markdown portátil para outro visualizador, ajuste o destino para partir daquele documento.
 
 No Modo de leitura, o **#** ao lado de um título copia um link para aquela seção. Um link Markdown colado ou digitado no editor formatado vira link, então o link copiado é colado como referência.
 

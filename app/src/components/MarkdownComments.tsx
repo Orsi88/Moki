@@ -14,6 +14,7 @@ import { headingLinks, linkProjectPaths, type LinkResolver } from './useInternal
 import { projectLink } from '../internal-links';
 
 interface Props {
+  path?: string; // the file, for the section links of its headings
   html: string; // the file rendered with its marks (markdownToHtml, comments: true)
   text: string; // the file's text
   onCommit: (text: string) => void; // saves the file with this text
@@ -27,7 +28,7 @@ interface Props {
 const markOf = (body: HTMLElement, id: string) => body.querySelector<HTMLElement>(`mark.md-comment[data-c="${id}"]`);
 const now = () => new Date().toISOString();
 
-export function MarkdownComments({ html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
+export function MarkdownComments({ path, html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
   const comments = useMemo(() => readComments(text).comments, [text]);
   const [me, setMe] = useState('');
   const [composer, setComposer] = useState<{ range: [number, number]; x: number; y: number } | null>(null);

@@ -46,6 +46,7 @@ O Hudson também é um agente: num terminal, peça para ele organizar o projeto 
 
 - `temporary/` — o que tem mais de **7 dias** vai para a lixeira quando o projeto abre.
 - A pasta `work/` de uma execução terminada é limpa quando o projeto abre.
+- Opcional, nas configurações do projeto (**Limpeza**): a pasta `outputs/` de uma atividade concluída vai para a lixeira quando o projeto abre, se todos os arquivos que ela entregou estiverem em `context/` (movidos para lá ou como cópia idêntica). Vem desligada.
 
 ## Veja também
 
