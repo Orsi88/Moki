@@ -108,7 +108,7 @@ Feche a sessão quando quiser. Cada atividade grava o `state.json` no caminho. P
 
 ## Só o que você pediu
 
-As IAs entregam só os arquivos que você pediu, no formato que você pediu; quando você não diz o formato e a atividade não define um, elas perguntam. Nada de cópia em outro formato, print de planilha ou arquivo de apoio ao lado: os arquivos de apoio vão para a pasta `work/` da execução e são limpos quando ela é concluída. Se ainda assim sobrar algo nas saídas de uma execução, a página dela lista em **Sobras**, para você mandar para a lixeira.
+As IAs entregam só os arquivos que você pediu, no formato que você pediu; quando você não diz o formato e a atividade não define um, elas perguntam. Nada de cópia em outro formato, print de planilha ou arquivo de apoio ao lado: os arquivos de apoio vão para a pasta `work/` da execução e são limpos quando ela é concluída. Se ainda assim sobrar algo nas saídas de uma execução, a página dela lista em **Sobras**, para você mandar para a lixeira. Nas configurações do projeto, **Limpeza** também manda para a lixeira a pasta de saídas de uma atividade concluída quando todos os arquivos que ela entregou estão na pasta de contexto (movidos para lá, ou uma cópia idêntica). Isso acontece quando o projeto abre.
 
 ## Onde fica cada coisa
 
@@ -119,6 +119,7 @@ As IAs entregam só os arquivos que você pediu, no formato que você pediu; qua
 | Um projeto | `workspace/projects/<id>/` (ou `projects/<id>/` em outro workspace) |
 | Conhecimento confirmado | `.../context/` |
 | Uma atividade | `.../runs/<run-id>/`: entregas em `outputs/`; arquivos de apoio em `work/`, limpos quando a execução é concluída |
+| `outputs/` de uma execução concluída | Opcional (configurações do projeto, **Limpeza**): vai para a lixeira quando o projeto abre e todas as entregas estão em `.../context/` |
 | Rascunhos fora de uma execução | `.../temporary/`: o que tem mais de 7 dias vai para a lixeira quando o projeto abre |
 | Skills e agentes deste projeto | `workspace/projects/<id>/skills` e `agents`, ou `<pasta vinculada>/.claude/` |
 | Skills e agentes de todos os projetos | `~/.claude/skills`, `~/.agents/skills`, `~/.claude/agents` |

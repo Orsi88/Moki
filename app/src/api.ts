@@ -14,6 +14,7 @@ export interface ProjectSummary {
   plugins: string[]; // app plugins turned on for this project (caveman, superpowers)
   defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with
   startInstructions: string; // sent with that start only
+  cleanOutputsAfterContext: boolean; // a finished run's outputs/ go to the trash once its deliverables are in context/
 }
 // A tag shares context between projects: the context of the projects with it and the files marked with it.
 export interface Tag { id: string; name: string; color: string; description: string }
@@ -471,7 +472,7 @@ export const api = {
   removeProjectItem: (project: string, kind: 'skill' | 'agent', name: string, allowClaudeWrite = false) => call<{ backup?: string }>('removeProjectItem', project, kind, name, allowClaudeWrite),
   globalItems: () => call<GlobalItems>('globalItems'),
   // name, defaults and startInstructions are written only when given.
-  setupProject: (project: string, req: { name?: string; description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[]; defaults?: ProjectDefault[]; startInstructions?: string }) => call<ProjectSummary>('setupProject', project, req),
+  setupProject: (project: string, req: { name?: string; description: string; linkedSkills: string[]; agents?: string[]; contextFiles?: string[]; folders?: string[]; defaults?: ProjectDefault[]; startInstructions?: string; cleanOutputsAfterContext?: boolean }) => call<ProjectSummary>('setupProject', project, req),
   readPlan: (project: string) => call<Plan | null>('readPlan', project),
   globalAgent: (name: string) => call<GlobalAgentDetail>('globalAgent', name),
   saveGlobalAgent: (name: string, text: string) => call<boolean>('saveGlobalAgent', name, text),

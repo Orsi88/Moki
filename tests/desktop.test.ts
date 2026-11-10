@@ -2241,6 +2241,37 @@ test('leftovers: old scratch files and finished runs\' helper files go when the 
   }
 });
 
+test('cleanup after context: a finished run\'s outputs go to the trash only when the project asks and every deliverable is in context/', async () => {
+  const dir = join(root, 'workspace', 'projects', 'acme');
+  const file = join(dir, 'project.json');
+  const saved = readFileSync(file, 'utf8');
+  const copied = '20261109-1000-deduction-copied';
+  const moved = '20261109-1001-deduction-moved';
+  const run = (id: string) => {
+    mkdirSync(join(dir, 'runs', id, 'outputs'), { recursive: true });
+    writeFileSync(join(dir, 'runs', id, 'outputs', 'dossier.md'), '# Dossier\n');
+    writeFileSync(join(dir, 'runs', id, 'outputs', 'dossier.pdf'), 'leftover');
+    writeFileSync(join(dir, 'runs', id, 'state.json'), JSON.stringify({ schemaVersion: 1, id, project: 'acme', skill: 'deduction', status: 'completed', artifacts: [`workspace/projects/acme/runs/${id}/outputs/dossier.md`] }));
+  };
+  const outputs = async () => (await service.cleanProject('acme')).filter((p) => p.endsWith('/outputs'));
+  try {
+    run(copied); run(moved);
+    rmSync(join(dir, 'runs', moved, 'outputs', 'dossier.md')); // moved to context: only its name is left to match
+    mkdirSync(join(dir, 'context', 'research'), { recursive: true });
+    writeFileSync(join(dir, 'context', 'research', 'dossier.md'), '# Dossier\n');
+    assert.deepEqual(await outputs(), [], 'off unless the project turns it on');
+    assert.equal(service.setupProject('acme', { description: '', cleanOutputsAfterContext: true }).cleanOutputsAfterContext, true);
+    writeFileSync(join(dir, 'runs', copied, 'outputs', 'dossier.md'), '# Dossier, edited\n');
+    assert.deepEqual(await outputs(), [`runs/${moved}/outputs`], 'a copy that differs is not the deliverable');
+    writeFileSync(join(dir, 'runs', copied, 'outputs', 'dossier.md'), '# Dossier\n');
+    assert.deepEqual(await outputs(), [`runs/${copied}/outputs`]);
+    assert.ok(existsSync(join(dir, 'context', 'research', 'dossier.md')), 'context/ is never touched');
+  } finally {
+    writeFileSync(file, saved);
+    for (const p of [join(dir, 'runs', copied), join(dir, 'runs', moved), join(dir, 'context', 'research')]) rmSync(p, { recursive: true, force: true });
+  }
+});
+
 test('bring to a project: one upload finds skills, agents and activities, puts them in the workspace for all projects and links them to the project', async () => {
   const home = mkdtempSync(join(tmpdir(), 'qa-bring-home-'));
   const src = mkdtempSync(join(tmpdir(), 'qa-bring-src-'));

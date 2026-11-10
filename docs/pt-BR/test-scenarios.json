@@ -389,6 +389,7 @@
   "npm run new-run records --activity, and refuses an activity the project does not see": "npm run new-run grava --activity e recusa uma atividade que o projeto não vê",
   "operation recipe Pente-fino: the round reviewer and Wiggins chain with no error, asking only the MF at the start": "receita de operação Pente-fino: o revisor de rodadas e o Wiggins se encadeiam sem erro, pedindo só a MF no início",
   "leftovers: old scratch files and finished runs' helper files go when the project opens; outputs not delivered are cleaned on request": "sobras: arquivos temporários antigos e arquivos auxiliares de execuções concluídas saem ao abrir o projeto; saídas não entregues são limpas sob pedido",
+  "cleanup after context: a finished run's outputs go to the trash only when the project asks and every deliverable is in context/": "limpeza após o contexto: as saídas de uma execução concluída vão para a lixeira só quando o projeto pede e todas as entregas estão em context/",
   "confirmations wait for an explicit decision and cancellation does not run the action": "as confirmações esperam uma decisão explícita e o cancelamento não executa a ação",
   "accepting one confirmation resolves it once, without accepting the next queued request": "aceitar uma confirmação a resolve uma vez, sem aceitar o próximo pedido da fila",
   "a notice is queued like a confirmation, and its message stays plain text": "um aviso entra na fila como uma confirmação, e a mensagem continua como texto simples",

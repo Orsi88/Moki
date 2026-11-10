@@ -61,6 +61,7 @@
         }
       }
     },
+    "cleanOutputsAfterContext": { "type": "boolean", "description": "When true, the desktop app sends a completed or cancelled run's outputs/ folder to the trash once every deliverable its state.json lists under outputs/ is also in context/ (moved there, or an identical copy). Defaults to false." },
     "startInstructions": { "type": "string", "maxLength": 2000, "description": "Set by the desktop app's project settings: sent to an AI opened in the project without a choice (with its defaults), never with an activity chosen at the time." },
     "environments": {
       "type": "array",

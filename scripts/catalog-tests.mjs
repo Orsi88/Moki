@@ -30,7 +30,7 @@ const RULES = {
     [/^PdfCraft|^PDF/, 'PDF (PdfCraft)', I],
     [/^notes:|^note windows/, 'Notes', I],
     [/^MCPs:/, 'MCP servers', I],
-    [/^run details|^activity tracking|^a run records the activity|^npm run new-run|^leftovers/, 'Activities and runs', I],
+    [/^run details|^activity tracking|^a run records the activity|^npm run new-run|^leftovers|^cleanup after context/, 'Activities and runs', I],
     [/^launcher keeps user text/, 'Launching AI tools', U],
     [/^launch |^install plans|^a missing installable|^run-tool:|^non-ASCII|^app plugins|^plugins per project|^terminal tabs|^calling into a terminal/, 'Launching AI tools', I],
     [/^tags /, 'Tags', I],

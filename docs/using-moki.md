@@ -108,7 +108,7 @@ Close the session whenever you want. Each activity writes `state.json` as it goe
 
 ## Only what you asked for
 
-The AIs deliver only the files you asked for, in the format you asked; when you do not say the format and the activity does not set one, they ask. No copy in another format, no screenshot of a spreadsheet, no helper file next to it: helper files go to the run's `work/` folder and are cleared when the run is completed. If something extra still lands in a run's outputs, the run's page lists it under **Leftovers**, for you to send to the trash.
+The AIs deliver only the files you asked for, in the format you asked; when you do not say the format and the activity does not set one, they ask. No copy in another format, no screenshot of a spreadsheet, no helper file next to it: helper files go to the run's `work/` folder and are cleared when the run is completed. If something extra still lands in a run's outputs, the run's page lists it under **Leftovers**, for you to send to the trash. In the project's settings, **Cleanup** can also send a finished activity's outputs folder to the trash once every file it delivered is in the context folder (moved there, or an identical copy). It runs when the project opens.
 
 ## Where things live
 
@@ -119,6 +119,7 @@ The AIs deliver only the files you asked for, in the format you asked; when you 
 | One project | `workspace/projects/<id>/` (or `projects/<id>/` in another workspace) |
 | Confirmed knowledge | `.../context/` |
 | One activity | `.../runs/<run-id>/`: deliverables in `outputs/`; helper files in `work/`, cleared when the run is completed |
+| A finished run's `outputs/` | Optional (project settings, **Cleanup**): goes to the trash when the project opens and every deliverable is in `.../context/` |
 | Scratch files outside a run | `.../temporary/`: what is older than 7 days goes to the trash when the project opens |
 | Skills and agents for this project | `workspace/projects/<id>/skills` and `agents`, or `<linked folder>/.claude/` |
 | Skills and agents for every project | `~/.claude/skills`, `~/.agents/skills`, `~/.claude/agents` |

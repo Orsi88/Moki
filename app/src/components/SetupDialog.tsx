@@ -44,6 +44,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description);
   const [instructions, setInstructions] = useState(project.startInstructions);
+  const [cleanOutputs, setCleanOutputs] = useState(project.cleanOutputsAfterContext);
   const [defaults, setDefaults] = useState<ProjectDefault[]>(project.defaults);
   const [global, setGlobal] = useState<string[]>([]);
   const [artcraft, setArtcraft] = useState<string[]>([]);
@@ -203,7 +204,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
       // so a project without a list keeps getting every agent.
       await api.setupProject(project.id, {
         name, description, linkedSkills: linked.filter((n) => global.includes(n) || artcraft.includes(n)),
-        defaults, startInstructions: instructions,
+        defaults, startInstructions: instructions, cleanOutputsAfterContext: cleanOutputs,
         ...(pending || agentsChanged ? { agents: enabled } : {}),
         ...(pending ? { contextFiles: files, folders } : {}),
       });
@@ -314,6 +315,13 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
                 </li>
               ))}
             </ul>
+          </Section>
+
+          <Section title={t('Cleanup')} hint={t('Checked when the project opens. What goes stays in the trash and can be recovered.')}>
+            <label className="check-row">
+              <input type="checkbox" checked={cleanOutputs} onChange={(e) => setCleanOutputs(e.target.checked)} />
+              <span>{t("Send a finished activity's outputs folder to the trash once every file it delivered is in the context folder")}</span>
+            </label>
           </Section>
 
           {pending && Boolean(plan?.folders.length) && (

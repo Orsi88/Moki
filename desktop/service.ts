@@ -21,7 +21,7 @@ import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, 
 import { LIMITS, readFolder, readMarkdown, readZip, scan, type Scan } from './claude-import.ts';
 import { listUploads, recordUploads } from '../scripts/lib/uploads.ts';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
-import { setWorkspaceDir, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
+import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, type WorkspaceInfo } from './workspaces.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
@@ -453,11 +453,18 @@ export function createService(root: string, deps: Deps) {
     return repo;
   };
 
+  // A run's deliverables (state.json artifacts) as paths relative to the project.
+  const deliveredPaths = (project: string, artifacts: unknown): string[] => (Array.isArray(artifacts) ? artifacts : [])
+    .map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''));
+  // A deliverable is in context/ when a file there has its name and, while the deliverable is still in the run, its bytes.
+  const inContext = (file: string, context: string[]) => context.some((c) => basename(c) === basename(file)
+    && (!existsSync(file) || (statSync(c).size === statSync(file).size && readFileSync(c).equals(readFileSync(file)))));
+
   // The files under a run's outputs/ (paths relative to the project) that its state.json does not list as deliverables.
   const leftoversOf = (project: string, runId: unknown): string[] => {
     const run = listRuns(project, root).find((r) => r.id === runId);
     if (!run) throw new ServiceError('Unknown run.');
-    const listed = (Array.isArray(run.artifacts) ? run.artifacts : []).map((a) => String(a).replace(/\\/g, '/').replace(`workspace/projects/${project}/`, ''));
+    const listed = deliveredPaths(project, run.artifacts);
     if (!listed.length) return [];
     const base = `runs/${run.id}/outputs`;
     const out: string[] = [];
@@ -1815,6 +1822,18 @@ export function createService(root: string, deps: Deps) {
         if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
         try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
       }
+      // Opted in (project.json cleanOutputsAfterContext): a finished run whose deliverables are all in context/ no longer
+      // needs its outputs/. Operation runs keep theirs (their steps read them). context/ itself is never touched.
+      if (projectSummary(project, root).cleanOutputsAfterContext) {
+        const context = walkFiles(join(dir, 'context'));
+        for (const run of listRuns(project, root)) {
+          if (run.operation || !DONE_STATUSES.has(String(run.status))) continue;
+          const outputs = join(dir, 'runs', run.id, 'outputs');
+          const delivered = deliveredPaths(project, run.artifacts).filter((rel) => rel.startsWith(`runs/${run.id}/outputs/`));
+          if (!delivered.length || !existsSync(outputs) || !delivered.every((rel) => inContext(join(dir, rel), context))) continue;
+          try { await trash(outputs); trashed.push(`runs/${run.id}/outputs`); } catch { /* in use: next time */ }
+        }
+      }
       return trashed;
     },
 
@@ -2284,7 +2303,7 @@ export function createService(root: string, deps: Deps) {
       return true;
     },
 
-    setupProject: (project: string, req: { name?: unknown; description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown; defaults?: unknown; startInstructions?: unknown }) => {
+    setupProject: (project: string, req: { name?: unknown; description?: unknown; linkedSkills?: unknown; agents?: unknown; contextFiles?: unknown; folders?: unknown; defaults?: unknown; startInstructions?: unknown; cleanOutputsAfterContext?: unknown }) => {
       const file = join(projectDir(project), 'project.json');
       // The description keeps its lines, as when it is edited on its own (setProjectDescription); requests clean it when they quote it.
       const description = String(req?.description ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 2000);
@@ -2309,6 +2328,7 @@ export function createService(root: string, deps: Deps) {
       writeFileSync(file, `${JSON.stringify({
         ...data, ...(name !== undefined ? { name } : {}), description, linkedSkills: linked.sort(),
         ...(defaults !== undefined ? { defaults } : {}), ...(startInstructions !== undefined ? { startInstructions } : {}),
+        ...(req?.cleanOutputsAfterContext !== undefined ? { cleanOutputsAfterContext: req.cleanOutputsAfterContext === true } : {}),
       }, null, 2)}\n`);
       if (name !== undefined) projectsScan = null; // see setProjectName
       if (agents) failing(() => setAgentsOfProject(project, agents, root));
