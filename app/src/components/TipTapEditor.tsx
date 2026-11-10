@@ -17,6 +17,7 @@ import { encodeCommentMarks, readComments, restoreComments, type MdComment } fro
 import { MdCommentMark } from '../md-comment-mark';
 import { preserveBlocks, preserveSource, sourceOffsets, splitSource, wordsOf } from '../md-preserve';
 import { RawMarkdown, rawWords, shieldFrontMatter, shieldLosses } from '../md-raw';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { DiagramFence } from './DiagramFence';
 import { MokiCodeBlock } from './CodeBlockCard';
@@ -378,10 +379,17 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
     kept.current = { ...splitSource(next, body), before: drawn(current) };
     const k = kept.current;
     const md = current.markdown;
-    if (!md || sourceOffsets(k.before, k.core) || wordsOf(k.before) === wordsOf(k.core)) return;
-    const shielded = shieldLosses(shieldFrontMatter(body), (piece) => md.serialize(md.parse(encodeCommentMarks(piece))));
-    current.commands.setContent(encodeCommentMarks(shielded), { contentType: 'markdown', emitUpdate: false });
-    k.before = drawn(current);
+    if (md && !sourceOffsets(k.before, k.core) && wordsOf(k.before) !== wordsOf(k.core)) {
+      const shielded = shieldLosses(shieldFrontMatter(body), (piece) => md.serialize(md.parse(encodeCommentMarks(piece))));
+      current.commands.setContent(encodeCommentMarks(shielded), { contentType: 'markdown', emitUpdate: false });
+      k.before = drawn(current);
+    }
+    // A file that starts with a card (its properties, HTML) would open with the card selected, and the first key
+    // typed would replace it: the caret starts in the first text instead.
+    if (current.state.selection instanceof NodeSelection) {
+      const text = TextSelection.findFrom(current.state.doc.resolve(0), 1, true);
+      if (text) current.view.dispatch(current.state.tr.setSelection(text).setMeta('addToHistory', false));
+    }
   };
   const fileText = (current: Editor) => {
     const k = kept.current;

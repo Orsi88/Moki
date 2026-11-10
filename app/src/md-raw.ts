@@ -85,7 +85,8 @@ export const RawBlock = Node.create({
   addNodeView() {
     return ({ node, getPos, editor }) => {
       let current = node;
-      const page = editor.view.dom.ownerDocument;
+      // The page's document (the editor's view may not be mounted yet when its node views are made).
+      const page = (globalThis as unknown as { document: typeof editor.view.dom.ownerDocument }).document;
       const dom = page.createElement('div');
       dom.className = 'md-raw';
       dom.contentEditable = 'false';

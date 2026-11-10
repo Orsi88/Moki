@@ -81,6 +81,8 @@ test('an AI-written .md opens in the formatted editor, keeps what it cannot draw
   const visual = page.locator('.tiptap-body');
   await expect(visual).toBeVisible();
   await expect(page.locator('.doc-notice')).toHaveCount(0); // no "open it in your program", no formatting note
+  // The file starts with a card: the caret starts in the first text, so a key typed at once cannot replace the card.
+  await expect.poll(() => visual.evaluate((el) => (el as unknown as { editor: { state: { selection: { toJSON(): { type: string } } } } }).editor.state.selection.toJSON().type)).toBe('text');
   await expect(visual.locator('.md-raw')).toHaveCount(3); // properties and the two HTML lines of <details>
   await expect(visual.locator('.md-raw-kind').first()).toHaveText('Propriedades do documento'); // shown in capitals by CSS
   await expect(visual.locator('.md-raw-inline', { hasText: '[!NOTE]' })).toBeVisible();

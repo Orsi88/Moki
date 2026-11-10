@@ -2679,11 +2679,13 @@ test.describe.serial('Moki Markdown selection', () => {
     const root = fixture();
     const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
     dirs.push(root, userData);
-    // HTML the editor would drop: the file is shown in the reading view these tests are about.
+    // These tests are about the reading view: the file opens in the editor and the bar switches to reading.
     writeFileSync(join(root, 'workspace', 'projects', 'acme', 'inbox', 'doc.md'), '# Título do documento\n\nPrimeiro parágrafo com **negrito** no meio.\n\nSegundo parágrafo simples.\n\n<details><summary>Mais</summary>\n\nOculto.\n\n</details>\n');
     ({ app: selApp, page: sp } = await openApp(root, userData));
     if (!(await sp.locator('.tree-row[title="inbox/doc.md"]').isVisible())) await sp.locator('.tree-row[title="inbox"]').click();
     await sp.locator('.tree-row[title="inbox/doc.md"]').click();
+    await expect(sp.locator('.commented-editor .tiptap-body')).toBeVisible();
+    await sp.locator('.doc-bar').getByRole('button', { name: 'Modo de leitura' }).click();
     await expect(sp.locator('.md-commented .markdown h1')).toBeVisible();
   });
 
