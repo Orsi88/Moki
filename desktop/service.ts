@@ -16,7 +16,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildInvokePrompt, buildStartPrompt, type InvokeTarget, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
-  listRuns, listSkills, openRuns, projectAgentsDir, projectRepository, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
+  listRuns, listSkills, openRuns, mirrorProjectSkills, projectAgentsDir, projectRepository, projectSkillTargets, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
@@ -53,9 +53,9 @@ import { isHtmlAnchor } from '../scripts/lib/html-comments.ts';
 import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
-import { MOKI_SERVER, McpError, appliesTo, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
+import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, type ProbeResult } from './mcp-probe.ts';
-import { AGENT_AIS, cleanContract, duplicateAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
+import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
 // writeFile with a base the file no longer holds (the app offers to see the new version or keep its own).
@@ -445,7 +445,7 @@ export function createService(root: string, deps: Deps) {
       projectDir(project);
       const skills = projectSkillsDir(project, root);
       const agents = projectAgentsDir(project, root);
-      return { skills: [skills.dir], agents: agents.dir, label: skills.label, agentsLabel: agents.label };
+      return { skills: projectSkillTargets(project, root), agents: agents.dir, label: skills.label, agentsLabel: agents.label };
     }
     if (scope === 'global') return { skills: globalSkillDirs, agents: globalAgentsDir, label: globalSkillDirs[0], agentsLabel: globalAgentsDir };
     throw new ServiceError('Choose where: this project or all projects.');
@@ -458,7 +458,7 @@ export function createService(root: string, deps: Deps) {
     const repo = linked?.path ?? '';
     if (linked?.writeBlocked) throw new ServiceError(`project.json does not allow writing to the linked folder ${repo} (writeAllowed: false).`);
     const verb = { install: 'Installing', agent: 'Creating the agent', remove: 'Removing' }[what];
-    if (linked && allow !== true) throw new ServiceError(`${verb} changes ${repo}/.claude. Confirm the ${what === 'remove' ? 'removal' : what} to allow it.`);
+    if (linked && allow !== true) throw new ServiceError(`${verb} changes ${repo}/.claude. A skill is also written to ${repo}/.agents, and an agent to ${repo}/.gemini, so Codex and Gemini can read them. Confirm the ${what === 'remove' ? 'removal' : what} to allow it.`);
     if (repo && !existsSync(repo)) throw new ServiceError(`The linked folder was not found: ${repo}. Link it again.`);
     return repo;
   };
@@ -733,18 +733,58 @@ export function createService(root: string, deps: Deps) {
   const generated = (project: string, servers: McpServer[]): GeneratedEntry[] =>
     generatedEntries(mokiServer(project, root, process.env.QA_MCP_SERVER || join(root, 'ide', 'mcp', 'server.ts'), which('node')), servers);
 
-  // The project's MCP servers for a tool Moki starts: Claude Code gets --mcp-config (a file in workspace/temporary/);
-  // Cursor opens in the Moki folder, so the moki entries of <root>/.cursor/mcp.json are rewritten (the person's entries stay).
+  // One agent file, in Gemini's shape, next to the Claude one. A file the person wrote under the same name stays.
+  const writeGeminiCopy = (dir: string, source: string): void => {
+    const agent = geminiAgent(readFileSync(source, 'utf8'));
+    if (!agent) return;
+    const dest = join(dir, `${agent.name}.md`);
+    if (existsSync(dest) && !readFileSync(dest, 'utf8').includes(GEMINI_AGENT_MARK)) return;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(dest, agent.text);
+  };
+  const dropGeminiCopy = (dir: string, name: string): void => {
+    const file = join(dir, `${name}.md`);
+    if (!existsSync(file)) return;
+    try { if (readFileSync(file, 'utf8').includes(GEMINI_AGENT_MARK)) rmSync(file); } catch { /* leave a file we cannot read */ }
+  };
+  // Agents this project may use, as Gemini CLI subagents in <root>/.gemini/agents (the folder Gemini reads when Moki starts it).
+  const publishGeminiAgents = (project: string): void => {
+    const files = new Map<string, string>();
+    const enabled = new Set(agentsOfProject(project, root));
+    for (const agent of listAgents(root)) {
+      if (!enabled.has(agent.name) || !isUsableAgent(agent)) continue;
+      const text = geminiAgent(readFileSync(join(root, agent.path), 'utf8'));
+      if (text) files.set(text.name, text.text);
+    }
+    const own = projectAgentsDir(project, root).dir;
+    for (const name of agentFiles(own)) {
+      const text = geminiAgent(readFileSync(join(own, `${name}.md`), 'utf8'));
+      if (text) files.set(text.name, text.text);
+    }
+    syncGeminiAgents(join(root, '.gemini', 'agents'), files);
+  };
+
+  // The project's MCP servers for a tool Moki starts. Each tool gets the servers that apply to this project.
+  // Claude Code gets --mcp-config (a file in workspace/temporary/). Codex gets -c overrides and its home config stays.
+  // Cursor, Gemini and Antigravity open in the Moki folder, so their file there is rewritten (the person's entries stay)
+  // and holds the last project started in that tool.
   function mcpLaunch(tool: ToolKey, project: string, servers: McpServer[] = enabledServers(project, root)): string[] {
+    try { mirrorProjectSkills(project, root); } catch (e) { mcpLog({ action: 'skills', project, error: e instanceof Error ? e.message : String(e) }); }
+    const entries = generated(project, servers);
     if (tool === 'claude') {
       const dir = join(root, 'workspace', 'temporary');
       mkdirSync(dir, { recursive: true });
       const file = join(dir, `mcp-${project}-${stamp()}.json`);
-      writeFileSync(file, `${JSON.stringify(toolConfig(generated(project, servers), 'claude'), null, 2)}\n`);
+      writeFileSync(file, `${JSON.stringify(toolConfig(entries, 'claude'), null, 2)}\n`);
       return ['--mcp-config', file];
     }
+    if (tool === 'codex') return codexLaunchArgs(entries);
     if (tool === 'cursor' || tool === 'cursor-agent') {
-      try { writeMerged(join(root, '.cursor', 'mcp.json'), generated(project, servers), 'cursor'); } catch (e) { mcpLog({ action: 'cursor', project, error: e instanceof Error ? e.message : String(e) }); }
+      try { writeMerged(join(root, '.cursor', 'mcp.json'), entries, 'cursor'); } catch (e) { mcpLog({ action: 'cursor', project, error: e instanceof Error ? e.message : String(e) }); }
+    }
+    if (tool === 'gemini' || tool === 'antigravity') {
+      try { writeMerged(join(root, '.gemini', 'settings.json'), entries, 'gemini'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
+      try { publishGeminiAgents(project); } catch (e) { mcpLog({ action: 'agents', project, error: e instanceof Error ? e.message : String(e) }); }
     }
     return [];
   }
@@ -2182,7 +2222,7 @@ export function createService(root: string, deps: Deps) {
       const repo = linkedWrite(project, scope, allowClaudeWrite, 'install');
       let backup: string | undefined;
       return installSkill(String(slug ?? ''), targets, doFetch, () => {
-        if (repo) backup = backupAiConfig(backupsDir(project), repo, 'claude', ['.claude']);
+        if (repo) backup = backupAiConfig(backupsDir(project), repo, 'claude', ['.claude', '.agents']);
       }).then((result) => ({ ...result, backup }));
     },
 
@@ -2222,7 +2262,7 @@ export function createService(root: string, deps: Deps) {
       const targets = scopeFolders(project, scope).skills;
       for (const t of targets) if (existsSync(join(t, n))) throw new ServiceError(`"${n}" is already installed in ${t}.`);
       const repo = linkedWrite(project, scope, allowClaudeWrite, 'install');
-      const backup = repo ? backupAiConfig(backupsDir(project), repo, 'claude', ['.claude']) : undefined;
+      const backup = repo ? backupAiConfig(backupsDir(project), repo, 'claude', ['.claude', '.agents']) : undefined;
       for (const t of targets) cpSync(join(dir, n), join(t, n), { recursive: true });
       return { name: n, folders: targets.map((t) => join(t, n)), backup };
     },
@@ -2270,7 +2310,7 @@ export function createService(root: string, deps: Deps) {
       const activityTags = scope === 'project' ? [projectTag(id)] : [];
       // A repeated agent name is blocked in the scan and shares its key with the one offered: install only the latter.
       const entries = (upload as Scan).entries.filter((e) => !e.blocked && keys.includes(`${e.kind}:${e.name}`));
-      const backup = repo ? backupAiConfig(backupsDir(id), repo, 'claude', ['.claude']) : undefined;
+      const backup = repo ? backupAiConfig(backupsDir(id), repo, 'claude', ['.claude', '.agents']) : undefined;
       // Everything is new (installed names are blocked), so undoing a failure is removing what was created.
       const created: string[] = [];
       const make = (dir: string) => { let top = ''; for (let d = dir; !existsSync(d); d = dirname(d)) top = d; mkdirSync(dir, { recursive: true }); if (top) created.push(top); };
@@ -2309,6 +2349,8 @@ export function createService(root: string, deps: Deps) {
             writeFileSync(target, e.files[0].data);
             created.push(target);
             folders.push(target);
+            if (repo) writeGeminiCopy(join(repo, '.gemini', 'agents'), target);
+            else if (scope === 'global') writeGeminiCopy(join(home, '.gemini', 'agents'), target);
           }
           installed.push({ kind: e.kind, name: e.name, folders });
         }
@@ -2368,6 +2410,8 @@ export function createService(root: string, deps: Deps) {
       const file = inside(f.agents, `${name}.md`);
       const framework = skills.some((s) => 'builtin' in s) ? { root: repo ? posix(root) : '.', project, workspace: workspaceLabel(root) === 'workspace' ? undefined : workspaceLabel(root) } : undefined;
       writeFileSync(file, agentMarkdown({ name, description, skills: skills.map(({ name: n, path }) => ({ name: n, path })), framework, contract }), 'utf8');
+      if (repo) writeGeminiCopy(join(repo, '.gemini', 'agents'), file);
+      else if (req?.scope === 'global') writeGeminiCopy(join(home, '.gemini', 'agents'), file);
       return { name, file, backup };
     },
 
@@ -2393,8 +2437,13 @@ export function createService(root: string, deps: Deps) {
       const target = kind === 'skill' ? skillFolders(skills).includes(n) && join(skills, n) : agentFiles(agents).includes(n) && join(agents, `${n}.md`);
       if (!target) throw new ServiceError(`This ${kind} is not installed in this project.`);
       const repo = linkedWrite(project, 'project', allowClaudeWrite, 'remove');
-      const backup = repo ? backupAiConfig(backupsDir(project), repo, 'claude', ['.claude']) : undefined;
+      const backup = repo ? backupAiConfig(backupsDir(project), repo, 'claude', ['.claude', '.agents']) : undefined;
       await trash(target);
+      if (kind === 'skill' && repo) {
+        const copy = join(repo, '.agents', 'skills', n);
+        if (existsSync(copy)) await trash(copy);
+      }
+      if (kind === 'agent' && repo) dropGeminiCopy(join(repo, '.gemini', 'agents'), n);
       return { backup };
     },
 
@@ -2574,6 +2623,7 @@ export function createService(root: string, deps: Deps) {
       const targets = kind === 'skill' ? globalSkill(name) : kind === 'agent' ? [globalAgent(name)] : null;
       if (!targets) throw new ServiceError('Unknown kind.');
       for (const t of targets) await trash(t);
+      if (kind === 'agent') dropGeminiCopy(join(home, '.gemini', 'agents'), String(name));
       return true;
     },
 

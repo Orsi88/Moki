@@ -82,7 +82,9 @@ Without the list, every usable agent is enabled. In the desktop app, **Set up pr
 
 - **Desktop app**: in *Open in your AI tool*, choose the agent under **Who should do it?** Agents that use the chosen activity's skill are listed first. The request then starts with `Act as the <name> agent: read <path> and follow it.`
 - **Claude Code**: the built-in agents are also subagents (`.claude/agents/`), so you can ask "use the requirements-analyst agent to review US-310".
-- **Any other tool**: ask the AI to read the agent's file and act as it — `AGENTS.md` lists the agents and tells the AI how.
+- **Gemini CLI and Antigravity**, started from Moki, also get the project's usable agents as subagents in `<Moki folder>/.gemini/agents/` (name and description, the same instructions). A file you put there yourself is left as it is. An agent installed for one linked folder is also written to that folder's `.gemini/agents/`, and one installed for every project to `~/.gemini/agents/`.
+- **Codex** has no subagent folder. The request tells it which agent file to read and follow. Its `codex agents` command lists past sessions, not these definitions.
+- **Any other tool**: the same request asks the AI to read the agent's file and act as it — `AGENTS.md` lists the agents and tells the AI how.
 
 ## Creating your own
 

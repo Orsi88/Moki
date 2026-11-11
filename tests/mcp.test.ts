@@ -5,9 +5,9 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from '../scripts/lib/repo.mjs';
-import { createProject, TOOLS } from '../scripts/lib/core.ts';
+import { createProject, mirrorProjectSkills, TOOLS } from '../scripts/lib/core.ts';
 import {
-  appliesTo, clean, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
+  appliesTo, clean, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
   mergeCodex, resolveServer, saveServer, serversForAgent, syncCursorFolder, syncToolFolder, toolConfig, type McpServer,
 } from '../scripts/lib/mcp.ts';
 import { createOperationRun } from '../scripts/lib/operation-runs.ts';
@@ -117,6 +117,7 @@ test('configurations for Claude Code and Cursor; merging keeps the person\'s ent
   assert.deepEqual(toolConfig(entries, 'claude').mcpServers['moki-jira'], { command: 'npx', args: ['jira-mcp'], env: { TOKEN: '${JIRA_TOKEN}' } });
   assert.deepEqual(toolConfig(entries, 'cursor').mcpServers['moki-gh'], { url: 'https://x.dev/${env:PATH_PART}', headers: { Authorization: 'Bearer ${env:GH}' } });
   assert.equal((toolConfig(entries, 'claude').mcpServers['moki-gh'] as { type: string }).type, 'http');
+  assert.deepEqual(toolConfig(entries, 'gemini').mcpServers['moki-gh'], { httpUrl: 'https://x.dev/${PATH_PART}', headers: { Authorization: 'Bearer ${GH}' } });
   const merged = mergeManaged({ other: 1, mcpServers: { mine: { command: 'x' }, 'moki-old': { command: 'y' }, moki: { command: 'z' } } }, entries, 'cursor');
   assert.deepEqual(Object.keys(merged.mcpServers as object).sort(), ['mine', 'moki-gh', 'moki-jira']);
   assert.equal(merged.other, 1);
@@ -170,6 +171,63 @@ test('Claude Code started by Moki gets --mcp-config with the project servers and
   // --mcp-config takes several files: without "--" Claude Code read the request as one more and quit at once.
   const args = [...extra, ...(TOOLS.claude.args?.('Revise a US-1') ?? [])];
   assert.deepEqual(args.slice(-2), ['--', 'Revise a US-1']);
+});
+
+test('Codex started by Moki gets -c overrides for this project and does not write a variable as a value', () => {
+  launched.length = 0;
+  service.launch({ project: 'beta', activity: 'open', tool: 'codex', files: [], note: '', language: 'English' } as never);
+  const extra = launched.at(-1)?.extra ?? [];
+  const flags = extra.filter((_, i) => extra[i - 1] === '-c');
+  assert.match(flags.join('\n'), /mcp_servers\."moki"\.args=\[.*"--project", "beta"\]/);
+  assert.doesNotMatch(flags.join('\n'), /\$\{/);
+  assert.equal(existsSync(join(root, '.codex', 'config.toml')), false);
+  const sample = codexLaunchArgs(generatedEntries(mokiServer('beta', root, 'server.ts', 'node'), []));
+  assert.equal(sample.filter((_, i) => sample[i - 1] === '-c').some((f) => f.startsWith('mcp_servers."moki".command=')), true);
+});
+
+test('Gemini and Antigravity started by Moki get this project\'s servers in <root>/.gemini/settings.json', () => {
+  mkdirSync(join(root, '.gemini'), { recursive: true });
+  writeFileSync(join(root, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { mine: { command: 'mine' } }, theme: 'dark' }));
+  service.launch({ project: 'beta', activity: 'open', tool: 'gemini', files: [], note: '', language: 'English' } as never);
+  const data = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { theme: string; mcpServers: Record<string, { command?: string; args?: string[] }> };
+  assert.equal(data.theme, 'dark');
+  assert.equal(data.mcpServers.mine.command, 'mine');
+  assert.deepEqual(data.mcpServers.moki.args?.slice(-2), ['--project', 'beta']);
+  assert.equal(Object.hasOwn(data.mcpServers, 'moki-azure-devops'), false);
+  service.launch({ project: 'acme', activity: 'open', tool: 'antigravity', files: [], note: '', language: 'English' } as never);
+  const again = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { mcpServers: Record<string, { command?: string; args?: string[] }> };
+  assert.equal(again.mcpServers.mine.command, 'mine');
+  assert.deepEqual(again.mcpServers['moki-azure-devops']?.args, ['azure-devops-mcp']);
+  assert.deepEqual(again.mcpServers.moki.args?.slice(-2), ['--project', 'acme']);
+});
+
+test('Gemini started by Moki gets this project\'s agents in <root>/.gemini/agents and keeps a file the person wrote', () => {
+  const agents = join(root, '.gemini', 'agents');
+  mkdirSync(agents, { recursive: true });
+  writeFileSync(join(agents, 'mine.md'), '---\nname: mine\ndescription: "mine"\n---\n\nLeave me.\n');
+  writeFileSync(join(agents, 'gone.md'), '---\nname: gone\ndescription: "old"\n---\n\nOld.\n\n<!-- moki-agent -->\n');
+  const own = join(linked, '.claude', 'agents');
+  mkdirSync(own, { recursive: true });
+  writeFileSync(join(own, 'reviewer.md'), '---\nname: reviewer\ndescription: Checks the story\n---\n\nRead the story.\n');
+  service.launch({ project: 'acme', activity: 'open', tool: 'gemini', files: [], note: '', language: 'English' } as never);
+  assert.equal(readFileSync(join(agents, 'mine.md'), 'utf8').includes('Leave me.'), true);
+  assert.equal(existsSync(join(agents, 'gone.md')), false);
+  const reviewer = readFileSync(join(agents, 'reviewer.md'), 'utf8');
+  assert.match(reviewer, /name: reviewer/);
+  assert.match(reviewer, /Read the story\./);
+  assert.match(reviewer, /<!-- moki-agent -->/);
+  assert.equal(existsSync(join(agents, 'requirements-analyst.md')), true);
+});
+
+test('a project skill already in .claude/skills is copied to .agents/skills once', () => {
+  const src = join(linked, '.claude', 'skills', 'lint');
+  mkdirSync(src, { recursive: true });
+  writeFileSync(join(src, 'SKILL.md'), '---\nname: lint\n---\nRead me.\n');
+  mirrorProjectSkills('acme', root);
+  assert.equal(readFileSync(join(linked, '.agents', 'skills', 'lint', 'SKILL.md'), 'utf8'), '---\nname: lint\n---\nRead me.\n');
+  writeFileSync(join(linked, '.agents', 'skills', 'lint', 'SKILL.md'), 'kept\n');
+  mirrorProjectSkills('acme', root);
+  assert.equal(readFileSync(join(linked, '.agents', 'skills', 'lint', 'SKILL.md'), 'utf8'), 'kept\n');
 });
 
 test('Cursor started by Moki: the moki entries of <root>/.cursor/mcp.json, the person\'s kept', () => {

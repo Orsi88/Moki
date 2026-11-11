@@ -228,23 +228,27 @@ export interface GeneratedEntry { key: string; server: McpServer }
 export const entryKey = (id: string): string => `moki-${id}`;
 const isManaged = (key: string): boolean => key === MOKI_SERVER || key.startsWith('moki-');
 
-// One server as Claude Code (".mcp.json", --mcp-config) and Cursor (".cursor/mcp.json") read it.
-// Claude expands ${VAR} itself; Cursor reads ${env:VAR}. The oauth block is Claude Code's only.
-function entry(s: McpServer, tool: 'claude' | 'cursor'): Record<string, unknown> {
+export type JsonMcpTool = 'claude' | 'cursor' | 'gemini';
+
+// One server as Claude Code (".mcp.json", --mcp-config), Cursor (".cursor/mcp.json") and Gemini CLI
+// (".gemini/settings.json") read it. Claude and Gemini expand ${VAR}; Cursor reads ${env:VAR}.
+// Gemini's HTTP transport is httpUrl. The oauth block is Claude Code's only.
+function entry(s: McpServer, tool: JsonMcpTool): Record<string, unknown> {
   const ref = (v: string) => (tool === 'cursor' ? v.replace(REF, '${env:$1}') : v);
   const map = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ref(v)]));
   if (s.transport === 'http') {
     const oauth = tool === 'claude' && s.oauth ? { oauth: { clientId: s.oauth.clientId, ...(s.oauth.callbackPort ? { callbackPort: s.oauth.callbackPort } : {}) } } : {};
-    return { ...(tool === 'claude' ? { type: 'http' } : {}), url: ref(s.url), ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}), ...oauth };
+    const url = ref(s.url);
+    return { ...(tool === 'claude' ? { type: 'http', url } : tool === 'gemini' ? { httpUrl: url } : { url }), ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}), ...oauth };
   }
   return { command: ref(s.command), args: s.args.map(ref), ...(Object.keys(s.env).length ? { env: map(s.env) } : {}) };
 }
 
-export const toolConfig = (entries: GeneratedEntry[], tool: 'claude' | 'cursor'): { mcpServers: Record<string, unknown> } =>
+export const toolConfig = (entries: GeneratedEntry[], tool: JsonMcpTool): { mcpServers: Record<string, unknown> } =>
   ({ mcpServers: Object.fromEntries(entries.map((e) => [e.key, entry(e.server, tool)])) });
 
 // The person's own entries stay; Moki's (moki, moki-*) are replaced by `entries`.
-export function mergeManaged(existing: unknown, entries: GeneratedEntry[], tool: 'claude' | 'cursor'): Record<string, unknown> {
+export function mergeManaged(existing: unknown, entries: GeneratedEntry[], tool: JsonMcpTool): Record<string, unknown> {
   const data = existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...(existing as Record<string, unknown>) } : {};
   const current = data.mcpServers && typeof data.mcpServers === 'object' ? data.mcpServers as Record<string, unknown> : {};
   const own = Object.fromEntries(Object.entries(current).filter(([k]) => !isManaged(k)));
@@ -252,7 +256,7 @@ export function mergeManaged(existing: unknown, entries: GeneratedEntry[], tool:
 }
 
 // Writes the merged file; returns false when nothing changed. A file that is not JSON is never overwritten.
-export function writeMerged(file: string, entries: GeneratedEntry[], tool: 'claude' | 'cursor'): boolean {
+export function writeMerged(file: string, entries: GeneratedEntry[], tool: JsonMcpTool): boolean {
   let existing: unknown = {};
   if (existsSync(file)) {
     const text = readFileSync(file, 'utf8');
@@ -302,6 +306,20 @@ export function codexBlock(entries: GeneratedEntry[]): { text: string; skipped: 
     return lines.join('\n');
   });
   return { text: [CODEX_BEGIN, ...tables, CODEX_END].join('\n\n'), skipped };
+}
+
+// -c overrides for a Codex session Moki starts. Same fields as the TOML region, so a variable is never
+// a value and the person's ~/.codex/config.toml (where the login lives) is not touched.
+export function codexLaunchArgs(entries: GeneratedEntry[]): string[] {
+  const args: string[] = [];
+  let table = '';
+  for (const line of codexBlock(entries).text.split('\n')) {
+    const head = /^\[mcp_servers\.(.+)\]$/.exec(line);
+    if (head) { table = head[1]; continue; }
+    const kv = /^([A-Za-z0-9_]+) = (.+)$/.exec(line);
+    if (table && kv) args.push('-c', `mcp_servers.${table}.${kv[1]}=${kv[2]}`);
+  }
+  return args;
 }
 
 // The person's TOML stays; Moki's region (between its markers) is replaced, or added at the end.

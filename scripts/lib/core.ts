@@ -337,6 +337,29 @@ function projectFolder(project: string, kind: Kind, root: string): { dir: string
 }
 export const projectSkillsDir = (project: string, root = ROOT) => projectFolder(project, 'skills', root);
 export const projectAgentsDir = (project: string, root = ROOT) => projectFolder(project, 'agents', root);
+
+// Codex and Gemini discover skills in <linked folder>/.agents/skills, not in .claude/skills.
+// A project without a linked folder keeps the single workspace folder the request already names.
+export function projectSkillTargets(project: string, root = ROOT): string[] {
+  const primary = projectSkillsDir(project, root).dir;
+  const repo = linkedFolder(project, root)?.path ?? '';
+  return repo ? [primary, join(repo, '.agents', 'skills')] : [primary];
+}
+
+// Copies a skill that is already in .claude/skills into .agents/skills when that copy is missing.
+// Does not overwrite a copy that is already there.
+export function mirrorProjectSkills(project: string, root = ROOT): void {
+  const repo = linkedFolder(project, root)?.path ?? '';
+  if (!repo) return;
+  const from = projectSkillsDir(project, root).dir;
+  const to = join(repo, '.agents', 'skills');
+  for (const name of skillFolders(from)) {
+    const dest = join(to, name);
+    if (existsSync(dest)) continue;
+    mkdirSync(to, { recursive: true });
+    cpSync(join(from, name), dest, { recursive: true });
+  }
+}
 export const installedSkills = (project: string, root = ROOT): string[] => skillFolders(projectSkillsDir(project, root).dir);
 export const installedAgents = (project: string, root = ROOT): string[] => agentFiles(projectAgentsDir(project, root).dir);
 
