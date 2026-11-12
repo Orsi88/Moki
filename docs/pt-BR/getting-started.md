@@ -6,7 +6,7 @@ Do zero ao seu primeiro pedido para a IA, em uns cinco minutos.
 
 ### Windows
 
-1. Baixe o [Moki.Setup.0.5.3.exe](https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.4.exe](https://github.com/Orsi88/moki/releases/download/v0.5.4/Moki.Setup.0.5.4.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Conclua. Um atalho **Moki** aparece na área de trabalho e no menu Iniciar.
 
