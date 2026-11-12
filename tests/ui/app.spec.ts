@@ -50,9 +50,7 @@ async function openApp(root: string, userData: string, project: string | null = 
     localStorage.setItem('qa-ui-language', 'pt-BR');
     localStorage.setItem('qa-language', 'Portuguese (pt-BR)');
   });
-  const reloaded = page.waitForEvent('load');
-  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.reload(); });
-  await reloaded;
+  await page.reload();
   return { app, page };
 }
 
@@ -2631,11 +2629,12 @@ test.describe.serial('Moki start screen rename', () => {
     ({ app: homeApp, page: hp } = await openApp(root, userData, null));
     await hp.getByRole('button', { name: /^Workspace/ }).click(); // the workspace picker comes first
     await expect(hp.locator('.home-project', { hasText: 'Acme Library' }).first()).toBeVisible();
-    // A loose note and a recent project note, as the start screen keeps them on this computer.
+    // A loose note stays under Loose notes. A project note is a favorite, so it is listed there, not with the loose notes.
     await hp.evaluate(({ id }) => {
       const now = Date.now();
       localStorage.setItem('qa-loose-notes', JSON.stringify([{ id, title: 'rascunho solto', text: 'texto', at: now - 1000 }]));
       localStorage.setItem('qa-recent-notes', JSON.stringify([{ project: 'acme', path: 'notes/ideia.md', title: 'ideia', at: now }]));
+      localStorage.setItem('qa-favorite-notes', JSON.stringify([{ project: 'acme', path: 'notes/ideia.md' }]));
     }, { id: LOOSE_ID });
     const reloaded = hp.waitForEvent('load');
     await homeApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.reload(); });
@@ -2664,7 +2663,7 @@ test.describe.serial('Moki start screen rename', () => {
     await expect(hp.locator(`[data-rename-key="note:${LOOSE_ID}"]`)).toBeFocused();
     await expect(hp.locator(`[data-rename-key="note:${LOOSE_ID}"]`)).toContainText('plano de testes');
     const notes = await hp.locator('.home-block', { hasText: 'Notas avulsas' }).locator('.home-project-name').allTextContents();
-    expect(notes).toEqual(['ideia', 'plano de testes']); // same order: renaming is not opening
+    expect(notes).toEqual(['plano de testes']); // a project note is not a loose note
     const stored = await hp.evaluate(() => JSON.parse(localStorage.getItem('qa-loose-notes') ?? '[]') as { title: string; text: string }[]);
     expect(stored[0]).toMatchObject({ title: 'plano de testes', text: 'texto' });
   });
@@ -3554,4 +3553,225 @@ test.describe.serial('Moki tab groups and split views', () => {
     await expect(gp.getByRole('menu', { name: 'Dividir a tela' })).toBeVisible();
     await gp.keyboard.press('Escape');
   });
+});
+
+
+
+async function sizeRoutineWindow(app: ElectronApplication, page: Page, width: number, height: number): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, size) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.setMinimumSize(300, 300);
+    window.setContentSize(size.width, size.height);
+    window.webContents.setBackgroundThrottling(false);
+  }, { width, height });
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(width);
+  await expect.poll(() => page.evaluate(() => window.innerHeight)).toBe(height);
+}
+
+
+async function captureRoutineWindow(app: ElectronApplication, path: string): Promise<void> {
+  const png = await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    const image = await window.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
+    return image.toPNG().toString('base64');
+  });
+  expect(png.length).toBeGreaterThan(100);
+  writeFileSync(path, Buffer.from(png, 'base64'));
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().every((window) => !window.isVisible()))).toBe(true);
+}
+test('routine settings: intuitive navigation, complete schedules and responsive form', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-routines-ui-profile-'));
+  const { saveServer } = await import('../../scripts/lib/mcp.ts');
+  const server = saveServer({ name: 'Synthetic read connection', transport: 'stdio', command: 'fake-never-started', access: 'read', enabled: true, projects: [] }, root);
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' });
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 900);
+    await view.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+    await view.getByRole('button', { name: 'Configurações', exact: true }).click();
+    const nav = view.getByRole('tablist', { name: 'Configurações', exact: true });
+    await expect(nav).toHaveAttribute('aria-orientation', 'vertical');
+    await expect(nav.getByRole('tab')).toHaveCount(9);
+    await nav.getByRole('tab', { name: 'Agentes', exact: true }).focus();
+    await view.keyboard.press('End');
+    await expect(nav.getByRole('tab', { name: 'Temas', exact: true })).toBeFocused();
+    await nav.getByRole('tab', { name: 'Rotinas e notificações', exact: true }).click();
+    await expect(view.getByRole('heading', { name: 'Sua próxima verificação pode ser automática.' })).toBeVisible();
+    await captureRoutineWindow(opened.app, info.outputPath('routines-empty-dark.png'));
+    await view.getByRole('button', { name: 'Nova rotina', exact: true }).click();
+    await view.getByRole('textbox', { name: 'Nome', exact: true }).fill('Revisão semanal');
+    await expect(view.getByRole('radio', { name: /Consulta numa conexão/ })).toBeChecked();
+    await view.getByRole('combobox', { name: 'Conexão', exact: true }).selectOption(server.id);
+    await view.getByRole('combobox', { name: 'Ferramenta desse servidor', exact: true }).fill('fake_read');
+    await view.getByRole('textbox', { name: /O que buscar/ }).fill('query: State = Active\nids: [123, 456]');
+    await view.getByRole('combobox', { name: 'Agenda', exact: true }).selectOption('weekly');
+    const weekdays = view.getByRole('group', { name: 'Dias da semana', exact: true });
+    await expect(weekdays.getByRole('checkbox')).toHaveCount(7);
+    await weekdays.getByRole('checkbox').first().check();
+    await view.getByRole('combobox', { name: 'Ferramenta de IA', exact: true }).selectOption('claude');
+    await nav.getByRole('tab', { name: 'Temas', exact: true }).click();
+    await expect(view.getByRole('alertdialog')).toBeVisible();
+    await view.getByRole('alertdialog').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(view.getByRole('textbox', { name: 'Nome', exact: true })).toHaveValue('Revisão semanal');
+    await expect(view.getByRole('alertdialog')).toHaveCount(0);
+    await view.locator('.settings-body').evaluate((el) => { el.scrollTop = 0; });
+    await view.locator('.routines-page').evaluate((el) => { el.scrollTop = 0; });
+    await captureRoutineWindow(opened.app, info.outputPath('routine-editor-dark.png'));
+    await view.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await captureRoutineWindow(opened.app, info.outputPath('routine-editor-light.png'));
+    for (const width of [840, 520]) {
+      await sizeRoutineWindow(opened.app, view, width, 900);
+      expect(await view.locator('.settings').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+      expect(await view.locator('.routine-fields').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+      const ribbon = await view.locator('.ribbon').boundingBox();
+      expect(ribbon && ribbon.y + ribbon.height).toBeLessThanOrEqual(900);
+      await expect(view.locator('.ribbon > button').last()).toBeInViewport();
+      await captureRoutineWindow(opened.app, info.outputPath(`routine-editor-${width}.png`));
+    }
+    await sizeRoutineWindow(opened.app, view, 1000, 480);
+    await expect(view.locator('.ribbon > button').last()).toBeInViewport();
+    expect(await view.locator('.ribbon').evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    await captureRoutineWindow(opened.app, info.outputPath('routine-rail-short.png'));
+    await sizeRoutineWindow(opened.app, view, 1320, 900);
+    await view.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await view.getByRole('button', { name: 'Salvar rotina', exact: true }).click();
+    await expect(view.getByRole('status')).toContainText('Rotina salva.');
+    const routineFolder = join(root, 'workspace', 'projects', 'acme', 'routines');
+    const id = readdirSync(routineFolder)[0];
+    let saved = JSON.parse(readFileSync(join(routineFolder, id, 'routine.json'), 'utf8'));
+    expect(saved.schedule.kind).toBe('weekly');
+    expect(saved.schedule.daysOfWeek).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(saved.resources[0]).toMatchObject({ kind: 'query', arguments: { query: 'State = Active', ids: [123, 456] } });
+    await view.getByRole('combobox', { name: 'Agenda', exact: true }).selectOption('interval');
+    await view.getByRole('spinbutton', { name: 'Intervalo em minutos', exact: true }).fill('37');
+    await expect(weekdays).toHaveCount(0);
+    await view.getByRole('button', { name: 'Salvar rotina', exact: true }).click();
+    await expect(view.getByRole('status')).toContainText('Rotina salva.');
+    saved = JSON.parse(readFileSync(join(routineFolder, id, 'routine.json'), 'utf8'));
+    expect(saved.schedule.intervalMinutes).toBe(37);
+    await view.getByRole('button', { name: 'Voltar para Rotinas', exact: true }).click();
+    await expect(view.locator('.routine-card')).toContainText('A cada 37 minutos');
+    await captureRoutineWindow(opened.app, info.outputPath('routine-list-light.png'));
+    await view.getByRole('tab', { name: 'Preferências', exact: true }).click();
+    await view.getByRole('spinbutton', { name: 'Análises de IA simultâneas', exact: true }).fill('0');
+    await view.getByRole('button', { name: 'Salvar preferências', exact: true }).click();
+    await expect(view.getByRole('status')).toContainText('Preferências salvas.');
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'routine-settings.json'), 'utf8')).maxAiCalls).toBe(0);
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('routine notifications: opening a proposal never applies it, exact changes require confirmation', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-proposal-ui-profile-'));
+  const { cleanRoutine, saveRoutineFile, saveProposal, textHash, appendNote } = await import('../../scripts/lib/routines.ts');
+  const routine = cleanRoutine({ id: 'synthetic-check', name: 'Revisar documentação', executionPolicy: 'monitor', schedule: { kind: 'manual' } }, 'acme');
+  saveRoutineFile(root, routine);
+  const targetFile = join(root, 'workspace', 'projects', 'acme', 'context', 'overview.md');
+  writeFileSync(targetFile, 'Original synthetic text.');
+  const at = new Date().toISOString();
+  saveProposal(root, { id: 'p-synthetic', projectId: 'acme', routineId: routine.id, executionId: 'e-synthetic', detectedChangeIds: [], status: 'pending', summary: 'Uma alteração pronta para revisão', justification: 'Synthetic UI test.', findings: [{ statement: 'Uma hipótese para conferir.', kind: 'analysis' }], proposedChanges: [{ path: 'context/overview.md', baseHash: textHash('Original synthetic text.'), nextText: 'Approved synthetic text.', note: 'Synthetic wording update.' }], sourceSnapshot: { resourceId: '123', version: '5', updatedAt: at, hash: textHash('source') }, decision: null, createdAt: at, updatedAt: at });
+  appendNote(root, { id: 'n-synthetic', category: 'approval', severity: 'approval', title: 'Uma proposta para você', message: 'Uma alteração pronta para revisão', projectId: 'acme', routineId: routine.id, executionId: 'e-synthetic', proposalId: 'p-synthetic', readAt: '', createdAt: at, internal: true, system: false, navigationTarget: { tab: 'routines', projectId: 'acme', routineId: routine.id, proposalId: 'p-synthetic' } });
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' });
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 900);
+    await view.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+    const bell = view.getByRole('button', { name: 'Notificações', exact: true }).first();
+    await bell.click();
+    const panel = view.getByRole('dialog', { name: 'Notificações', exact: true });
+    await expect(panel.getByRole('button', { name: 'Fechar notificações', exact: true })).toBeFocused();
+    await captureRoutineWindow(opened.app, info.outputPath('notification-panel-dark.png'));
+    await view.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(bell).toBeFocused();
+    await bell.click();
+    await panel.getByRole('button', { name: /Uma proposta para você/ }).click();
+    await expect(view.getByRole('tab', { name: /^Aprovações/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(view.locator('#proposal-p-synthetic')).toHaveAttribute('open', '');
+    expect(readFileSync(targetFile, 'utf8')).toBe('Original synthetic text.');
+    await view.locator('.routine-changes summary').click();
+    await expect(view.locator('.routine-changes pre')).toHaveText('Approved synthetic text.');
+    await captureRoutineWindow(opened.app, info.outputPath('proposal-review-dark.png'));
+    await view.getByRole('button', { name: 'Aprovar e aplicar', exact: true }).click();
+    await expect(view.getByRole('alertdialog')).toBeVisible();
+    expect(readFileSync(targetFile, 'utf8')).toBe('Original synthetic text.');
+    await view.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect(view.getByRole('status')).toContainText('Alterações aplicadas.');
+    expect(readFileSync(targetFile, 'utf8')).toBe('Approved synthetic text.');
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('templates: upload a base file, see it in the list and tell the AI what to follow', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-template-model-'));
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 860);
+    await view.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await view.getByRole('tablist', { name: 'Configurações', exact: true }).getByRole('tab', { name: 'Templates', exact: true }).click();
+    await view.locator('input[type=file][aria-label="Enviar arquivo-base"]').setInputFiles({ name: 'Relatório de evidência.md', mimeType: 'text/markdown', buffer: Buffer.from('# Evidência\n\n## Resumo\n\n| Caso | Resultado |\n|---|---|\n') });
+    // The new base file opens at once, to give it tags and guidance.
+    await expect(view.getByRole('heading', { name: 'Relatório de evidência' })).toBeVisible();
+    await expect(view.getByRole('status').filter({ hasText: 'Arquivo-base adicionado' })).toBeVisible();
+    await view.getByRole('button', { name: 'Voltar para Templates', exact: true }).click();
+    const card = view.getByRole('button', { name: 'Relatório de evidência', exact: true });
+    await expect(card.locator('.ds-format')).toHaveText('MD');
+    await captureRoutineWindow(opened.app, info.outputPath('templates-base-file-list.png'));
+    await card.click();
+    await view.getByRole('textbox', { name: 'O que a IA deve seguir (opcional)' }).fill('Uma linha por caso de teste.');
+    await view.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(view.getByRole('button', { name: 'Salvar', exact: true })).toBeDisabled();
+    await captureRoutineWindow(opened.app, info.outputPath('templates-base-file-editor.png'));
+    const saved = JSON.parse(readFileSync(join(root, 'workspace', 'templates', 'relatorio-de-evidencia.json'), 'utf8'));
+    expect(saved).toMatchObject({ name: 'Relatório de evidência', guidance: 'Uma linha por caso de teste.', model: { file: 'relatorio-de-evidencia.model.md' } });
+    expect(readFileSync(join(root, 'workspace', 'templates', 'relatorio-de-evidencia.model.md'), 'utf8')).toContain('## Resumo');
+  } finally {
+    await running?.close();
+  }
+});
+
+test('Configurador: say what to set up, check the plan, apply it through the app checks', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-configurador-'));
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' });
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 860);
+    await view.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await view.getByRole('button', { name: 'Configurar com IA', exact: true }).click();
+    const panel = view.getByRole('region', { name: 'Configurador' });
+    await panel.getByRole('textbox', { name: 'O que você quer configurar?' }).fill('Quero uma tag para o cliente Y');
+    await panel.getByRole('button', { name: 'Montar o plano', exact: true }).click();
+    await expect(panel.getByRole('checkbox')).toHaveCount(1);
+    await expect(panel.getByText('Criar a tag Cliente Y')).toBeVisible();
+    await captureRoutineWindow(opened.app, info.outputPath('configurador-plan.png'));
+    await panel.getByRole('button', { name: 'Aplicar 1 de 1', exact: true }).click();
+    await expect(panel.getByRole('status')).toContainText('✓ Criar a tag Cliente Y');
+    await captureRoutineWindow(opened.app, info.outputPath('configurador-applied.png'));
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'tags.json'), 'utf8')).tags.some((tag: { name: string }) => tag.name === 'Cliente Y')).toBe(true);
+    // The same Configurador in the project settings, for that project.
+    await view.getByRole('button', { name: 'Fechar configurações', exact: true }).click();
+    await view.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
+    const settings = view.getByRole('dialog', { name: /^Configurações de / });
+    await settings.getByRole('button', { name: 'Configurar com IA', exact: true }).click();
+    await expect(settings.getByRole('region', { name: 'Configurador' })).toContainText('configura Acme Library para você');
+    await captureRoutineWindow(opened.app, info.outputPath('configurador-project.png'));
+  } finally {
+    await running?.close();
+  }
 });

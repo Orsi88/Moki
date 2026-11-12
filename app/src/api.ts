@@ -1,4 +1,6 @@
-import type { HtmlAnchor, HtmlComment } from '../../scripts/lib/html-comments.ts';
+import type { HtmlAnchor, HtmlComment, HtmlCommentChange } from '../../scripts/lib/html-comments.ts';
+import type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
+export type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
 // Client for the desktop app's main process (see desktop/preload.ts and
 // desktop/service.ts). Every call goes through one validated IPC channel.
@@ -13,6 +15,10 @@ import type { NoteHelper } from './note-assist';
 export type OrganizeAction = 'context' | 'rename' | 'delete' | 'keep';
 export interface OrganizeCandidate { path: string; size: number; run: string; title: string; status: string; deliverable: boolean; preview: string }
 export interface OrganizeStep { path: string; do: OrganizeAction; name?: string; why: string }
+// The Configurador's plan (desktop/configurator.ts): steps the person checks before Moki applies them.
+export type ConfigKind = 'routine' | 'activity' | 'agent' | 'template' | 'mcp' | 'tag' | 'project';
+export interface ConfigStep { kind: ConfigKind; title: string; why: string; data: Record<string, unknown> }
+export interface ConfigPlanAnswer { plan?: { steps: ConfigStep[]; questions: string[]; answer: string }; tool?: string; error?: string }
 export interface HudsonPlan { files?: OrganizeCandidate[]; plan?: OrganizeStep[]; tool?: string; error?: string }
 export interface NoteAssistResult { answer?: string; tool?: string; error?: string }
 export interface ProjectDefault { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string }
@@ -99,6 +105,7 @@ export interface TreeNode {
 
 export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
+  | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
@@ -192,6 +199,8 @@ export interface TagCatalog { tags: Tag[]; projects: { id: string; project: stri
 // A template (Settings › Templates): a named document style and the projects it applies to.
 export interface DocumentTemplate {
   id: string; name: string; tags: string[]; style: DocumentStyle;
+  model: { file: string; name: string; format: string; size: number; uploadedAt: string } | null; // a base file the AI follows
+  guidance: string; // what the AI should keep from the base file
   appliesTo: string[]; usedBy: string[]; defaultOf: string[]; // project ids
 }
 export interface DocumentStyle {
@@ -284,6 +293,7 @@ export interface Bridge {
   noteAssist?(request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult>;
   noteAssistCancel?(id: string): Promise<void>;
   hudsonPlan?(request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan>;
+  configPlan?(request: { id: string; project: string | null; request: string; prefer: string; language: string }): Promise<ConfigPlanAnswer>;
   usage?(refresh: boolean): Promise<Usage | null>;
   openNoteWindow(target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }): Promise<boolean>;
   openSearchWindow?(): Promise<boolean>;
@@ -297,6 +307,7 @@ export interface Bridge {
   openInMain?(project: string, path: string): void;
   onShowTerminal?(callback: (project: string, terminal: TerminalRef) => void): () => void;
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
+  onOpenRoutine?(callback: (target: RoutineTarget) => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
     // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
     create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
@@ -319,6 +330,38 @@ export const pageParams = (): URLSearchParams => new URLSearchParams(window.qa?.
 
 // writeFile refused: the file no longer holds the text the tab started from (the same text as CHANGED_OUTSIDE in desktop/service.ts).
 export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
+
+export interface RoutineSchedule { kind: string; intervalMinutes: number; time: string; daysOfWeek: number[]; dayOfMonth: number; timezone: string; missed: string }
+export interface RoutineResource {
+  kind: 'query' | 'files' | 'folder'; serverId: string; tool: string; arguments: Record<string, unknown>;
+  recordsPath: string; idPath: string; pagination: { cursorArgument: string; nextCursorPath: string } | null;
+  paths: string[]; path: string; recursive: boolean;
+}
+export interface RoutineInfo {
+  id: string; name: string; description: string; projectId: string; projectName?: string; operationId: string;
+  instructions: string; enabled: boolean; archived: boolean; schedule: RoutineSchedule; executionPolicy: string; tool: string;
+  agents: string[]; resources: RoutineResource[]; nextRunAt: string;
+  notifyInternal: boolean; notifySystem: boolean;
+  conditions: { runWhenChanges: boolean; notifyWhenRelevant: boolean; proposeWhenImpact: boolean; overlap: string; stopWhenResourceMissing: boolean };
+}
+export interface RoutineProposal { id: string; projectId: string; routineId: string; executionId: string; status: string; summary: string; justification: string; createdAt: string; findings?: { statement: string; kind: 'analysis' }[]; proposedChanges: { path: string; baseHash: string; nextText: string; note: string }[]; sourceSnapshot: { resourceId: string; version: string; hash: string } }
+export interface RoutineExecution { id: string; status: string; startedAt: string; finishedAt: string; triggerType: string; resultSummary: string; error: string; warnings: string[] }
+export interface RoutineNote {
+  id: string; category: string; title: string; message: string; projectId: string; routineId: string; proposalId: string;
+  readAt: string; createdAt: string; navigationTarget: { projectId: string; routineId: string; proposalId: string };
+}
+export interface RoutineSettings { schedulerPaused: boolean; background: boolean; openAtLogin: boolean; maxAiCalls: number; retention: number }
+
+export const ROUTINE_FOCUS = 'qa-routine-focus';
+export interface RoutineTarget { projectId: string; routineId: string; proposalId?: string }
+export interface RoutineActivity {
+  executions: (RoutineExecution & { projectId: string; routineId: string; routineName: string; projectName: string })[];
+  proposals: (RoutineProposal & { routineName: string; projectName: string })[];
+}
+export function focusRoutine(target: RoutineTarget): void {
+  try { sessionStorage.setItem(ROUTINE_FOCUS, JSON.stringify(target)); } catch { /* optional persistence */ }
+  window.dispatchEvent(new CustomEvent<RoutineTarget>(ROUTINE_FOCUS, { detail: target }));
+}
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   if (!window.qa) throw new Error(t('Moki must be opened with the qa command.'));
@@ -377,14 +420,28 @@ export const api = {
   writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
   editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
   htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
-  addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text),
+  addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string, color?: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text, color),
+  changeHtmlComment: (project: string, path: string, change: HtmlCommentChange) => call<HtmlComment[]>('changeHtmlComment', project, path, change),
   removeHtmlComment: (project: string, path: string, id: string) => call<HtmlComment[]>('removeHtmlComment', project, path, id),
-  convertOffice: (project: string, path: string) => call<string>('convertOffice', project, path),
+  diagramSettings: (project: string) => call<DiagramSettings>('diagramSettings', project),
+  saveDiagramSettings: (project: string, settings: DiagramSettings) => call<DiagramSettings>('saveDiagramSettings', project, settings),
+  renderDiagram: (project: string, path: string) => call<DiagramRenderResult>('renderDiagram', project, path),
+  diagramComments: (project: string, path: string) => call<DiagramComment[]>('diagramComments', project, path),
+  addDiagramComment: (project: string, path: string, anchor: DiagramAnchor, text: string, color?: string) => call<DiagramComment[]>('addDiagramComment', project, path, anchor, text, color),
+  changeDiagramComment: (project: string, path: string, change: DiagramCommentChange) => call<DiagramComment[]>('changeDiagramComment', project, path, change),
+  removeDiagramComment: (project: string, path: string, id: string) => call<DiagramComment[]>('removeDiagramComment', project, path, id),
+  diagramView: (project: string, path: string) => call<DiagramViewState | null>('diagramView', project, path),
+  saveDiagramView: (project: string, path: string, view: DiagramViewState) => call<DiagramViewState>('saveDiagramView', project, path, view),
+  exportDiagram: (project: string, path: string, format: 'svg' | 'png', data: string) => call<{ saved: boolean }>('exportDiagram', project, path, format, data),
+  copyDiagramImage: (project: string, path: string, data: string) => call<boolean>('copyDiagramImage', project, path, data),
+  convertOffice: (project: string, path: string) => call<{ path: string; created: boolean }>('convertOffice', project, path),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
   templates: () => call<DocumentTemplate[]>('templates'),
   saveTemplate: (template: Partial<DocumentTemplate> & { name: string; style: DocumentStyle }) => call<DocumentTemplate>('saveTemplate', template),
   removeTemplate: (id: string) => call<boolean>('removeTemplate', id),
+  uploadTemplateModel: (template: { id?: string; name?: string; tags?: string[]; guidance?: string }, fileName: string, data: Uint8Array) => call<DocumentTemplate>('uploadTemplateModel', template, fileName, data),
+  openTemplateModel: (id: string) => call<boolean>('openTemplateModel', id),
   setProjectTemplate: (project: string, id: string | null) => call<boolean>('setProjectTemplate', project, id),
   projectLinks: (project: string) => call<ProjectLinks>('projectLinks', project),
   setProjectLinks: (project: string, req: { activities?: Record<string, boolean>; templates?: Record<string, boolean>; template?: string | null }) => call<boolean>('setProjectLinks', project, req),
@@ -506,8 +563,25 @@ export const api = {
   noteAssist: (request: { id: string; helper: NoteHelper; text: string; prefer: string; language: string }): Promise<NoteAssistResult> => window.qa?.noteAssist?.(request) ?? Promise.resolve({ error: 'no-app' }),
   noteAssistCancel: (id: string) => window.qa?.noteAssistCancel?.(id) ?? Promise.resolve(),
   hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }): Promise<HudsonPlan> => window.qa?.hudsonPlan?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  configPlan: (request: { id: string; project: string | null; request: string; prefer: string; language: string }): Promise<ConfigPlanAnswer> => window.qa?.configPlan?.(request) ?? Promise.resolve({ error: 'no-app' }),
+  configApply: (project: string | null, steps: ConfigStep[]) => call<{ title: string; ok: boolean; message: string }[]>('configApply', project, steps),
   organizeApply: (project: string, steps: OrganizeStep[]) => call<{ done: string[]; failed: string[] }>('organizeApply', project, steps),
   usage: (refresh = false) => window.qa?.usage?.(refresh) ?? Promise.resolve(null),
+  listRoutines: () => call<(RoutineInfo & { projectName: string })[]>('listRoutines'),
+  routineActivity: () => call<RoutineActivity>('routineActivity'),
+  routine: (project: string, id: string) => call<{ routine: RoutineInfo; executions: RoutineExecution[]; proposals: RoutineProposal[] }>('routine', project, id),
+  saveRoutine: (project: string, raw: unknown) => call<{ routine: RoutineInfo; rebuilt: boolean }>('saveRoutine', project, raw),
+  setRoutineEnabled: (project: string, id: string, enabled: boolean) => call<RoutineInfo>('setRoutineEnabled', project, id, enabled),
+  duplicateRoutine: (project: string, id: string) => call<RoutineInfo>('duplicateRoutine', project, id),
+  archiveRoutine: (project: string, id: string) => call<RoutineInfo>('archiveRoutine', project, id),
+  deleteRoutine: (project: string, id: string) => call<boolean>('deleteRoutine', project, id),
+  runRoutine: (project: string, id: string) => call<RoutineExecution>('runRoutine', project, id),
+  decideProposal: (project: string, routineId: string, proposalId: string, result: 'approved' | 'rejected' | 'deferred') => call<RoutineProposal>('decideProposal', project, routineId, proposalId, result),
+  routineSettings: () => call<RoutineSettings>('routineSettings'),
+  saveRoutineSettings: (raw: RoutineSettings) => call<RoutineSettings>('saveRoutineSettings', raw),
+  notifications: () => call<RoutineNote[]>('notifications'),
+  onOpenRoutine: (callback: (target: RoutineTarget) => void) => window.qa?.onOpenRoutine?.(callback) ?? (() => {}),
+  readNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('readNotifications', ids),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
   // Embedded terminals (desktop/terminals.ts); only available inside the app.

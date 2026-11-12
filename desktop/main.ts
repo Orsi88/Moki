@@ -3,7 +3,7 @@
 // the embedded terminals, and watches the open project folder so files written
 // by the AI tools appear live.
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, protocol, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, protocol, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { existsSync, writeFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { dirname, join, sep } from 'node:path';
@@ -24,12 +24,16 @@ import { memoryUsage, planUsage, type AppProcessKind, type WindowKind } from './
 import { fixToolPath, pathReady } from './tool-path.ts';
 import { ASSIST_TOOLS, NOTE_HELPERS, assistPrompt, runAssist, type AssistTool, type NoteHelper } from './note-assist.ts';
 import { organizePrompt, readPlan, type OrganizeCandidate, type OrganizeStep } from './hudson.ts';
+import { configPrompt, readConfigPlan, type ConfigPlan } from './configurator.ts';
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
+import { startRoutineHost } from './routine-host.ts';
 import { createParseClient } from './parse-pool.ts';
 
 const DIST = dirname(fileURLToPath(import.meta.url)); // app/dist-electron
 const UI = join(DIST, '..', 'dist'); // app/dist, inside the app (not the framework folder)
 const ICON = join(UI, 'icon-512.png'); // 512 is enough for a window icon; the 1254 px icon.png stays for the installers
+const CUP = join(UI, 'notify-cup.png');
+let quitting = false;
 // The tool runner must be a real file on disk: in the installer it is unpacked from app.asar.
 process.env.QA_RUN_TOOL = join(DIST, 'run-tool.mjs').replace(`app.asar${sep}`, `app.asar.unpacked${sep}`);
 // Moki's MCP server, which the AI tools started from the app get (bundled from ide/mcp/server.ts), unpacked the same way.
@@ -56,6 +60,11 @@ const service = createService(ROOT, {
   openPath: (file) => { void shell.openPath(file); },
   reveal: (path) => shell.showItemInFolder(path),
   copy: (text) => clipboard.writeText(text),
+  copyImage: (dataUrl) => {
+    const image = nativeImage.createFromDataURL(dataUrl);
+    if (image.isEmpty()) throw new Error('Could not copy the diagram image.');
+    clipboard.writeImage(image);
+  },
   appChooser,
   // Word and spreadsheet previews parse on a worker thread; like run-tool.mjs it is a real file, unpacked from app.asar.
   parse: createParseClient({ workerPath: join(DIST, 'parse-worker.mjs').replace(`app.asar${sep}`, `app.asar.unpacked${sep}`) }),
@@ -80,6 +89,7 @@ const service = createService(ROOT, {
   },
   onWorkspace: (dir) => { searchWindow?.close(); setWorkspaceEnv(ROOT, dir); },
   killTerminal: (id) => terminals.kill(id),
+  startTerminal: (id, project) => { const error = terminals.start(id, 100, 30, project); terminals.detach(id); return error; },
   terminalAlive: (id) => terminals.alive(id),
   writeTerminal: (id, data) => terminals.write(id, data),
   pasteRequest: (project, id, prompt) => terminals.pasteRequest(project, id, prompt),
@@ -150,7 +160,7 @@ function openSearchWindow(): void {
   const search = new BrowserWindow({ width: 800, height: 650, minWidth: 440, minHeight: 360, title: 'Moki', icon: existsSync(ICON) ? ICON : undefined, autoHideMenuBar: true, show: false,
     webPreferences: { preload: join(DIST, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   searchWindow = search;
-  search.once('ready-to-show', () => search.show());
+  search.once('ready-to-show', () => { if (process.env.QA_UI_HEADLESS !== '1') search.show(); });
   search.on('closed', () => { if (searchWindow === search) searchWindow = null; });
   search.webContents.on('will-navigate', (e) => e.preventDefault());
   search.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -194,7 +204,7 @@ function openNoteWindow(target: NoteRequest): void {
     },
   });
   noteWindows.set(key, note);
-  note.once('ready-to-show', () => note.show());
+  note.once('ready-to-show', () => { if (process.env.QA_UI_HEADLESS !== '1') note.show(); });
   note.on('closed', () => { if (noteWindows.get(key) === note) noteWindows.delete(key); });
   void note.loadFile(join(UI, 'index.html'), { query: noteQuery(target) });
   note.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -224,7 +234,7 @@ function createWindow(): void {
       spellcheck: true,
     },
   });
-  win.once('ready-to-show', () => win?.show());
+  win.once('ready-to-show', () => { if (process.env.QA_UI_HEADLESS !== '1') win?.show(); });
   // QA_OPEN_PROJECT opens a project directly, QA_OPEN_VIEW=library|launch the agent library or the launch wizard (used by checks and shortcuts).
   const query: Record<string, string> = {};
   if (process.env.QA_OPEN_PROJECT) query.project = process.env.QA_OPEN_PROJECT;
@@ -254,6 +264,12 @@ function createWindow(): void {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
+  win.on('close', (event) => {
+    if (quitting || process.env.QA_SCREENSHOT) return;
+    try {
+      if (service.routineSettings().background) { event.preventDefault(); win?.hide(); }
+    } catch { /* close normally when settings cannot be read */ }
+  });
   win.on('closed', () => {
     win = null;
     searchWindow?.close();
@@ -280,9 +296,11 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.setName('Moki');
+  app.setAppUserModelId('io.github.orsi88.qualityagents');
   app.on('second-instance', () => {
     if (!win) return;
     if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
     win.focus();
   });
 
@@ -450,6 +468,28 @@ if (!app.requestSingleInstanceLock()) {
       catch (e) { return { tool: found.tool, error: (e as Error).message }; }
       finally { assists.delete(id); }
     });
+    // The Configurador's plan (desktop/configurator.ts): the AI only proposes; configApply does what was approved.
+    ipcMain.handle('qa:config-plan', async (event, raw: unknown): Promise<{ plan?: ConfigPlan; tool?: string; error?: string }> => {
+      if (!trusted(event) || !raw || typeof raw !== 'object') return { error: 'invalid' };
+      const { id, project, request, prefer, language } = raw as Record<string, unknown>;
+      if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id) || typeof request !== 'string' || !request.trim() || request.length > 4000) return { error: 'invalid' };
+      if (project !== null && project !== '' && (typeof project !== 'string' || !isProject(project, ROOT))) return { error: 'invalid' };
+      const scope = typeof project === 'string' && project ? project : '';
+      const lang = typeof language === 'string' && /^[\w ()-]{1,40}$/.test(language) ? language : 'English';
+      if (fakeTools) { // UI tests: a plan as the AI would give it
+        const fake = { steps: [{ kind: 'tag', title: /portuguese/i.test(lang) ? 'Criar a tag Cliente Y' : 'Create the tag Client Y', why: request.slice(0, 80), data: { name: 'Cliente Y' } }], questions: [], answer: '' };
+        return { tool: 'claude', plan: readConfigPlan(JSON.stringify(fake), Boolean(scope)) };
+      }
+      await pathReady();
+      const order = [prefer, ...ASSIST_TOOLS].filter((x, i, all): x is AssistTool => ASSIST_TOOLS.includes(x as AssistTool) && all.indexOf(x) === i);
+      const found = order.map((tool) => ({ tool, file: which(TOOLS[tool].command ?? tool) })).find((x) => x.file);
+      if (!found?.file) return { error: 'no-tool' };
+      const run = runAssist(found.file, found.tool, 'summary', configPrompt(request, service.configSnapshot(scope), lang), process.env);
+      assists.set(id, run.cancel);
+      try { return { tool: found.tool, plan: readConfigPlan(await run.done, Boolean(scope)) }; }
+      catch (e) { return { tool: found.tool, error: (e as Error).message }; }
+      finally { assists.delete(id); }
+    });
     ipcMain.handle('qa:note-assist-cancel', (event, id: unknown) => {
       if (trusted(event) && typeof id === 'string') assists.get(id)?.();
     });
@@ -485,9 +525,40 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     createWindow();
+    const showMain = () => {
+      if (!win || win.isDestroyed()) createWindow();
+      if (!win) return;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    };
+    const host = process.env.QA_UI_HEADLESS === '1' ? null : startRoutineHost({
+      tick: () => service.tickRoutines(),
+      notes: () => service.systemNotifications(),
+      settings: () => service.routineSettings(),
+      setPaused: (paused) => { const current = service.routineSettings(); service.saveRoutineSettings({ ...current, schedulerPaused: paused }); },
+      getWindow: () => win,
+      show: (note) => {
+        showMain();
+        if (note && win) {
+          const target = { projectId: note.projectId, routineId: note.routineId, proposalId: note.proposalId };
+          const send = () => win?.webContents.send('qa:open-routine', target);
+          if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send); else send();
+        }
+      },
+      quit: () => { quitting = true; app.quit(); },
+      iconFile: ICON,
+      cupFile: CUP,
+    });
+    app.on('will-quit', () => host?.stop());
   });
 
-  app.on('window-all-closed', () => app.quit());
+  app.on('before-quit', () => { quitting = true; });
+  app.on('window-all-closed', () => {
+    let stay = false;
+    try { stay = !quitting && service.routineSettings().background; } catch { stay = false; }
+    if (!stay) app.quit();
+  });
   // Programs in the terminal tabs never outlive the app, also when it is stopped by a signal.
   app.on('will-quit', () => terminals.killAll());
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => app.quit());

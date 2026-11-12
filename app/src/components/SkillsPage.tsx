@@ -141,7 +141,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
   if (adding && !project) {
     return (
       <div className="skills-add">
-        <div className="list-back"><BackArrow label={t('Skills')} onBack={() => { setAdding(false); void load(); }} /><span className="list-back-title">{t('Upload skills or a .claude folder')}</span></div>
+        <div className="list-back"><BackArrow label={t('Skills')} onBack={() => { setAdding(false); void load(); }} /><h1 className="list-back-title">{t('Upload skills or a .claude folder')}</h1></div>
         <div className="skills-embedded"><div className="modal-body"><ClaudeUpload project={null} scopes={['global']} onInstalled={() => { void load(); }} /></div></div>
       </div>
     );
@@ -150,7 +150,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
   if (adding && project) {
     return (
       <div className="skills-add">
-        <div className="list-back"><BackArrow label={t('Skills')} onBack={() => { setAdding(false); void load(); }} /><span className="list-back-title">{t('Add a skill')}</span></div>
+        <div className="list-back"><BackArrow label={t('Skills')} onBack={() => { setAdding(false); void load(); }} /><h1 className="list-back-title">{t('Add a skill')}</h1></div>
         <SkillsDialog embedded initialTab="add" project={project} projects={projects} tools={tools} onTerminal={onTerminal} onClose={() => setAdding(false)} />
       </div>
     );

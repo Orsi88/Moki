@@ -5,6 +5,7 @@ import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, Ico
 import { FileIcon } from '../icons';
 import { PdfDoc } from './PdfDoc';
 import { HtmlPreview } from './HtmlPreview';
+import { DiagramView } from './DiagramView';
 import { OfficeEditor } from './OfficeEditor';
 import { LegacyOffice } from './LegacyOffice';
 import { MarkdownBody } from './MarkdownBody';
@@ -25,7 +26,7 @@ import '../internal-links.css';
 export type DocMode = 'preview' | 'edit' | 'source';
 
 interface Props {
-  onConverted?: (path: string) => void;
+  onConverted?: (path: string, created: boolean) => void;
   content: FileContent;
   project?: string; // lets the preview of unsaved edits show the file's relative images
   mode: DocMode;
@@ -284,7 +285,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           {!nativeOffice && (tagsOpen ? crumbs : crumbs.slice(-1)).map((c, i) => <span key={`${c}-${i}`} className={i === (tagsOpen ? crumbs.length : 1) - 1 ? 'crumb-last' : ''}>{c}</span>)}
         </div>
         <div className="doc-actions">
-          {nativeOffice && <><button type="button" className="icon-btn office-zoom" title={t('Reset zoom')} aria-label={t('Reset zoom')} onClick={() => setOfficeZoom(100)}>{officeZoom}%</button><button type="button" className={`icon-btn${officeComments ? ' on' : ''}`} title={t('Comments')} aria-label={t('Comments')} aria-pressed={officeComments} onClick={() => toggleOfficeComments(!officeComments)}><IconChat size={16} /></button></>}
+          {nativeOffice && <><button type="button" className="icon-btn office-zoom" title={t('Reset zoom')} aria-label={t('Reset zoom')} onClick={() => setOfficeZoom(100)}>{officeZoom}%</button><button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${officeComments ? ' on' : ''}`} aria-pressed={officeComments} title={officeComments ? t(content.kind === 'xlsx' ? 'Hide the comments: the cells get the room' : 'Hide the comments: the text gets the room') : t(content.kind === 'xlsx' ? 'Show the comments beside the cells' : 'Show the comments beside the text')} aria-label={`${t('Comments')} (${officeStatus.comments})`} onClick={() => toggleOfficeComments(!officeComments)}><IconChat size={14} />{officeStatus.comments > 0 && <span className="pdf-rail-count">{officeStatus.comments}</span>}</button></>}
           {content.kind === 'markdown' && content.editable && <button type="button" className={`icon-btn${mode === 'preview' ? ' on' : ''}`} title={t('Reading view')} aria-label={t('Reading view')} aria-pressed={mode === 'preview'} onClick={() => onMode(mode === 'preview' ? home : 'preview')}><IconEye size={16} /></button>}
           {tags && <button type="button" className={`icon-btn${tagsOpen ? ' on' : ''}`} title={t('Tags')} aria-label={t('Tags')} aria-expanded={tagsOpen} onClick={() => setTagsOpen((v) => !v)}><IconTag size={16} /></button>}
           {nativeOffice && <span role="status" className="doc-saved muted small">{officeStatus.busy || officeStatus.dirty ? t('Saving…') : t('Saved')}</span>}
@@ -352,7 +353,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           ? <textarea className="editor" spellCheck value={draft} onChange={(e) => onDraft(e.target.value)} />
           : <pre className="plain">{content.text}</pre>)}
         {content.kind === 'json' && <pre className="plain code-view">{content.text}</pre>}
-        {project && ((content.kind === 'docx' && content.document) || (content.kind === 'xlsx' && content.workbook)) && <OfficeEditor key={content.path} content={content} project={project} onReload={onReload} commentsOn={officeComments} onCloseComments={() => toggleOfficeComments(false)} zoom={officeZoom} onZoom={setOfficeZoom} onStatus={setOfficeStatus} />}
+        {project && ((content.kind === 'docx' && content.document) || (content.kind === 'xlsx' && content.workbook)) && <OfficeEditor key={content.path} content={content} project={project} onReload={onReload} commentsOn={officeComments} onShowComments={() => toggleOfficeComments(true)} zoom={officeZoom} onZoom={setOfficeZoom} onStatus={setOfficeStatus} />}
         {content.kind === 'docx' && !(project && content.document) && (
           <>
             {!noteClosed && (
@@ -369,6 +370,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           ? <PdfDoc key={content.path} project={project} path={content.path} url={content.url} renew={renewPdf} native={<PdfView url={content.url} title={content.path} />} onSaved={onPdfSaved} jump={jump} onMissingAnchor={onMissingAnchor} />
           : <PdfView url={content.url} title={content.path} />)}
         {content.kind === 'html' && <HtmlPreview key={content.path} project={project} toolbar={htmlToolbar} url={content.url} text={content.text} title={content.path} onExternal={onOpenExternal} />}
+        {content.kind === 'diagram' && <DiagramView key={content.path} project={project} path={content.path} source={content.text} kind={content.diagram} onReload={onReload} onExternal={onOpenExternal} />}
         {content.kind === 'image' && <ImageView url={content.url} alt={content.path} />}
         {content.kind === 'binary' && (
           <div className="binary-view">

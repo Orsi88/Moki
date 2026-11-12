@@ -862,7 +862,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       onCommit={(text) => commit(doc.path, text)}
       onOpenExternal={() => openExternal(doc.path)}
       onReload={() => reloadFile(doc.path)}
-      onConverted={(path) => { void openPath(path); }}
+      onConverted={(path, created) => {
+        void openPath(path);
+        flash(created
+          ? t('Converted to an editable copy. The original file was kept.')
+          : t('Opened the editable copy. The original file was kept.'));
+      }}
       onLink={(href) => onLinkFrom(doc.path, href)}
       resolveLink={resolveProjectLink}
       jump={doc.jump}
@@ -938,6 +943,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         onHome={goHome}
         onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
         onSettings={toggleSettings}
+        onOpenRoutine={() => onSettings('routines')}
         onPlay={() => setLaunch({ activity: 'open' })}
         onTerminal={openTermMenu}
         onFolder={() => { void api.openFolder(project.id); }}
@@ -1026,7 +1032,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                 />
                 <div className="pane-body">
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
-                    <TerminalView key={x.id} id={x.id} project={project.id} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
+                    <TerminalView key={x.id} id={x.id} project={project.id} tool={x.tool} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
                   ))}
                   {pane.active === GRAPH ? (
                     <div className="welcome">

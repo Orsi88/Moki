@@ -22,5 +22,9 @@
   "documentation": {
     "label": "Documentation",
     "description": "Any documentation: organization, design, diagrams and final check of the deliverables (Watson)."
+  },
+  "setup": {
+    "label": "Setup",
+    "description": "Setting Moki up for your work in your own words: agents, activities, routines, connections, templates, tags and projects (the Configurador)."
   }
 }

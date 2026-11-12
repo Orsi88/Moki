@@ -22,6 +22,7 @@ import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-regist
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
 import { pathReady } from './tool-path.ts';
 import { safeName, type OrganizeCandidate } from './hudson.ts';
+import { readConfigPlan, type ConfigSnapshot } from './configurator.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
 import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
@@ -37,7 +38,7 @@ import { advance, answered, approve, canRedo, cancel, createOperationRun, decide
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favorites.ts';
 import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
-import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, templateFor } from '../scripts/lib/doc-style.mjs';
+import { listTemplates, removeTemplate, saveTemplate, saveTemplateModel, setProjectTemplate, templateFor, templateModelPath } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
 import { artcraftSkills as artcraftSkillsOf, linkedGlobalSkills as linkedSkillsOf, projectItems as listProjectItems, type ProjectItem } from '../scripts/lib/project-items.ts';
 import { PATTERNS as SECRET_PATTERNS } from '../scripts/lib/secret-patterns.mjs';
@@ -48,13 +49,17 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { htmlComments, addHtmlComment, removeHtmlComment, moveHtmlComments } from './html-comments.ts';
-import { isHtmlAnchor } from '../scripts/lib/html-comments.ts';
+import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView } from './html-comments.ts';
+import { isHtmlAnchor, isHtmlColor, isHtmlCommentChange } from '../scripts/lib/html-comments.ts';
+import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type DiagramKind } from '../scripts/lib/diagram-types.ts';
+import { DIAGRAM_SOURCE_LIMIT, diagramHash, diagramKind, readDiagramSettings, renderDiagramSource, verifyPngExport, verifySvgExport, writeDiagramSettings } from './diagrams.ts';
 import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
-import { probeServer, type ProbeResult } from './mcp-probe.ts';
+import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
+import { archiveRoutine, decideProposal, deleteRoutine, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
+import { listExecutions, listProposals, listRoutineFiles, readRoutine } from '../scripts/lib/routines.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
@@ -69,6 +74,7 @@ export interface Deps {
   openPath: (file: string) => void;
   reveal?: (path: string) => void; // shows a file or folder selected in the system file manager
   copy?: (text: string) => void; // system clipboard (the window has no clipboard permission)
+  copyImage?: (dataUrl: string) => void; // a verified PNG, never an external image URL
   appChooser?: AppChooser; // "Open with" for Excel, Word and PDF files (desktop/open-with.ts); tests pass a fake
   pdfcraft?: { available: () => boolean; run: PdfRunner }; // PDF comments (desktop/pdfcraft.ts); tests pass a fake
   pickFolder?: () => Promise<string | null>; // native folder dialog; the UI never sends paths
@@ -89,6 +95,8 @@ export interface Deps {
   writeTerminal?: (id: string, data: string) => void; // types into a terminal tab (an answer to the agent waiting there)
   pasteRequest?: (project: string, id: string, prompt: string) => boolean; // plain input in a running AI terminal of this project, without submitting
   probe?: (server: McpServer) => Promise<ProbeResult>; // MCP server test (tests pass a fake)
+  callTool?: RunHooks['callTool']; // a routine's MCP read (tests pass a fake)
+  startTerminal?: (id: string, project: string) => string; // routines start their prepared terminal even with no project view
 }
 
 export interface TreeNode {
@@ -116,6 +124,7 @@ export interface Sheet {
 
 export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
+  | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
@@ -203,6 +212,7 @@ export function createService(root: string, deps: Deps) {
   };
   useWorkspace(activeWorkspace(root));
   let pickedWorkspace: string | null = null; // a folder chosen for a workspace in the native dialog
+  let diagramJobs = 0; // bound renderer work without making the UI or main process wait on a large queue
   const liveTerminal = (id?: string) => Boolean(id && deps.terminalAlive?.(id));
   const failing = <T>(fn: () => T): T => { try { return fn(); } catch (e) { throw new ServiceError(e instanceof Error ? e.message : String(e)); } };
   const failingAsync = async <T>(fn: () => Promise<T>): Promise<T> => { try { return await fn(); } catch (e) { throw new ServiceError(e instanceof Error ? e.message : String(e)); } };
@@ -238,6 +248,12 @@ export function createService(root: string, deps: Deps) {
     const folder = projectRepository(project, root);
     if (!folder || !existsSync(folder)) throw new ServiceError('This project has no linked folder.');
     return inside(folder, r.slice(LINKED.length + 1));
+  };
+  const diagramTarget = (project: string, rel: unknown) => {
+    const file = projectPath(project, rel), diagram = diagramKind(file);
+    if (!diagram || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose a diagram file.');
+    if (statSync(file).size > DIAGRAM_SOURCE_LIMIT) throw new ServiceError('Diagram source is empty or too large.');
+    return { file, diagram, path: posix(String(rel)) };
   };
   // Execution files belong to the app. The linked folder is the repository, shown live, not a drop target.
   const runsFolder = (rel: string) => rel === 'runs' || rel.startsWith('runs/');
@@ -831,6 +847,12 @@ export function createService(root: string, deps: Deps) {
     const ext = extname(file).toLowerCase();
     const stat = statSync(file); // taken before reading: a change in between only costs the app one extra read
     const size = stat.size;
+    const diagram = diagramKind(file);
+    if (diagram) {
+      if (size > DIAGRAM_SOURCE_LIMIT) return { kind: 'binary', path, size, openable: isOpenable(file), reason: 'Diagram source is empty or too large.' };
+      const text = readFileSync(file, 'utf8');
+      return { kind: 'diagram', path, text, diagram, editable: false, version: diagramHash(text) };
+    }
     if (ext === '.doc' || ext === '.xls') return { kind: 'binary', path, size, openable: true, legacy: ext === '.doc' ? 'doc' : 'xls' };
     if (OFFICE_TYPES[ext]) {
       const what = OFFICE_TYPES[ext] === 'docx' ? 'Word document' : 'spreadsheet';
@@ -1020,7 +1042,53 @@ export function createService(root: string, deps: Deps) {
     return { version: await extensionVersion(tool, runCmd), folder };
   };
 
-  return {
+  // The body of startOperation, so a routine can start its operation without a dialog.
+  const beginOperation = (project: string, id: unknown, raw: unknown) => {
+    const op = knownOperation(id);
+    const agents = operationAgents();
+    const check = checkOperation(op, agents);
+    if (check.errors.length) throw new ServiceError(`This operation cannot start: ${check.errors.map(formatMessage).join(' ')}`);
+    if (!check.order.length) throw new ServiceError('This operation has no steps.');
+    const r = (raw ?? {}) as { tools?: unknown; answers?: unknown; context?: unknown };
+    const installed = toolsNow();
+    const tools: Record<string, string> = {};
+    for (const sid of check.order) {
+      const tool = String((r.tools as Record<string, unknown> | undefined)?.[sid] ?? '');
+      if (!(AGENT_AIS as readonly string[]).includes(tool)) throw new ServiceError('Choose an AI tool for every step.');
+      if (!installed[tool as ToolKey]) throw new ServiceError(`${TOOLS[tool as ToolKey].label} is not installed on this computer.`);
+      tools[sid] = tool;
+    }
+    const inbox = new Set(inboxFiles(projectDir(project)).map((f) => `inbox/${f.name}`));
+    const wanted = new Set(check.initialInputs.map((i) => `${i.step}:${i.input}`));
+    const answers: RunRequest['answers'] = (Array.isArray(r.answers) ? r.answers : []).map((a) => {
+      const x = (a ?? {}) as { step?: unknown; input?: unknown; text?: unknown; files?: unknown };
+      const files = Array.isArray(x.files) ? x.files.map(String) : [];
+      const stray = files.filter((f) => !inbox.has(f));
+      if (stray.length) throw new ServiceError(`Not in the project inbox: ${stray.join(', ')}`);
+      return { step: String(x.step ?? ''), input: String(x.input ?? ''), text: cleanPrompt(String(x.text ?? '')).slice(0, 20_000), files };
+    }).filter((a) => wanted.has(`${a.step}:${a.input}`));
+    const context = cleanPrompt(String(r.context ?? '')).slice(0, 20_000);
+    const withFiles = agents.map((a) => ({ ...a, file: agentFile(a), servers: serversForAgent(project, a.mcps, root).servers }));
+    return failing(() => createOperationRun(projectDir(project), project, op, withFiles, check.order, { tools, answers, context }));
+  };
+  const routineHooks = (): RunHooks => ({
+    agents: operationAgents(),
+    callTool: (server, tool, args) => deps.callTool ? deps.callTool(server, tool, args) : callTool(server, tool, args),
+    startOperation: (project, operationId, request) => beginOperation(project, operationId, request),
+    driveOperation: (project, id) => {
+      const dir = runDir(project, id);
+      const step = advance(dir, project);
+      if (step) {
+        const result = service.startOperationStep(project, id, step, projectSummary(project, root).deliverableLanguage || 'English');
+        if (result.terminal && deps.startTerminal) {
+          const error = deps.startTerminal(result.terminal.id, project);
+          if (error) { stepExited(dir, project, result.terminal.id); throw new ServiceError(error); }
+        }
+      }
+    },
+  });
+
+  const service = {
     session: () => ({ version: appVersion(), platform: process.platform }),
 
     // Async (disk reads must not block the main process). Calls made while a scan runs share it, and its result is kept for
@@ -1284,11 +1352,18 @@ export function createService(root: string, deps: Deps) {
       if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
       return failing(() => htmlComments(projectDir(project), rel));
     },
-    addHtmlComment: (project: string, rel: string, anchor: unknown, text: unknown) => {
+    addHtmlComment: (project: string, rel: string, anchor: unknown, text: unknown, color?: unknown) => {
       const file = projectPath(project, rel);
       if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
       if (!isHtmlAnchor(anchor) || typeof text !== 'string') throw new ServiceError('Select a passage and write a comment.');
-      return failing(() => addHtmlComment(projectDir(project), rel, anchor, text, userInfo().username));
+      if (color !== undefined && !isHtmlColor(color)) throw new ServiceError('Invalid comment color.');
+      return failing(() => addHtmlComment(projectDir(project), rel, anchor, text, userInfo().username, color));
+    },
+    changeHtmlComment: (project: string, rel: string, change: unknown) => {
+      const file = projectPath(project, rel);
+      if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
+      if (!isHtmlCommentChange(change)) throw new ServiceError('Invalid HTML comments.');
+      return failing(() => changeHtmlComment(projectDir(project), rel, change, userInfo().username));
     },
     removeHtmlComment: (project: string, rel: string, id: string) => {
       const file = projectPath(project, rel);
@@ -1296,14 +1371,84 @@ export function createService(root: string, deps: Deps) {
       return failing(() => removeHtmlComment(projectDir(project), rel, id));
     },
 
+    diagramSettings: (project: string) => failing(() => readDiagramSettings(projectDir(project))),
+    saveDiagramSettings: (project: string, raw: unknown) => failing(() => writeDiagramSettings(projectDir(project), raw)),
+    renderDiagram: async (project: string, rel: string) => {
+      const target = diagramTarget(project, rel), settings = failing(() => readDiagramSettings(projectDir(project)));
+      if (diagramJobs >= 2) throw new ServiceError('Two diagrams are already rendering. Try again shortly.');
+      diagramJobs++;
+      try { return await failingAsync(() => renderDiagramSource(target.diagram, readFileSync(target.file, 'utf8'), settings, doFetch)); }
+      finally { diagramJobs--; }
+    },
+    diagramComments: (project: string, rel: string) => {
+      const target = diagramTarget(project, rel);
+      return failing(() => diagramComments(projectDir(project), target.path));
+    },
+    addDiagramComment: (project: string, rel: string, anchor: unknown, text: unknown, color?: unknown) => {
+      const target = diagramTarget(project, rel);
+      if (!isDiagramAnchor(anchor) || typeof text !== 'string') throw new ServiceError('Select a diagram region and write a comment.');
+      if (anchor.sourceHash !== diagramHash(readFileSync(target.file, 'utf8'))) throw new ServiceError(CHANGED_OUTSIDE);
+      if (color !== undefined && !isHtmlColor(color)) throw new ServiceError('Invalid comment color.');
+      return failing(() => addDiagramComment(projectDir(project), target.path, anchor, text, userInfo().username, color));
+    },
+    changeDiagramComment: (project: string, rel: string, change: unknown) => {
+      const target = diagramTarget(project, rel);
+      if (!isDiagramCommentChange(change)) throw new ServiceError('Invalid diagram comment.');
+      return failing(() => changeDiagramComment(projectDir(project), target.path, change, userInfo().username));
+    },
+    removeDiagramComment: (project: string, rel: string, id: unknown) => {
+      const target = diagramTarget(project, rel);
+      if (typeof id !== 'string' || !id || id.length > 100) throw new ServiceError('Invalid diagram comment.');
+      return failing(() => removeDiagramComment(projectDir(project), target.path, id));
+    },
+    diagramView: (project: string, rel: string) => {
+      const target = diagramTarget(project, rel);
+      return failing(() => readDiagramView(projectDir(project), target.path));
+    },
+    saveDiagramView: (project: string, rel: string, view: unknown) => {
+      const target = diagramTarget(project, rel);
+      if (!isDiagramViewState(view)) throw new ServiceError('Invalid diagram view.');
+      if (view.sourceHash !== diagramHash(readFileSync(target.file, 'utf8'))) throw new ServiceError(CHANGED_OUTSIDE);
+      return failing(() => saveDiagramView(projectDir(project), target.path, view));
+    },
+    exportDiagram: async (project: string, rel: string, format: unknown, data: unknown) => {
+      const target = diagramTarget(project, rel);
+      if (format !== 'svg' && format !== 'png') throw new ServiceError('Choose SVG or PNG.');
+      const bytes = failing(() => format === 'svg' ? verifySvgExport(data) : verifyPngExport(data));
+      if (!deps.saveFile) throw new ServiceError('Choosing a file is not available here.');
+      const destination = await deps.saveFile(basename(target.path, extname(target.path)), format, 'Export the diagram');
+      if (!destination) return { saved: false };
+      // Export is a copy. A native dialog choosing the source still cannot replace its text with image bytes.
+      const sourceStat = statSync(target.file), destinationStat = existsSync(destination) ? statSync(destination) : null;
+      const canonicalDestination = destinationStat ? realpathSync(destination) : resolve(destination);
+      const samePath = process.platform === 'win32' ? canonicalDestination.toLowerCase() === realpathSync(target.file).toLowerCase() : canonicalDestination === realpathSync(target.file);
+      if (samePath || destinationStat && destinationStat.dev === sourceStat.dev && destinationStat.ino === sourceStat.ino) throw new ServiceError('Choose a different file for the exported diagram.');
+      // Replace the selected entry atomically: a symlink swapped in while the dialog was open is never followed by a write.
+      const temporary = join(dirname(destination), `.moki-diagram-export-${randomBytes(12).toString('hex')}.tmp`);
+      failing(() => {
+        try { writeFileSync(temporary, bytes, { flag: 'wx' }); renameSync(temporary, destination); }
+        finally { if (existsSync(temporary)) rmSync(temporary); }
+      });
+      return { saved: true };
+    },
+    copyDiagramImage: (project: string, rel: string, data: unknown) => {
+      diagramTarget(project, rel);
+      failing(() => verifyPngExport(data));
+      if (!deps.copyImage) throw new ServiceError('Copying an image is not available here.');
+      failing(() => deps.copyImage!(data as string));
+      return true;
+    },
+
     convertOffice: async (project: string, rel: string) => {
       const file = projectPath(project, rel), extension = extname(file).toLowerCase();
       if (!['.doc', '.xls'].includes(extension) || !existsSync(file) || !statSync(file).isFile() || statSync(file).size > OFFICE_LIMIT) throw new ServiceError('Choose a legacy Word document or spreadsheet of up to 30 MB.');
-      const stem = rel.slice(0, -extension.length);
-      let target = `${stem}${extension}x`;
-      for (let n = 2; existsSync(projectPath(project, target)); n++) target = `${stem}-${n}${extension}x`;
-      await convertLegacy(file, projectPath(project, target), deps.convertOffice);
-      return target;
+      const target = `${rel.slice(0, -extension.length)}${extension}x`;
+      const destination = projectPath(project, target);
+      // A second open uses the copy already made. The original file is never replaced.
+      if (existsSync(destination)) return { path: target, created: false };
+      try { await convertLegacy(file, destination, deps.convertOffice); }
+      catch (error) { if (existsSync(destination)) return { path: target, created: false }; throw error; }
+      return { path: target, created: true };
     },
 
     // Native Office changes are version checked and written atomically; no other package part is rebuilt.
@@ -1315,7 +1460,7 @@ export function createService(root: string, deps: Deps) {
       const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
       if (hash(before) !== version) throw new ServiceError(CHANGED_OUTSIDE);
       const input = raw as Record<string, unknown>;
-      const change = { ...input, ...(input.op === 'comment' ? { author: userInfo().username } : {}) } as WordChange | SheetChange;
+      const change = { ...input, ...(input.op === 'comment' || input.op === 'reply' ? { author: userInfo().username } : {}) } as WordChange | SheetChange;
       const result = failing(() => extension === '.docx' ? changeWord(before, change as WordChange) : changeSheet(before, change as SheetChange));
       if (hash(readFileSync(file)) !== version) throw new ServiceError(CHANGED_OUTSIDE);
       const temporary = join(dirname(file), '.moki-office-' + randomBytes(8).toString('hex') + '.tmp');
@@ -1348,6 +1493,23 @@ export function createService(root: string, deps: Deps) {
       return failing(() => saveTemplate(raw, root));
     },
     removeTemplate: (id: unknown) => { failing(() => removeTemplate(String(id ?? ''), root)); return true; },
+    // A base file the AI follows in structure and formatting. Old .doc/.xls files become .docx/.xlsx first.
+    uploadTemplateModel: async (raw: unknown, fileName: unknown, data: unknown) => {
+      const name = String(fileName ?? '').split(/[\\/]/).pop() ?? '';
+      const bytes = data instanceof Uint8Array ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (!bytes || !bytes.length) throw new ServiceError('The file is empty.');
+      if (bytes.length > OFFICE_LIMIT) throw new ServiceError('The file is larger than 30 MB.');
+      const legacy = /\.(doc|xls)$/i.exec(name);
+      if (!legacy) return failing(() => saveTemplateModel(raw, name, Buffer.from(bytes), root));
+      const tmp = mkdtempSync(join(tmpdir(), 'moki-template-'));
+      try {
+        const input = join(tmp, `model.${legacy[1].toLowerCase()}`), output = `${input}x`;
+        writeFileSync(input, bytes);
+        await convertLegacy(input, output, deps.convertOffice);
+        return failing(() => saveTemplateModel(raw, `${name}x`, readFileSync(output), root));
+      } finally { rmSync(tmp, { recursive: true, force: true }); }
+    },
+    openTemplateModel: (id: unknown) => { deps.openPath(failing(() => templateModelPath(String(id ?? ''), root))); return true; },
     // The template a project uses when more than one applies (null: the automatic choice).
     setProjectTemplate: (project: string, id: unknown) => {
       projectDir(project);
@@ -1506,34 +1668,7 @@ export function createService(root: string, deps: Deps) {
       });
       return { operation: { ...op, check }, steps, mcpsByTool: mcpsByTool(project), inbox: inboxFiles(projectDir(project)).map((f) => f.name) };
     },
-    startOperation: (project: string, id: unknown, raw: unknown) => {
-      const op = knownOperation(id);
-      const agents = operationAgents();
-      const check = checkOperation(op, agents);
-      if (check.errors.length) throw new ServiceError(`This operation cannot start: ${check.errors.map(formatMessage).join(' ')}`);
-      if (!check.order.length) throw new ServiceError('This operation has no steps.');
-      const r = (raw ?? {}) as { tools?: unknown; answers?: unknown; context?: unknown };
-      const installed = toolsNow();
-      const tools: Record<string, string> = {};
-      for (const sid of check.order) {
-        const tool = String((r.tools as Record<string, unknown> | undefined)?.[sid] ?? '');
-        if (!(AGENT_AIS as readonly string[]).includes(tool)) throw new ServiceError('Choose an AI tool for every step.');
-        if (!installed[tool as ToolKey]) throw new ServiceError(`${TOOLS[tool as ToolKey].label} is not installed on this computer.`);
-        tools[sid] = tool;
-      }
-      const inbox = new Set(inboxFiles(projectDir(project)).map((f) => `inbox/${f.name}`));
-      const wanted = new Set(check.initialInputs.map((i) => `${i.step}:${i.input}`));
-      const answers: RunRequest['answers'] = (Array.isArray(r.answers) ? r.answers : []).map((a) => {
-        const x = (a ?? {}) as { step?: unknown; input?: unknown; text?: unknown; files?: unknown };
-        const files = Array.isArray(x.files) ? x.files.map(String) : [];
-        const stray = files.filter((f) => !inbox.has(f));
-        if (stray.length) throw new ServiceError(`Not in the project inbox: ${stray.join(', ')}`);
-        return { step: String(x.step ?? ''), input: String(x.input ?? ''), text: cleanPrompt(String(x.text ?? '')).slice(0, 20_000), files };
-      }).filter((a) => wanted.has(`${a.step}:${a.input}`));
-      const context = cleanPrompt(String(r.context ?? '')).slice(0, 20_000);
-      const withFiles = agents.map((a) => ({ ...a, file: agentFile(a), servers: serversForAgent(project, a.mcps, root).servers }));
-      return failing(() => createOperationRun(projectDir(project), project, op, withFiles, check.order, { tools, answers, context }));
-    },
+    startOperation: (project: string, id: unknown, raw: unknown) => beginOperation(project, id, raw),
     operationRuns: (project: string) => listRuns(project, root).filter(isOperationRun).map((run) => run),
     // The files one step delivered (outputs/<slot>), for the run screen to show them in place.
     operationOutputs: (project: string, runId: unknown, slot: unknown) => {
@@ -2652,6 +2787,64 @@ export function createService(root: string, deps: Deps) {
       return { prepared: true, prompt: prepared.prompt };
     },
 
+    // ---------------------------------------------------------- routines
+
+    listRoutines: () => listProjects(root).flatMap((id) => listRoutineFiles(root, id).filter((r) => !r.archived).map((r) => ({ ...r, projectName: projectSummary(id, root).name }))),
+    routineActivity: () => {
+      const rows = listProjects(root).flatMap((project) => listRoutineFiles(root, project).map((routine) => {
+        syncExecutions(root, project, routine.id, routineHooks());
+        const labels = { routineName: routine.name, projectName: projectSummary(project, root).name };
+        return {
+          executions: listExecutions(root, project, routine.id).map((e) => ({ ...e, ...labels })),
+          proposals: listProposals(root, project, routine.id).map((p) => ({ ...p, ...labels })),
+        };
+      }));
+      return { executions: rows.flatMap((r) => r.executions).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), proposals: rows.flatMap((r) => r.proposals).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
+    },
+    routine: (project: unknown, id: unknown) => {
+      projectDir(project);
+      const routine = failing(() => readRoutine(root, String(project), String(id ?? '')));
+      syncExecutions(root, String(project), routine.id, routineHooks());
+      return { routine, executions: listExecutions(root, String(project), routine.id), proposals: listProposals(root, String(project), routine.id) };
+    },
+    saveRoutine: (project: unknown, raw: unknown) => {
+      projectDir(project);
+      return failing(() => saveRoutineOf(root, String(project), raw, operationAgents()));
+    },
+    setRoutineEnabled: (project: unknown, id: unknown, enabled: unknown) => {
+      projectDir(project);
+      return failing(() => setEnabled(root, String(project), String(id ?? ''), enabled === true));
+    },
+    duplicateRoutine: (project: unknown, id: unknown) => {
+      projectDir(project);
+      return failing(() => duplicateRoutine(root, String(project), String(id ?? ''), operationAgents()));
+    },
+    archiveRoutine: (project: unknown, id: unknown) => {
+      projectDir(project);
+      return failing(() => archiveRoutine(root, String(project), String(id ?? '')));
+    },
+    deleteRoutine: (project: unknown, id: unknown) => {
+      projectDir(project);
+      failing(() => deleteRoutine(root, String(project), String(id ?? '')));
+      return true;
+    },
+    runRoutine: (project: unknown, id: unknown) => {
+      projectDir(project);
+      return runRoutine(root, String(project), String(id ?? ''), 'manual', routineHooks());
+    },
+    tickRoutines: () => tick(root, routineHooks()),
+    decideProposal: (project: unknown, routineId: unknown, proposalId: unknown, result: unknown) => {
+      projectDir(project);
+      const decision = result === 'approved' || result === 'rejected' || result === 'deferred' ? result : '';
+      if (!decision) throw new ServiceError('Choose approve, reject or defer.');
+      return failing(() => decideProposal(root, String(project), String(routineId ?? ''), String(proposalId ?? ''), decision));
+    },
+    routineSettings: () => settingsOf(root),
+    saveRoutineSettings: (raw: unknown) => saveRoutineSettings(root, raw),
+    notifications: () => notesOf(root),
+    systemNotifications: () => systemNotesOf(root),
+    readNotifications: (ids: unknown) => readNotes(root, ids === 'all' ? 'all' : Array.isArray(ids) ? ids.map(String) : []),
+
     launch: (req: LaunchRequest) => {
       const { project, dir, files, run, shared, prompt, tool } = prepareLaunch(req);
       const t = TOOLS[tool];
@@ -2667,7 +2860,61 @@ export function createService(root: string, deps: Deps) {
       const sent = t.clipboard ? prompt : windowsSafePrompt(prompt, project, root);
       return { ...deps.launch(tool, sent, root, projectSummary(project, root).plugins, mcpLaunch(tool, project)), prompt };
     },
+
+    // The Configurador (desktop/configurator.ts): what the workspace has now, for the AI to reuse names and ids.
+    configSnapshot: (project: unknown): ConfigSnapshot => {
+      const id = typeof project === 'string' && project ? project : '';
+      const info = id ? projectSummary(id, root) : null;
+      return {
+        project: info ? { id, name: info.name, description: info.description ?? '', tags: info.tags ?? [] } : null,
+        projects: listProjects(root).map((p) => ({ id: p, name: projectSummary(p, root).name })),
+        agents: listAgents(root).map((a) => ({ name: a.name, description: a.description.slice(0, 160) })),
+        skills: listSkills(root).map((s) => s.name),
+        activities: listActivities(root, id || undefined).map((a) => ({ id: a.id, label: a.label })),
+        operations: listOperations(root).map((o) => ({ id: o.id, name: o.name })),
+        routines: id ? listRoutineFiles(root, id).filter((r) => !r.archived).map((r) => ({ id: r.id, name: r.name })) : [],
+        mcp: (id ? enabledServers(id, root) : listServers(root)).filter((s) => s.id !== MOKI_SERVER).map((s) => ({ id: s.id, name: s.name, access: s.access, tools: [] })),
+        templates: listTemplates(root).map((t) => ({ id: t.id, name: t.name, baseFile: Boolean(t.model) })),
+        tags: listTags(root).map((t) => ({ id: t.id, name: t.name })),
+      };
+    },
+    // Applies the steps the person kept checked, one by one, through the same calls the Settings screens use.
+    // A step that fails does not stop the others; each result says what happened.
+    configApply: async (project: unknown, raw: unknown): Promise<{ title: string; ok: boolean; message: string }[]> => {
+      const id = typeof project === 'string' && project ? project : '';
+      if (id) projectDir(id);
+      const steps = readConfigPlan(JSON.stringify({ steps: Array.isArray(raw) ? raw : [] }), Boolean(id)).steps;
+      const out: { title: string; ok: boolean; message: string }[] = [];
+      for (const step of steps) {
+        const d = step.data;
+        try {
+          if (step.kind === 'routine') { const r = service.saveRoutine(id, d); out.push({ title: step.title, ok: true, message: r.routine.name }); }
+          else if (step.kind === 'activity') { const a = service.saveActivity(d); out.push({ title: step.title, ok: true, message: a.label }); }
+          else if (step.kind === 'agent') {
+            const made = service.createScopeAgent(id, { name: String(d.name ?? ''), description: String(d.description ?? ''), skills: Array.isArray(d.skills) ? d.skills.map(String) : [], scope: d.scope === 'global' ? 'global' : 'project' } as ScopeAgentRequest);
+            out.push({ title: step.title, ok: true, message: made.name });
+          } else if (step.kind === 'template') {
+            const style = (d.style && typeof d.style === 'object' ? d.style : {}) as Record<string, unknown>;
+            const t = service.saveTemplate({ name: d.name, tags: d.tags, style });
+            out.push({ title: step.title, ok: true, message: t.name });
+          } else if (step.kind === 'mcp') {
+            const { env: _env, headers: _headers, ...safe } = d; // secrets are added by the person, never by the AI
+            const s = service.saveMcpServer({ ...safe, id: undefined });
+            out.push({ title: step.title, ok: true, message: s.name });
+          } else if (step.kind === 'tag') { const t = service.saveTag({ name: d.name, description: d.description }); out.push({ title: step.title, ok: true, message: t.name }); }
+          else if (step.kind === 'project') {
+            if (typeof d.description === 'string') service.setProjectDescription(id, d.description);
+            if (Array.isArray(d.tags)) service.setProjectTags(id, d.tags.map(String));
+            out.push({ title: step.title, ok: true, message: projectSummary(id, root).name });
+          }
+        } catch (e) {
+          out.push({ title: step.title, ok: false, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return out;
+    },
   };
+  return service;
 }
 
 export type Service = ReturnType<typeof createService>;

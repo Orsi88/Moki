@@ -173,6 +173,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   // Saves run one after another, from the latest values (refs), so a new note is created only once.
   const latest = useRef({ text, title, saved, savedTitle, dirty, loaded, curPath, curLoose });
   latest.current = { ...latest.current, text, title, saved, savedTitle, dirty, loaded };
+  const moving = useRef(false); // a send is in flight: do not write the loose copy back
   const queue = useRef<Promise<NoteRef | null>>(Promise.resolve(null));
   // A note without a title is named after its first line.
   const nameOf = (body: string, head: string) => head.trim()
@@ -190,7 +191,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
     flushEdits();
     const run = queue.current.catch(() => null).then(async (): Promise<NoteRef | null> => {
       const now = latest.current;
-      if (!now.loaded || !now.dirty) return null;
+      if (moving.current || !now.loaded || !now.dirty) return null;
       let done: NoteRef;
       if (project == null) {
         if (!now.text.trim() && !now.title.trim()) return null;
@@ -289,21 +290,34 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
 
   // A loose note sent to a project: it becomes a note of that project and leaves the loose notes.
   const send = () => {
-    if (!destination) return;
+    if (!destination || moving.current) return;
     flushEdits();
-    const body = latest.current.text;
+    moving.current = true;
+    const now = latest.current;
+    const looseId = now.curLoose;
+    now.dirty = false; // the project copy is the one that remains; a save still in flight must not put the loose note back
+    const body = now.text;
+    const head = nameOf(body, now.title);
     setSending(true); setError('');
-    api.createNote(destination, nameOf(body, title), body)
-      .then((savedPath) => {
-        if (favorite) setFavorite({ project: destination, path: savedPath }, true); // the star goes with the note
-        if (latest.current.curLoose) removeLooseNote(latest.current.curLoose);
-        latest.current.dirty = false; // nothing left to save as a loose note
-        touchNote(destination, savedPath, title);
-        window.qa?.notesChanged();
-        onSaved?.({ project: destination, path: savedPath }); // a notebook moves it to that project's notebook
-        if (!floating) onClose();
-      })
-      .catch((e: Error) => { setError(e.message); setSending(false); });
+    const run = queue.current.catch(() => null).then(() => api.createNote(destination, head, body));
+    queue.current = run.then(() => null);
+    run.then((savedPath) => {
+      if (favorite) setFavorite({ project: destination, path: savedPath }, true); // the star goes with the note
+      if (looseId) removeLooseNote(looseId);
+      now.curLoose = null;
+      now.saved = body;
+      now.savedTitle = now.title;
+      now.dirty = false;
+      touchNote(destination, savedPath, head);
+      window.qa?.notesChanged();
+      onSaved?.({ project: destination, path: savedPath }); // a notebook moves it to that project's notebook
+      if (!floating) onClose();
+    }).catch((e: Error) => {
+      moving.current = false;
+      now.dirty = body !== now.saved || now.title !== now.savedTitle;
+      setError(e.message);
+      setSending(false);
+    });
   };
 
   // ---------- editing: formatting, / commands and lists (useMarkdownEditing), plus an image and an @ mention ----------

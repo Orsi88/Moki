@@ -13,14 +13,14 @@ import { api } from '../api';
 import { t } from '../i18n';
 import { acceptsItem, droppedItem, ITEM_DRAG } from '../item-drag';
 import { terminalPaths } from '../terminal-links';
-import { pastedImages, pathsText } from '../terminal-drop';
+import { pastedImages, terminalInput } from '../terminal-drop';
 
-interface Props { id: string; project: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void; onDropItem?: (target: { kind: 'skill' | 'agent'; name: string }) => void }
+interface Props { id: string; project: string; tool?: string; active: boolean; onExit: (code: number) => void; resolveLink?: (href: string) => boolean; onLink?: (href: string) => void; onDropItem?: (target: { kind: 'skill' | 'agent'; name: string }) => void }
 
 const css = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const KEEP = 128 * 1024; // as much plain output as the main process keeps (desktop/terminals.ts), for a tab not shown yet
 
-export function TerminalView({ id, project, active, onExit, resolveLink, onLink, onDropItem }: Props) {
+export function TerminalView({ id, project, tool, active, onExit, resolveLink, onLink, onDropItem }: Props) {
   const [over, setOver] = useState(false); // a skill or agent of the panel is above this terminal
   const links = useRef({ resolveLink, onLink });
   links.current = { resolveLink, onLink };
@@ -31,6 +31,8 @@ export function TerminalView({ id, project, active, onExit, resolveLink, onLink,
   exitRef.current = onExit;
   const activeRef = useRef(active);
   activeRef.current = active;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
 
   useEffect(() => {
     const bridge = api.term();
@@ -95,7 +97,7 @@ export function TerminalView({ id, project, active, onExit, resolveLink, onLink,
       listeners.push(made.onData((data) => bridge.input(id, data)), made.onResize(({ cols, rows }) => bridge.resize(id, cols, rows)));
       // Images and files for the AI: a pasted screenshot is saved in the project's temporary/pasted/, and dropped
       // files (from the computer or the project tree) are given by their path, typed into the prompt (terminal-drop.ts).
-      const give = (paths: string[]) => { if (paths.length) bridge.input(id, pathsText(paths)); made.focus(); };
+      const give = (paths: string[]) => { if (paths.length) bridge.input(id, terminalInput(paths, toolRef.current)); made.focus(); };
       const fail = (e: Error) => write(`\r\n\x1b[31m${e.message}\x1b[0m\r\n`);
       const onPaste = (e: ClipboardEvent) => {
         const files = e.clipboardData?.files;

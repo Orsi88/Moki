@@ -13,7 +13,7 @@ export const SWATCH: Record<CommentColor, string> = { yellow: '#f5d90a', green: 
 export const isCommentColor = (value: unknown): value is CommentColor => typeof value === 'string' && COLORS.some((color) => color === value);
 
 export interface MdReply { author: string; at: string; text: string }
-export interface MdComment extends MdReply { id: string; replies: MdReply[]; color?: CommentColor }
+export interface MdComment extends MdReply { id: string; replies: MdReply[]; color?: CommentColor; resolved?: boolean }
 
 // No leading \n*: unanchored it is tried at every newline of a long run of blank lines (quadratic); the blank lines
 // before the block are walked back below instead.

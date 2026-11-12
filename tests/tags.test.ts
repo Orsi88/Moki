@@ -7,7 +7,7 @@ import { ROOT } from '../scripts/lib/repo.mjs';
 import { createProject, saveTag, setProjectTags } from '../scripts/lib/core.ts';
 import { NOWHERE, appliesTo, cleanTags, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
-import { listTemplates, removeTemplate, saveTemplate, setProjectTemplate, styleFor, templateFor } from '../scripts/lib/doc-style.mjs';
+import { listTemplates, removeTemplate, saveTemplate, saveTemplateModel, setProjectTemplate, styleFor, templateFor, templateModelPath } from '../scripts/lib/doc-style.mjs';
 
 // Fixture: three projects; beta and gamma share the "cliente-x" tag; acme had its own document style
 // and only two agents enabled (project.json "agents"), as before tags existed.
@@ -92,6 +92,32 @@ test('templates: the old styles become a list; each project uses its default, el
   assert.throws(() => removeTemplate('default', root), /at least one/);
   assert.throws(() => saveTemplate({ name: '  ' }, root), /name/);
   assert.ok(existsSync(join(root, 'workspace', 'document-style.json')), 'the old file stays, unread');
+});
+
+test('a base file: kept next to its template, never the look, replaced in place and removed with it', () => {
+  const model = saveTemplateModel({ tags: ['cliente-x'], guidance: 'Keep the summary table.' }, 'Evidência padrão.docx', Buffer.from('fake docx'), root);
+  assert.equal(model.name, 'Evidência padrão');
+  assert.equal(model.model?.format, 'docx');
+  assert.equal(readFileSync(templateModelPath(model.id, root), 'utf8'), 'fake docx');
+  const listed = listTemplates(root).find((x) => x.id === model.id);
+  assert.equal(listed?.guidance, 'Keep the summary table.');
+  assert.deepEqual(listed?.tags, ['cliente-x']);
+  // Not a look: the automatic choice and the project default skip it.
+  assert.notEqual(templateFor('beta', root)?.id, model.id);
+  assert.throws(() => setProjectTemplate('beta', model.id, root), /not a look/);
+  // Editing the name and guidance keeps the file; replacing it with another format drops the old file.
+  saveTemplate({ ...listed, name: 'Evidence', guidance: 'One row per case.' }, root);
+  const old = templateModelPath(model.id, root);
+  const replaced = saveTemplateModel({ id: model.id }, 'spec.pdf', Buffer.from('%PDF'), root);
+  assert.equal(replaced.name, 'Evidence');
+  assert.equal(replaced.guidance, 'One row per case.');
+  assert.equal(replaced.model?.format, 'pdf');
+  assert.ok(!existsSync(old));
+  assert.throws(() => saveTemplateModel({}, 'notes.txt', Buffer.from('x'), root), /docx/);
+  assert.throws(() => saveTemplateModel({}, 'empty.md', Buffer.alloc(0), root), /empty/);
+  const file = templateModelPath(model.id, root);
+  removeTemplate(model.id, root);
+  assert.ok(!existsSync(file));
 });
 
 test('seen from one project: how an item reaches it, and turning it on or off there through the project\'s own tag', () => {

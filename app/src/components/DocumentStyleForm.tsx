@@ -4,6 +4,8 @@
 // (with a logo and page numbers) and a watermark. Each template has tags saying which
 // projects it applies to (none = every project); a project with more than one uses the one
 // chosen as its default. A live page preview shows the result.
+// A template can also be a base file (.docx, .xlsx, .md, .pdf; .doc and .xls converted): the AI follows
+// its structure and formatting, like an example attached in a chat (skills/document-design/references/templates.md).
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, DOCUMENT_FONTS, type DocumentStyle, type DocumentTemplate } from '../api';
@@ -13,7 +15,10 @@ import { TagField, TagFilter, matchesTag, useTagCatalog } from './TagField';
 import { ListBack, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
 import { StarButton, useFavorites } from './Favorites';
 
-interface Draft { id: string; name: string; tags: string[]; style: DocumentStyle }
+interface Draft { id: string; name: string; tags: string[]; style: DocumentStyle; guidance: string }
+const MODEL_ACCEPT = '.docx,.xlsx,.md,.pdf,.doc,.xls';
+const sizeLabel = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+const FormatBadge = ({ format }: { format: string }) => <span className={`ds-format ds-format-${format}`}>{format.toUpperCase()}</span>;
 
 const DEFAULT: DocumentStyle = {
   font: { family: 'Calibri', size: 10.5, color: '#1A1A1A' },
@@ -68,21 +73,21 @@ export function DocumentStyleForm() {
   const [info, setInfo] = useState('');
 
   const open = (tp: DocumentTemplate | Draft) => {
-    const d: Draft = { id: tp.id, name: tp.name, tags: tp.tags, style: tp.style };
+    const d: Draft = { id: tp.id, name: tp.name, tags: tp.tags, style: tp.style, guidance: 'guidance' in tp ? tp.guidance : '' };
     setDraft(d); setSaved(JSON.stringify(d)); setError(''); setInfo(''); setDefaultFor('');
   };
-  const load = (select?: string) => {
+  const load = (select?: string) =>
     api.templates().then((list) => {
       setTemplates(list);
       const pick = list.find((x) => x.id === select);
       if (pick) open(pick); else setDraft(null); // no template chosen: the list
     }).catch((e: Error) => setError(e.message));
-  };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const style = draft?.style ?? DEFAULT;
   const dirty = Boolean(draft) && JSON.stringify(draft) !== saved;
   const logoRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLInputElement>(null);
   const set = <K extends keyof DocumentStyle>(key: K, value: DocumentStyle[K]) => { setDraft((d) => (d ? { ...d, style: { ...d.style, [key]: value } } : d)); setInfo(''); };
   const patch = <K extends 'font' | 'table' | 'header' | 'footer' | 'watermark'>(key: K, value: Partial<DocumentStyle[K]>) => set(key, { ...style[key], ...value });
   const current = templates.find((x) => x.id === draft?.id);
@@ -94,8 +99,18 @@ export function DocumentStyleForm() {
     setBusy(true); setError(''); setInfo('');
     try { await fn(); if (done) setInfo(done); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
-  const save = () => draft && act(async () => { const r = await api.saveTemplate(draft); load(r.id); }, t('Saved. New files of the projects it applies to use it.'));
-  const add = () => { const general = templates.find((x) => !x.tags.length); setDraft({ id: '', name: t('New template'), tags: [], style: general?.style ?? DEFAULT }); setSaved(''); setInfo(''); };
+  const save = () => draft && act(async () => { const r = await api.saveTemplate(draft); await load(r.id); }, t('Saved. New files of the projects it applies to use it.'));
+  const add = () => { const general = templates.find((x) => !x.model && !x.tags.length); setDraft({ id: '', name: t('New template'), tags: [], style: general?.style ?? DEFAULT, guidance: '' }); setSaved(''); setInfo(''); };
+  // Uploads a new base file, or replaces the file of the one open (its name, tags and guidance stay).
+  const upload = (file: File | undefined) => {
+    if (!file) return;
+    const replacing = current?.model ? current : undefined;
+    void act(async () => {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const r = await api.uploadTemplateModel(replacing ? { id: replacing.id } : {}, file.name, data);
+      await load(r.id);
+    }, replacing ? t('File replaced. The AI follows the new one from now on.') : t('Base file added. Give it the tags of the projects that use it.'));
+  };
   const duplicate = () => { if (draft) { setDraft({ ...draft, id: '', name: t('{name} (copy)', { name: draft.name }) }); setSaved(''); setInfo(''); } };
   const remove = async () => {
     if (!current || !await confirmDialog(t('Delete the template {name}? The projects that use it go back to the automatic choice.', { name: current.name }), { danger: true })) return;
@@ -135,13 +150,18 @@ export function DocumentStyleForm() {
     </section>
   );
 
+  const visuals = templates.filter((x) => !x.model).length;
   const where = (x: DocumentTemplate) => (x.tags.length ? x.appliesTo.map(projectName).join(', ') || t('No project yet') : t('Every project'));
 
   if (!draft) {
     return (
       <div className="list-page">
-        <ListHead title={t('Templates')} intro={t('How the PDF, Word and Excel files that your activities and agents generate look. Every AI tool gets the same result.')}
-          action={<button type="button" className="btn" onClick={add}>{t('New template')}</button>} />
+        <ListHead title={t('Templates')} intro={t('How the PDF, Word and Excel files that your activities and agents generate look, and the base files the AI follows as a model. Every AI tool gets the same result.')}
+          action={<div className="row-actions">
+            <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => modelRef.current?.click()}>{busy ? t('Uploading…') : t('Upload a base file')}</button>
+            <button type="button" className="btn" onClick={add}>{t('New template')}</button>
+            <input ref={modelRef} type="file" accept={MODEL_ACCEPT} hidden aria-label={t('Upload a base file')} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
+          </div>} />
         <ListTabs label={t('Templates')} value={kind} onChange={setKind} tabs={[
           { id: 'all', label: t('All'), count: templates.length },
           { id: 'every', label: t('For every project'), count: templates.filter((x) => ofKind(x, 'every')).length },
@@ -151,11 +171,13 @@ export function DocumentStyleForm() {
           <TagFilter catalog={catalog} value={filter} onChange={setFilter} />
         </ListTools>
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
+        {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
         <ul className="list-cards">
           {fav.first(visible, (x) => x.id).map((x) => (
             <li key={x.id} className="fav-item">
               <button type="button" className="ds-card-item" onClick={() => open(x)} aria-label={x.name}>
-                <span className="ds-thumb" aria-hidden="true"><span className="ds-thumb-page"><Page style={x.style} project={x.usedBy[0] ? projectName(x.usedBy[0]) : t('Project name')} /></span></span>
+                {x.model ? <span className="ds-thumb ds-thumb-model" aria-hidden="true"><FormatBadge format={x.model.format} /><span className="small">{x.model.name}</span></span>
+                  : <span className="ds-thumb" aria-hidden="true"><span className="ds-thumb-page"><Page style={x.style} project={x.usedBy[0] ? projectName(x.usedBy[0]) : t('Project name')} /></span></span>}
                 <span className="ds-card-body">
                   <span className="ds-template-name">{x.name}</span>
                   <span className="chips">
@@ -163,7 +185,8 @@ export function DocumentStyleForm() {
                     {x.tags.length > 0 && !x.appliesTo.length && <span className="chip">{t('No project yet')}</span>}
                   </span>
                   {x.defaultOf.length > 0 && <span className="muted small">{t('Default in: {projects}', { projects: x.defaultOf.map(projectName).join(', ') })}</span>}
-                  <span className="muted small">{x.style.font.family} · {x.style.font.size} pt{x.style.header.logo ? ` · ${t('logo')}` : ''}{x.style.watermark.text ? ` · ${x.style.watermark.text}` : ''}</span>
+                  {x.model ? <span className="muted small">{t('Base file: the AI follows its structure and formatting')}</span>
+                    : <span className="muted small">{x.style.font.family} · {x.style.font.size} pt{x.style.header.logo ? ` · ${t('logo')}` : ''}{x.style.watermark.text ? ` · ${x.style.watermark.text}` : ''}</span>}
                 </span>
               </button>
               <StarButton on={fav.has(x.id)} name={x.name} onToggle={() => fav.toggle(x.id)} />
@@ -175,10 +198,48 @@ export function DocumentStyleForm() {
     );
   }
 
+  if (current?.model) {
+    const model = current.model;
+    return (
+      <div className="ds-editor">
+        <ListBack label={t('Templates')} onBack={back}>
+          <h1 className="list-back-title">{draft.name || current.name}</h1>
+          <span className="muted small">{where(current)}</span>
+        </ListBack>
+        <div className="ds ds-model">
+          <div className="ds-form">
+            <p className="muted">{t('The AI uses this file as the base for new documents, like a model attached in a chat: the same structure (sections, order, tables, columns, fields) and the same formatting, with the new content. It never copies the example data as facts.')}</p>
+            <div className="ds-model-file">
+              <FormatBadge format={model.format} />
+              <span className="ds-model-name"><strong>{model.name}</strong><span className="muted small">{sizeLabel(model.size)}{model.format === 'pdf' ? ` · ${t('A PDF is a reference: the AI reproduces it in the format you ask for.')}` : ''}</span></span>
+              <button type="button" className="btn btn-ghost" onClick={() => { void act(() => api.openTemplateModel(current.id)); }}>{t('Open')}</button>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => modelRef.current?.click()}>{t('Replace file')}</button>
+              <input ref={modelRef} type="file" accept={MODEL_ACCEPT} hidden aria-label={t('Replace file')} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
+            </div>
+            <label className="field"><span className="label">{t('Name')}</span>
+              <input value={draft.name} maxLength={80} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            </label>
+            <TagField value={draft.tags} onChange={(tags) => setDraft({ ...draft, tags })} catalog={catalog} onCatalog={reloadCatalog} />
+            <label className="field"><span className="label">{t('What the AI should follow (optional)')}</span>
+              <textarea rows={4} maxLength={2000} value={draft.guidance} onChange={(e) => setDraft({ ...draft, guidance: e.target.value })} placeholder={t('For example: use it for test evidence; keep the cover, the summary table and the tabs; fill one row per test case.')} />
+            </label>
+            {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
+            <div className="form-actions ds-actions">
+              {info && <span className="small ds-info" role="status">{info}</span>}
+              <span className="statusbar-spacer" />
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={remove}>{t('Delete')}</button>
+              <button type="button" className="btn" disabled={busy || !dirty || !draft.name.trim()} onClick={() => { void save(); }}>{busy ? t('Saving…') : t('Save')}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ds-editor">
       <ListBack label={t('Templates')} onBack={back}>
-        <span className="list-back-title">{draft.name || t('New template')}</span>
+        <h1 className="list-back-title">{draft.name || t('New template')}</h1>
         <span className="muted small">{current ? where(current) : t('Not saved yet')}</span>
       </ListBack>
     <div className="ds">
@@ -269,7 +330,7 @@ export function DocumentStyleForm() {
           <span className="statusbar-spacer" />
           <button type="button" className="btn btn-ghost" onClick={reset}>{t('Back to the default look')}</button>
           {current && <button type="button" className="btn btn-ghost" onClick={duplicate}>{t('Duplicate')}</button>}
-          {current && templates.length > 1 && <button type="button" className="btn btn-ghost" disabled={busy} onClick={remove}>{t('Delete')}</button>}
+          {current && visuals > 1 && <button type="button" className="btn btn-ghost" disabled={busy} onClick={remove}>{t('Delete')}</button>}
           <button type="button" className="btn" disabled={busy || !dirty || !draft.name.trim()} onClick={() => { void save(); }}>{busy ? t('Saving…') : t('Save')}</button>
         </div>
       </div>

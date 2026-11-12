@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 import { unzip, zip } from './zip.mjs';
 import { appendXmlChild, attribute as attr, child, descendants, localName, nodeText, parseXml, patchXml, setXmlAttribute, xmlEscape as esc, type XmlNode, type XmlPatch } from './office-xml.ts';
 
+import { applyOfficeNote, isOfficeColor, officeNotes, saveOfficeNote } from './office-notes.ts';
 import type { OfficeComment, WordDocument, WordChange } from './office-types.ts';
 export type { OfficeComment, WordDocument, WordChange } from './office-types.ts';
 type Package = Map<string, Buffer>;
@@ -22,6 +23,19 @@ const REL = 'word/_rels/document.xml.rels';
 const COMMENTS = 'word/comments.xml';
 const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const RELNS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
+function commentRange(xml: string, paragraph: XmlNode, id: string): OfficeComment['range'] {
+  let offset = 0, start: number | undefined, end: number | undefined;
+  const visit = (node: XmlNode) => {
+    const name = localName(node.name);
+    if (name === 'commentRangeStart' && attr(node, 'id') === id) start = offset;
+    else if (name === 'commentRangeEnd' && attr(node, 'id') === id) end = offset;
+    else if (['t', 'tab', 'br', 'cr'].includes(name)) offset += textValue(xml, node).length;
+    else node.children.forEach(visit);
+  };
+  visit(paragraph);
+  return start !== undefined && end !== undefined && end > start ? { start, end } : undefined;
+}
 
 function runStyle(properties: XmlNode | undefined): Style {
   const style: Style = {};
@@ -70,7 +84,8 @@ function model(files: Package) {
   const comments = descendants(parseXml(commentsXml), 'comment').map((comment): OfficeComment => {
     const id = attr(comment, 'id');
     const paragraph = paragraphs.find((p) => [...descendants(p, 'commentRangeStart'), ...descendants(p, 'commentReference')].some((n) => attr(n, 'id') === id));
-    return { id, author: attr(comment, 'author'), date: attr(comment, 'date'), text: textOf(commentsXml, comment), anchor: paragraph ? ids.get(paragraph) ?? '' : '' };
+    const range = paragraph && commentRange(xml, paragraph, id);
+    return { id, author: attr(comment, 'author'), date: attr(comment, 'date'), text: textOf(commentsXml, comment), anchor: paragraph ? ids.get(paragraph) ?? '' : '', ...(range ? { range } : {}) };
   });
   return { xml, tree, body, paragraphs, ids, comments, commentsPath, defaultRun, defaultStyle, styleOf, relationships };
 }
@@ -128,7 +143,8 @@ export function wordDocument(buffer: Buffer): WordDocument {
     }
     return node.children.map((n) => render(n, inherited)).join('');
   };
-  return { readOnly: isReadOnly(files), html: doc.body.children.map((n) => render(n)).join(''), comments: doc.comments,
+  const notes = officeNotes(files);
+  return { readOnly: isReadOnly(files), html: doc.body.children.map((n) => render(n)).join(''), comments: doc.comments.map((comment) => applyOfficeNote(comment, notes[comment.id])),
     paragraphs: doc.paragraphs.map((p, i) => ({ id: String(i), text: textOf(doc.xml, p), editable: !descendants(p, 'p').length && !descendants(p, 'fldChar').length && !descendants(p, 'fldSimple').length && !descendants(p, 'ins').length && !descendants(p, 'del').length })) };
 }
 
@@ -159,6 +175,80 @@ function replaceParagraph(xml: string, paragraph: XmlNode, text: string): string
   return patchXml(xml, patches);
 }
 
+const MARKS = new Set(['b', 'i', 'u']);
+
+// Word anchors sit between runs. Split only the two boundary runs, copying their properties,
+// so a selection across bold/italic text becomes a native range without flattening its formatting.
+function markCommentRange(xml: string, paragraph: XmlNode, range: { start: number; end: number }, id: string): string {
+  const source = textOf(xml, paragraph), length = source.length;
+  if (!range || !Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start < 0 || range.end <= range.start || range.end > length) throw new Error('Select some text to comment on.');
+  if ([range.start, range.end].some((at) => /[\uD800-\uDBFF]/.test(source[at - 1] ?? '') && /[\uDC00-\uDFFF]/.test(source[at] ?? ''))) throw new Error('Select some text to comment on.');
+  if (['p', 'fldChar', 'fldSimple', 'ins', 'del'].some((name) => descendants(paragraph, name).length)) throw new Error('This paragraph must be edited in a Word processor.');
+  const markers = [
+    { at: range.start, text: `<w:commentRangeStart w:id="${id}"/>`, start: true },
+    { at: range.end, text: `<w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r>`, start: false },
+  ];
+  let offset = 0, added = 0;
+  const patches: XmlPatch[] = [];
+  for (const run of descendants(paragraph, 'r')) {
+    const length = textOf(xml, run).length, base = offset;
+    offset += length;
+    const cuts = markers.filter((m) => m.start ? m.at >= base && m.at < offset : m.at > base && m.at <= offset);
+    if (!cuts.length) continue;
+    const props = child(run, 'rPr');
+    const properties = props ? xml.slice(props.start, props.end) : '';
+    const children = run.children.filter((n) => n !== props);
+    if (children.some((n) => !['t', 'tab', 'br', 'cr'].includes(localName(n.name)) && textNodes(n).length)) throw new Error('This paragraph must be edited in a Word processor.');
+    const segment = (from: number, to: number) => {
+      if (from === to) return '';
+      let at = 0;
+      const inner = children.map((node) => {
+        const name = localName(node.name), value = ['t', 'tab', 'br', 'cr'].includes(name) ? textValue(xml, node) : '';
+        const start = at; at += value.length;
+        if (!value.length) return start >= from && (start < to || to === length) ? xml.slice(node.start, node.end) : '';
+        if (at <= from || start >= to) return '';
+        if (from <= start && to >= at) return xml.slice(node.start, node.end);
+        const opening = setXmlAttribute(xml.slice(node.start, node.openEnd).replace(/\/>$/, '>'), 'xml:space', 'preserve');
+        return `${opening}${esc(value.slice(Math.max(0, from - start), to - start))}</${node.name}>`;
+      }).join('');
+      return inner ? `${xml.slice(run.start, run.openEnd)}${properties}${inner}</${run.name}>` : '';
+    };
+    let at = 0, replacement = '';
+    for (const cut of cuts) {
+      const position = cut.at - base;
+      replacement += segment(at, position) + cut.text; at = position; added++;
+    }
+    replacement += segment(at, length);
+    patches.push({ start: run.start, end: run.end, text: replacement });
+  }
+  if (added !== 2) throw new Error('Select some text to comment on.');
+  return patchXml(xml, patches);
+}
+const markOn = (run: XmlNode, mark: string) => {
+  const node = child(child(run, 'rPr'), mark);
+  return Boolean(node && enabled(node) && attr(node, 'val') !== 'none');
+};
+
+// Bold, italic or underline for the whole paragraph. A second click clears it from every run.
+function toggleMark(xml: string, paragraph: XmlNode, mark: 'b' | 'i' | 'u'): string {
+  const runs = descendants(paragraph, 'r');
+  const turnOff = runs.length > 0 && runs.every((run) => markOn(run, mark));
+  const patches: XmlPatch[] = [];
+  for (const run of runs) {
+    const props = child(run, 'rPr');
+    const node = props && child(props, mark);
+    if (turnOff) { if (node) patches.push({ start: node.start, end: node.end, text: '' }); continue; }
+    if (node && markOn(run, mark)) continue;
+    if (node) patches.push({ start: node.start, end: node.end, text: `<w:${mark}/>` });
+    else if (props && xml.slice(props.start, props.openEnd).endsWith('/>')) {
+      const opening = xml.slice(props.start, props.openEnd);
+      patches.push({ start: props.start, end: props.end, text: `${opening.slice(0, -2)}><w:${mark}/></${props.name}>` });
+    } else if (props) patches.push({ start: props.openEnd, end: props.openEnd, text: `<w:${mark}/>` });
+    else if (!xml.slice(run.start, run.openEnd).endsWith('/>')) patches.push({ start: run.openEnd, end: run.openEnd, text: `<w:rPr><w:${mark}/></w:rPr>` });
+  }
+  return patches.length ? patchXml(xml, patches) : xml;
+}
+
 export function changeWord(buffer: Buffer, change: WordChange): Buffer {
   const files = unzip(buffer, { maxFiles: 10_000, maxFileBytes: 60_000_000, maxTotalBytes: 120_000_000 }) as Package;
   const doc = model(files);
@@ -169,6 +259,17 @@ export function changeWord(buffer: Buffer, change: WordChange): Buffer {
     const paragraph = doc.paragraphs[Number(change.paragraph)];
     if (!paragraph || descendants(paragraph, 'p').length || descendants(paragraph, 'fldChar').length || descendants(paragraph, 'fldSimple').length || descendants(paragraph, 'ins').length || descendants(paragraph, 'del').length) throw new Error('This paragraph must be edited in a Word processor.');
     xml = replaceParagraph(xml, paragraph, change.text);
+  } else if (change.op === 'format') {
+    if (!/^\d+$/.test(change.paragraph) || !MARKS.has(change.mark)) throw new Error('Invalid paragraph format.');
+    const paragraph = doc.paragraphs[Number(change.paragraph)];
+    if (!paragraph || descendants(paragraph, 'fldChar').length || descendants(paragraph, 'fldSimple').length || descendants(paragraph, 'ins').length || descendants(paragraph, 'del').length) throw new Error('This paragraph must be edited in a Word processor.');
+    xml = toggleMark(xml, paragraph, change.mark);
+  } else if (change.op === 'insert') {
+    if (!/^\d+$/.test(change.after) || typeof change.text !== 'string' || change.text.length > 200_000) throw new Error('Invalid paragraph.');
+    const paragraph = doc.paragraphs[Number(change.after)];
+    if (!paragraph) throw new Error('This paragraph must be edited in a Word processor.');
+    const added = `<w:p><w:r><w:t xml:space="preserve">${esc(change.text)}</w:t></w:r></w:p>`;
+    xml = patchXml(xml, [{ start: paragraph.end, end: paragraph.end, text: added }]);
   } else if (change.op === 'comment') {
     const paragraph = /^\d+$/.test(change.paragraph) ? doc.paragraphs[Number(change.paragraph)] : undefined;
     if (!paragraph || typeof change.text !== 'string' || !change.text.trim() || change.text.length > 10_000) throw new Error('Choose a paragraph and write a comment.');
@@ -179,7 +280,8 @@ export function changeWord(buffer: Buffer, change: WordChange): Buffer {
       return changeWord(zip([...files]), change);
     }
     const start = properties?.end ?? paragraph.openEnd;
-    xml = patchXml(xml, [{ start, end: start, text: `<w:commentRangeStart w:id="${id}"/>` }, { start: paragraph.closeStart, end: paragraph.closeStart, text: `<w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r>` }]);
+    xml = change.range !== undefined ? markCommentRange(xml, paragraph, change.range, id)
+      : patchXml(xml, [{ start, end: start, text: `<w:commentRangeStart w:id="${id}"/>` }, { start: paragraph.closeStart, end: paragraph.closeStart, text: `<w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r>` }]);
     let comments = read(files, doc.commentsPath) || `<?xml version="1.0" encoding="UTF-8"?><w:comments xmlns:w="${NS}"></w:comments>`;
     comments = appendXmlChild(comments, parseXml(comments).children[0], `<w:comment w:id="${id}" w:author="${esc(change.author.slice(0, 100))}" w:date="${new Date().toISOString()}"><w:p><w:r><w:t xml:space="preserve">${esc(change.text.trim())}</w:t></w:r></w:p></w:comment>`);
     files.set(doc.commentsPath, Buffer.from(comments));
@@ -192,12 +294,26 @@ export function changeWord(buffer: Buffer, change: WordChange): Buffer {
     let types = read(files, '[Content_Types].xml');
     if (!types.includes(`PartName="/${doc.commentsPath}"`)) types = appendXmlChild(types, parseXml(types).children[0], `<Override PartName="/${doc.commentsPath}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>`);
     files.set('[Content_Types].xml', Buffer.from(types));
+    if (isOfficeColor(change.color)) saveOfficeNote(files, id, { ...(officeNotes(files)[id] ?? { replies: [] }), color: change.color });
+  } else if (change.op === 'edit-comment') {
+    if (typeof change.text !== 'string' || !change.text.trim() || change.text.length > 10_000) throw new Error('Write a comment.');
+    const comments = read(files, doc.commentsPath), comment = descendants(parseXml(comments), 'comment').find((n) => attr(n, 'id') === change.id);
+    if (!comment || comments.slice(comment.start, comment.openEnd).endsWith('/>')) throw new Error('Comment not found.');
+    files.set(doc.commentsPath, Buffer.from(patchXml(comments, [{ start: comment.openEnd, end: comment.closeStart, text: `<w:p><w:r><w:t xml:space="preserve">${esc(change.text.trim())}</w:t></w:r></w:p>` }])));
+  } else if (change.op === 'reply') {
+    if (!doc.comments.some((c) => c.id === change.id) || typeof change.text !== 'string' || !change.text.trim() || change.text.length > 10_000) throw new Error('Write a comment.');
+    const current = officeNotes(files)[change.id] ?? { replies: [] };
+    saveOfficeNote(files, change.id, { ...current, replies: [...current.replies, { author: change.author.slice(0, 100), at: new Date().toISOString(), text: change.text.trim() }].slice(-50) });
+  } else if (change.op === 'color') {
+    if (!doc.comments.some((c) => c.id === change.id) || !isOfficeColor(change.color)) throw new Error('Invalid comment color.');
+    saveOfficeNote(files, change.id, { ...(officeNotes(files)[change.id] ?? { replies: [] }), color: change.color });
   } else if (change.op === 'delete-comment') {
     if (!doc.comments.some((c) => c.id === change.id)) throw new Error('Comment not found.');
     const nodes = ['commentRangeStart', 'commentRangeEnd', 'commentReference'].flatMap((name) => descendants(doc.tree, name)).filter((n) => attr(n, 'id') === change.id);
     xml = patchXml(xml, nodes.map((n) => ({ start: n.start, end: n.end, text: '' })));
     const comments = read(files, doc.commentsPath), comment = descendants(parseXml(comments), 'comment').find((n) => attr(n, 'id') === change.id);
     if (comment) files.set(doc.commentsPath, Buffer.from(patchXml(comments, [{ start: comment.start, end: comment.end, text: '' }])));
+    saveOfficeNote(files, change.id, null);
   } else throw new Error('Unknown Word change.');
   files.set(ROOT, Buffer.from(xml));
   return zip([...files]);
