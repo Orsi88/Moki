@@ -29,8 +29,10 @@ const host = {
 };
 await esbuild({ ...host, entryPoints: [join(ext, 'extension.ts')], outfile: join(out, 'extension.cjs'), external: [...host.external, './host.cjs'] });
 await esbuild({ ...host, entryPoints: [join(ext, 'host.ts')], outfile: join(out, 'host.cjs') });
+// pdf.js tries to load the native @napi-rs/canvas at import; Moki only reads text, so it runs without it.
+const noCanvas = { name: 'no-napi-canvas', setup: (b) => b.onLoad({ filter: /pdfjs-dist[\\/].*pdf\.mjs$/ }, (a) => ({ contents: readFileSync(a.path, 'utf8').replaceAll('require("@napi-rs/canvas")', 'require("moki-no-canvas")'), loader: 'js' })) };
 // The MCP server runs in its own process (VS Code starts it with ELECTRON_RUN_AS_NODE).
-await esbuild({ ...host, entryPoints: [join(ROOT, 'ide', 'mcp', 'server.ts')], outfile: join(out, 'mcp.cjs') });
+await esbuild({ ...host, plugins: [noCanvas], entryPoints: [join(ROOT, 'ide', 'mcp', 'server.ts')], outfile: join(out, 'mcp.cjs') });
 // Windows terminals start the AI tools through the tool runner (desktop/launcher.ts).
 await esbuild({ bundle: true, platform: 'node', target: 'node22', format: 'esm', logLevel: 'warning', entryPoints: [join(ROOT, 'desktop', 'run-tool.ts')], outfile: join(out, 'run-tool.mjs') });
 // The Moki panel: the app's look, its own small page.

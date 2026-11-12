@@ -597,6 +597,7 @@ function promptHead(project: string, workspace: string, repository: string): str
       + ` paths recorded inside state.json and project files keep the workspace/... form. Run the npm helper commands with the environment variable QA_WORKSPACE=${workspace}.`);
   }
   if (repository) parts.push(`Linked folder (the system's repository): ${repository}.`);
+  parts.push('Look in context/ first: it prevails when it disagrees with another folder. Then prefer inbox/, notes/, runs/ and temporary/. Other folders of this project, and a file the person points to, stay available.');
   return parts;
 }
 
@@ -850,7 +851,7 @@ export function windowsSafePrompt(prompt: string, project: string, root = ROOT, 
 export function launchTool(tool: ToolKey, prompt: string, cwd = ROOT): ChildProcess {
   const t = TOOLS[tool];
   if (!t.command || !t.args) throw new Error(`${t.label} cannot be launched from the terminal.`);
-  const args = t.args(prompt);
+  const args = tool === 'codex' ? ['--no-daemon', ...t.args(prompt)] : t.args(prompt);
   if (process.platform === 'win32') {
     const quoted = args.map((a) => `"${String(a).replace(/"/g, "'").replace(/%/g, ' percent')}"`).join(' ');
     return spawn(`${t.command} ${quoted}`, { cwd, stdio: 'inherit', shell: true });

@@ -61,11 +61,13 @@ export function pluginArgs(tool: ToolKey, root: string, plugins: string[] = []):
   const dir = join(root, 'adapters', 'app-plugins');
   if (tool === 'claude') return [...(node ? ['ponytail'] : []), ...(rtk ? ['rtk'] : []), ...(caveman ? ['caveman'] : []), ...(superpowers ? ['superpowers'] : [])].flatMap((p) => ['--plugin-dir', join(dir, p)]);
   if (tool !== 'codex') return [];
+  // This Codex attaches to a shared daemon that keeps only the servers of the home config.
+  // --no-daemon makes this session load the -c servers and instructions itself.
   const lines = [`Ponytail mode is active (level full): before writing, changing or reviewing code, read ${join(dir, 'ponytail', 'skills', 'ponytail', 'SKILL.md')} and follow it.`];
   if (rtk) lines.push('Run shell commands through rtk to shrink their output (rtk git status, rtk grep, rtk ls...); rtk proxy CMD runs one unfiltered.');
   if (caveman) lines.push(`Caveman mode is active: before every reply, read ${join(dir, 'caveman', 'skills', 'caveman', 'SKILL.md')} and follow it.`);
   if (superpowers) lines.push(`Superpowers skills are active: read ${join(dir, 'superpowers', 'skills', 'using-superpowers', 'SKILL.md')} and follow it; the other skills are in ${join(dir, 'superpowers', 'skills')}.`);
-  return ['-c', `developer_instructions=${lines.join(' ')}`];
+  return ['--no-daemon', '-c', `developer_instructions=${lines.join(' ')}`];
 }
 
 // The command's path. Launching is synchronous, so it cannot wait for the PATH read that runs after the app starts

@@ -1963,7 +1963,7 @@ test('set up: a skill or an agent is typed into the AI terminal without Enter, f
   const runs = svc.activityRuns(id);
   const skill = svc.invokeItem(id, { kind: 'skill', name: 'my-skill' }, 'Portuguese (pt-BR)', 'ai-1');
   assert.equal(skill.prepared, true);
-  assert.match(skill.prompt, /^Follow AGENTS\.md\. Project: uses-paste\. Use the my-skill skill: read workspace\/projects\/uses-paste\/skills\/my-skill\/SKILL\.md and follow its procedure and approval gates\. Talk to me in Portuguese \(pt-BR\)\.$/);
+  assert.match(skill.prompt, /^Follow AGENTS\.md\. Project: uses-paste\. Look in context\/ first: it prevails when it disagrees with another folder\. Then prefer inbox\/, notes\/, runs\/ and temporary\/\. Other folders of this project, and a file the person points to, stay available\. Use the my-skill skill: read workspace\/projects\/uses-paste\/skills\/my-skill\/SKILL\.md and follow its procedure and approval gates\. Talk to me in Portuguese \(pt-BR\)\.$/);
   assert.ok(svc.invokeItem(id, { kind: 'skill', name: 'react-dev' }, 'English', 'ai-1').prompt.includes(`read ${join(home, '.claude', 'skills', 'react-dev', 'SKILL.md')} and follow`));
   assert.match(svc.invokeItem(id, { kind: 'agent', name: 'helper' }, 'English', 'ai-1').prompt, /Act as the helper agent: read workspace\/projects\/uses-paste\/agents\/helper\.md and follow it\./);
   assert.equal(pasted.length, 3);
@@ -1981,7 +1981,7 @@ test('set up: a skill or an agent is typed into the AI terminal without Enter, f
   assert.match(svc.invokePrompt(id, { kind: 'skill', name: 'my-skill' }, 'Klingon'), /Talk to me in English\.$/, 'a language that is not on the list falls back to English');
 });
 
-test('set up: files of Context and Notes go to the AI the same way; other files, folders, hidden names, credentials and paths outside are refused', () => {
+test('set up: files of the project go to the AI, context first; folders, hidden names, credentials and paths outside are refused', () => {
   const { svc, id, dir, pasted } = usesFixture('Uses Files');
   writeFileSync(join(dir, 'context', 'rules.md'), '# Rules');
   const note = svc.createNote(id, 'Ideias', 'a note');
@@ -1989,16 +1989,20 @@ test('set up: files of Context and Notes go to the AI the same way; other files,
   writeFileSync(join(dir, 'context', '.hidden.md'), 'x');
   writeFileSync(join(dir, 'context', 'run.sh'), 'echo');
   mkdirSync(join(dir, 'context', 'sub'));
+  writeFileSync(join(dir, 'inbox', 'us-1.md'), '# Story');
+  mkdirSync(join(dir, 'anexos'), { recursive: true });
+  writeFileSync(join(dir, 'anexos', 'extra.md'), '# Extra');
   const one = svc.invokeItem(id, { kind: 'file', paths: ['context/rules.md'] }, 'English', 'ai-1');
-  assert.equal(one.prompt, 'Follow AGENTS.md. Project: uses-files. Read workspace/projects/uses-files/context/rules.md and use it as context for what I ask next. Talk to me in English.');
-  const many = svc.invokePrompt(id, { kind: 'file', paths: ['context/rules.md', note, 'context/rules.md'] }, 'English');
-  assert.ok(many.includes(`Read workspace/projects/uses-files/context/rules.md, workspace/projects/uses-files/${note} and use them as context`));
+  assert.equal(one.prompt, 'Follow AGENTS.md. Project: uses-files. Look in context/ first: it prevails when it disagrees with another folder. Then prefer inbox/, notes/, runs/ and temporary/. Other folders of this project, and a file the person points to, stay available. Read workspace/projects/uses-files/context/rules.md and use it as context for what I ask next. Talk to me in English.');
+  const many = svc.invokePrompt(id, { kind: 'file', paths: ['anexos/extra.md', 'context/rules.md', note, 'context/rules.md'] }, 'English');
+  assert.ok(many.includes(`Read workspace/projects/uses-files/context/rules.md, workspace/projects/uses-files/${note}, workspace/projects/uses-files/anexos/extra.md and use them as context`), 'context comes before the other folders');
+  assert.match(svc.invokePrompt(id, { kind: 'file', paths: ['inbox/us-1.md', 'project.json'] }, 'English'), /inbox\/us-1\.md, workspace\/projects\/uses-files\/project\.json/);
   assert.deepEqual(pasted.map((x) => x.id), ['ai-1']);
   const refused: [string, RegExp][] = [
-    ['inbox/us-1.md', /Only files of Context and Notes/], ['project.json', /Only files of Context and Notes/], ['context', /Only files of Context and Notes/],
-    ['context/sub', /File not found/], ['context/missing.md', /File not found/], ['context/.hidden.md', /Only files of Context and Notes/],
+    ['context', /File not found/],
+    ['context/sub', /File not found/], ['context/missing.md', /File not found/], ['context/.hidden.md', /Hidden files stay out/],
     ['context/run.sh', /This kind of file cannot be used/], ['context/leaky.md', /looks like it holds a credential/],
-    ['context/../inbox/us-1.md', /Only files of Context and Notes/], ['../acme/context/index.md', /outside|Only files/], ['/etc/passwd', /Absolute paths/], ['@folder/x.md', /no linked folder/],
+    ['context/../missing.md', /File not found/], ['../acme/context/index.md', /outside/], ['/etc/passwd', /Absolute paths/], ['@folder/x.md', /no linked folder/],
   ];
   for (const [path, why] of refused) assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: [path] }, 'English'), why, path);
   assert.throws(() => svc.invokePrompt(id, { kind: 'file', paths: [] }, 'English'), /Choose from 1 to 20 files/);
@@ -2534,22 +2538,23 @@ test('app plugins load only in app sessions: Claude by folder, Codex as one line
   try {
     const dir = join('/home/u/qa', 'adapters', 'app-plugins');
     assert.deepEqual(pluginArgs('claude', '/home/u/qa'), ['--plugin-dir', join(dir, 'ponytail'), '--plugin-dir', join(dir, 'rtk')]);
-    const [flag, value] = pluginArgs('codex', '/home/u/qa');
-    assert.equal(flag, '-c');
-    assert.match(value, /^developer_instructions=Ponytail .*SKILL\.md.* rtk /);
-    assert.doesNotMatch(value, /["\n%]/); // survives launcher scripts and cmd.exe quoting
+    const codex = pluginArgs('codex', '/home/u/qa');
+    assert.equal(codex[0], '--no-daemon');
+    assert.equal(codex[1], '-c');
+    assert.match(codex[2], /^developer_instructions=Ponytail .*SKILL\.md.* rtk /);
+    assert.doesNotMatch(codex[2], /["\n%]/); // survives launcher scripts and cmd.exe quoting
     assert.deepEqual(pluginArgs('gemini', '/home/u/qa'), []);
     // caveman only when the project turned it on
     assert.deepEqual(pluginArgs('claude', '/home/u/qa', ['caveman']).slice(-2), ['--plugin-dir', join(dir, 'caveman')]);
-    assert.doesNotMatch(value, /caveman/i);
-    assert.match(pluginArgs('codex', '/home/u/qa', ['caveman'])[1], /Caveman .*caveman.*SKILL\.md/);
+    assert.doesNotMatch(codex[2], /caveman/i);
+    assert.match(pluginArgs('codex', '/home/u/qa', ['caveman'])[2], /Caveman .*caveman.*SKILL\.md/);
     assert.deepEqual(pluginArgs('claude', '/home/u/qa', ['superpowers']).slice(-2), ['--plugin-dir', join(dir, 'superpowers')]);
-    assert.doesNotMatch(value, /superpowers/i);
-    assert.match(pluginArgs('codex', '/home/u/qa', ['superpowers'])[1], /Superpowers .*using-superpowers.*SKILL\.md/);
+    assert.doesNotMatch(codex[2], /superpowers/i);
+    assert.match(pluginArgs('codex', '/home/u/qa', ['superpowers'])[2], /Superpowers .*using-superpowers.*SKILL\.md/);
     rmSync(join(bin, 'rtk'));
     process.env.PATH = (path ?? '').split(':').filter((d) => !existsSync(join(d, 'rtk'))).join(':');
     assert.deepEqual(pluginArgs('claude', '/home/u/qa'), ['--plugin-dir', join(dir, 'ponytail')]);
-    assert.doesNotMatch(pluginArgs('codex', '/home/u/qa')[1], /rtk/);
+    assert.doesNotMatch(pluginArgs('codex', '/home/u/qa')[2], /rtk/);
   } finally {
     process.env.PATH = path;
     rmSync(bin, { recursive: true, force: true });

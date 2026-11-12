@@ -987,15 +987,24 @@ export function createService(root: string, deps: Deps) {
   }
 
   // What the project panel's ▶ and "Use in the terminal" send (scripts/lib/core.ts, buildInvokePrompt). The path of a skill or
-  // an agent comes from the project's own list (scripts/lib/project-items.ts), never from the UI; a file only from Context or Notes.
+  // an agent comes from the project's own list (scripts/lib/project-items.ts), never from the UI. A file can come from any
+  // folder of the project, or from the linked folder; hidden names and credentials stay out.
   const MAX_INVOKE_FILES = 20;
   const INVOKE_FILE_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm', '.pdf', '.docx', '.xlsx', '.pptx']);
   const SCANNED_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm']); // text: read for credentials; the Office files and PDFs are not
   const SCAN_LIMIT = 2 * 1024 * 1024;
+  const invokeRank = (rel: string): number => {
+    const top = rel.replace(/\\/g, '/').replace(/^\.\//, '').split('/')[0];
+    if (top === 'context') return 0;
+    if (top === 'inbox' || top === 'notes' || top === 'runs' || top === 'temporary') return 1;
+    return 2;
+  };
   const invokeFile = (project: string, rel: unknown): string => {
     const file = projectPath(project, rel);
     const local = posix(relative(realpathSync(projectDir(project)), file));
-    if (!/^(context|notes)\//.test(local) || local.split('/').some((part) => part.startsWith('.'))) throw new ServiceError('Only files of Context and Notes can be used this way.');
+    const outside = local.startsWith('..') || isAbsolute(local);
+    const shown = outside ? String(rel).replace(/\\/g, '/') : local;
+    if (!shown || shown.split('/').some((part) => part.startsWith('.'))) throw new ServiceError('Hidden files stay out.');
     if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('File not found.');
     const ext = extname(file).toLowerCase();
     if (!INVOKE_FILE_TYPES.has(ext)) throw new ServiceError('This kind of file cannot be used this way.');
@@ -1003,9 +1012,9 @@ export function createService(root: string, deps: Deps) {
       if (statSync(file).size > SCAN_LIMIT) throw new ServiceError('File too large to check for credentials.');
       const text = readFileSync(file, 'utf8');
       const hit = (SECRET_PATTERNS as [string, RegExp][]).find(([, re]) => re.test(text));
-      if (hit) throw new ServiceError(`${local} looks like it holds a credential (${hit[0]}): it is not sent to an AI.`);
+      if (hit) throw new ServiceError(`${shown} looks like it holds a credential (${hit[0]}): it is not sent to an AI.`);
     }
-    return `${workspaceLabel(root)}/projects/${project}/${local}`;
+    return outside ? file.split(sep).join('/') : `${workspaceLabel(root)}/projects/${project}/${local}`;
   };
   const invokePrompt = (project: unknown, raw: unknown, language: unknown): string => {
     const id = isProject(project, root) ? project : null;
@@ -1015,7 +1024,7 @@ export function createService(root: string, deps: Deps) {
     if (r.kind === 'file') {
       const paths = Array.isArray(r.paths) ? [...new Set(r.paths.map(String))] : [];
       if (!paths.length || paths.length > MAX_INVOKE_FILES) throw new ServiceError(`Choose from 1 to ${MAX_INVOKE_FILES} files.`);
-      target = { kind: 'file', paths: paths.map((p) => invokeFile(id, p)) };
+      target = { kind: 'file', paths: paths.sort((a, b) => invokeRank(a) - invokeRank(b) || a.localeCompare(b)).map((p) => invokeFile(id, p)) };
     } else if (r.kind === 'skill' || r.kind === 'agent') {
       const item = listProjectItems(id, root, home).find((i) => i.kind === r.kind && i.name === r.name);
       if (!item || item.missing) throw new ServiceError(`This ${r.kind} is not available in this project.`);

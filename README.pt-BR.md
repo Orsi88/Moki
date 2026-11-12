@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.4/Moki.Setup.0.5.4.exe">Moki.Setup.0.5.4.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.5/Moki.Setup.0.5.5.exe">Moki.Setup.0.5.5.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
@@ -20,11 +20,11 @@ Começou como trabalho de qualidade de software: revisar uma história, projetar
 
 ## Instalar
 
-1. Baixe o [Moki.Setup.0.5.4.exe](https://github.com/Orsi88/moki/releases/download/v0.5.4/Moki.Setup.0.5.4.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.5.exe](https://github.com/Orsi88/moki/releases/download/v0.5.5/Moki.Setup.0.5.5.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
 
-Para o VS Code, baixe o [moki-0.5.4.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.4/moki-0.5.4.vsix) e rode `code --install-extension moki-0.5.4.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+Para o VS Code, baixe o [moki-0.5.5.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.5/moki-0.5.5.vsix) e rode `code --install-extension moki-0.5.5.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
 
 Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
@@ -48,6 +48,10 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 | [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) | Cartógrafo para dados, Inventor para soluções, Artesão para protótipos funcionais de interface e Sentinela para avaliação/validação de APIs |
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
+
+## Novo na 0.5.5
+
+- **O Codex lê o projeto.** A sessão abre por conta própria, então os servidores MCP do projeto chegam, inclusive o do Moki. O Moki devolve o texto de um PDF. `context/` fica na frente quando discorda de outra pasta; as outras pastas do projeto continuam disponíveis.
 
 ## Novo na 0.5.4
 
