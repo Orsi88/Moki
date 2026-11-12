@@ -2790,6 +2790,97 @@ test('installed copies keep the framework in QA_ROOT, the legacy folder or <Docu
   }
 });
 
+test('installer framework sync rejects Git checkouts and worktrees before touching their files', () => {
+  const temp = mkdtempSync(join(tmpdir(), 'qa-git-sync-'));
+  try {
+    const bundled = join(temp, 'bundled');
+    mkdirSync(join(bundled, '.agents'), { recursive: true });
+    writeFileSync(join(bundled, '.agents', 'installed.md'), 'installer content');
+    for (const kind of ['clone', 'worktree']) {
+      const checkout = join(temp, kind);
+      mkdirSync(join(checkout, '.agents'), { recursive: true });
+      if (kind === 'clone') mkdirSync(join(checkout, '.git'));
+      else writeFileSync(join(checkout, '.git'), 'gitdir: ../clone/.git/worktrees/test\n');
+      const tracked = join(checkout, '.agents', 'tracked.md');
+      writeFileSync(tracked, 'repository content');
+
+      const nested = join(checkout, 'nested');
+      assert.throws(() => syncFramework(bundled, checkout, 'new-build'), /Git checkout/);
+      assert.throws(() => syncFramework(bundled, nested, 'new-build'), /Git checkout/);
+      assert.equal(readFileSync(tracked, 'utf8'), 'repository content');
+      assert.equal(existsSync(join(checkout, '.agents', 'installed.md')), false);
+      assert.equal(existsSync(join(checkout, '.qa-framework-build')), false);
+      assert.equal(existsSync(nested), false);
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('installed copies sync separately from Git and keep the existing default workspace and registry', () => {
+  const docs = realpathSync(mkdtempSync(join(tmpdir(), 'qa-split-workspace-')));
+  try {
+    const checkout = join(docs, 'Moki');
+    const bundled = join(docs, 'bundled');
+    const appData = join(docs, 'app-data');
+    const fallback = join(appData, 'Moki', 'framework');
+    const workspace = join(checkout, 'workspace');
+    const client = join(checkout, 'workspaces', 'client');
+    const registry = join(checkout, 'workspaces', 'workspaces.json');
+    mkdirSync(join(checkout, '.git'), { recursive: true });
+    mkdirSync(join(workspace, 'projects', 'existing'), { recursive: true });
+    writeFileSync(join(workspace, 'projects', 'existing', 'project.json'), '{}');
+    mkdirSync(client, { recursive: true });
+    mkdirSync(bundled);
+    writeFileSync(join(bundled, 'AGENTS.md'), 'installed framework');
+    writeFileSync(join(checkout, 'AGENTS.md'), 'checkout framework');
+    const savedRegistry = JSON.stringify({ active: 'client', defaultName: 'Existing workspace', list: [{ id: 'client', name: 'Client', path: client }] });
+    writeFileSync(registry, savedRegistry);
+
+    // ROOT is resolved at import time, after the installed app prepares the framework.
+    const script = `
+      import assert from 'node:assert/strict';
+      import { join } from 'node:path';
+      import { prepareInstalledFramework } from './desktop/framework.ts';
+      const [bundled, docs, fallback, checkout, workspace, client] = process.argv.slice(1);
+      const fallbackOverride = process.platform === 'win32' || process.platform === 'linux' ? undefined : fallback;
+      prepareInstalledFramework(bundled, docs, 'first-build', fallbackOverride);
+      prepareInstalledFramework(bundled, docs, 'second-build', fallbackOverride);
+      assert.equal(process.env.QA_ROOT, fallback);
+      assert.equal(process.env.QA_WORKSPACE_DATA_ROOT, checkout);
+      const { ROOT, workspaceDir } = await import('./scripts/lib/repo.mjs');
+      const { activeWorkspace, listWorkspaces, workspacesHome } = await import('./desktop/workspaces.ts');
+      assert.equal(ROOT, fallback);
+      assert.equal(workspacesHome(ROOT), join(checkout, 'workspaces'));
+      assert.equal(workspaceDir(), workspace);
+      assert.deepEqual(listWorkspaces(ROOT).map(({ id, name, path, projects }) => ({ id, name, path, projects })), [
+        { id: 'default', name: 'Existing workspace', path: workspace, projects: 1 },
+        { id: 'client', name: 'Client', path: client, projects: 0 },
+      ]);
+      assert.equal(activeWorkspace(ROOT).path, client);
+      process.env.QA_WORKSPACE = client;
+      assert.equal(workspaceDir(), client);
+      const custom = join(docs, 'custom');
+      process.env.QA_ROOT = custom;
+      prepareInstalledFramework(bundled, docs, 'third-build', fallbackOverride);
+      assert.equal(process.env.QA_ROOT, custom);
+      assert.equal(process.env.QA_WORKSPACE_DATA_ROOT, undefined);
+    `;
+    const checked = spawnSync(process.execPath, ['--input-type=module', '--eval', script, '--', bundled, docs, fallback, checkout, workspace, client], {
+      cwd: ROOT, encoding: 'utf8',
+      env: { ...process.env, LOCALAPPDATA: appData, XDG_DATA_HOME: appData, QA_ROOT: '', QA_WORKSPACE: '', QA_WORKSPACE_DATA_ROOT: '' },
+    });
+    assert.equal(checked.status, 0, checked.stderr || checked.error?.message);
+    assert.equal(readFileSync(join(fallback, 'AGENTS.md'), 'utf8'), 'installed framework');
+    assert.equal(readFileSync(join(fallback, '.qa-framework-build'), 'utf8').trim(), 'second-build');
+    assert.equal(readFileSync(join(checkout, 'AGENTS.md'), 'utf8'), 'checkout framework');
+    assert.equal(readFileSync(registry, 'utf8'), savedRegistry);
+    assert.equal(existsSync(join(fallback, 'workspaces', 'workspaces.json')), false);
+  } finally {
+    rmSync(docs, { recursive: true, force: true });
+  }
+});
+
 test('UI requests run only service methods and return their errors as messages', async () => {
   const listed = await callService(service, 'projects', []);
   assert.ok(listed.ok);

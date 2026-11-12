@@ -69,4 +69,4 @@ npm run vscode:package   # release/moki-<version>.vsix
 
 Try it without installing: `code --extensionDevelopmentPath="$PWD/ide/vscode"` (build first). Install the package with `code --install-extension release/moki-<version>.vsix`. VS Code 1.101 or newer.
 
-The extension keeps the framework in `<Documents>/Moki`, the same folder as the desktop app, so both show the same workspaces and projects (`QA_ROOT` chooses another folder). Keep `version` in `ide/vscode/package.json` equal to the root `package.json`; the build stops when they differ. How it fits the rest of Moki: `skills/moki-architecture/references/architecture.md` (layer 7b).
+The extension shares the desktop app's framework and workspace locations. The framework normally lives in `<Documents>/Moki` or the `QA_ROOT` override. When that location is in a Git checkout or worktree, the installed framework goes to the user's application data directory while the workspaces stay at their original paths. Keep `version` in `ide/vscode/package.json` equal to the root `package.json`; the build stops when they differ. How it fits the rest of Moki: `skills/moki-architecture/references/architecture.md` (layer 7b).

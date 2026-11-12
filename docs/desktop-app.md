@@ -94,7 +94,7 @@ Development helpers (environment variables of the main process):
 | `QA_OPEN_PROJECT=<id>` | Opens that project directly |
 | `QA_OPEN_VIEW=library` / `launch` | Opens the agent library / the launch wizard (with `QA_OPEN_PROJECT`) |
 | `QA_SCREENSHOT=<file.png>` | Saves a screenshot of the window and quits (visual checks) |
-| `QA_ROOT=<folder>` | Uses that folder as the framework folder (the installed app defaults to Documents/Moki) |
+| `QA_ROOT=<folder>` | Chooses the framework folder (the installed app defaults to Documents/Moki). If that location is in a Git checkout, the installed framework uses the user's application data directory and the workspace data stays at the chosen location. |
 
 ## Installer
 
@@ -105,7 +105,7 @@ npm run dist:linux   # .AppImage (build on Linux)
 ```
 
 - The build stages only the built app and a minimal `package.json` in `build/app` (electron-builder two-package layout); `release/` and `build/` are ignored by Git.
-- The installer also carries the framework files (`extraResources` → `resources/framework`). On first launch, `desktop/boot.ts` copies them to **Documents/Moki** (or `QA_ROOT`) and points the app there; each new build refreshes the framework files once (`build-info.json` id) and never touches `workspace/` (`desktop/framework.ts`).
+- The installer carries the framework files (`extraResources` → `resources/framework`). Each new build refreshes them once (`build-info.json` id), normally in **Documents/Moki** or the `QA_ROOT` override. If that destination is in a Git checkout or worktree, the app installs its framework under `Moki/framework` in the user's application data directory (Local AppData on Windows, Application Support on macOS, or the XDG data directory on Linux). The workspace registry and default workspace stay at their original paths.
 - `node-pty` is an optional dependency (N-API, no rebuild for Electron): prebuilt for Windows/macOS, compiled by `npm install` on Linux, which needs a C++ compiler (Fedora: `gcc-c++`, Ubuntu: `build-essential`). Without it the build warns and the app opens AI tools in external terminal windows. It is unpacked from `app.asar`.
 - `run-tool.mjs` is unpacked from `app.asar` and run by the app's own executable in Node mode, so AI tools can be opened on computers without Node.js.
 - `parse-worker.mjs` (the Word and spreadsheet preview parser, run in a `worker_threads` worker by `desktop/parse-pool.ts`) is its own self-contained bundle, also unpacked from `app.asar` because a worker cannot load from inside it. The worker starts on first use, ends after 30 s idle, and any worker failure (cannot start, crash, timeout) parses the file inline instead.

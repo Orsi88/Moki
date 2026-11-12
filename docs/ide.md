@@ -52,7 +52,7 @@ Then run **Developer: Reload Window** in VS Code. Reinstall the same way after e
 
 **Without installing (development).** `npm run vscode:build`, then `code --extensionDevelopmentPath="$PWD/ide/vscode"`. In this mode the extension uses the repository itself instead of `<Documents>/Moki`.
 
-**What happens on the first start.** The installed extension keeps its copy of the framework in `<Documents>/Moki`, the same folder as the desktop app, so both see the same workspaces and projects (`QA_ROOT` chooses another folder). It opens the workspace that was **active in the app** when VS Code started. A Moki icon (the cat) appears in the activity bar and **Moki: …** in the status bar.
+**What happens on the first start.** The extension and the desktop app share the installed framework and workspaces. The framework normally lives in `<Documents>/Moki` or the `QA_ROOT` override. If that location is in a Git checkout, installed framework files go to the user's application data directory and the workspaces stay at their original paths. The extension opens the workspace that was **active in the app** when VS Code started. A Moki icon (the cat) appears in the activity bar and **Moki: …** in the status bar.
 
 ## Configure
 
