@@ -46,6 +46,7 @@ Hudson is also an agent: in a terminal, ask it to organize the project and it sh
 
 - `temporary/` — anything older than **7 days** goes to the trash when the project opens.
 - A finished run's `work/` folder is cleared when the project opens.
+- Optional, in the project's settings (**Cleanup**): a finished activity's `outputs/` folder goes to the trash when the project opens, once every file it delivered is in `context/` (moved there, or an identical copy). It is off by default.
 
 ## See also
 

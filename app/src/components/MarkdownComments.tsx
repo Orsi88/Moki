@@ -10,9 +10,11 @@ import { addComment, colorComment, editComment, findInSource, readComments, remo
 import { CommentColumn, CommentComposer, SelectionBubble, useBubbleLife, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
 import { mountDiagrams } from './Diagrams';
 import { replaceDiagram } from '../diagram-source';
-import { linkProjectPaths, type LinkResolver } from './useInternalLinks';
+import { headingLinks, linkProjectPaths, type LinkResolver } from './useInternalLinks';
+import { projectLink } from '../internal-links';
 
 interface Props {
+  path?: string; // the file, for the section links of its headings
   html: string; // the file rendered with its marks (markdownToHtml, comments: true)
   text: string; // the file's text
   onCommit: (text: string) => void; // saves the file with this text
@@ -26,7 +28,7 @@ interface Props {
 const markOf = (body: HTMLElement, id: string) => body.querySelector<HTMLElement>(`mark.md-comment[data-c="${id}"]`);
 const now = () => new Date().toISOString();
 
-export function MarkdownComments({ html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
+export function MarkdownComments({ path, html, text, onCommit, onClick, hidden = false, onShow, saving = false, resolveLink }: Props) {
   const comments = useMemo(() => readComments(text).comments, [text]);
   const [me, setMe] = useState('');
   const [composer, setComposer] = useState<{ range: [number, number]; x: number; y: number } | null>(null);
@@ -44,8 +46,11 @@ export function MarkdownComments({ html, text, onCommit, onClick, hidden = false
     const el = doc.current;
     if (!el) return;
     linkProjectPaths(el, resolveLink);
+    if (path) headingLinks(el, t('Copy link to this section'), (slug, button) => {
+      api.copyText(projectLink(path, { kind: 'heading', slug })).then(() => button.classList.add('copied')).catch((e: Error) => { button.title = e.message; });
+    });
     void mountDiagrams(el, (index, lang, body) => onCommit(replaceDiagram(text, index, lang, body)));
-  }, [html, text, onCommit, resolveLink]);
+  }, [html, text, onCommit, resolveLink, path]);
   // The mark of the card under the pointer lights up.
   useLayoutEffect(() => {
     const colors = new Map(comments.map((c) => [c.id, c.color]));

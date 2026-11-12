@@ -343,7 +343,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         {content.kind === 'markdown' && mode === 'preview' && (
           // HTML comes from the main process renderer, which escapes all markup from the file.
           onCommit && content.editable
-            ? <MarkdownComments html={html} text={draft} onCommit={onCommit} onClick={onClick} resolveLink={resolveCurrent} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} />
+            ? <MarkdownComments path={content.path} html={html} text={draft} onCommit={onCommit} onClick={onClick} resolveLink={resolveCurrent} hidden={commentsOff} onShow={() => setCommentsOff(false)} saving={saving} />
             : <MarkdownBody className="markdown" html={html} text={draft} onChange={content.editable && onCommit ? onCommit : undefined} onClick={onClick} resolveLink={resolveCurrent} />
         )}
         {content.kind === 'markdown' && mode === 'edit' && content.editable && (onCommit

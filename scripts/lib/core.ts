@@ -182,6 +182,7 @@ export interface ProjectSummary {
   plugins: string[]; // app plugins turned on for this project (project.json plugins)
   defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with (project.json defaults)
   startInstructions: string; // sent with that start only (project.json startInstructions)
+  cleanOutputsAfterContext: boolean; // a finished run's outputs/ go to the trash once its deliverables are in context/ (project.json)
 }
 
 // A project's defaults: the activities, agents, skills and operations set for it, several of each if wanted.
@@ -248,6 +249,7 @@ function summaryOf(id: string, data: Record<string, unknown>, runs: RunState[]):
     plugins: Array.isArray(data.plugins) ? PROJECT_PLUGINS.filter((p) => (data.plugins as unknown[]).includes(p)) : [],
     defaults: parseDefaults(data.defaults),
     startInstructions: typeof data.startInstructions === 'string' ? data.startInstructions.slice(0, START_INSTRUCTIONS_LIMIT) : '',
+    cleanOutputsAfterContext: data.cleanOutputsAfterContext === true,
   };
 }
 
