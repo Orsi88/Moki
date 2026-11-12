@@ -2,7 +2,7 @@
 
 ## Configurações (a ⚙️ da barra de ícones)
 
-Sete abas; tirando *Minhas IAs*, cada uma é uma lista com filtros e busca. A ☆ num cartão marca como favorito: os favoritos vêm primeiro na lista.
+As Configurações usam um menu lateral com os grupos **Seu workspace**, **Conexões** e **Preferências**. Escolha uma seção com o mouse ou com as setas para cima/baixo; Home/End vai à primeira/última seção. Em janelas estreitas, o menu vira uma barra de ícones. Cada seção tem sua própria busca e suas ações específicas. A ☆ num cartão marca como favorito: os favoritos vêm primeiro na lista.
 
 | Aba | O que você faz ali |
 |---|---|
@@ -12,7 +12,19 @@ Sete abas; tirando *Minhas IAs*, cada uma é uma lista com filtros e busca. A �
 | **Operações** | Agentes ligados por setas numa operação com vários agentes. Veja [Agentes e operações](../agents.md). |
 | **Skills** | O que está instalado, o que vem com o Moki, e **Adicionar skill**: buscar no registro público [SkillMD](https://skillmd.com), descrever uma para a sua IA rascunhar, ou **enviar** skills e agentes de uma pasta `.claude` (inclusive agentes em subpastas) ou de um `.zip`. Com um projeto aberto, você escolhe **todos os projetos** ou **só este projeto**. Você escolhe e confirma antes de qualquer instalação. |
 | **Servidores MCP** | As ferramentas que a IA recebe — navegadores, bancos de dados, trackers — para todos os projetos ou para os escolhidos. Veja [Servidores MCP](../mcp-servers.md). |
-| **Templates** | Fonte, cores, cabeçalho, rodapé, logo e marca d'água dos PDFs, Word e Excel que as atividades geram; as tags dizem quais projetos usam cada um. |
+| **Templates** | Fonte, cores, cabeçalho, rodapé, logo e marca d'água dos PDFs, Word e Excel que as atividades geram; as tags dizem quais projetos usam cada um. **Enviar arquivo-base** (.docx, .xlsx, .md ou .pdf; .doc e .xls são convertidos): a IA segue a estrutura e a formatação dele nos documentos novos, como um modelo anexado no chat, com uma nota opcional do que manter. |
+| **Temas** | A paleta e a aparência do Moki, com temas independentes para terminais e documentos. |
+| **Rotinas e notificações** | Verificações agendadas por projeto, análises concluídas para revisar, histórico e preferências do workspace. |
+
+**Configurador** (abaixo das seções, e nas configurações de cada projeto): diga com suas palavras o que você quer configurar — uma rotina que acompanha uma pasta, uma atividade, um agente, uma conexão, um template, tags. A sua IA monta um plano com o que existe de verdade; você marca os passos que quer e clica em **Aplicar**, e cada um passa pelas mesmas validações destas telas. Nada muda antes de você aplicar. Num terminal, peça o agente `configurador`: ele mostra o plano no chat e aplica com `npm run configure` depois do seu OK.
+
+### Rotinas e notificações
+
+**Rotinas** mostra projeto, agenda, próxima verificação e estado. Abra uma rotina para editar objetivo, fontes, agenda e modo de resposta. Uma fonte é uma **consulta numa conexão** (refeita a cada execução; acompanha tudo o que ela devolver), **arquivos do projeto** ou uma **pasta do projeto**: cada execução mostra o que entrou, mudou ou saiu. Agendas semanais mostram os dias; mensais mostram o dia do mês; intervalos são definidos em minutos. **Executar agora** inicia uma verificação. As ações adicionais pausam, retomam, duplicam ou arquivam a rotina. Arquivar preserva o histórico.
+
+**Aprovações** mostra as análises concluídas e o conteúdo exato proposto para os arquivos. Um resultado sem alterações pede apenas sua ciência. Alterar arquivos exige aprovação explícita, valida todos os originais antes de gravar e usa um registro para recuperar aplicações interrompidas. Uma análise ainda em preparação não pode ser aprovada.
+
+**Histórico** mostra andamento, avisos e erros. A rotina fica aguardando enquanto a IA não entrega a análise e o handoff da operação. **Preferências** controla agenda, segundo plano, inicialização, análises simultâneas (0 pausa a análise por IA) e retenção do histórico. As notificações no Moki e no sistema são escolhidas separadamente em cada rotina. Um aviso abre a rotina ou proposta sem aprová-la.
 
 ## Configurações do projeto
 

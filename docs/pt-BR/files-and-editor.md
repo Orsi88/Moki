@@ -43,17 +43,29 @@ Um arquivo da entrada, e qualquer edição de página, é salvo como uma cópia 
 
 ## Word e Excel
 
-- O **Word** (`.docx`) permite editar o texto dos parágrafos mantendo a formatação nativa. O **Excel** (`.xlsx`) permite editar valores e fórmulas das células mantendo estilos e mesclagens. As mudanças salvam sozinhas; o status fica ao lado do ícone de tag.
-- **Comentários**: o ícone de balão abre ou fecha a coluna. Selecione um parágrafo do Word ou uma célula da planilha, escreva o comentário e pressione **+**. São comentários nativos do Word ou notas do Excel dentro do arquivo. Clique num comentário ou no ícone de localização para ir ao parágrafo ou à célula; os ícones de localização e lixeira ficam abaixo do texto.
+- O **Word** (`.docx`) permite editar o texto dos parágrafos. Negrito, itálico, sublinhado e Enter valem para aquele parágrafo, e o arquivo mantém a formatação nativa. O **Excel** (`.xlsx`) permite editar valores e fórmulas das células mantendo estilos e mesclagens. As mudanças salvam sozinhas; o status fica ao lado do ícone de tag.
+- Os **comentários** usam o mesmo botão de seleção, caixa, cores e cartões do Markdown. No Word, selecione um trecho dentro de um parágrafo; no Excel, selecione uma célula. Clique em **Comentar** junto da seleção, escreva e salve. Os cartões ficam na altura do trecho ou da célula, ligados a eles, e acompanham a rolagem e o zoom. Responda, edite, troque a cor ou exclua pelo cartão. Fechar a coluna deixa marcadores que a reabrem. O Word mantém o trecho exato e a formatação; o texto é um comentário nativo do Word ou uma nota do Excel, com cores e respostas dentro do arquivo.
 - Segure **Ctrl** e role o mouse para dar zoom; clique na porcentagem na barra do arquivo para restaurá-lo. A planilha carrega linhas conforme você rola, até o limite da prévia de 2.000 linhas e 200 colunas.
 - O programa de planilhas recalcula as fórmulas ao abrir o arquivo salvo; o Moki não faz esse cálculo. Planilhas protegidas, arquivos assinados, modelos e formatos com macros ficam somente para leitura. Campos complexos e fórmulas compartilhadas ou matriciais precisam do programa original.
-- **Arquivos antigos** (`.doc`, `.xls`): **Converter e editar uma cópia** usa o Microsoft Word/Excel ou o LibreOffice instalado para criar um arquivo `.docx`/`.xlsx`. O original permanece intacto, e uma cópia convertida que já existe nunca é sobrescrita.
+- **Arquivos antigos** (`.doc`, `.xls`): ao abrir, o Moki converte com o Microsoft Word/Excel ou o LibreOffice instalado para um `.docx`/`.xlsx` e avisa. O original permanece intacto. Se essa cópia já existe, o Moki a abre em vez de criar outra.
 
 ## Páginas HTML
 
 O **HTML** executa JavaScript local, módulos e arquivos web relativos numa prévia isolada, sem acesso ao Moki nem a recursos externos de rede. A barra única do arquivo reúne o seletor de largura (painel, tablet ou celular), comentários, recarregar e abrir no navegador.
 
-Para comentar, abra o ícone de balão, **selecione um trecho na prévia**, escreva o comentário e pressione **+**. Clique no trecho citado para encontrá-lo de novo. Os comentários ficam no projeto, separados do código HTML; copie o projeto para levá-los junto. Se a página mudar e o trecho não for mais encontrado, o comentário continua com um aviso.
+Para comentar, **selecione um trecho na prévia** e clique no botão flutuante **Comentar**. A caixa e os cartões são os mesmos do Markdown: escolha uma cor, escreva, responda, edite ou exclua. Os cartões acompanham os trechos visíveis durante a rolagem da prévia; clicar num deles leva até o trecho. O ícone de balão mostra a contagem total e abre ou fecha a coluna; com ela fechada, os marcadores reabrem os comentários. Os comentários ficam no projeto, separados do código HTML; copie o projeto para levá-los junto. Se a página mudar e o trecho não for mais encontrado, o comentário continua com um aviso.
+
+## Arquivos de diagrama
+
+Mermaid (`.mmd`, `.mermaid`), PlantUML (`.puml`, `.plantuml`), D2 (`.d2`) e Graphviz DOT (`.dot`, `.gv`) abrem no visualizador de diagramas. O Mermaid pode ser desenhado offline pelo renderizador incluído no Moki. As configurações de provedor do visualizador também permitem usar um [servidor Kroki configurado](https://docs.kroki.io/kroki/setup/usage/) para essas quatro linguagens. Abrir um arquivo não o envia para um serviço público: um servidor fora deste computador exige autorização explícita para o endereço configurado daquele projeto. Nenhum serviço público vem habilitado por padrão.
+
+Use **Ctrl + rolagem** para ampliar ao redor do ponteiro, rolagem normal para mover na vertical, **Shift + rolagem** na horizontal ou a ferramenta mão para arrastar. A barra também ajusta o diagrama à tela ou à largura, restaura a visualização, mostra o código-fonte, abre em tela cheia e exporta SVG ou PNG. A cópia de imagem usa a área de transferência do sistema.
+
+A ferramenta de comentário marca um ponto ou uma região arrastada. A caixa, as cores, as respostas e os cartões são compartilhados com os outros visualizadores. Os comentários podem ser resolvidos e reabertos; o painel filtra discussões abertas e resolvidas. As coordenadas, o zoom e a posição da rolagem ficam no projeto, no armazenamento externo de comentários de documentos já existente. A revisão nunca altera o código-fonte. Renomear ou mover um arquivo pelo Moki leva esses dados junto.
+
+Quando o código-fonte muda, o visualizador é atualizado pelo mecanismo de observação de arquivos já existente. Os comentários são preservados; posições que não puderem ser confirmadas no desenho novo ficam sinalizadas para revisão. Comentários posicionais não significam que todo renderizador forneça identificadores semânticos estáveis para os nós. Este visualizador não acrescenta ferramentas de desenho livre nem comparação semântica de versões.
+
+O Kroki é um serviço separado, não uma dependência JavaScript embarcada no Moki. O [guia oficial de instalação](https://docs.kroki.io/kroki/setup/about-docker-podman/) cobre Docker no Windows e Docker ou Podman no Linux; alguns motores usam contêineres auxiliares. O Moki não instala nem inicia esses serviços automaticamente. Se um servidor configurado estiver indisponível, o código-fonte do arquivo e o restante do Moki continuam acessíveis.
 
 ## Imagens e outros arquivos
 

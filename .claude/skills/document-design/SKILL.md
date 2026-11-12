@@ -21,6 +21,7 @@ Make the deliverable look finished and read easily in the medium it will be read
 - Apply editorial design: hierarchy (title, sections, subsections, body, captions), consistent typography through the template, spacing that groups and separates, consistent alignment, balanced distribution, moderate emphasis with a consistent meaning, accessible contrast.
 - Shape tables, figures, captions and navigation for the format ([formats](references/formats.md)).
 - Use Moki's templates and the project's models ([templates](references/templates.md)); create a template when one is needed; never change an existing one without approval.
+- When a **base file** the person uploaded (Settings › Templates) fits the document, follow it in structure and formatting like an attached example, with the new content and never its example data ([base files](references/templates.md#base-files)).
 
 Does **not**: change the content's meaning (that is the author's and `chronicle`'s), produce formats nobody asked for, or alter a mandatory structure (fields, columns, sections) of a model or a skill's contract.
 

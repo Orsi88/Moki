@@ -10,6 +10,18 @@ const base = (size = 20) => ({
 export const IconHighlight = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M15 4l5 5-8 8H7v-5z" /><path d="M4 20h8" /></svg>
 );
+export const IconHand = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M8 12V6a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-6a2 2 0 0 1 4 0v9c0 4-2.5 6-6 6h-1c-2 0-3-1-4-2l-5-6a2 2 0 0 1 3-2l3 3" /></svg>
+);
+export const IconSelect = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M5 3l14 10-7 1-3 7z" /></svg>
+);
+export const IconFitScreen = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
+);
+export const IconFitWidth = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M3 4v16M21 4v16M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg>
+);
 export const IconLanes = ({ size }: IconProps) => (
   <svg {...base(size)}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M15 4v16" /></svg>
 );
@@ -207,4 +219,7 @@ export const IconPin = ({ size }: IconProps) => (
 // Same cat paths as the IDE Activity Bar (ide/vscode/resources/moki-activitybar.svg).
 export const IconMoki = ({ size }: IconProps) => (
   <svg {...base(size)} strokeWidth={1.5}><path d="M12 19c-4.4 0-7.5-1.6-7.5-4.7 0-1.3.4-2.5 1.1-3.4l-.5-4.7a.8.8 0 0 1 1.3-.7l3.4 2.6a8.6 8.6 0 0 1 4.4 0l3.4-2.6a.8.8 0 0 1 1.3.7l-.5 4.7c.7.9 1.1 2.1 1.1 3.4 0 3.1-3.1 4.7-7.5 4.7Z"/><path d="M9.3 11.5v1.1M14.7 11.5v1.1"/><path d="M10.2 14.1c.3 1 1.5 1.1 1.8 0 .3 1.1 1.5 1 1.8 0"/><path d="M2.4 12.9l3.3.3M2.7 15.3l3-.6M21.6 12.9l-3.3.3M21.3 15.3l-3-.6"/></svg>
+);
+export const IconBell = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
 );

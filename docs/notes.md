@@ -15,7 +15,7 @@ A note opens in the main area. The ↗ button opens it in the **notebook**, a wi
 ## Writing
 
 - **The title** is in the header. **Double-click it** (or right-click) to rename the note; Enter keeps the new name.
-- **Send to a project** — a loose note has, at the right of its header, the project to send it to.
+- **Send to a project** — a loose note has, at the right of its header, the project to send it to. Once sent, it leaves Loose notes and lives in that project's `notes/` folder.
 - **Type `/`** for the commands menu, **`@`** to mention a file of the project, and **paste or drop images** right into the note.
 - **Ctrl+E** shows the Markdown source; the eye button brings back the formatted note.
 - The ☆ makes it a favorite; tags (in a project note) share it with other projects.

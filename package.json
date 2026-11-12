@@ -1,6 +1,6 @@
 {
   "name": "quality-agents",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Portable, vendor-neutral Agent Skills for software quality engineering.",
   "license": "MIT",
@@ -41,7 +41,8 @@
     "check-output": "node scripts/check-output.mjs",
     "dist:win": "node scripts/build-desktop.mjs && electron-builder --win nsis",
     "dist:mac": "node scripts/build-desktop.mjs && electron-builder --mac dmg",
-    "dist:linux": "node scripts/build-desktop.mjs && electron-builder --linux AppImage deb rpm"
+    "dist:linux": "node scripts/build-desktop.mjs && electron-builder --linux AppImage deb rpm",
+    "configure": "node scripts/configure.ts"
   },
   "devDependencies": {
     "@excalidraw/excalidraw": "^0.18.1",

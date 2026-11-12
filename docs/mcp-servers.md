@@ -47,7 +47,8 @@ An HTTP server can carry an optional **OAuth client** (Headers tab: client id an
 | Cursor and Cursor Agent started from Moki | The `moki` and `moki-*` entries of `<Moki folder>/.cursor/mcp.json`; your entries stay. It holds the last project started in Cursor |
 | Cursor opened on the system's folder | `Moki: Sync MCP Servers to Cursor` in VS Code writes the same entries to `<linked folder>/.cursor/mcp.json` after you confirm; `writeAllowed: false` refuses it and the current file is backed up to `.moki-backup/` first |
 | VS Code with the Moki extension | Copilot Chat: Moki's server and the project's servers that are on, registered automatically (a server whose variable is not set is left out). Claude Code in VS Code: **Connect Claude Code** in the Moki panel writes the same entries to the folder's `.mcp.json` after you confirm. **Open in Claude Code** in the panel starts it with `--mcp-config` |
-| Other tools (Codex, Gemini, Antigravity) | Not configured by Moki; Moki warns when a step's agent needs a server its AI does not have |
+| Codex started from Moki | `-c` overrides for the project's servers that are on and Moki's own server. The home `~/.codex/config.toml` (where the login lives) is not changed. A variable is passed by name, never written as a value. OAuth sign-in stays on Claude Code |
+| Gemini CLI and Antigravity started from Moki | The `moki` and `moki-*` entries of `<Moki folder>/.gemini/settings.json` (Gemini's workspace settings; `httpUrl` for an HTTP server). Your entries stay. It holds the last project started in either tool. The home `~/.gemini` login and `~/.gemini/antigravity/mcp_config.json` are not changed |
 
 Moki's own server (`ide/mcp/server.ts`) is read-only and bound to one project: the AI reads the project's context, notes, shared context, agents and skills through it (`ide/vscode/README.md`).
 

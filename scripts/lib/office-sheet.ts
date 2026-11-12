@@ -2,6 +2,7 @@
 import { posix } from 'node:path';
 import { unzip, zip } from './zip.mjs';
 import { appendXmlChild, attribute as attr, child, descendants, localName, nodeText, parseXml, patchXml, setXmlAttribute, xmlEscape as esc, type XmlNode } from './office-xml.ts';
+import { applyOfficeNote, isOfficeColor, officeNotes, saveOfficeNote } from './office-notes.ts';
 import type { OfficeComment, CellInfo, WorkbookInfo, SheetChange } from './office-types.ts';
 export type { CellInfo, WorksheetInfo, WorkbookInfo, SheetChange } from './office-types.ts';
 type Package = Map<string, Buffer>;
@@ -67,8 +68,8 @@ export function workbookInfo(buffer: Buffer): WorkbookInfo {
   const files = unzip(buffer, { maxFiles: 10_000, maxFileBytes: 60_000_000, maxTotalBytes: 120_000_000 }) as Package;
   const sharedXml = read(files, 'xl/sharedStrings.xml');
   const shared = descendants(parseXml(sharedXml), 'si').map((n) => textOf(sharedXml, n));
-  const styles = visualStyles(files);
-  return { readOnly: [...files.keys()].some((key) => key.startsWith('_xmlsignatures/')), sheets: sheetParts(files).map(({ name, path }) => {
+  const styles = visualStyles(files), notes = officeNotes(files);
+  return { readOnly: [...files.keys()].some((key) => key.startsWith('_xmlsignatures/')), sheets: sheetParts(files).map(({ name, path }, index) => {
     const xml = read(files, path), tree = parseXml(xml), cells: Record<string, CellInfo> = {};
     for (const cell of descendants(tree, 'c')) {
       const ref = attr(cell, 'r');
@@ -82,7 +83,7 @@ export function workbookInfo(buffer: Buffer): WorkbookInfo {
     const rels = relationships(files, path), part = targetOf(path, rels.find((r) => attr(r, 'Type').endsWith('/comments')));
     const commentsXml = read(files, part), commentTree = parseXml(commentsXml);
     const authors = descendants(commentTree, 'author').map((n) => nodeText(commentsXml, n));
-    const comments = descendants(commentTree, 'comment').map((n): OfficeComment => ({ id: attr(n, 'ref'), anchor: attr(n, 'ref'), author: authors[Number(attr(n, 'authorId'))] ?? '', text: textOf(commentsXml, n), date: '' }));
+    const comments = descendants(commentTree, 'comment').map((n): OfficeComment => applyOfficeNote({ id: attr(n, 'ref'), anchor: attr(n, 'ref'), author: authors[Number(attr(n, 'authorId'))] ?? '', text: textOf(commentsXml, n), date: '' }, notes[`${index}:${attr(n, 'ref')}`]));
     return { name, path, cells, comments, protected: Boolean(descendants(tree, 'sheetProtection').length) };
   }) };
 }
@@ -179,13 +180,19 @@ export function changeSheet(buffer: Buffer, change: SheetChange): Buffer {
         const shapes = descendants(parseXml(source), 'shape').filter((shape) => descendants(shape, 'ClientData').some((data) => attr(data, 'ObjectType') === 'Note' && Number(nodeText(source, child(data, 'Row') ?? data)) === position.row && Number(nodeText(source, child(data, 'Column') ?? data)) === position.column));
         files.set(vml, Buffer.from(patchXml(source, shapes.map((shape) => ({ start: shape.start, end: shape.end, text: '' })))));
       }
+      saveOfficeNote(files, `${change.sheet}:${change.ref}`, null);
     } else {
       if (typeof change.text !== 'string' || !change.text.trim() || change.text.length > 10_000) throw new Error('Write a comment.');
+      const previousAuthor = existing ? attr(existing, 'authorId') : '';
       const authors = descendants(comments, 'author').map((n) => nodeText(commentsXml, n));
       let author = authors.indexOf(change.author.slice(0, 100));
-      if (author < 0) { author = authors.length; commentsXml = appendXmlChild(commentsXml, descendants(parseXml(commentsXml), 'authors')[0], `<author>${esc(change.author.slice(0, 100))}</author>`); }
-      comments = parseXml(commentsXml); existing = descendants(comments, 'comment').find((n) => attr(n, 'ref') === change.ref);
-      const value = `<comment ref="${change.ref}" authorId="${author}"><text><t xml:space="preserve">${esc(change.text.trim())}</t></text></comment>`;
+      if (previousAuthor === '' && author < 0) {
+        author = authors.length;
+        commentsXml = appendXmlChild(commentsXml, descendants(parseXml(commentsXml), 'authors')[0], `<author>${esc(change.author.slice(0, 100))}</author>`);
+        comments = parseXml(commentsXml);
+        existing = descendants(comments, 'comment').find((n) => attr(n, 'ref') === change.ref);
+      }
+      const value = `<comment ref="${change.ref}" authorId="${previousAuthor === '' ? author : previousAuthor}"><text><t xml:space="preserve">${esc(change.text.trim())}</t></text></comment>`;
       commentsXml = existing ? patchXml(commentsXml, [{ start: existing.start, end: existing.end, text: value }]) : appendXmlChild(commentsXml, descendants(parseXml(commentsXml), 'commentList')[0], value);
       addRelationship(files, path, 'comments', part);
       let vml = targetOf(path, rels.find((r) => attr(r, 'Type').endsWith('/vmlDrawing')));
@@ -204,8 +211,21 @@ export function changeSheet(buffer: Buffer, change: SheetChange): Buffer {
       if (!types.includes(`PartName="/${part}"`)) types = appendXmlChild(types, root(types), `<Override PartName="/${part}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>`);
       if (!/Extension="vml"/.test(types)) { const at = root(types).openEnd; types = patchXml(types, [{ start: at, end: at, text: '<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>' }]); }
       files.set('[Content_Types].xml', Buffer.from(types));
+      const key = `${change.sheet}:${change.ref}`, current = officeNotes(files)[key] ?? { replies: [] };
+      saveOfficeNote(files, key, { ...current, at: current.at || new Date().toISOString(), ...(isOfficeColor(change.color) ? { color: change.color } : {}) });
     }
     files.set(part, Buffer.from(commentsXml));
+  } else if (change.op === 'reply' || change.op === 'color') {
+    const part = targetOf(path, relationships(files, path).find((r) => attr(r, 'Type').endsWith('/comments')));
+    if (!descendants(parseXml(read(files, part)), 'comment').some((n) => attr(n, 'ref') === change.ref)) throw new Error('Comment not found.');
+    const key = `${change.sheet}:${change.ref}`, current = officeNotes(files)[key] ?? { replies: [] };
+    if (change.op === 'color') {
+      if (!isOfficeColor(change.color)) throw new Error('Invalid comment color.');
+      saveOfficeNote(files, key, { ...current, color: change.color });
+    } else {
+      if (typeof change.text !== 'string' || !change.text.trim() || change.text.length > 10_000) throw new Error('Write a comment.');
+      saveOfficeNote(files, key, { ...current, replies: [...current.replies, { author: change.author.slice(0, 100), at: new Date().toISOString(), text: change.text.trim() }].slice(-50) });
+    }
   } else throw new Error('Unknown spreadsheet change.');
   files.set(path, Buffer.from(xml));
   return zip([...files]);

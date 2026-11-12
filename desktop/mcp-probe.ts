@@ -113,3 +113,83 @@ async function probeHttp(s: McpServer): Promise<{ tools: McpTool[]; server?: str
   if (list?.error) throw new Error(list.error.message ?? 'The server did not list its tools.');
   return { tools: toolsOf(list?.result), server: String((init?.result as { serverInfo?: { name?: string } })?.serverInfo?.name ?? '') || undefined };
 }
+
+// One tools/call. The routine runner decides which tool name is allowed; this only speaks the protocol.
+export async function callTool(server: McpServer, name: string, args: Record<string, unknown>, env: NodeJS.ProcessEnv = process.env): Promise<unknown> {
+  const resolved = resolveServer(server, env);
+  if (!/^[\w.-]{1,80}$/.test(name)) throw new Error('Invalid tool name.');
+  if (resolved.transport === 'http') return callHttpTool(resolved, name, args);
+  return callStdioTool(resolved, name, args, env);
+}
+
+function callStdioTool(s: McpServer, name: string, args: Record<string, unknown>, env: NodeJS.ProcessEnv): Promise<unknown> {
+  return new Promise((resolvePromise, reject) => {
+    const program = which(s.command) ?? s.command;
+    const viaCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(program);
+    if (viaCmd && [program, ...s.args].some((a) => /[&|<>^"%\r\n]/.test(a))) {
+      reject(new Error(`${s.command} is a Windows .cmd program: its arguments cannot contain & | < > ^ " or %.`));
+      return;
+    }
+    const child = viaCmd
+      ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', program, ...s.args], { env: { ...env, ...s.env }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      : spawn(program, s.args, { env: { ...env, ...s.env }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    let buffer = '';
+    let done = false;
+    const secrets = [...Object.values(s.env), ...Object.values(s.headers)];
+    const finish = (err: Error | null, value?: unknown) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      child.stdin.end();
+      child.kill();
+      if (err) reject(new Error(redact(err.message, secrets))); else resolvePromise(value);
+    };
+    const timer = setTimeout(() => finish(new Error(`No answer in ${TIMEOUT / 1000} s.`)), TIMEOUT);
+    const send = (msg: object) => child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);
+    child.on('error', (e) => finish(new Error(/ENOENT/.test(String(e)) ? `The command "${s.command}" was not found on this computer.` : String(e))));
+    child.on('exit', (code) => { if (!done) finish(new Error(`The server stopped (exit code ${code}).`)); });
+    child.stdout.on('data', (d: Buffer) => {
+      buffer += d.toString();
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        let msg: { id?: number; result?: unknown; error?: { message?: string } };
+        try { msg = JSON.parse(line); } catch { continue; }
+        if (msg.error && msg.id === 3) { finish(new Error(msg.error.message ?? 'The tool refused the call.')); return; }
+        if (msg.id === 1) {
+          send({ method: 'notifications/initialized' });
+          send({ id: 3, method: 'tools/call', params: { name, arguments: args } });
+        } else if (msg.id === 3) finish(null, msg.result);
+      }
+    });
+    send({ id: 1, method: 'initialize', params: INIT });
+  });
+}
+
+async function callHttpTool(s: McpServer, name: string, args: Record<string, unknown>): Promise<unknown> {
+  let session = '';
+  const secrets = [...Object.values(s.headers)];
+  const call = async (body: object): Promise<{ result?: unknown; error?: { message?: string } } | null> => {
+    const res = await fetch(s.url, {
+      method: 'POST', signal: AbortSignal.timeout(TIMEOUT),
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(session ? { 'mcp-session-id': session } : {}), ...s.headers },
+      body: JSON.stringify({ jsonrpc: '2.0', ...body }),
+    });
+    if (!res.ok && res.status !== 202) throw new Error(redact(`HTTP ${res.status} ${res.statusText}`, secrets));
+    session = res.headers.get('mcp-session-id') ?? session;
+    const text = await res.text();
+    if (!text.trim()) return null;
+    const json = (res.headers.get('content-type') ?? '').includes('text/event-stream')
+      ? text.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).filter(Boolean).pop() ?? '{}'
+      : text;
+    return JSON.parse(json);
+  };
+  const init = await call({ id: 1, method: 'initialize', params: INIT });
+  if (init?.error) throw new Error(redact(init.error.message ?? 'The server refused to start a session.', secrets));
+  await call({ method: 'notifications/initialized' });
+  const result = await call({ id: 3, method: 'tools/call', params: { name, arguments: args } });
+  if (result?.error) throw new Error(redact(result.error.message ?? 'The tool refused the call.', secrets));
+  return result?.result;
+}

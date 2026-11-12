@@ -1,10 +1,10 @@
-// The comments beside a Markdown text, shared by the reading view (MarkdownComments) and the formatted
-// editor (CommentedEditor): each card sits at the height of what it comments, joined to it by a thin line,
+// Comments beside a document, shared by Markdown, Word, spreadsheets and sandboxed HTML:
+// each card sits at the height of what it comments, joined to it by a thin line,
 // with reply, edit, color and delete; with the column hidden, a mark on the text's edge opens it. Also the
 // floating Comment button of a selection and the box a new comment is written in. Where the comments live
 // (the file's text) and how a change is saved belong to the caller.
 
-import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from 'react';
 import { t } from '../i18n';
 import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
@@ -12,12 +12,13 @@ import { IconChat } from './Icons';
 import { CommentColors } from './CommentColors';
 import { confirmDialog } from '../dialogs';
 
-export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number }[]; rail: number; railTop: number; height: number }
+export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number; anchored?: boolean }[]; rail: number; railTop: number; height: number; railScroll?: number }
 export interface CommentActions {
   reply: (id: string, text: string) => void;
   edit: (id: string, text: string) => void;
   color: (id: string, color: CommentColor) => void;
   remove: (id: string) => void;
+  resolve?: (id: string, resolved: boolean) => void;
 }
 // The floating Comment button: where the selection is (relative to the stage) and, when it cannot be commented, why.
 export interface Bubble { x: number; y: number; below: number; why: string }
@@ -27,7 +28,7 @@ const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.g
 // Each card beside the first mark of its comment, pushed down under the card above when they would overlap.
 // `markOf` finds a comment's first mark in the text (the reading view and the editor draw them differently).
 export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: RefObject<HTMLElement | null>, rail: RefObject<HTMLElement | null>,
-  comments: MdComment[], markOf: (body: HTMLElement, id: string) => HTMLElement | null): Placed {
+  comments: MdComment[], markOf: (body: HTMLElement, id: string) => Pick<Range, 'getBoundingClientRect'> | null): Placed {
   const [placed, setPlaced] = useState<Placed>({ items: [], rail: 0, railTop: 0, height: 0 });
   const measure = useCallback(() => {
     const box = stage.current;
@@ -35,19 +36,21 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     const text = body.current;
     if (!box || !text) return;
     const origin = box.getBoundingClientRect();
-    const edge = text.getBoundingClientRect().right - origin.left;
+    // The stage may be the scroller. Absolute lines are drawn in its content, so the scroll offset belongs in the measure.
+    const scrollX = box.scrollLeft, scrollY = box.scrollTop;
+    const edge = text.getBoundingClientRect().right - origin.left + scrollX;
     const heights = new Map([...(column?.querySelectorAll<HTMLElement>('[data-card]') ?? [])].map((el) => [el.dataset.card ?? '', el.offsetHeight]));
-    const wanted = comments.flatMap((c) => {
+    const wanted = comments.map((c) => {
       const mark = markOf(text, c.id);
-      if (!mark) return [];
+      if (!mark) return { id: c.id, ax: edge, ay: 18 + scrollY, edge, anchored: false };
       const r = mark.getBoundingClientRect();
-      return [{ id: c.id, ax: r.right - origin.left, ay: r.top - origin.top + r.height / 2, edge }];
+      return { id: c.id, ax: r.right - origin.left + scrollX, ay: r.top - origin.top + r.height / 2 + scrollY, edge, anchored: true };
     });
     const tops = stackCards(wanted.map((w) => ({ id: w.id, top: w.ay - 18, height: heights.get(w.id) ?? 90 })), 10);
     const railBox = column?.getBoundingClientRect() ?? origin;
-    const railTop = railBox.top - origin.top;
+    const railTop = railBox.top - origin.top + scrollY;
     const bottom = Math.max(0, ...wanted.map((w) => tops[w.id] + (heights.get(w.id) ?? 90)));
-    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left, railTop, height: Math.max(text.offsetHeight, bottom) };
+    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0 };
     setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
   }, [comments, stage, body, rail, markOf]);
   useLayoutEffect(() => { measure(); });
@@ -56,8 +59,12 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     if (!box) return undefined;
     const watch = new ResizeObserver(() => measure());
     watch.observe(box);
-    return () => watch.disconnect();
-  }, [measure, stage]);
+    if (body.current) watch.observe(body.current);
+    rail.current?.querySelectorAll('[data-card]').forEach((card) => watch.observe(card));
+    box.addEventListener('scroll', measure, { passive: true, capture: true });
+    window.addEventListener('resize', measure);
+    return () => { watch.disconnect(); box.removeEventListener('scroll', measure, true); window.removeEventListener('resize', measure); };
+  }, [measure, stage, body, rail, rail.current]);
   return placed;
 }
 
@@ -72,14 +79,18 @@ interface ColumnProps {
   onActive: (id: string) => void;
   saving: boolean;
   actions: CommentActions;
+  readOnly?: boolean;
+  describe?: (id: string) => ReactNode;
+  onJump?: (id: string) => void;
+  empty?: ReactNode;
 }
 
-export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions }: ColumnProps) {
+export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions, readOnly = false, describe, onJump, empty }: ColumnProps) {
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [colorPicker, setColorPicker] = useState<string | null>(null);
   const where = new Map(placed.items.map((p) => [p.id, p]));
   const finish = () => {
-    if (!editing || !editing.text.trim()) return;
+    if (!editing || !editing.text.trim() || saving || readOnly) return;
     if (editing.mode === 'reply') actions.reply(editing.id, editing.text.trim()); else actions.edit(editing.id, editing.text.trim());
     setEditing(null);
   };
@@ -89,17 +100,21 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
       {shown && (
         <>
           <svg className="md-links" width="100%" height={placed.height} aria-hidden="true">
-            {placed.items.map((p) => {
-              const cy = placed.railTop + p.top + 18;
+            {placed.items.filter((p) => p.anchored !== false).map((p) => {
+              const cy = placed.railTop + p.top + 18 - (placed.railScroll ?? 0);
               const mid = (p.ax + placed.rail) / 2;
               const value = comments.find((c) => c.id === p.id)?.color;
               return <path key={p.id} className={active === p.id ? 'on' : ''} style={{ stroke: value ? SWATCH[value] : undefined }} d={`M${p.ax} ${p.ay} C${mid} ${p.ay}, ${mid} ${cy}, ${placed.rail} ${cy}`} />;
             })}
           </svg>
-          <div className="md-rail" ref={rail} style={{ height: placed.height }} aria-label={t('Comments')}>
+          <div className="md-rail" ref={rail} style={{ height: Math.max(0, placed.height - placed.railTop) }} aria-label={t('Comments')}>
+            {comments.length === 0 && (empty ?? <p className="muted small pdf-rail-empty">{t('No comments yet.')}</p>)}
             {comments.map((c) => (
-              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
-                onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')}>
+              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}${c.resolved ? ' resolved' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
+                tabIndex={onJump ? 0 : undefined} onClick={(e) => { if (!(e.target as HTMLElement).closest('button, textarea, a, input')) onJump?.(c.id); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget && onJump) { e.preventDefault(); onJump(c.id); } }}
+                onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')} onFocus={() => onActive(c.id)}>
+                {describe?.(c.id)}
                 <div className="pdf-comment-head"><strong>{c.author || t('Unknown author')}</strong><span className="muted small">{when(c.at)}</span></div>
                 {editing?.id === c.id && editing.mode === 'edit' ? null : <p className="pdf-comment-text">{c.text}</p>}
                 {c.replies.length > 0 && (
@@ -118,25 +133,26 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
                       onChange={(e) => setEditing({ ...editing, text: e.target.value })}
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); finish(); } }} />
                     <div className="pdf-actions">
-                      <button type="button" className="btn btn-sm" disabled={!editing.text.trim()} onClick={finish}>{t('Save')}</button>
+                      <button type="button" className="btn btn-sm" disabled={saving || readOnly || !editing.text.trim()} onClick={finish}>{t('Save')}</button>
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(null)}>{t('Cancel')}</button>
                     </div>
                   </div>
                 ) : (
                   <div className="pdf-actions">
-                    <button type="button" className="icon-btn md-color-toggle" title={t('Change comment color')} aria-label={t('Change comment color')} aria-expanded={colorPicker === c.id} disabled={saving} onClick={() => setColorPicker(colorPicker === c.id ? null : c.id)}><span style={{ background: c.color ? SWATCH[c.color] : 'var(--accent)' }} /></button>
-                    <button type="button" className="link-btn" onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>
-                    <button type="button" className="link-btn" onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.text })}>{t('Edit')}</button>
-                    <button type="button" className="link-btn" onClick={() => remove(c.id)}>{t('Delete')}</button>
+                    <button type="button" className="icon-btn md-color-toggle" title={t('Change comment color')} aria-label={t('Change comment color')} aria-expanded={colorPicker === c.id} disabled={saving || readOnly} onClick={() => setColorPicker(colorPicker === c.id ? null : c.id)}><span style={{ background: c.color ? SWATCH[c.color] : 'var(--accent)' }} /></button>
+                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>
+                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.text })}>{t('Edit')}</button>
+                    {actions.resolve && <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => actions.resolve?.(c.id, !c.resolved)}>{c.resolved ? t('Reopen comment') : t('Resolve comment')}</button>}
+                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => remove(c.id)}>{t('Delete')}</button>
                   </div>
                 )}
-                {colorPicker === c.id && <CommentColors value={c.color} disabled={saving} onChange={(next) => { actions.color(c.id, next); setColorPicker(null); }} />}
+                {colorPicker === c.id && <CommentColors value={c.color} disabled={saving || readOnly} onChange={(next) => { actions.color(c.id, next); setColorPicker(null); }} />}
               </div>
             ))}
           </div>
         </>
       )}
-      {hidden && placed.items.map((p) => {
+      {hidden && placed.items.filter((p) => p.anchored !== false).map((p) => {
         const c = comments.find((x) => x.id === p.id);
         return (
           <button key={p.id} type="button" className="pdf-marker md-marker" style={{ left: p.edge + 6, top: p.ay - 9, background: c?.color ? SWATCH[c.color] : undefined }}
@@ -182,7 +198,7 @@ interface ComposerProps { x: number; y: number; saving: boolean; color: CommentC
 
 export function CommentComposer({ x, y, saving, color, onColor, onAdd, onCancel }: ComposerProps) {
   const [text, setText] = useState('');
-  const add = () => { if (text.trim()) onAdd(text.trim()); };
+  const add = () => { if (!saving && text.trim()) onAdd(text.trim()); };
   return (
     <div className="pdf-composer" style={{ left: x, top: y }} role="dialog" aria-label={t('Comment')}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel(); } }}>

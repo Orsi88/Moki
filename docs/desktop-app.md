@@ -114,7 +114,11 @@ npm run dist:linux   # .AppImage (build on Linux)
 
 ## Tests
 
-`tests/desktop.test.ts` exercises the service without Electron: project creation, file tree, reading and editing, path confinement, launch validation, agent library and agents per project, Word extraction, Markdown escaping and the launcher's quoting. AI tools are never started in tests.
+`tests/desktop.test.ts` exercises the service without Electron: project creation, file tree, reading and editing, path confinement, launch validation, agent library and agents per project, Word extraction, Markdown escaping and the launcher's quoting. AI tools are never started in tests. `tests/routines.test.ts` covers the schedule (including summer time), a missed run, change detection, and a routine that watches one work item: the first look is a baseline, a new revision becomes a proposal waiting for approval, and the same revision does not notify again.
+
+## Routines
+
+A routine lives in the project (`routines/<id>/`) and owns the clock, the comparison and the notification. Saving it also writes an operation in the user's library; the operation prepares the proposal, and applying it still needs an explicit approval. The scheduler runs in the app process. Keeping it alive after the window closes, and opening Moki at sign-in, are both off until the person turns them on in Settings → Routines and notifications. A desktop without a tray still runs the clock.
 
 ## Planned
 

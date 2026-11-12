@@ -6,7 +6,7 @@
 // (versioned framework); the user's own agents live in
 // workspace/library/agents/<category>/<name>.md (never versioned here).
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, SLUG, readJson, workspaceDir } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
@@ -270,6 +270,37 @@ export function claudeSubagent(agent: Agent): string {
   const tools = agent.access === 'read-only' ? 'disallowedTools: Edit, Write, NotebookEdit\n' : '';
   const model = agent.model ? `model: ${agent.model}\n` : '';
   return `---\nname: ${agent.name}\ndescription: ${JSON.stringify(description)}\n${tools}${model}---\n${agent.body.trimEnd()}\n\n## Skills\n\n${skills}\n`;
+}
+
+// Gemini CLI subagent: name and description only. The body's instructions stay.
+// The mark lets Moki replace its own files and leave one the person wrote.
+export const GEMINI_AGENT_MARK = '<!-- moki-agent -->';
+const GEMINI_NAME = /^[a-z0-9_-]+$/;
+
+export function geminiAgent(text: string): { name: string; text: string } | null {
+  const { data, body } = parseFrontmatter(text) as { data: Record<string, unknown> | null; body: string };
+  const name = String(data?.name ?? '');
+  const description = String(data?.description ?? '').replace(/\s+/g, ' ').trim();
+  if (!GEMINI_NAME.test(name) || !description) return null;
+  return { name, text: `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n${body.trim()}\n\n${GEMINI_AGENT_MARK}\n` };
+}
+
+// Writes Moki's agents into a Gemini agents folder. A file without the mark is kept.
+export function syncGeminiAgents(dir: string, files: Map<string, string>): void {
+  mkdirSync(dir, { recursive: true });
+  for (const entry of readdirSync(dir)) {
+    if (!entry.endsWith('.md') || files.has(entry.slice(0, -3))) continue;
+    const file = join(dir, entry);
+    try { if (readFileSync(file, 'utf8').includes(GEMINI_AGENT_MARK)) rmSync(file); } catch { /* unreadable: leave it */ }
+  }
+  for (const [name, text] of files) {
+    const file = join(dir, `${name}.md`);
+    if (existsSync(file)) {
+      const current = readFileSync(file, 'utf8');
+      if (current === text || !current.includes(GEMINI_AGENT_MARK)) continue;
+    }
+    writeFileSync(file, text);
+  }
 }
 
 // An agent brought from outside (a Claude Code subagent, or another Moki's agent) as one of the person's own:

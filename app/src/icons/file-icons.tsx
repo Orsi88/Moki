@@ -24,6 +24,7 @@ const KINDS = {
   csv: { ext: ['csv'], cuts: [{ d: 'M8.5 11h2.4M13.1 11h2.4M8.5 14h2.4M13.1 14h2.4M8.5 17h2.4M13.1 17h2.4' }] },
   data: { ext: ['xml', 'yaml', 'yml'], cuts: [{ d: 'M8.6 10.8h4.6M10.8 14h4.6M10.8 17.1h4.6M8.6 10.8v6.3' }] },
   html: { ext: ['html', 'htm'], cuts: [{ d: 'M10.3 11.2l-2.6 2.8 2.6 2.8M13.7 11.2l2.6 2.8-2.6 2.8' }] },
+  diagram: { ext: ['mmd', 'mermaid', 'puml', 'plantuml', 'd2', 'dot', 'gv'], cuts: [{ d: 'M10 10h4v3h-4ZM12 13v2M8 15h8M8 15v3M16 15v3', w: 1.4 }] },
   code: { ext: ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'], cuts: [{ d: 'M8.4 11.4l2.6 2.6-2.6 2.6M12.6 17.2h3.2' }] },
   feature: { ext: ['feature'], cuts: [{ d: 'M8.4 14.2l2.3 2.4 4.9-5.2' }] },
   file: { ext: [], cuts: [] },

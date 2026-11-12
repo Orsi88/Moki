@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('qa', {
   noteAssist: (request: { id: string; helper: string; text: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:note-assist', request),
   noteAssistCancel: (id: string) => ipcRenderer.invoke('qa:note-assist-cancel', id),
   hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:hudson-plan', request),
+  configPlan: (request: { id: string; project: string | null; request: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:config-plan', request),
   usage: (refresh: boolean) => ipcRenderer.invoke('qa:usage', refresh),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }) => ipcRenderer.invoke('qa:note-window', target),
   openSearchWindow: () => ipcRenderer.invoke('qa:search-window'),
@@ -47,6 +48,11 @@ contextBridge.exposeInMainWorld('qa', {
     const listener = (_e: IpcRendererEvent, project: string, path: string) => callback(project, path);
     ipcRenderer.on('qa:open-in-main', listener);
     return () => { ipcRenderer.removeListener('qa:open-in-main', listener); };
+  },
+  onOpenRoutine: (callback: (target: { projectId: string; routineId: string; proposalId?: string }) => void) => {
+    const listener = (_e: IpcRendererEvent, target: { projectId: string; routineId: string; proposalId?: string }) => callback(target);
+    ipcRenderer.on('qa:open-routine', listener);
+    return () => { ipcRenderer.removeListener('qa:open-routine', listener); };
   },
   term: {
     create: (tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: unknown }) => ipcRenderer.invoke('qa:term-new', tool, project ?? '', options ?? {}),

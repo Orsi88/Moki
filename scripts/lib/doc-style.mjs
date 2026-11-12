@@ -94,9 +94,23 @@ function readTemplates(root) {
   return readdirSync(dir).filter((f) => f.endsWith('.json')).flatMap((f) => {
     const t = readJson(join(dir, f));
     if (!t || typeof t.name !== 'string') return [];
-    return [{ id: f.slice(0, -5), name: t.name.slice(0, 80), tags: cleanTags(t.tags), style: normalizeStyle(t.style) }];
+    const id = f.slice(0, -5);
+    return [{ id, name: t.name.slice(0, 80), tags: cleanTags(t.tags), style: normalizeStyle(t.style), model: cleanModel(t.model, id, dir), guidance: cleanGuidance(t.guidance) }];
   }).sort((a, b) => Number(a.tags.length > 0) - Number(b.tags.length > 0) || a.name.localeCompare(b.name));
 }
+
+// A base file (Settings › Templates › Upload a base file): a document the AI follows in structure and
+// formatting, like an example attached in a chat. Kept next to its template as <id>.model.<ext>.
+export const MODEL_EXTENSIONS = ['.docx', '.xlsx', '.md', '.pdf'];
+export const MODEL_LIMIT = 30 * 1024 * 1024;
+const cleanGuidance = (v) => String(v ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ').trim().slice(0, 2000);
+function cleanModel(m, id, dir) {
+  if (!m || typeof m !== 'object') return null;
+  const ext = MODEL_EXTENSIONS.find((e) => m.file === `${id}.model${e}`);
+  if (!ext || !existsSync(join(dir, m.file))) return null;
+  return { file: m.file, name: String(m.name ?? m.file).slice(0, 200), format: ext.slice(1), size: Number(m.size) || 0, uploadedAt: String(m.uploadedAt ?? '') };
+}
+const isVisual = (t) => !t.model;
 
 // The styles saved before templates existed become templates, once.
 function migrate(root) {
@@ -136,17 +150,67 @@ export function saveTemplate(raw, root = ROOT) {
     id = base;
     for (let i = 2; list.some((t) => t.id === id); i++) id = `${base}-${i}`;
   }
-  const template = { id, name, tags: cleanTags(r.tags), style: normalizeStyle(r.style) };
-  writeJson(join(templatesDir(root), `${id}.json`), { name, tags: template.tags, style: template.style });
+  const before = list.find((t) => t.id === id);
+  const guidance = 'guidance' in r ? cleanGuidance(r.guidance) : before?.guidance ?? '';
+  const template = { id, name, tags: cleanTags(r.tags), style: normalizeStyle(r.style), model: before?.model ?? null, guidance };
+  writeTemplate(root, template);
   return template;
+}
+
+function writeTemplate(root, t) {
+  const model = t.model ? { file: t.model.file, name: t.model.name, size: t.model.size, uploadedAt: t.model.uploadedAt } : undefined;
+  writeJson(join(templatesDir(root), `${t.id}.json`), { name: t.name, tags: t.tags, style: t.style, ...(model ? { model } : {}), ...(t.guidance ? { guidance: t.guidance } : {}) });
+}
+
+// Creates a base-file template, or replaces the file of one (`raw.id`). `fileName` is the uploaded
+// file's name; its extension must be one of MODEL_EXTENSIONS (.doc and .xls are converted before).
+export function saveTemplateModel(raw, fileName, bytes, root = ROOT) {
+  migrate(root);
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const ext = MODEL_EXTENSIONS.find((e) => String(fileName ?? '').toLowerCase().endsWith(e));
+  if (!ext) throw new Error('Upload a .docx, .xlsx, .md or .pdf file (.doc and .xls are converted).');
+  if (!bytes || !bytes.length) throw new Error('The file is empty.');
+  if (bytes.length > MODEL_LIMIT) throw new Error('The file is larger than 30 MB.');
+  const list = readTemplates(root);
+  const before = typeof r.id === 'string' ? list.find((t) => t.id === r.id) : undefined;
+  if (r.id && !before) throw new Error('Unknown template.');
+  if (before && !before.model) throw new Error('This template has no base file.');
+  const fallback = String(fileName).replace(/\.[^.]+$/, '');
+  const name = String(r.name ?? before?.name ?? fallback).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80) || fallback.slice(0, 80) || 'Base file';
+  let id = before?.id ?? '';
+  if (!id) {
+    const base = slug(name) || 'model';
+    id = base;
+    for (let i = 2; list.some((t) => t.id === id); i++) id = `${base}-${i}`;
+  }
+  const dir = templatesDir(root);
+  mkdirSync(dir, { recursive: true });
+  if (before?.model && before.model.file !== `${id}.model${ext}`) rmSync(join(dir, before.model.file), { force: true });
+  writeFileSync(join(dir, `${id}.model${ext}`), bytes);
+  const template = {
+    id, name, tags: cleanTags(r.tags ?? before?.tags ?? []), style: before?.style ?? normalizeStyle({}),
+    model: { file: `${id}.model${ext}`, name: String(fileName).split(/[\\/]/).pop().slice(0, 200), format: ext.slice(1), size: bytes.length, uploadedAt: new Date().toISOString() },
+    guidance: 'guidance' in r ? cleanGuidance(r.guidance) : before?.guidance ?? '',
+  };
+  writeTemplate(root, template);
+  return template;
+}
+
+// The base file of a template, for opening it.
+export function templateModelPath(id, root = ROOT) {
+  const t = listTemplates(root).find((x) => x.id === id);
+  if (!t?.model) throw new Error('This template has no base file.');
+  return join(templatesDir(root), t.model.file);
 }
 
 // The last template stays: without one there is nothing to edit (deliverables would still use the defaults).
 export function removeTemplate(id, root = ROOT) {
   const list = listTemplates(root);
-  if (!list.some((t) => t.id === id)) throw new Error('Unknown template.');
-  if (list.length === 1) throw new Error('Keep at least one template.');
+  const target = list.find((t) => t.id === id);
+  if (!target) throw new Error('Unknown template.');
+  if (isVisual(target) && list.filter(isVisual).length === 1) throw new Error('Keep at least one template.');
   rmSync(join(templatesDir(root), `${id}.json`));
+  if (target.model) rmSync(join(templatesDir(root), target.model.file), { force: true });
   for (const project of projectIds(root)) {
     const data = readJson(projectFile(project, root));
     if (data?.template === id) { delete data.template; writeJson(projectFile(project, root), data); }
@@ -160,6 +224,7 @@ export function setProjectTemplate(project, id, root = ROOT) {
   if (id) {
     const t = listTemplates(root).find((x) => x.id === id);
     if (!t) throw new Error('Unknown template.');
+    if (t.model) throw new Error('A base file is not a look: choose a visual template.');
     if (!appliesTo(t.tags, project, root)) throw new Error("This template does not apply to the project: give it the project's tag first.");
     data.template = id;
   } else delete data.template;
@@ -168,7 +233,7 @@ export function setProjectTemplate(project, id, root = ROOT) {
 
 // The template a project uses: its default when it still applies, else the one without tags, else the first that applies.
 export function templateFor(project, root = ROOT) {
-  const fits = readTemplates(root).filter((t) => appliesTo(t.tags, project, root));
+  const fits = readTemplates(root).filter((t) => isVisual(t) && appliesTo(t.tags, project, root));
   const chosen = readJson(projectFile(project, root))?.template;
   return fits.find((t) => t.id === chosen) ?? fits.find((t) => !t.tags.length) ?? fits[0] ?? null;
 }
@@ -180,7 +245,7 @@ export function styleFor(outPath, { root = ROOT, styleFile, title = '' } = {}) {
   const global = normalizeStyle(readJson(join(workspaceDir(root), STYLE_FILE)));
   let style;
   if (existsSync(templatesDir(root))) {
-    const general = readTemplates(root).find((t) => !t.tags.length)?.style ?? normalizeStyle({});
+    const general = readTemplates(root).find((t) => isVisual(t) && !t.tags.length)?.style ?? normalizeStyle({});
     style = project ? templateFor(project, root)?.style ?? general : general;
   } else style = project ? normalizeStyle(readJson(join(workspaceDir(root), 'projects', project, STYLE_FILE)), global) : global;
   if (styleFile) style = normalizeStyle(readJson(resolve(styleFile)), style);

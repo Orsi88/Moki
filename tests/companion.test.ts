@@ -80,6 +80,46 @@ test('isolation: ids of other projects or paths outside are refused', () => {
   assert.ok(isSensitive('C:/x/.env.local') && isSensitive('id_rsa') && isSensitive('server.pem') && !isSensitive('env.md'));
 });
 
+test('diagram sources are readable context resources while shared selection and sensitive-file rules stay in force', () => {
+  const sources: Record<string, string> = {
+    'flow.mmd': 'flowchart LR\n A --> B\n', 'flow.mermaid': 'flowchart TB\n A --> B\n',
+    'sequence.puml': '@startuml\nAlice -> Bob: Review\n@enduml\n', 'sequence.plantuml': '@startuml\nAlice -> Bob: Review\n@enduml\n',
+    'flow.d2': 'start -> finish\n', 'flow.dot': 'digraph { start -> finish }\n', 'flow.gv': 'digraph { start -> finish }\n',
+  };
+  const created: string[] = [];
+  const write = (owner: string, path: string, text: string) => {
+    const file = join(projects, owner, 'context', path);
+    writeFileSync(file, text); created.push(file);
+  };
+  const c = openCompanion(root, 'acme');
+  try {
+    for (const [name, source] of Object.entries(sources)) write('acme', name, source);
+    write('acme', 'secrets.mmd', 'flowchart LR\n A --> B\n');
+    write('beta', 'shared-flow.d2', 'shared -> review\n');
+    write('gamma', 'private-flow.d2', 'private -> review\n');
+    for (const [name, source] of Object.entries(sources)) {
+      const id = label('acme', `context/${name}`);
+      assert.equal(c.resources('context').find((resource) => resource.id === id)?.mode, 'auto');
+      assert.equal(c.getResource(id).text, source);
+    }
+    const chosen = label('acme', 'context/flow.mmd');
+    c.select(chosen, true);
+    assert.equal(c.contextPack('Review the diagram').selected.find((entry) => entry.resource.id === chosen)?.text, sources['flow.mmd']);
+    c.select(chosen, false);
+    assert.ok(!c.resources().some((resource) => resource.id.endsWith('/secrets.mmd')));
+    assert.throws(() => c.getResource(label('gamma', 'context/private-flow.d2')), CompanionError);
+    const shared = label('beta', 'context/shared-flow.d2');
+    assert.equal(c.resources('shared').find((resource) => resource.id === shared)?.mode, 'ask');
+    assert.throws(() => c.getResource(shared), /select this resource/);
+    c.select(shared, true);
+    assert.equal(c.getResource(shared).text, 'shared -> review\n');
+    c.select(shared, false);
+  } finally {
+    c.clearSelection();
+    for (const file of created) rmSync(file);
+  }
+});
+
 test('manual resources are hidden until selected; modes are saved in companion.json', () => {
   const c = openCompanion(root, 'acme');
   const id = label('acme', 'notes/meeting.md');

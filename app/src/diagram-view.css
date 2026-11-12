@@ -1,0 +1,45 @@
+/* Universal diagram navigation shares the document toolbar and review cards. */
+.doc-body:has(> .diagram-view) { padding: 0; overflow: hidden; }
+.diagram-view { display: flex; flex-direction: column; flex: 1; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); }
+.diagram-view:fullscreen { width: 100vw; height: 100vh; }
+.diagram-tools.pdf-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px; padding: 7px 12px; flex: none; }
+.diagram-tools .view-toggle button, .diagram-tools > .icon-btn { width: 30px; height: 30px; padding: 0; }
+.diagram-tools .diagram-zoom-value { width: 58px; font-size: 12px; }
+.diagram-tools .diagram-comment-filter { width: auto; max-width: 170px; height: 30px; padding-block: 0; font-size: 12px; }
+.diagram-tool-spacer { flex: 1; }
+.diagram-export { position: relative; }
+.diagram-export > summary { display: flex; align-items: center; justify-content: center; list-style: none; cursor: pointer; }
+.diagram-export > summary::-webkit-details-marker { display: none; }
+.diagram-export > div { position: absolute; z-index: 12; top: calc(100% + 6px); right: 0; display: grid; gap: 10px; width: max-content; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.diagram-export .link-btn { text-align: left; }
+.diagram-settings { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-2); }
+.diagram-settings > label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; }
+.diagram-settings input[type=url] { min-width: min(320px, 70vw); }
+.diagram-settings > .diagram-consent { flex-direction: row; align-items: center; }
+.diagram-settings > p { width: 100%; margin: 0; }
+.diagram-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; padding: 8px 16px; font-size: .85rem; border-bottom: 1px solid var(--border); }
+.diagram-notice[role=alert] { color: var(--err); }
+.diagram-hint { margin: 0; padding: 5px 16px; border-bottom: 1px solid var(--border); }
+.diagram-commented { display: flex; align-items: stretch; position: relative; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.diagram-viewport { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg-3); }
+.diagram-viewport.hand { cursor: grab; }
+.diagram-viewport.hand:active { cursor: grabbing; }
+.diagram-viewport.comment { cursor: crosshair; touch-action: none; }
+.diagram-viewport.hand { touch-action: none; }
+.diagram-scroll-area { position: relative; }
+.diagram-image { position: absolute; background: white; box-shadow: 0 2px 12px rgb(0 0 0 / .2); }
+.diagram-image > img { display: block; width: 100%; height: 100%; max-width: none; user-select: none; pointer-events: none; }
+.diagram-mark { position: absolute; min-width: 6px; min-height: 6px; padding: 0; border: 2px solid var(--accent); border-radius: 3px; background: color-mix(in srgb, var(--accent) 8%, transparent); cursor: pointer; }
+.diagram-mark.point { min-width: 14px; min-height: 14px; border-radius: 50%; transform: translate(-50%, -50%); background: var(--accent-soft); }
+.diagram-mark.on { outline: 2px solid var(--accent); outline-offset: 3px; background: var(--accent-soft); }
+.diagram-mark.resolved { opacity: .45; border-style: dashed; }
+.diagram-region { position: absolute; min-width: 2px; min-height: 2px; border: 2px dashed var(--accent); background: var(--accent-soft); pointer-events: none; }
+.diagram-commented > .md-rail { width: 280px; flex: none; margin: 0 12px 0 32px; overflow: auto; max-height: 100%; height: 100% !important; }
+.diagram-commented > .md-links { height: 100%; overflow: hidden; }
+.diagram-commented .md-card.resolved { opacity: .7; }
+.diagram-missing { margin: 0 0 6px; }
+.diagram-source { flex: 1; overflow: auto; min-height: 0; }
+@media (max-width: 800px) {
+  .diagram-commented > .md-rail { width: 230px; margin-left: 16px; }
+  .diagram-tools .diagram-tool-spacer { display: none; }
+}

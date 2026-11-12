@@ -15,7 +15,7 @@ A nota abre na área principal. O botão ↗ abre no **bloco de notas**, uma jan
 ## Escrevendo
 
 - **O título** fica no cabeçalho. **Clique duas vezes nele** (ou use o botão direito) para renomear a nota; Enter guarda o nome novo.
-- **Encaminhar para um projeto** — a nota avulsa tem, à direita do cabeçalho, o projeto para onde mandá-la.
+- **Encaminhar para um projeto** — a nota avulsa tem, à direita do cabeçalho, o projeto para onde mandá-la. Depois de encaminhada, ela sai de Notas avulsas e passa a viver na pasta `notes/` daquele projeto.
 - **Digite `/`** para o menu de comandos, **`@`** para citar um arquivo do projeto, e **cole ou solte imagens** direto na nota.
 - **Ctrl+E** mostra o código-fonte Markdown; o botão do olho traz a nota formatada de volta.
 - A ☆ marca como favorita; as tags (numa nota de projeto) compartilham a nota com outros projetos.

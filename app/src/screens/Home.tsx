@@ -138,10 +138,8 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
   const hiddenProjects = projects.filter((p) => hidden.includes(p.id));
   const pinned = pins.map((id) => visible.find((p) => p.id === id)).filter((p): p is ProjectSummary => Boolean(p));
   const rest = visible.filter((p) => !pins.includes(p.id));
-  const notesShown = [
-    ...loose.map((n) => ({ kind: 'loose' as const, id: n.id, title: n.title, at: n.at })),
-    ...notes.filter((n) => visible.some((p) => p.id === n.project)).map((n) => ({ kind: 'project' as const, ...n })),
-  ].sort((a, b) => b.at - a.at);
+  // A note sent to a project lives in that project (and in Favorites, when starred). It no longer belongs here.
+  const notesShown = [...loose].sort((a, b) => b.at - a.at).map((n) => ({ kind: 'loose' as const, id: n.id, title: n.title, at: n.at }));
   // Favorite notes (the star): loose ones and those of the projects listed, as starred.
   const favorites = useMemo(() => [
     ...favoriteLooseIds().flatMap((id) => { const n = loose.find((x) => x.id === id); return n ? [{ kind: 'loose' as const, id, title: n.title }] : []; }),
@@ -351,7 +349,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
           {notesShown.length === 0 && <p className="muted small home-empty">{t('No loose notes yet.')}</p>}
           <ul>
             {notesShown.map((n) => (
-              <li key={n.kind === 'loose' ? n.id : `${n.project}:${n.path}`} className="home-row" onContextMenu={menuOn([
+              <li key={n.id} className="home-row" onContextMenu={menuOn([
                 notebookItem(refOf(n)),
                 renameItem(noteKey(refOf(n))),
                 deleteNoteItem(refOf(n), n.title),

@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe">Moki.Setup.0.5.3.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.4/Moki.Setup.0.5.4.exe">Moki.Setup.0.5.4.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
@@ -20,11 +20,11 @@ Começou como trabalho de qualidade de software: revisar uma história, projetar
 
 ## Instalar
 
-1. Baixe o [Moki.Setup.0.5.3.exe](https://github.com/Orsi88/moki/releases/download/v0.5.3/Moki.Setup.0.5.3.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.4.exe](https://github.com/Orsi88/moki/releases/download/v0.5.4/Moki.Setup.0.5.4.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
 
-Para o VS Code, baixe o [moki-0.5.3.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.3/moki-0.5.3.vsix) e rode `code --install-extension moki-0.5.3.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+Para o VS Code, baixe o [moki-0.5.4.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.4/moki-0.5.4.vsix) e rode `code --install-extension moki-0.5.4.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
 
 Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
@@ -49,13 +49,13 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
 
-## Novo na 0.5.3
+## Novo na 0.5.4
 
-- **Word e Excel no editor.** Edite textos, valores e fórmulas, mantenha os estilos originais e adicione comentários nativos. Clique no comentário para voltar ao parágrafo ou à célula. Converta arquivos antigos .doc/.xls em uma nova cópia editável. Veja [Arquivos e editor](docs/pt-BR/files-and-editor.md).
-- **Prévias HTML interativas.** Execute uma página local com seus scripts e arquivos, altere o tamanho da prévia e comente trechos selecionados. A página fica isolada; os comentários ficam no projeto sem modificar o HTML original.
-- **Notas, ferramentas e skills do projeto.** Melhore notas com assistentes rápidos, envie notas e contexto ao terminal de IA e chame as skills e os agentes do projeto pelo painel lateral. O gatinho acima de Nova nota abre o Moki na IDE e instala ou atualiza a extensão quando necessário.
-- **Hudson e controles mais claros.** Revise as sugestões de organização antes de aplicá-las, com um resultado claro quando tudo pode ficar como está. Os controles do documento dividem uma barra compacta e os painéis de comentários podem ser fechados.
-- **Uma nova wiki bilíngue.** Guias por assunto, capturas atualizadas e um tour pelo app em português e inglês. O uso de memória separa Moki dos processos de IA, e a busca e as prévias de PDF consomem menos memória.
+- **Rotinas e notificações.** Agende uma verificação no projeto: uma consulta só de leitura num MCP, arquivos do projeto ou uma pasta. O Moki avisa o que é novo, o que mudou ou o que sumiu e deixa uma proposta esperando a sua aprovação. O sino mostra isso.
+- **Revisão de diagramas.** Abra `.mmd`, `.puml`, `.d2` e `.dot` com zoom, arrastar, ajuste, exportação e comentários numa região. O Mermaid desenha sem internet. PlantUML, D2 e Graphviz usam um servidor Kroki só quando você configura um.
+- **Os mesmos comentários no Word, no Excel e no HTML.** Eles usam a coluna de comentários que o PDF e o Markdown já usam. Clique no comentário para ir ao trecho.
+- **Codex, Gemini e Antigravity recebem o projeto.** A sessão leva os servidores MCP, as skills e os agentes do projeto, como o Claude já levava. Blocos de código ganham cor pela linguagem, e uma nota enviada a um projeto sai das notas avulsas.
+- **Modelos e Configurador.** Envie um arquivo-base (`.docx`, `.xlsx`, `.md`, `.pdf`) para a IA seguir a estrutura. O Configurador prepara o Moki a partir do que você escreve e aplica só o plano que você aprova.
 
 ## Documentação
 

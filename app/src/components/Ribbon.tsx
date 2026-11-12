@@ -5,6 +5,7 @@ import type { MouseEvent } from 'react';
 import type { ProjectSummary } from '../api';
 import { t } from '../i18n';
 import { IconFolder, IconHome, IconLink, IconMoki, IconNotePlus, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
+import { NotificationBell } from './NotificationBell';
 
 interface Props {
   settingsOn: boolean;
@@ -22,9 +23,10 @@ interface Props {
   sidebarCollapsed?: boolean;
   searchOn?: boolean;
   onSearch?: () => void; // the magnifier: search the workspace
+  onOpenRoutine?: () => void;
 }
 
-export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch }: Props) {
+export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch, onOpenRoutine }: Props) {
   const ready = Boolean(project);
   return (
     <nav className="ribbon" aria-label={t('Actions')}>
@@ -36,6 +38,7 @@ export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, proje
       <button type="button" className={`icon-btn${project?.repository ? ' accent' : ''}`} disabled={!ready} onClick={onLink}
         title={project?.repository ? t('Linked folder: {folder} (click to link another)', { folder: project.repository }) : t('Link a folder of this computer to the project')}><IconLink size={19} /></button>
       <button type="button" className={`icon-btn${settingsOn ? ' on' : ''}`} onClick={onSettings} title={t('Settings')}><IconSettings size={19} /></button>
+      {onOpenRoutine && <NotificationBell onOpenRoutine={() => onOpenRoutine()} />}
       <button type="button" className="icon-btn" disabled={!ready} onClick={onRefresh} title={t('Refresh')}><IconRefresh size={19} /></button>
       <span className="ribbon-spacer" />
       <button type="button" className="icon-btn ribbon-ide" onClick={onIde} title={t('Moki in your IDE')} aria-label={t('Moki in your IDE')}><IconMoki size={20} /></button>

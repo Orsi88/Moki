@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, hasBridge, pageParams, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from './api';
+import { api, focusRoutine, hasBridge, pageParams, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from './api';
 import { t, useLang } from './i18n';
 import { hiddenIds, setMenuWorkspace } from './side-menu';
 import { Ribbon } from './components/Ribbon';
@@ -36,6 +36,7 @@ export function App() {
   // A project just made: the structured one opens with "Set up"; one opened from a folder says what linking it did.
   const [created, setCreated] = useState<{ id: string; setup: boolean; notice: string } | null>(null);
   const [settings, setSettings] = useState<SettingsTab | null>(null);
+  useEffect(() => api.onOpenRoutine((target) => { focusRoutine(target); setSettings('routines'); }), []);
   const [launchOnOpen, setLaunchOnOpen] = useState(false);
   const [pendingTerm, setPendingTerm] = useState<TerminalRef | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null); // a file a note window asked to open
@@ -145,7 +146,7 @@ export function App() {
     return (
       <>
         <div className="shell">
-          <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
+          <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onOpenRoutine={() => setSettings('routines')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
           <Home newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
           <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
         </div>

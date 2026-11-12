@@ -46,7 +46,7 @@ interface Choices { selected: string[]; modes: Record<string, Mode> }
 
 export class CompanionError extends Error {}
 
-const TEXT = new Set(['.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.xml', '.feature']);
+const TEXT = new Set(['.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.xml', '.feature', '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv']);
 const SENSITIVE = [/^\.env(\..*)?$/i, /\.(pem|key|p12|pfx|crt|jks)$/i, /^(credentials|secrets?)(\..*)?$/i, /^id_(rsa|dsa|ecdsa|ed25519)/i];
 const FILE_LIMIT = 200_000; // characters of one resource
 export const DEFAULT_BUDGET = 24_000; // characters of selected content in one context pack
