@@ -29,6 +29,7 @@ export interface DiagramViewState {
   scrollLeft: number;
   scrollTop: number;
   mode: 'select' | 'hand' | 'comment';
+  commentsOpen?: boolean;
 }
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -52,5 +53,6 @@ export function isDiagramViewState(value: unknown): value is DiagramViewState {
   return record(value) && hash(value.sourceHash) && typeof value.zoom === 'number' && Number.isFinite(value.zoom) && value.zoom >= 0.25 && value.zoom <= 5
     && typeof value.scrollLeft === 'number' && Number.isFinite(value.scrollLeft) && value.scrollLeft >= 0 && value.scrollLeft <= 10000000
     && typeof value.scrollTop === 'number' && Number.isFinite(value.scrollTop) && value.scrollTop >= 0 && value.scrollTop <= 10000000
-    && (value.mode === 'select' || value.mode === 'hand' || value.mode === 'comment');
+    && (value.mode === 'select' || value.mode === 'hand' || value.mode === 'comment')
+    && (value.commentsOpen === undefined || typeof value.commentsOpen === 'boolean');
 }

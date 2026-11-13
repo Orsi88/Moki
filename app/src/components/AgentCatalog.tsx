@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import type { AgentInfo } from '../api';
+import { agentFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { CatIcon } from './CatIcon';
 import { CatalogModal, matchesQuery } from './CatalogModal';
@@ -22,7 +23,7 @@ interface Props {
 
 export function AgentCatalog({ agents, selected, optional, title, hint, onPick, onClose }: Props) {
   const [query, setQuery] = useState('');
-  const list = agents.filter((a) => matchesQuery(query, a.name, a.description, a.category));
+  const list = agents.filter((a) => { const face = agentFace(a.name, a.description); return matchesQuery(query, face.label, face.hint, a.name, a.description, a.category); });
 
   return (
     <CatalogModal titleId="agent-catalog-title" title={title ?? t('Who should do it?')} hint={hint ?? (optional ? t('An agent is a specialist with its own instructions. If you are not sure, let the skill decide.') : undefined)}
@@ -43,9 +44,11 @@ export function AgentCatalog({ agents, selected, optional, title, hint, onPick, 
             </button>
           </li>
         )}
-        {list.map((a) => (
+        {list.map((a) => {
+          const face = agentFace(a.name, a.description);
+          return (
           <li key={a.name}>
-            <button type="button" className={`catalog-card${a.name === selected ? ' on' : ''}`} aria-pressed={a.name === selected} title={a.description || undefined} onClick={() => { onPick(a.name); onClose(); }}>
+            <button type="button" className={`catalog-card${a.name === selected ? ' on' : ''}`} aria-pressed={a.name === selected} onClick={() => { onPick(a.name); onClose(); }}>
               <span className="catalog-top">
                 <span className="catalog-num">{a.source === 'custom' ? t('Yours') : t('Agent')}</span>
                 {a.category && <span className="catalog-skill">{a.category}</span>}
@@ -53,13 +56,14 @@ export function AgentCatalog({ agents, selected, optional, title, hint, onPick, 
               <span className="catalog-main">
                 <span className="catalog-emblem" aria-hidden="true"><CatIcon id="robot" size={64} /></span>
                 <span className="catalog-text">
-                  <span className="catalog-title">{a.name}</span>
-                  {a.description && <span className="catalog-hint agent-catalog-hint">{a.description}</span>}
+                  <span className="catalog-title">{face.label}</span>
+                  {face.hint && <span className="catalog-hint agent-catalog-hint">{face.hint}</span>}
                 </span>
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </CatalogModal>
   );
@@ -75,7 +79,7 @@ export function AgentPick({ agents, value, onChange, optional, label, title, hin
       <span className="pp-field-label">{label}</span>
       <button type="button" className={`pp-pick${value || optional ? '' : ' empty'}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
         {value && <CatIcon id="robot" size={26} />}
-        <span className="pp-pick-label">{value || (optional ? t('Let the skill decide') : t('Choose an agent'))}</span>
+        <span className="pp-pick-label">{value ? agentFace(value).label : (optional ? t('Let the skill decide') : t('Choose an agent'))}</span>
         <IconChevron size={14} />
       </button>
       {open && <AgentCatalog agents={agents} selected={value} optional={optional} title={title} hint={hint} onPick={onChange} onClose={() => setOpen(false)} />}

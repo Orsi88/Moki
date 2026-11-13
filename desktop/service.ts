@@ -125,6 +125,7 @@ export interface Sheet {
 export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
   | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
+  | { kind: 'drawing'; path: string; text: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
@@ -860,6 +861,10 @@ export function createService(root: string, deps: Deps) {
       const text = readFileSync(file, 'utf8');
       return { kind: 'diagram', path, text, diagram, editable: false, version: diagramHash(text) };
     }
+    if (ext === '.excalidraw') {
+      if (size > DIAGRAM_SOURCE_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Drawing too large to open.' };
+      return { kind: 'drawing', path, text: readFileSync(file, 'utf8') };
+    }
     if (ext === '.doc' || ext === '.xls') return { kind: 'binary', path, size, openable: true, legacy: ext === '.doc' ? 'doc' : 'xls' };
     if (OFFICE_TYPES[ext]) {
       const what = OFFICE_TYPES[ext] === 'docx' ? 'Word document' : 'spreadsheet';
@@ -1353,6 +1358,18 @@ export function createService(root: string, deps: Deps) {
 
     // `base`: the text the editor started from. When given, the file is written only if it still holds that text, so a
     // change made meanwhile by someone else (the AI writing the file) is never overwritten by an automatic save.
+    saveDrawing: (project: string, rel: string, text: unknown) => {
+      const file = projectPath(project, rel);
+      if (extname(file).toLowerCase() !== '.excalidraw' || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose a drawing.');
+      if (typeof text !== 'string' || Buffer.byteLength(text) > DIAGRAM_SOURCE_LIMIT) throw new ServiceError('Invalid content.');
+      let parsed: { type?: unknown; elements?: unknown };
+      try { parsed = JSON.parse(text) as { type?: unknown; elements?: unknown }; }
+      catch { throw new ServiceError('This drawing is not valid.'); }
+      if (parsed?.type !== 'excalidraw' || !Array.isArray(parsed.elements)) throw new ServiceError('This drawing is not valid.');
+      writeFileSync(file, text, 'utf8');
+      return readFile(project, rel);
+    },
+
     writeFile: (project: string, rel: string, text: unknown, base?: unknown) => {
       const file = projectPath(project, rel);
       if (!isEditable(file)) throw new ServiceError('Only Markdown and text files can be edited here.');

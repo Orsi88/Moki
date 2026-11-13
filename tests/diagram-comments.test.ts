@@ -53,6 +53,8 @@ test('source changes retain every review anchor, while saved view records the cu
   const path = join(directory, 'flow.d2'); writeFileSync(path, source);
   const notes = addDiagramComment(directory, 'flow.d2', anchor, 'Review old rendering', 'Ana');
   saveDiagramView(directory, 'flow.d2', view);
+  assert.equal(saveDiagramView(directory, 'flow.d2', { ...view, commentsOpen: false }).commentsOpen, false);
+  assert.equal(readDiagramView(directory, 'flow.d2')?.commentsOpen, false);
   const changed = 'A -> C: Updated source\n'; writeFileSync(path, changed);
   const changedHash = createHash('sha256').update(changed).digest('hex');
   saveDiagramView(directory, 'flow.d2', { ...view, sourceHash: changedHash });
@@ -97,7 +99,7 @@ test('diagram contracts reject malformed hashes, coordinates, regions, colors, r
   for (const value of [null, [], {}, { ...anchor, sourceHash: 'invalid' }, { ...anchor, x: -0.1 }, { ...anchor, y: Infinity }, { ...anchor, width: NaN },
     { ...anchor, x: 0.9, width: 0.2 }, { ...anchor, y: 0.95, height: 0.2 }, { ...anchor, elementId: 'x'.repeat(301) }, { ...anchor, elementLabel: 5 }]) assert.equal(isDiagramAnchor(value), false);
   for (const value of [null, [], { op: 'resolve', id: 'id', resolved: 1 }, { op: 'resolve', id: '', resolved: true }, { op: 'color', id: 'id', color: 'url(untrusted)' }]) assert.equal(isDiagramCommentChange(value), false);
-  for (const value of [{ ...view, sourceHash: 'bad' }, { ...view, zoom: 0.1 }, { ...view, zoom: 6 }, { ...view, scrollLeft: -1 }, { ...view, scrollTop: Infinity }, { ...view, mode: 'unknown' }]) {
+  for (const value of [{ ...view, sourceHash: 'bad' }, { ...view, zoom: 0.1 }, { ...view, zoom: 6 }, { ...view, scrollLeft: -1 }, { ...view, scrollTop: Infinity }, { ...view, mode: 'unknown' }, { ...view, commentsOpen: 'no' as unknown as boolean }]) {
     assert.equal(isDiagramViewState(value), false);
     assert.throws(() => saveDiagramView(directory, 'flow.mmd', value as DiagramViewState), /Invalid diagram view/);
   }

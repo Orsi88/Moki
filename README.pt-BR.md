@@ -52,6 +52,9 @@ Os agentes encadeiam essas atividades em **operações multiagente**, os servido
 ## Novo na 0.5.5
 
 - **O Codex lê o projeto.** A sessão abre por conta própria, então os servidores MCP do projeto chegam, inclusive o do Moki. O Moki devolve o texto de um PDF. `context/` fica na frente quando discorda de outra pasta; as outras pastas do projeto continuam disponíveis.
+- **Desenhos e diagramas.** Um arquivo `.excalidraw` abre para ver; o lápis na barra do arquivo mostra as ferramentas, e o fundo acompanha o tema do documento. Um diagrama ou desenho dentro de uma nota pode ser redimensionado, e o lápis abre o editor. Segure Ctrl e role para dar zoom. A faixa de comentários que você minimiza continua minimizada quando você volta naquele arquivo.
+- **Notas no projeto.** As notas do projeto têm uma seção própria no fim da barra lateral, na mesma lista das notas avulsas do workspace.
+- **A IDE vê todas as pastas.** O contexto vem primeiro, depois notas, entrada, execuções, temporários e o resto. Uma descrição que já está no card não se repete num balão. O menu de workspaces usa a mesma borda dourada suave do painel de notificações.
 
 ## Novo na 0.5.4
 

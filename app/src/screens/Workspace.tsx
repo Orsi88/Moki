@@ -10,6 +10,7 @@ import { conversationLanguage, t } from '../i18n';
 import { defaultTool, preferredTool, recall, remember } from '../prefs';
 import { DocView, type DocMode } from '../components/DocView';
 import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
+import { RenameField, tooLong } from '../components/RenameField';
 import { NewMenu } from '../components/NewMenu';
 import { IdeDialog } from '../components/IdeDialog';
 import { LaunchDialog } from '../components/LaunchDialog';
@@ -25,7 +26,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconBroom, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconChevron, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -603,8 +604,14 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     return api.onNotesChanged(refresh);
   }, [project.id]);
   const favorites = useMemo(() => new Set(favoriteNotes().filter((n) => n.project === project.id).map((n) => n.path)), [favTick, project.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The sidebar shows the tree in blocks (files on top, the Operations card, Project settings and MCPs at the bottom); each block is a FileTree with the same behavior.
+  // The sidebar shows notes in their own section (titles, one click), then the folders, with MCPs fixed at the bottom.
   const groups = useMemo(() => groupTree(tree), [tree]);
+  const noteFiles = useMemo(() => {
+    const children = groups.notes?.children ?? [];
+    return [...children].sort((a, b) => Number(favorites.has(b.path)) - Number(favorites.has(a.path)));
+  }, [groups.notes, favorites]);
+  const notesDir: TreeNode = groups.notes ?? { name: 'notes', path: 'notes', type: 'dir', children: [] };
+  const [notesOpen, setNotesOpen] = useState(true);
   const folderLabel = (path: string) => friendlyName((path.split('/').pop() || path) || t('the project folder'));
   const dropOnFolder = (folder: string, e: DragEvent) => {
     dragDepth.current = 0;
@@ -980,6 +987,51 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <div className="sidebar-scroll" onContextMenu={(e) => { e.preventDefault(); openItemMenu(null, { left: e.clientX, top: e.clientY }); }}>
           <FileTree {...treeProps} nodes={groups.main} />
         </div>
+        <section className={`home-block sidebar-notes${notesOpen ? '' : ' is-collapsed'}`} aria-label={t('Notes')}>
+          <div className="home-list-head with-action">
+            <button type="button" className="home-block-toggle tree-row" title="notes" aria-expanded={notesOpen}
+              onClick={() => setNotesOpen((open) => !open)}
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openItemMenu(notesDir, { left: e.clientX, top: e.clientY }); }}>
+              <IconChevron size={12} /><span>{t('Notes')}</span>
+            </button>
+            <button type="button" className="icon-btn" title={t('New note')} aria-label={t('New note')} onClick={() => setNote({ path: null })}><IconPlus size={15} /></button>
+          </div>
+          {notesOpen && (
+            <div className="home-block-scroll">
+              {noteFiles.length === 0 && <p className="muted small home-empty">{t('No notes in this project yet.')}</p>}
+              {noteFiles.length > 0 && (
+                <ul>
+                  {noteFiles.map((node) => {
+                    const title = noteTitles[node.path] ?? node.name.replace(/\.md$/, '');
+                    return (
+                      <li key={node.path} className="home-row">
+                        {renaming === node.path ? (
+                          <div className="home-project renaming tree-row" title={node.path}>
+                            <RenameField label={title} initial={title} check={tooLong} onRename={(name) => renameItem(node.path, name)} onEnd={() => setRenaming(null)} />
+                            <IconChevron size={16} />
+                          </div>
+                        ) : (
+                          <button type="button" className={`home-project tree-row${active === node.path ? ' active' : ''}`} title={node.path} draggable
+                            onClick={() => openPath(node.path)}
+                            onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); startRename(node.path); } }}
+                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openItemMenu(node, { left: e.clientX, top: e.clientY }); }}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/x-moki-note', JSON.stringify({ path: node.path }));
+                              e.dataTransfer.setData('application/x-moki-move', node.path);
+                              e.dataTransfer.effectAllowed = 'copyMove';
+                            }}>
+                            <span className="home-project-name">{favorites.has(node.path) && <span className="star-mark" title={t('Favorite')}><IconStar size={13} /></span>}{title}</span>
+                            <IconChevron size={16} />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
         {/* Fixed at the bottom of the sidebar, whatever the scroll: Project settings and the MCP servers. */}
         <div className="sidebar-foot"><FileTree {...treeProps} nodes={groups.settings} /></div>
         </>}

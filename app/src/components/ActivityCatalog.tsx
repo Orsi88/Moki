@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { activityTargetLabel, type ActivityInfo } from '../api';
+import { activityFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { ACTIVITY_CAT } from '../icons/cats';
 import { CatIcon } from './CatIcon';
@@ -25,14 +26,16 @@ const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 export function ActivityCatalog({ activities, selected, onPick, onClose, blocked }: Props) {
   const [query, setQuery] = useState('');
   const everything = activities.filter((a) => a.id !== 'resume');
-  const list = everything.filter((a) => matchesQuery(query, t(a.label), t(a.hint), activityTargetLabel(a.target), a.category));
+  const list = everything.filter((a) => { const face = activityFace(a.id, a.label, a.hint); return matchesQuery(query, face.label, face.hint, t(a.label), t(a.hint), activityTargetLabel(a.target), a.category); });
 
   return (
     <CatalogModal titleId="catalog-title" title={t('What do you want to do?')} hint={t('An activity can be a request, an agent, skills, a workflow or an operation.')} onClose={onClose}
       search={{ value: query, onChange: setQuery, placeholder: t('Search activities') }}>
       {!list.length && <p className="muted small">{t('No activity matches.')}</p>}
       <ul className="catalog-grid">
-        {list.map((a) => (
+        {list.map((a) => {
+          const face = activityFace(a.id, a.label, a.hint);
+          return (
           <li key={a.id}>
             <button type="button" className={`catalog-card${a.id === selected ? ' on' : ''}`} disabled={!a.available || Boolean(blocked?.(a))}
               aria-pressed={a.id === selected} onClick={() => { onPick(a.id); onClose(); }}>
@@ -43,8 +46,8 @@ export function ActivityCatalog({ activities, selected, onPick, onClose, blocked
               <span className="catalog-main">
                 <span className="catalog-emblem" aria-hidden="true"><CatIcon id={ACTIVITY_CAT[a.id] ?? 'run'} size={64} /></span>
                 <span className="catalog-text">
-                  <span className="catalog-title">{t(a.label)}</span>
-                  {a.hint && <span className="catalog-hint">{capitalize(t(a.hint))}</span>}
+                  <span className="catalog-title">{face.label}</span>
+                  {face.hint && <span className="catalog-hint">{capitalize(face.hint)}</span>}
                 </span>
               </span>
               <span className="catalog-tags">
@@ -55,7 +58,8 @@ export function ActivityCatalog({ activities, selected, onPick, onClose, blocked
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </CatalogModal>
   );
@@ -64,15 +68,16 @@ export function ActivityCatalog({ activities, selected, onPick, onClose, blocked
 export function ActivityPick({ activities, value, onChange, label }: { activities: ActivityInfo[]; value: string; onChange: (id: string) => void; label: string }) {
   const [open, setOpen] = useState(false);
   const activity = activities.find((a) => a.id === value);
+  const face = activity ? activityFace(activity.id, activity.label, activity.hint) : undefined;
   return (
     <div className="pp-field">
       <span className="pp-field-label">{label}</span>
       <button type="button" className={`pp-pick${activity ? '' : ' empty'}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
         {activity && <CatIcon id={ACTIVITY_CAT[activity.id] ?? 'run'} size={26} />}
-        <span className="pp-pick-label">{activity ? t(activity.label) : t('Choose an activity')}</span>
+        <span className="pp-pick-label">{face ? face.label : t('Choose an activity')}</span>
         <IconChevron size={14} />
       </button>
-      {activity?.hint && <span className="pp-hint">{capitalize(t(activity.hint))}</span>}
+      {face?.hint && <span className="pp-hint">{capitalize(face.hint)}</span>}
       {activity?.needsFiles && <span className="pp-hint">{t('Next, you pick the inbox files it should use.')}</span>}
       {open && <ActivityCatalog activities={activities} selected={value} onPick={onChange} onClose={() => setOpen(false)} />}
     </div>

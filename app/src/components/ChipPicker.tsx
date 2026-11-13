@@ -29,7 +29,7 @@ export function ChipPicker({ label, chips, options, onAdd, onRemove, onStar, emp
   const [open, setOpen] = useState(false);
   const listId = useId();
   const query = text.trim().toLowerCase();
-  const shown = useMemo(() => options.filter((o) => !query || o.name.toLowerCase().includes(query) || (o.hint ?? '').toLowerCase().includes(query)), [options, query]);
+  const shown = useMemo(() => options.filter((o) => !query || [o.name, o.hint ?? '', o.id].join(' ').toLowerCase().includes(query)), [options, query]);
   const add = (id: string) => { onAdd(id); setText(''); };
   // The list opens below the field; in a scrolling dialog, scroll just enough for all of it to show.
   const listRef = useRef<HTMLUListElement>(null);

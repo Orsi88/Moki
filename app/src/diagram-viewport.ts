@@ -7,12 +7,32 @@ export interface DiagramLayout extends DiagramSize { left: number; top: number }
 export const MIN_DIAGRAM_ZOOM = 0.25;
 export const MAX_DIAGRAM_ZOOM = 5;
 const PADDING = 24;
+// The pane is a window onto a board. Room on every side is what makes drag-to-explore move.
+const BOARD = 8000;
 export const clampDiagramZoom = (zoom: number): number => Math.min(MAX_DIAGRAM_ZOOM, Math.max(MIN_DIAGRAM_ZOOM, Number.isFinite(zoom) ? zoom : 1));
 
 export function diagramLayout(size: DiagramSize, viewport: DiagramSize, zoom: number): DiagramLayout {
   const width = Math.max(1, size.width) * clampDiagramZoom(zoom), height = Math.max(1, size.height) * clampDiagramZoom(zoom);
-  return { left: Math.max(PADDING, (viewport.width - width) / 2), top: Math.max(PADDING, (viewport.height - height) / 2),
-    width: Math.max(viewport.width, width + PADDING * 2), height: Math.max(viewport.height, height + PADDING * 2) };
+  const margin = Math.max(BOARD, viewport.width, viewport.height);
+  return { left: margin, top: margin, width: width + margin * 2, height: height + margin * 2 };
+}
+
+// Scroll that puts the middle of the drawing in the middle of the pane.
+export function diagramFocus(size: DiagramSize, viewport: DiagramSize, zoom: number): DiagramScroll {
+  const layout = diagramLayout(size, viewport, zoom), scale = clampDiagramZoom(zoom);
+  const left = layout.left + (Math.max(1, size.width) * scale - viewport.width) / 2;
+  const top = layout.top + (Math.max(1, size.height) * scale - viewport.height) / 2;
+  return {
+    scrollLeft: Math.min(Math.max(0, layout.width - viewport.width), Math.max(0, left)),
+    scrollTop: Math.min(Math.max(0, layout.height - viewport.height), Math.max(0, top)),
+  };
+}
+
+export function diagramVisible(size: DiagramSize, viewport: DiagramSize, state: DiagramScroll & { zoom: number }): boolean {
+  const layout = diagramLayout(size, viewport, state.zoom), scale = clampDiagramZoom(state.zoom);
+  const left = layout.left - state.scrollLeft, top = layout.top - state.scrollTop;
+  const right = left + Math.max(1, size.width) * scale, bottom = top + Math.max(1, size.height) * scale;
+  return right > 0 && bottom > 0 && left < viewport.width && top < viewport.height;
 }
 
 export function fitDiagram(size: DiagramSize, viewport: DiagramSize, mode: 'screen' | 'width'): number {

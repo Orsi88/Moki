@@ -85,7 +85,7 @@ To link a folder for good, open the project in the desktop app and use the **lin
 
 In **Activities**, **Agents** and **Operations** the panel lists only the starred items (the same stars as in the app) and the 5 most used ones, counted when you start something from the panel. A search box finds the others. With no star or use yet, the first 5 show.
 
-In **Context**, each context file, note and file shared by tags has a switch. Off, it stays out of the requests and out of what the AI can read through Moki's MCP server. The star makes it a priority: the AI gets it first, with its text, in the context pack. Files shared by tags with other projects wait for you (off) until you switch them on. The choices are kept per project in `workspace/projects/<id>/companion.json`.
+In **Context**, every file of the project is listed by folder: context first, then notes, then the inbox, runs, temporary and any other folder, then files shared by tags. Each has a switch. Off, it stays out of the requests and out of what the AI can read through Moki's MCP server. The star makes it a priority: the AI gets it first, with its text, in the context pack. Files shared by tags with other projects wait for you (off) until you switch them on. The choices are kept per project in `workspace/projects/<id>/companion.json`.
 
 ## The panel
 

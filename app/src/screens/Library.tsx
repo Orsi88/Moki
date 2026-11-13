@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api, type AgentContract, type AgentDetail, type AgentInfo, type AgentProfile, type Category, type ProjectSummary, type SkillInfo, type ToolInfo } from '../api';
 import { AgentContractFields } from '../components/AgentContractFields';
+import { agentFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { IconCopy, IconEdit, IconFolder, IconHome, IconTrash, IconX } from '../components/Icons';
 import { AddButton } from '../components/AddButton';
@@ -172,8 +173,8 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
   });
 
   const shownAgents = agents.filter((a) => (kind === 'all' || kind === a.source) && (!category || a.category === category)
-    && matchesQuery(query, a.name, a.description) && matchesTag(tags[a.name] ?? [], filter, catalog));
-  const shownGlobal = kind === 'all' || kind === 'global' ? globalAgents.filter((a) => !filter && !category && matchesQuery(query, a.name, a.description)) : [];
+    && matchesQuery(query, a.name, a.description, agentFace(a.name, a.description).label, agentFace(a.name, a.description).hint) && matchesTag(tags[a.name] ?? [], filter, catalog));
+  const shownGlobal = kind === 'all' || kind === 'global' ? globalAgents.filter((a) => !filter && !category && matchesQuery(query, a.name, a.description, agentFace(a.name, a.description).label, agentFace(a.name, a.description).hint)) : [];
   const tagName = (id: string) => (id.startsWith('project:') ? `📁 ${catalog?.projects.find((p) => p.id === id)?.name ?? id.slice(8)}` : `# ${catalog?.tags.find((tg) => tg.id === id)?.name ?? id}`);
 
   const leave = async () => { if (!dirty || await confirmDialog(t('Discard unsaved changes?'), { danger: true })) onBack(); };
@@ -227,11 +228,13 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                   <section key={c.id} className="list-group">
                     <h2 className="list-group-head" title={c.description}>{t(c.label)}</h2>
                     <ul className="list-cards">
-                      {fav.first(group, (a) => a.name).map((a) => (
+                      {fav.first(group, (a) => a.name).map((a) => {
+                        const face = agentFace(a.name, a.description);
+                        return (
                         <li key={a.name} className="fav-item">
                           <button type="button" className="list-card library-item" onClick={() => choose({ kind: 'library', name: a.name })}>
-                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{a.name}<BroughtMark uploads={uploads} kind="agent" name={a.name} /></span>
-                            <span className="list-card-desc">{a.description}</span>
+                            <span className="list-card-title"><span className={`dot ${a.usable ? 'dot-ok' : 'dot-muted'}`} title={statusText(a.status)} />{face.label}<BroughtMark uploads={uploads} kind="agent" name={a.name} /></span>
+                            <span className="list-card-desc">{face.hint}</span>
                             <span className="chips">
                               {a.source === 'custom' && <span className="chip chip-accent">{t('yours')}</span>}
                               {(tags[a.name] ?? []).length
@@ -242,7 +245,8 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                           </button>
                           <StarButton on={fav.has(a.name)} name={a.name} onToggle={() => fav.toggle(a.name)} />
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   </section>
                 );
@@ -251,16 +255,19 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                 <section className="list-group">
                   <h2 className="list-group-head">{t('In your user folder')}</h2>
                   <ul className="list-cards">
-                    {fav.first(shownGlobal, (a) => `~${a.name}`).map((a) => (
+                    {fav.first(shownGlobal, (a) => `~${a.name}`).map((a) => {
+                      const face = agentFace(a.name, a.description);
+                      return (
                       <li key={a.name} className="fav-item">
                         <button type="button" className="list-card library-item" onClick={() => choose({ kind: 'global', name: a.name })}>
-                          <span className="list-card-title"><span className="dot dot-ok" />{a.name}</span>
-                          {a.description && <span className="list-card-desc">{a.description}</span>}
+                          <span className="list-card-title"><span className="dot dot-ok" />{face.label}</span>
+                          {face.hint && <span className="list-card-desc">{face.hint}</span>}
                           <span className="chips"><span className="chip">~/.claude/agents</span></span>
                         </button>
                         <StarButton on={fav.has(`~${a.name}`)} name={a.name} onToggle={() => fav.toggle(`~${a.name}`)} />
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </section>
               )}
@@ -271,7 +278,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
             <div className="library-detail">
               <header className="library-head">
                 <div>
-                  <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{scopeAgent.name}</h1></div>
+                  <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{agentFace(scopeAgent.name, scopeAgent.description).label}</h1></div>
                   {scopeAgent.description && <p className="muted">{scopeAgent.description}</p>}
                 </div>
                 <div className="row-actions">
@@ -289,7 +296,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
           <div className="library-detail agent-page">
             <header className="library-head">
               <div>
-                <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{detail.name}</h1></div>
+                <div className="title-row"><BackArrow label={t('Agents')} onBack={back} /><h1>{agentFace(detail.name, detail.description).label}</h1></div>
                 <div className="agent-badges">
                   <span className="chip">{t(categories.find((c) => c.id === detail.category)?.label ?? detail.category)}</span>
                   <span className="chip"><span className={`dot ${detail.usable ? 'dot-ok' : 'dot-muted'}`} /> {statusText(detail.status)}</span>

@@ -3,7 +3,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, type GlobalItems, type ProjectItems, type ProjectSummary } from '../api';
+import { skillFace } from '../catalog-copy';
 import { t } from '../i18n';
+import { HoverTip } from './HoverTip';
 import { confirmDialog } from '../dialogs';
 import { IconFolder } from './Icons';
 import { SkillCat } from './SkillCat';
@@ -65,7 +67,7 @@ export function InstalledSkills({ projects }: Props) {
               <li key={s.name} className="skill-card">
                 <div className="skill-card-head">
                   <SkillCat name={s.name} />
-                  <span className="choice-title">{s.name}</span>
+                  <HoverTip text={skillFace(s.name, s.description).hint}><span className="choice-title">{skillFace(s.name, s.description).label}</span></HoverTip>
                   <span className="chip">{t('Only this project')}</span>
                   <span className="statusbar-spacer" />
                   <button type="button" className="btn btn-ghost btn-sm" disabled={Boolean(busy)} onClick={() => { void removeProject(project, s.name); }}>
@@ -89,7 +91,7 @@ export function InstalledSkills({ projects }: Props) {
               <li key={s.name} className="skill-card">
                 <div className="skill-card-head">
                   <SkillCat name={s.name} />
-                  <span className="choice-title">{s.name}</span>
+                  <HoverTip text={skillFace(s.name, s.description).hint}><span className="choice-title">{skillFace(s.name, s.description).label}</span></HoverTip>
                   <span className="chip">{t('Global')}</span>
                   <span className="statusbar-spacer" />
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => { api.openGlobal('skill', s.name).catch((e) => setError(message(e))); }} title={t('Open its folder')}><IconFolder size={15} /> {t('Open')}</button>

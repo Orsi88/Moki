@@ -107,6 +107,7 @@ export interface TreeNode {
 export type FileContent =
   | { kind: 'markdown'; path: string; text: string; html: string; editable: boolean }
   | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
+  | { kind: 'drawing'; path: string; text: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
@@ -419,6 +420,7 @@ export const api = {
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
   // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.
   writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
+  saveDrawing: (project: string, path: string, text: string) => call<FileContent>('saveDrawing', project, path, text),
   editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
   htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
   addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string, color?: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text, color),

@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type Invocation, type LaunchPreset, type LaunchResult, type OpenRun, type Operation, type ProjectSummary, type SkillInfo, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
+import { agentFace } from '../catalog-copy';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, remember } from '../prefs';
 import { IconCheck, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPlay, IconRefresh, IconTerminal, IconX } from './Icons';
@@ -195,7 +196,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
   };
   const q = questions[step];
 
-  const agentLabel = agent || t('Let the skill decide');
+  const agentLabel = agent ? agentFace(agent).label : t('Let the skill decide');
   const summary: { step: StepKey; label: string; value: string }[] = preset?.startAtTool ? [
     { step: 'tool', label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' },
   ] : [
@@ -298,9 +299,9 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
             <div className="answer-list">
               <Answer title={t('Let the skill decide')} hint={t('Recommended if you are not sure.')} on={!agent} onPick={() => { setAgent(''); next(); }} />
               {suited.length > 0 && <p className="answer-group">{t('Suited to this activity')}</p>}
-              {suited.map((a) => <Answer key={a.name} title={a.name} hint={a.description} on={agent === a.name} onPick={() => { setAgent(a.name); next(); }} />)}
+              {suited.map((a) => { const face = agentFace(a.name, a.description); return <Answer key={a.name} title={face.label} hint={face.hint} on={agent === a.name} onPick={() => { setAgent(a.name); next(); }} />; })}
               {others.length > 0 && <p className="answer-group">{t('Other agents in this project')}</p>}
-              {others.map((a) => <Answer key={a.name} title={a.name} hint={a.description} on={agent === a.name} onPick={() => { setAgent(a.name); next(); }} />)}
+              {others.map((a) => { const face = agentFace(a.name, a.description); return <Answer key={a.name} title={face.label} hint={face.hint} on={agent === a.name} onPick={() => { setAgent(a.name); next(); }} />; })}
             </div>
           )}
 

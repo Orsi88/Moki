@@ -52,6 +52,9 @@ Agents chain these into **multi-agent operations**, MCP servers give the AI your
 ## New in 0.5.5
 
 - **Codex reads the project.** A session starts on its own, so the project's MCP servers arrive, including Moki's. Moki returns the text of a PDF. `context/` stays first when it disagrees with another folder; the project's other folders stay available.
+- **Drawings and diagrams.** A `.excalidraw` file opens to look at; the pencil in the file bar shows the tools, and the canvas follows the document theme. A diagram or drawing inside a note can be resized, and its pencil opens the editor. Hold Ctrl and scroll to zoom. A comment rail you minimize stays minimized when you return to that file.
+- **Notes in the project.** Project notes have their own section at the bottom of the sidebar, in the same list as the loose notes on the workspace.
+- **The IDE sees every folder.** Context comes first, then notes, inbox, runs, temporary files and the rest. A description already written on a card is not repeated in a bubble. The workspace menu uses the same soft gold edge as the notification panel.
 
 ## New in 0.5.4
 

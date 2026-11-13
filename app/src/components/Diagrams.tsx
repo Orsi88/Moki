@@ -1,11 +1,15 @@
 // Mermaid and Excalidraw blocks inside rendered Markdown. The HTML from the main
-// process only carries the escaped source; drawing happens here. A drawing can be
-// edited and is written back into its fence. Mermaid stays source.
+// process only carries the escaped source; drawing happens here. A drawing opens
+// the Excalidraw canvas, a diagram opens its source beside a live picture, and
+// either viewer can be dragged taller or shorter. The fence keeps that height.
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { t } from '../i18n';
 import { mountDiagramJobs, type DiagramJob, type MermaidDrawer } from '../diagram-mount';
 import { cachedMermaid, diagramCache, diagramKey } from '../diagram-cache';
-import { type DiagramLang } from '../diagram-source';
+import { readFenceHeight, type DiagramLang } from '../diagram-source';
+import { useModalLayer } from '../modal-layer';
+import { IconCheck } from './Icons';
 
 // Excalidraw is heavy: its chunk loads on the first drawing, not with the app. A
 // failed load is not kept, so the next drawing tries again.
@@ -52,21 +56,45 @@ async function drawExcalidraw(host: HTMLElement, source: string) {
   if (svg) diagramCache.set(key, { svg: svg.outerHTML });
 }
 
+// A Mermaid picture is smaller than the card and ships with its own max-width, so the
+// card's max-width zoom never moves it. Size it from its own view box instead. A drawing
+// is larger than the card, and the card's max-width already zooms that one.
+function scaleMermaid(host: HTMLElement, zoom: number) {
+  const card = host.dataset.diagram ? host : host.closest<HTMLElement>('[data-diagram]');
+  if (!card || card.dataset.diagram === 'excalidraw') return;
+  const picture = host.classList.contains('diagram-picture') ? host : card.querySelector('.diagram-picture');
+  const svg = picture?.querySelector('svg');
+  if (!(svg instanceof SVGSVGElement)) return;
+  const box = svg.viewBox.baseVal;
+  if (!box.width || !box.height) return;
+  svg.style.maxWidth = 'none';
+  svg.style.flexShrink = '0';
+  svg.style.width = `${box.width * zoom}px`;
+  svg.style.height = `${box.height * zoom}px`;
+}
+
 // Ctrl + scroll over the card. The same range as the +/- buttons. A passive
 // listener cannot cancel the browser's own zoom, so this one is not passive.
 export function bindDiagramZoom(host: HTMLElement): () => void {
   let zoom = 1;
-  host.style.setProperty('--diagram-zoom', '1');
+  const apply = () => {
+    host.style.setProperty('--diagram-zoom', String(zoom));
+    scaleMermaid(host, zoom);
+  };
+  apply();
   const onWheel = (event: WheelEvent) => {
-    if (!event.ctrlKey) return;
+    if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     const next = Math.min(3, Math.max(0.25, Math.round((zoom + (event.deltaY > 0 ? -0.15 : 0.15)) * 100) / 100));
     if (next === zoom) return;
     zoom = next;
-    host.style.setProperty('--diagram-zoom', String(zoom));
+    apply();
   };
   host.addEventListener('wheel', onWheel, { passive: false });
-  return () => host.removeEventListener('wheel', onWheel);
+  const picture = host.querySelector('.diagram-picture') ?? host;
+  const seen = new MutationObserver(() => apply());
+  seen.observe(picture, { childList: true, subtree: true });
+  return () => { seen.disconnect(); host.removeEventListener('wheel', onWheel); };
 }
 
 export async function openDrawing(source: string, onSave: (body: string) => void) {
@@ -76,6 +104,85 @@ export async function openDrawing(source: string, onSave: (body: string) => void
   const root = createRoot(host);
   const close = () => { root.unmount(); host.remove(); };
   root.render(<DrawingEditor source={source} onSave={(body) => { onSave(body); close(); }} onClose={close} />);
+}
+
+const clampHeight = (value: number) => Math.min(1200, Math.max(120, Math.round(value)));
+
+function DiagramEditor({ source, onSave, onClose }: { source: string; onSave: (body: string) => void; onClose: () => void }) {
+  const host = useRef<HTMLDivElement>(null);
+  const preview = useRef<HTMLDivElement>(null);
+  useModalLayer(host, onClose);
+  const [text, setText] = useState(source);
+  useEffect(() => {
+    const box = preview.current;
+    if (!box) return;
+    let gone = false;
+    const timer = window.setTimeout(() => {
+      void paintDiagram(box, 'mermaid', text).catch(() => { if (!gone) failed(box); });
+    }, 220);
+    return () => { gone = true; window.clearTimeout(timer); };
+  }, [text]);
+  return (
+    <div ref={host} className="drawing-editor" role="dialog" aria-modal="true" aria-label={t('Diagram')} tabIndex={-1}>
+      <div className="drawing-editor-bar">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t('Cancel')}</button>
+        <button type="button" className="btn btn-icon" onClick={() => onSave(text.replace(/\s+$/, ''))} title={t('Save diagram')} aria-label={t('Save diagram')}><IconCheck size={16} /></button>
+      </div>
+      <div className="diagram-editor-body">
+        <textarea className="diagram-editor-source" aria-label={t('Diagram source')} value={text} spellCheck={false} data-dialog-focus onChange={(event) => setText(event.target.value)} />
+        <div className="diagram-editor-preview" ref={preview} />
+      </div>
+    </div>
+  );
+}
+
+export async function openDiagram(source: string, onSave: (body: string) => void) {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const close = () => { root.unmount(); host.remove(); };
+  root.render(<DiagramEditor source={source} onSave={(body) => { onSave(body); close(); }} onClose={close} />);
+}
+
+// The bottom edge of a card. The new height is reported when the drag ends.
+function resizeHandle(picture: HTMLElement, current: number, onCommit?: (height: number) => void) {
+  const handle = document.createElement('div');
+  handle.className = 'diagram-resize';
+  handle.setAttribute('role', 'separator');
+  handle.setAttribute('aria-orientation', 'horizontal');
+  handle.tabIndex = 0;
+  handle.title = t('Drag to change the height');
+  handle.setAttribute('aria-label', t('Drag to change the height'));
+  let height = current;
+  const apply = (next: number) => {
+    height = clampHeight(next);
+    picture.style.setProperty('--diagram-h', `${height}px`);
+    handle.setAttribute('aria-valuenow', String(height));
+  };
+  apply(current);
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    const start = height;
+    const move = (pointer: PointerEvent) => apply(start + pointer.clientY - startY);
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      onCommit?.(height);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+  });
+  handle.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    event.stopPropagation();
+    apply(height + (event.key === 'ArrowDown' ? 24 : -24));
+    onCommit?.(height);
+  });
+  return handle;
 }
 
 // The same zoom as a PDF: the picture starts fitted to the card, then grows or shrinks inside it.
@@ -99,6 +206,7 @@ function zoomControl(picture: HTMLElement) {
   inn.setAttribute('aria-label', t('Zoom in'));
   const apply = () => {
     picture.style.setProperty('--diagram-zoom', String(zoom));
+    scaleMermaid(picture, zoom);
     label.textContent = `${Math.round(zoom * 100)}%`;
     out.disabled = zoom <= 0.5;
     inn.disabled = zoom >= 3;
@@ -125,7 +233,7 @@ export function failed(host: HTMLElement) {
 
 // Turns each diagram block into a picture. `onSave` writes an edited drawing back.
 // The order lives in mountDiagramJobs: the card replaces the source before Mermaid loads.
-export async function mountDiagrams(root: HTMLElement, onSave?: (index: number, lang: DiagramLang, body: string) => void) {
+export async function mountDiagrams(root: HTMLElement, onSave?: (index: number, lang: DiagramLang, body: string, height?: number) => void) {
   const blocks = [...root.querySelectorAll<HTMLElement>('pre.diagram, div.diagram')];
   const jobs: (DiagramJob & { block: HTMLElement })[] = [];
   blocks.forEach((block, index) => {
@@ -154,6 +262,30 @@ export async function mountDiagrams(root: HTMLElement, onSave?: (index: number, 
       actions.append(zoomControl(picture));
       bar.append(kind, actions);
       frame.append(bar, picture);
+      const stored = readFenceHeight(`height=${job.block.dataset.height ?? ''}`);
+      if (stored) frame.dataset.height = String(stored);
+      frame.append(resizeHandle(picture, stored ?? 240, onSave ? (height) => {
+        frame.dataset.height = String(height);
+        onSave(job.index, job.lang, frame.dataset.source ?? job.source, height);
+      } : undefined));
+      if (job.lang === 'mermaid' && onSave) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'icon-btn diagram-edit';
+        button.title = t('Edit diagram');
+        button.setAttribute('aria-label', t('Edit diagram'));
+        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void openDiagram(frame.dataset.source ?? '', (body) => {
+            frame.dataset.source = body;
+            onSave(job.index, 'mermaid', body);
+            void paintDiagram(picture, 'mermaid', body).catch(() => failed(picture));
+          }).catch(() => failed(picture));
+        });
+        actions.append(button);
+      }
       if (job.lang === 'excalidraw' && onSave) {
         const button = document.createElement('button');
         button.type = 'button';

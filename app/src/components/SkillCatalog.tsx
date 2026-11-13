@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import type { SkillInfo } from '../api';
+import { skillFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { CatIcon } from './CatIcon';
 import { CatalogModal, matchesQuery } from './CatalogModal';
@@ -17,16 +18,18 @@ interface Props {
 
 export function SkillCatalog({ skills, selected, onPick, onClose }: Props) {
   const [query, setQuery] = useState('');
-  const list = skills.filter((s) => matchesQuery(query, s.name, s.description, s.status));
+  const list = skills.filter((s) => { const face = skillFace(s.name, s.description); return matchesQuery(query, face.label, face.hint, s.name, s.description, s.status); });
 
   return (
     <CatalogModal titleId="skill-catalog-title" title={t('Choose a skill')} onClose={onClose}
       search={{ value: query, onChange: setQuery, placeholder: t('Search skills') }}>
       {!list.length && <p className="muted small">{t('No skill matches.')}</p>}
       <ul className="catalog-grid">
-        {list.map((s) => (
+        {list.map((s) => {
+          const face = skillFace(s.name, s.description);
+          return (
           <li key={s.name}>
-            <button type="button" className={`catalog-card${s.name === selected ? ' on' : ''}`} aria-pressed={s.name === selected} title={s.description || undefined} onClick={() => { onPick(s.name); onClose(); }}>
+            <button type="button" className={`catalog-card${s.name === selected ? ' on' : ''}`} aria-pressed={s.name === selected} onClick={() => { onPick(s.name); onClose(); }}>
               <span className="catalog-top">
                 <span className="catalog-num">{t('Skill')}</span>
                 {s.status && <span className="catalog-skill">{s.status}</span>}
@@ -34,13 +37,14 @@ export function SkillCatalog({ skills, selected, onPick, onClose }: Props) {
               <span className="catalog-main">
                 <span className="catalog-emblem" aria-hidden="true"><CatIcon id="puzzle" size={64} /></span>
                 <span className="catalog-text">
-                  <span className="catalog-title">{s.name}</span>
-                  {s.description && <span className="catalog-hint">{s.description}</span>}
+                  <span className="catalog-title">{face.label}</span>
+                  {face.hint && <span className="catalog-hint">{face.hint}</span>}
                 </span>
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </CatalogModal>
   );
@@ -53,7 +57,7 @@ export function SkillPick({ skills, value, onChange }: { skills: SkillInfo[]; va
       <span className="pp-field-label">{t('Skill')}</span>
       <button type="button" className={`pp-pick${value ? '' : ' empty'}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
         {value && <CatIcon id="puzzle" size={26} />}
-        <span className="pp-pick-label">{value || t('Choose a skill')}</span>
+        <span className="pp-pick-label">{value ? skillFace(value).label : t('Choose a skill')}</span>
         <IconChevron size={14} />
       </button>
       {open && <SkillCatalog skills={skills} selected={value} onPick={onChange} onClose={() => setOpen(false)} />}

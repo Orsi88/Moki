@@ -142,7 +142,6 @@ for (const lang of ['en', 'pt-BR'] as const) {
     });
 
     test('a note with a quick assistant suggestion', async () => {
-      await page.locator('.tree-row[title="notes"]').click();
       await page.locator(`.tree-row[title="notes/${pt ? 'ideias-de-teste' : 'test-ideas'}.md"]`).click();
       const note = page.locator('.note-dialog').last();
       const group = note.getByRole('group', { name: pt ? 'Assistentes rápidos' : 'Quick assistants' });

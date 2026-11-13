@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { describeRun, statusLabel, type ActivityInfo, type AgentInfo, type InboxFile, type LaunchResult, type OpenRun, type OperationRun } from '../api';
+import { activityFace, agentFace, skillFace } from '../catalog-copy';
 import { conversationLanguage, t } from '../i18n';
 import { remember } from '../prefs';
 import { ACTIVITY_CAT } from '../icons/cats';
@@ -41,8 +42,8 @@ export function CompanionApp() {
   useEffect(() => onVisible(setVisible), []);
   const [seen, setSeen] = useState<Record<string, string> | null>(null);
 
-  const shownActivities = useShortlist('activities', useMemo(() => activities.filter((a) => a.available && a.id !== 'resume'), [activities]), (a) => a.id, (a) => `${t(a.label)} ${t(a.hint)}`);
-  const shownAgents = useShortlist('agents', agents, (a) => a.name, (a) => `${a.name} ${a.description}`);
+  const shownActivities = useShortlist('activities', useMemo(() => activities.filter((a) => a.available && a.id !== 'resume'), [activities]), (a) => a.id, (a) => { const face = activityFace(a.id, a.label, a.hint); return `${face.label} ${face.hint} ${t(a.label)}`; });
+  const shownAgents = useShortlist('agents', agents, (a) => a.name, (a) => { const face = agentFace(a.name, a.description); return `${face.label} ${face.hint} ${a.name} ${a.description}`; });
   const fail = (e: unknown) => setNotice({ text: e instanceof Error ? e.message : String(e), warn: true });
   const notify = useCallback((text: string, warn?: boolean) => setNotice({ text, warn }), []);
   const load = useCallback(() => {
@@ -149,7 +150,7 @@ export function CompanionApp() {
           <div className="mk-list">
             {shownActivities.search}
             {shownActivities.shown.map((a) => (
-              <Card key={a.id} star={shownActivities.star(a.id, t(a.label))} on={open === a.id} icon={<CatIcon id={ACTIVITY_CAT[a.id] ?? 'puzzle'} size={40} />} title={t(a.label)} hint={t(a.hint)} onPick={() => toggle(a.id)}>
+              <Card key={a.id} star={shownActivities.star(a.id, activityFace(a.id, a.label, a.hint).label)} on={open === a.id} icon={<CatIcon id={ACTIVITY_CAT[a.id] ?? 'puzzle'} size={40} />} title={activityFace(a.id, a.label, a.hint).label} hint={activityFace(a.id, a.label, a.hint).hint} onPick={() => toggle(a.id)}>
                 {launchBox({ key: a.id, activity: a.id, needsFiles: a.needsFiles })}
               </Card>
             ))}
@@ -161,8 +162,8 @@ export function CompanionApp() {
             {!agents.length && <p className="muted small">{t('No agents are enabled in this project. Choose them in the Moki app (Set up project).')}</p>}
             {shownAgents.search}
             {shownAgents.shown.map((a) => (
-              <Card key={a.name} star={shownAgents.star(a.name, a.name)} on={open === `agent:${a.name}`} icon={<CatIcon id="robot" size={40} />} title={a.name} hint={a.description} onPick={() => toggle(`agent:${a.name}`)}
-                chips={a.skills}>
+              <Card key={a.name} star={shownAgents.star(a.name, agentFace(a.name, a.description).label)} on={open === `agent:${a.name}`} icon={<CatIcon id="robot" size={40} />} title={agentFace(a.name, a.description).label} hint={agentFace(a.name, a.description).hint} onPick={() => toggle(`agent:${a.name}`)}
+                chips={a.skills.map((name) => skillFace(name).label)}>
                 {launchBox({ key: `agent:${a.name}`, activity: 'open', agent: a.name })}
               </Card>
             ))}
@@ -320,9 +321,20 @@ function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launc
 }
 
 function ContextTab({ files, included, onChange, onError, onPrepare }: { files: ContextFile[]; included: number; onChange: (f: ContextFile[]) => void; onError: (e: unknown) => void; onPrepare: () => void }) {
-  const groups = useMemo(() => ([
-    ['context', t('Project context')], ['note', t('Notes')], ['shared', t('Shared by tags')],
-  ] as const).map(([kind, label]) => ({ kind, label, items: files.filter((f) => f.kind === kind) })).filter((g) => g.items.length), [files]);
+  const groups = useMemo(() => {
+    const named = (kind: string, label: string) => ({ key: kind, label, items: files.filter((f) => f.kind === kind) });
+    const fixed = [named('context', t('Project context')), named('note', t('Notes'))].filter((g) => g.items.length);
+    const known: Record<string, string> = { inbox: t('Inbox'), runs: t('Runs'), temporary: t('Temporary') };
+    const byFolder = new Map<string, ContextFile[]>();
+    for (const f of files.filter((file) => file.kind === 'file')) {
+      const folder = f.path.includes('/') ? f.path.slice(0, f.path.indexOf('/')) : '';
+      byFolder.set(folder, [...(byFolder.get(folder) ?? []), f]);
+    }
+    const order = ['inbox', 'runs', 'temporary', ...[...byFolder.keys()].filter((k) => k && !(k in known)).sort(), ''];
+    const folders = order.filter((k) => byFolder.has(k)).map((k) => ({ key: k || 'loose', label: k ? known[k] ?? k : t('Other files'), items: byFolder.get(k)! }));
+    const shared = named('shared', t('Shared by tags'));
+    return [...fixed, ...folders, ...(shared.items.length ? [shared] : [])];
+  }, [files]);
   const set = (method: string, id: string, on: boolean) => call<ContextFile[]>(method, id, on).then(onChange).catch(onError);
   if (!files.length) {
     return (
@@ -339,7 +351,7 @@ function ContextTab({ files, included, onChange, onError, onPrepare }: { files: 
       <p className="mk-summary"><strong>{t('{n} of {total} files go to the AI', { n: included, total: files.length })}</strong></p>
       <p className="muted small">{t('Switched off, a file stays out of the requests and of what the AI can read. The star gives it to the AI first.')}</p>
       {groups.map((g) => (
-        <section key={g.kind}>
+        <section key={g.key}>
           <h3 className="mk-section">{g.label}</h3>
           <ul className="mk-ctx">
             {g.items.map((f) => (
@@ -349,7 +361,7 @@ function ContextTab({ files, included, onChange, onError, onPrepare }: { files: 
                   <span className="mk-switch-track" />
                 </label>
                 <span className="mk-ctx-text">
-                  <span className="mk-ctx-name" title={f.id}>{g.kind === 'shared' ? f.title : f.path}</span>
+                  <span className="mk-ctx-name" title={f.id}>{g.key === 'shared' ? f.title : f.path}</span>
                   {f.description && <span className="mk-card-hint">{f.description}</span>}
                 </span>
                 <button type="button" className={`icon-btn${f.priority ? ' accent' : ''}`} onClick={() => set('setPriority', f.id, !f.priority)}

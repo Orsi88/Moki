@@ -196,3 +196,19 @@ test('diagram service caps simultaneous Kroki renders and releases slots after c
     assert.equal((await third).provider, 'kroki');
   } finally { release.forEach((done) => done()); setup.cleanup(); }
 });
+
+test('an Excalidraw file opens as a drawing and only a scene can be saved back', async () => {
+  const setup = fixture();
+  const scene = JSON.stringify({ type: 'excalidraw', version: 2, source: 'moki', elements: [], appState: { viewBackgroundColor: '#ffffff' }, files: {} });
+  try {
+    writeFileSync(join(setup.directory, 'inbox/cafeteria.excalidraw'), scene);
+    assert.deepEqual(await setup.service.readFile('acme', 'inbox/cafeteria.excalidraw'), { kind: 'drawing', path: 'inbox/cafeteria.excalidraw', text: scene });
+    const edited = scene.replace('"elements":[]', '"elements":[{"id":"a"}]');
+    assert.equal((await setup.service.saveDrawing('acme', 'inbox/cafeteria.excalidraw', edited)).kind, 'drawing');
+    assert.equal(readFileSync(join(setup.directory, 'inbox/cafeteria.excalidraw'), 'utf8'), edited);
+    assert.throws(() => setup.service.saveDrawing('acme', 'inbox/cafeteria.excalidraw', '{'), /not valid/);
+    assert.throws(() => setup.service.saveDrawing('acme', 'inbox/review.mmd', scene), /drawing/i);
+    writeFileSync(join(setup.directory, 'inbox/huge.excalidraw'), 'x'.repeat(DIAGRAM_SOURCE_LIMIT + 1));
+    assert.equal((await setup.service.readFile('acme', 'inbox/huge.excalidraw')).kind, 'binary');
+  } finally { setup.cleanup(); }
+});

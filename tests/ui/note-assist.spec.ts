@@ -69,7 +69,6 @@ async function shots(name: string, target = page.locator('.note-dialog')) {
 }
 
 test('improving the writing is a suggestion: the differences show, and only Accept changes the note', async () => {
-  await page.locator('.tree-row[title="notes"]').click();
   await page.locator('.tree-row[title="notes/ideias.md"]').click();
   const note = page.locator('.note-dialog');
   const assistants = note.getByRole('group', { name: 'Assistentes rápidos' });

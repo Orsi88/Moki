@@ -87,7 +87,7 @@ Para ligar uma pasta de vez, abra o projeto no app desktop e use o botão de **v
 
 Em **Atividades**, **Agentes** e **Operações** o painel lista só os itens com estrela (as mesmas do app) e os 5 mais usados, contados quando você inicia algo pelo painel. A caixa de busca encontra os outros. Sem estrela nem uso ainda, aparecem os 5 primeiros.
 
-Em **Contexto**, cada arquivo de contexto, nota e arquivo compartilhado por tags tem um botão de ligar. Desligado, ele fica fora dos pedidos e fora do que a IA consegue ler pelo servidor MCP do Moki. A estrela dá prioridade: a IA recebe o arquivo primeiro, com o texto, no pacote de contexto. Arquivos compartilhados por tags com outros projetos começam desligados e esperam você ligar. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
+Em **Contexto**, cada arquivo do projeto aparece por pasta: contexto primeiro, depois notas, entrada, execuções, temporários e qualquer outra pasta, e por fim os arquivos compartilhados por tags. Cada um tem um botão de ligar. Desligado, ele fica fora dos pedidos e fora do que a IA consegue ler pelo servidor MCP do Moki. A estrela dá prioridade: a IA recebe o arquivo primeiro, com o texto, no pacote de contexto. Arquivos compartilhados por tags com outros projetos começam desligados e esperam você ligar. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
 
 ## O painel
 

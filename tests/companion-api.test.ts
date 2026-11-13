@@ -99,13 +99,16 @@ test('agents: only the ones the project uses', async () => {
 });
 
 test('context: switching a file off leaves it out of requests and of what the AI reads', async () => {
-  const files = await call('context') as { id: string; included: boolean }[];
+  const files = await call('context') as { id: string; included: boolean; kind: string }[];
   const old = files.find((f) => f.id.endsWith('context/old.md'))!;
+  const story = files.find((f) => f.id.endsWith('inbox/us-1.md'))!;
   assert.ok(old.included);
+  assert.equal(story.kind, 'file');
+  assert.ok(story.included);
   const after = await call('setIncluded', old.id, false) as { id: string; included: boolean; priority: boolean }[];
   assert.equal(after.find((f) => f.id === old.id)?.included, false);
   assert.ok(!companion!.resources().some((r) => r.id === old.id), 'hidden from the MCP server too');
-  await assert.rejects(call('setIncluded', 'workspace/projects/beta/context/index.md', true), /not in the project's context/);
+  await assert.rejects(call('setIncluded', 'workspace/projects/beta/context/index.md', true), /not in the project/);
   const rules = files.find((f) => f.id.endsWith('context/rules.md'))!;
   const starred = await call('setPriority', rules.id, true) as { id: string; priority: boolean }[];
   assert.ok(starred.find((f) => f.id === rules.id)?.priority);

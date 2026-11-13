@@ -26,7 +26,7 @@ export const OPENABLE_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.csv', '.log', '.xml', '.yaml', '.yml',
   '.pdf', '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.odt', '.ods',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp4', '.webm', '.zip', '.html', '.htm',
-  '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv',
+  '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv', '.excalidraw',
 ]);
 
 // Files editable inside the app (plain text only; JSON state stays read-only).
