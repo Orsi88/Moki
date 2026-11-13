@@ -34,10 +34,10 @@ Registering a tool in Moki instead of directly in the IDE means the agents, the 
 
 **From the desktop app.** The cat icon above **New note** on the fixed rail opens **Moki in your IDE**. Choose an installed editor and press **Open**: Moki installs or updates its extension only when needed, then opens the project’s linked folder (or the framework folder). Close with the X. The same installer is available in **Settings › My AIs › Install the Moki extension and open** on the VS Code card installs the extension of the app's version (downloaded from its release and checked by SHA-256) and opens VS Code on the project's linked folder. The Cursor card does the same, marked *Not verified*.
 
-**From the release.** Download [moki-0.5.5.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.5/moki-0.5.5.vsix) from the [latest release](https://github.com/Orsi88/moki/releases/latest), then:
+**From the release.** Download [moki-0.5.6.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.6/moki-0.5.6.vsix) from the [latest release](https://github.com/Orsi88/moki/releases/latest), then:
 
 ```bash
-code --install-extension moki-0.5.5.vsix --force
+code --install-extension moki-0.5.6.vsix --force
 ```
 
 **From the source.** From the repository root:
