@@ -88,7 +88,10 @@ function render(md) {
     if (/^```/.test(line)) {
       // Only these two languages become diagrams. Anything else stays a code block, and the
       // language is a fixed token so it cannot become an attribute.
-      const lang = line.slice(3).trim().split(/\s+/)[0].toLowerCase();
+      const info = line.slice(3).trim();
+      const lang = info.split(/\s+/)[0].toLowerCase();
+      const height = Number(/(?:^|\s)height=(\d{2,4})\b/.exec(info)?.[1]);
+      const heightAttr = height >= 120 && height <= 1200 ? ` data-height="${height}"` : '';
       const buf = [];
       i++;
       while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
@@ -98,7 +101,7 @@ function render(md) {
       // A language is kept only as a fixed token, so it cannot become markup.
       const token = /^[a-z0-9_+-]+$/.test(lang) ? lang : '';
       out.push(diagram
-        ? `<pre class="diagram" data-diagram="${diagram}"><code>${code}</code></pre>`
+        ? `<pre class="diagram" data-diagram="${diagram}"${heightAttr}><code>${code}</code></pre>`
         : `<pre${token ? ` data-lang="${token}"` : ''}><code>${code}</code></pre>`);
     } else if (/^#{1,6}\s/.test(line)) {
       const level = line.match(/^#+/)[0].length;

@@ -8,7 +8,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, activityTargetLabel, type ActivityDetail, type ActivityDraft, type ActivityInfo } from '../api';
+import { activityFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
+import { HoverTip } from './HoverTip';
 import { confirmDialog } from '../dialogs';
 import { IconStar } from './Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from './ListPage';
@@ -59,21 +61,21 @@ export function ActivitiesPage() {
   const save = () => draft && act(async () => { const saved = await api.saveActivity(draft); const a = await api.activity(saved.id); setOpen(a); setDraft(toDraft(a)); }, t('Saved.'));
   const duplicate = (id: string) => act(async () => { const copy = await api.duplicateActivity(id); const a = await api.activity(copy.id); setOpen(a); setDraft(toDraft(a)); }, t('Copied to your activities.'));
   const remove = async (a: ActivityDetail) => {
-    if (!await confirmDialog(t('Delete the activity "{name}"?', { name: t(a.label) }), { danger: true })) return;
+    if (!await confirmDialog(t('Delete the activity "{name}"?', { name: activityFace(a.id, a.label, a.hint).label }), { danger: true })) return;
     void act(async () => { await api.deleteActivity(a.id); setOpen(null); setDraft(null); }, t('Deleted.'));
   };
 
   const all = list ?? [];
   const ofKind = (a: ActivityInfo, k: Kind) => k === 'all' || (k === 'favorites' ? a.favorite : a.source === k);
-  const shown = all.filter((a) => ofKind(a, kind) && matchesQuery(query, t(a.label), t(a.hint), a.category, activityTargetLabel(a.target)))
+  const shown = all.filter((a) => { const face = activityFace(a.id, a.label, a.hint); return ofKind(a, kind) && matchesQuery(query, face.label, face.hint, t(a.label), t(a.hint), a.category, activityTargetLabel(a.target)); })
     .sort((a, b) => Number(b.favorite) - Number(a.favorite));
   const set = (patch: Partial<ActivityDraft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const canSave = draft && draft.label.trim() && (draft.kind === 'prompt' ? draft.template.trim() : draft.kind === 'skills' ? draft.skills?.length : draft.target);
   const options = (k: string): { id: string; name: string }[] => !targets ? [] : k === 'skill' ? targets.skills.map((n) => ({ id: n, name: n }))
     : k === 'agent' ? targets.agents.map((n) => ({ id: n, name: n })) : k === 'workflow' ? targets.workflows.map((n) => ({ id: n, name: n })) : targets.operations;
-  const starButton = (a: { id: string; favorite: boolean; label: string }) => (
+  const starButton = (a: { id: string; favorite: boolean; label: string; hint?: string }) => (
     <button type="button" className={`icon-btn star-btn${a.favorite ? ' on' : ''}`} disabled={busy} aria-pressed={a.favorite}
-      title={a.favorite ? t('Remove from favorites') : t('Add to favorites')} aria-label={t('Favorite: {name}', { name: t(a.label) })} onClick={() => { void star(a); }}><IconStar size={16} /></button>
+      title={a.favorite ? t('Remove from favorites') : t('Add to favorites')} aria-label={t('Favorite: {name}', { name: activityFace(a.id, a.label, a.hint ?? '').label })} onClick={() => { void star(a); }}><IconStar size={16} /></button>
   );
 
   // The form of a new activity or of one of yours.
@@ -103,10 +105,15 @@ export function ActivitiesPage() {
       {d.kind === 'skills' && <div className="field">
         <span className="label">{t('Choose one or more skills')}</span>
         <div className="chips" role="group" aria-label={t('Skills')}>
-          {[...new Set([...(targets?.skills ?? []), ...(d.skills ?? [])])].map((name) => (
-            <button key={name} type="button" className={`chip-btn${d.skills?.includes(name) ? ' on' : ''}`}
-              aria-pressed={d.skills?.includes(name) ?? false} onClick={() => set({ skills: d.skills?.includes(name) ? d.skills.filter((s) => s !== name) : [...(d.skills ?? []), name] })}>{name}</button>
-          ))}
+          {[...new Set([...(targets?.skills ?? []), ...(d.skills ?? [])])].map((name) => {
+            const face = skillFace(name);
+            return (
+            <HoverTip key={name} text={face.hint}>
+            <button type="button" className={`chip-btn${d.skills?.includes(name) ? ' on' : ''}`}
+              aria-pressed={d.skills?.includes(name) ?? false} onClick={() => set({ skills: d.skills?.includes(name) ? d.skills.filter((s) => s !== name) : [...(d.skills ?? []), name] })}>{face.label}</button>
+            </HoverTip>
+            );
+          })}
         </div>
       </div>}
       {d.kind === 'agent' && <p className="muted small">{t('The agent uses its own instructions and any skills assigned to it. Skills are optional.')}</p>}
@@ -140,7 +147,7 @@ export function ActivitiesPage() {
     return (
       <div className="list-page skill-page">
         <header className="library-head">
-          <div className="title-row"><BackArrow label={t('Activities')} onBack={() => { setOpen(null); setDraft(null); setInfo(''); setError(''); }} /><h1>{t(open.label)}</h1>{starButton(open)}</div>
+          <div className="title-row"><BackArrow label={t('Activities')} onBack={() => { setOpen(null); setDraft(null); setInfo(''); setError(''); }} /><h1>{activityFace(open.id, open.label, open.hint).label}</h1>{starButton(open)}</div>
           <div className="agent-badges">
             <span className={`chip${open.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(open.source)}</span>
             <span className="chip">{targetLabel(open)}</span>
@@ -199,11 +206,13 @@ export function ActivitiesPage() {
       <ListTools query={query} onQuery={setQuery} placeholder={t('Search activities')} count={countLabel(shown.length, '1 activity', '{n} activities')} />
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
       <ul className="list-cards">
-        {shown.map((a) => (
+        {shown.map((a) => {
+          const face = activityFace(a.id, a.label, a.hint);
+          return (
           <li key={a.id} className="activity-item">
             <button type="button" className="list-card" onClick={() => { void show(a.id); }}>
-              <span className="list-card-title">{t(a.label)}<BroughtMark uploads={uploads} kind="activity" name={a.id} /></span>
-              <span className="list-card-desc">{t(a.hint)}</span>
+              <span className="list-card-title">{face.label}<BroughtMark uploads={uploads} kind="activity" name={a.id} /></span>
+              <span className="list-card-desc">{face.hint}</span>
               <span className="chips">
                 <span className={`chip${a.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(a.source)}</span>
                 <span className="chip">{targetLabel(a)}</span>
@@ -212,7 +221,8 @@ export function ActivitiesPage() {
             </button>
             {starButton(a)}
           </li>
-        ))}
+          );
+        })}
       </ul>
       {list && !shown.length && <p className="list-empty">{t('No activity with these filters.')}</p>}
     </div>

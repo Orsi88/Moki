@@ -105,7 +105,7 @@ export function saveDiagramView(directory: string, path: string, view: DiagramVi
   if (!isDiagramViewState(view)) throw new Error('Invalid diagram view.');
   const entries = read(directory), entry = entries.find((entry) => entry.html === path) ?? { html: path, comments: [] };
   if (!entries.includes(entry)) entries.push(entry);
-  entry.view = { sourceHash: view.sourceHash, zoom: view.zoom, scrollLeft: view.scrollLeft, scrollTop: view.scrollTop, mode: view.mode };
+  entry.view = { sourceHash: view.sourceHash, zoom: view.zoom, scrollLeft: view.scrollLeft, scrollTop: view.scrollTop, mode: view.mode, ...(typeof view.commentsOpen === 'boolean' ? { commentsOpen: view.commentsOpen } : {}) };
   write(directory, entries); return entry.view;
 }
 export function moveHtmlComments(directory: string, from: string, to: string): void {

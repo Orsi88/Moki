@@ -49,7 +49,7 @@ export function MarkdownComments({ path, html, text, onCommit, onClick, hidden =
     if (path) headingLinks(el, t('Copy link to this section'), (slug, button) => {
       api.copyText(projectLink(path, { kind: 'heading', slug })).then(() => button.classList.add('copied')).catch((e: Error) => { button.title = e.message; });
     });
-    void mountDiagrams(el, (index, lang, body) => onCommit(replaceDiagram(text, index, lang, body)));
+    void mountDiagrams(el, (index, lang, body, height) => onCommit(replaceDiagram(text, index, lang, body, height)));
   }, [html, text, onCommit, resolveLink, path]);
   // The mark of the card under the pointer lights up.
   useLayoutEffect(() => {

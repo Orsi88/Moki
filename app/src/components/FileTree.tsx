@@ -14,7 +14,7 @@ interface Props {
   onNewNote: () => void;
   tagColors?: (path: string) => string[]; // colors of the file's tags
   onMenu?: (node: TreeNode, at: { left: number; top: number }) => void; // the item's menu: right click or its ⋯ button
-  favorites?: Set<string>; // favorite notes: a star, and first in the notes folder
+  favorites?: Set<string>; // favorite notes: a star, and first in the notes section
   noteTitles?: Record<string, string>;
   onIde?: (at: { left: number; top: number }) => void; // "Open in the IDE" on the linked folder's row
   onReceive?: (folder: string, event: ReactDragEvent) => void; // a file dropped on this folder
@@ -41,18 +41,22 @@ const SETTINGS = ['README.md', 'project.json']; // left out of the tree
 export const OTHER_FILES = '.other';
 const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, '.tracking': IconList, [OTHER_FILES]: IconFolder, '.mcps': IconMcp };
 
-export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; settings: TreeNode[] } {
+export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; notes: TreeNode | null; settings: TreeNode[] } {
   const mcps = nodes.find((n) => n.path === '.mcps');
   const files = nodes.filter((n) => n !== mcps);
-  const pick = (names: string[]) => names.flatMap((name) => files.filter((n) => n.type === 'file' && n.name === name));
+  // Notes stay in notes/ on disk, but the sidebar lists them in their own section, not as one more folder.
+  const notes = files.find((n) => n.type === 'dir' && n.path === 'notes') ?? null;
+  const listed = notes ? files.filter((n) => n !== notes) : files;
+  const pick = (names: string[]) => names.flatMap((name) => listed.filter((n) => n.type === 'file' && n.name === name));
   const group = (name: string, path: string, children: TreeNode[]): TreeNode[] => (children.length ? [{ name, path, type: 'dir', children }] : []);
-  const other = files.filter((n) => n.type === 'file' && !TRACKING.includes(n.name) && !SETTINGS.includes(n.name));
+  const other = listed.filter((n) => n.type === 'file' && !TRACKING.includes(n.name) && !SETTINGS.includes(n.name));
   return {
     main: [
-      ...files.filter((n) => n.type === 'dir'),
+      ...listed.filter((n) => n.type === 'dir'),
       ...group(t('Tracking'), '.tracking', pick(TRACKING)),
       ...group(t('Other files'), OTHER_FILES, other),
     ],
+    notes,
     settings: mcps ? [mcps] : [],
   };
 }
@@ -117,7 +121,7 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
   // Without a title, the run's id says it: its slug, without the skill's name, in words.
   const slug = !run ? '' : (node.run?.skill && run.title.startsWith(`${node.run.skill}-`) ? run.title.slice(node.run.skill.length + 1) : run.title).replace(/-/g, ' ');
   const runName = !run ? '' : node.run?.title || (origin ? (node.run?.scenario ? `${origin} · ${node.run.scenario}` : origin) : node.run?.scenario || slug);
-  const label = run ? node.run?.title || node.run?.scenario || runName : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.path.startsWith('notes/') ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : node.name;
+  const label = run ? node.run?.title || node.run?.scenario || runName : isNotePath(node.path) ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.name;
   const menu = node.path.startsWith('.') ? undefined : onMenu; // a group of the sidebar, not a folder: nothing to create, reveal or copy
   const noteDrag = !isDir && /^notes\/[^/]+\.md$/.test(node.path);
   const movable = !isDir && canMove(node.path);

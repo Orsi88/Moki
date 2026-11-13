@@ -1,6 +1,7 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { PDFDocument } from 'pdf-lib';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,7 +53,7 @@ test('the open folder finds its project: linked folder first, subfolders too', (
   if (process.platform === 'win32') assert.deepEqual(projectsForFolder(root, repo.toUpperCase()), ['acme']);
 });
 
-test('resources: own context and notes, shared context waits for the person, no secrets', () => {
+test('resources: own context and notes, shared context waits for the person, no secrets', async () => {
   const c = openCompanion(root, 'acme');
   const ids = c.resources().map((r) => r.id);
   assert.ok(ids.includes(label('acme', 'context/business-rules.md')));
@@ -65,22 +66,22 @@ test('resources: own context and notes, shared context waits for the person, no 
   const shared = c.resources().find((r) => r.id === label('beta', 'context/glossary.md'));
   assert.equal(shared?.kind, 'shared');
   assert.equal(shared?.mode, 'ask');
-  assert.throws(() => c.getResource(shared!.id), /select this resource/);
+  await assert.rejects(() => c.getResource(shared!.id), /select this resource/);
   c.select(shared!.id, true);
-  assert.match(c.getResource(shared!.id).text, /signed agreement/);
+  assert.match((await c.getResource(shared!.id)).text, /signed agreement/);
   c.select(shared!.id, false);
 });
 
-test('isolation: ids of other projects or paths outside are refused', () => {
+test('isolation: ids of other projects or paths outside are refused', async () => {
   const c = openCompanion(root, 'acme');
   for (const id of [label('gamma', 'context/private.md'), label('acme', '../gamma/context/private.md'), label('acme', 'context/.env'), 'agent:nobody', '/etc/passwd']) {
-    assert.throws(() => c.getResource(id), CompanionError, id);
+    await assert.rejects(() => c.getResource(id), CompanionError, id);
   }
   assert.throws(() => openCompanion(root, '../acme'), /Unknown project/);
   assert.ok(isSensitive('C:/x/.env.local') && isSensitive('id_rsa') && isSensitive('server.pem') && !isSensitive('env.md'));
 });
 
-test('diagram sources are readable context resources while shared selection and sensitive-file rules stay in force', () => {
+test('diagram sources are readable context resources while shared selection and sensitive-file rules stay in force', async () => {
   const sources: Record<string, string> = {
     'flow.mmd': 'flowchart LR\n A --> B\n', 'flow.mermaid': 'flowchart TB\n A --> B\n',
     'sequence.puml': '@startuml\nAlice -> Bob: Review\n@enduml\n', 'sequence.plantuml': '@startuml\nAlice -> Bob: Review\n@enduml\n',
@@ -100,19 +101,19 @@ test('diagram sources are readable context resources while shared selection and 
     for (const [name, source] of Object.entries(sources)) {
       const id = label('acme', `context/${name}`);
       assert.equal(c.resources('context').find((resource) => resource.id === id)?.mode, 'auto');
-      assert.equal(c.getResource(id).text, source);
+      assert.equal((await c.getResource(id)).text, source);
     }
     const chosen = label('acme', 'context/flow.mmd');
     c.select(chosen, true);
-    assert.equal(c.contextPack('Review the diagram').selected.find((entry) => entry.resource.id === chosen)?.text, sources['flow.mmd']);
+    assert.equal((await c.contextPack('Review the diagram')).selected.find((entry) => entry.resource.id === chosen)?.text, sources['flow.mmd']);
     c.select(chosen, false);
     assert.ok(!c.resources().some((resource) => resource.id.endsWith('/secrets.mmd')));
-    assert.throws(() => c.getResource(label('gamma', 'context/private-flow.d2')), CompanionError);
+    await assert.rejects(() => c.getResource(label('gamma', 'context/private-flow.d2')), CompanionError);
     const shared = label('beta', 'context/shared-flow.d2');
     assert.equal(c.resources('shared').find((resource) => resource.id === shared)?.mode, 'ask');
-    assert.throws(() => c.getResource(shared), /select this resource/);
+    await assert.rejects(() => c.getResource(shared), /select this resource/);
     c.select(shared, true);
-    assert.equal(c.getResource(shared).text, 'shared -> review\n');
+    assert.equal((await c.getResource(shared)).text, 'shared -> review\n');
     c.select(shared, false);
   } finally {
     c.clearSelection();
@@ -120,15 +121,15 @@ test('diagram sources are readable context resources while shared selection and 
   }
 });
 
-test('manual resources are hidden until selected; modes are saved in companion.json', () => {
+test('manual resources are hidden until selected; modes are saved in companion.json', async () => {
   const c = openCompanion(root, 'acme');
   const id = label('acme', 'notes/meeting.md');
   c.setMode(id, 'manual');
   assert.ok(!c.resources().some((r) => r.id === id));
-  assert.throws(() => c.getResource(id), CompanionError);
-  assert.equal(c.search('playwright').length, 0);
+  await assert.rejects(() => c.getResource(id), CompanionError);
+  assert.equal((await c.search('playwright')).length, 0);
   c.select(id, true);
-  assert.equal(c.search('playwright')[0].id, id);
+  assert.equal((await c.search('playwright'))[0].id, id);
   const saved = JSON.parse(readFileSync(join(projects, 'acme', 'companion.json'), 'utf8'));
   assert.deepEqual(saved, { selected: [id], modes: { [id]: 'manual' } });
   c.setMode(id, 'auto'); // the default again: nothing stored
@@ -137,11 +138,11 @@ test('manual resources are hidden until selected; modes are saved in companion.j
   assert.throws(() => c.setMode(id, 'always'), /Unknown mode/);
 });
 
-test('context pack: selected text first within the budget, then related references', () => {
+test('context pack: selected text first within the budget, then related references', async () => {
   const c = openCompanion(root, 'acme');
   const rules = label('acme', 'context/business-rules.md');
   c.select(rules, true);
-  const pack = c.contextPack('Design test cases for the renewal rules', 1000);
+  const pack = await c.contextPack('Design test cases for the renewal rules', 1000);
   assert.equal(pack.selected[0].resource.id, rules);
   assert.match(pack.selected[0].text, /active contract/);
   assert.ok(pack.used <= pack.budget);
@@ -151,34 +152,34 @@ test('context pack: selected text first within the budget, then related referenc
   c.clearSelection();
 });
 
-test('MCP: initialize, tools/list, tools/call, and every call is logged', () => {
+test('MCP: initialize, tools/list, tools/call, and every call is logged', async () => {
   const handle = createHandler(openCompanion(root, 'acme'), '');
-  const init = handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }) as { result: { protocolVersion: string; capabilities: object } };
+  const init = await handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }) as { result: { protocolVersion: string; capabilities: object } };
   assert.equal(init.result.protocolVersion, '2025-03-26');
-  assert.equal(handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
-  const list = handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
+  assert.equal(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
+  const list = await handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
   assert.deepEqual(list.result.tools.map((t) => t.name), ['moki_get_project', 'moki_list_resources', 'moki_search_knowledge', 'moki_get_resource', 'moki_get_context', 'moki_get_agent']);
   assert.ok(list.result.tools.every((t) => t.annotations.readOnlyHint));
-  const call = (name: string, args: object) => (handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } }) as { result: { content: { text: string }[]; isError: boolean } }).result;
-  assert.equal(JSON.parse(call('moki_get_project', {}).content[0].text).id, 'acme');
-  assert.match(call('moki_search_knowledge', { query: 'renewal' }).content[0].text, /business-rules\.md/);
-  assert.match(JSON.parse(call('moki_get_agent', { name: 'test-designer' }).content[0].text).text, /test/i);
-  const refused = call('moki_get_resource', { id: label('gamma', 'context/private.md') });
+  const call = async (name: string, args: object) => ((await handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } })) as { result: { content: { text: string }[]; isError: boolean } }).result;
+  assert.equal(JSON.parse((await call('moki_get_project', {})).content[0].text).id, 'acme');
+  assert.match((await call('moki_search_knowledge', { query: 'renewal' })).content[0].text, /business-rules\.md/);
+  assert.match(JSON.parse((await call('moki_get_agent', { name: 'test-designer' })).content[0].text).text, /test/i);
+  const refused = await call('moki_get_resource', { id: label('gamma', 'context/private.md') });
   assert.ok(refused.isError);
   assert.ok(!refused.content[0].text.includes('Gamma private'));
-  assert.equal((handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'moki_write', arguments: {} } }) as { error: { code: number } }).error.code, -32602);
+  assert.equal(((await handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'moki_write', arguments: {} } })) as { error: { code: number } }).error.code, -32602);
   const log = readFileSync(join(projects, 'acme', 'logs', 'companion.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(log.some((e) => e.tool === 'moki_get_resource' && e.error));
 });
 
-test('MCP: the session is bound to one project, or explains why not', () => {
+test('MCP: the session is bound to one project, or explains why not', async () => {
   assert.deepEqual(bindProject(root, {}, repo), { project: 'acme', reason: '' });
   assert.equal(bindProject(root, { project: 'beta' }, repo).project, 'beta');
   assert.match(bindProject(root, { project: 'nope' }, repo).reason, /no project "nope"/);
   assert.match(bindProject(root, { folder: join(repo, 'docs') }, repo).reason, /more than one/);
   assert.match(bindProject(root, {}, tmpdir()).reason, /not linked/);
   const unbound = createHandler(null, 'not linked');
-  const r = unbound({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'moki_get_project', arguments: {} } }) as { result: { isError: boolean; content: { text: string }[] } };
+  const r = await unbound({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'moki_get_project', arguments: {} } }) as { result: { isError: boolean; content: { text: string }[] } };
   assert.ok(r.result.isError);
   assert.equal(r.result.content[0].text, 'not linked');
 });
@@ -197,4 +198,23 @@ test('MCP server over stdio', () => {
   assert.match(replies[1].result.content[0].text, /business-rules\.md/);
   assert.equal(replies[2].error.code, -32700);
   assert.ok(existsSync(join(projects, 'acme', 'logs', 'companion.log')));
+});
+
+test('a PDF and a file outside the standard folders stay readable, and context stays ahead of them', async () => {
+  const pdf = await PDFDocument.create();
+  pdf.addPage().drawText('implantacao');
+  const inbox = join(projects, 'acme', 'inbox');
+  mkdirSync(inbox, { recursive: true });
+  mkdirSync(join(projects, 'acme', 'anexos'), { recursive: true });
+  writeFileSync(join(inbox, 'manual.pdf'), await pdf.save());
+  writeFileSync(join(projects, 'acme', 'anexos', 'extra.md'), '# Extra\n\nimplantacao fora do contexto\n');
+  const c = openCompanion(root, 'acme');
+  const ids = c.resources().map((r) => r.id);
+  const rules = ids.indexOf(label('acme', 'context/business-rules.md'));
+  const manual = ids.indexOf(label('acme', 'inbox/manual.pdf'));
+  const extra = ids.indexOf(label('acme', 'anexos/extra.md'));
+  assert.ok(rules >= 0 && manual > rules && extra > rules);
+  assert.match((await c.getResource(label('acme', 'inbox/manual.pdf'))).text, /implantacao/);
+  assert.match((await c.getResource(label('acme', 'anexos/extra.md'))).text, /fora do contexto/);
+  assert.ok(!ids.some((id) => id.endsWith('.env')));
 });

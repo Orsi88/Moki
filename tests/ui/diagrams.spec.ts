@@ -116,8 +116,7 @@ test.describe.serial('Diagram review', () => {
     await expect(image).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('diagram-review-dark.png') });
     await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
-    await card.getByRole('button', { name: 'Resolve comment', exact: true }).click();
-    await expect.poll(() => diagramComments(project, 'inbox/review.mmd')[0]?.resolved).toBe(true);
+    await expect(card.getByRole('button', { name: 'Resolve comment', exact: true })).toHaveCount(0);
     const stored = diagramComments(project, 'inbox/review.mmd')[0];
     expect(stored.anchor.width).toBeGreaterThan(0);
     expect(readFileSync(join(project, 'inbox', 'review.mmd'), 'utf8')).toBe(source);

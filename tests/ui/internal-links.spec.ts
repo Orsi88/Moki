@@ -117,7 +117,6 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
       await view.screenshot({ path: info.outputPath(`links-${theme}.png`) });
     }
     // Legacy project-root note mentions still resolve from notes/.
-    await view.locator('.tree-row[title="notes"]').click();
     await view.locator('.tree-row[title="notes/legacy.md"]').click();
     await expect(view.locator('.note-host .modal-head').getByRole('button', { name: 'Use in the terminal', exact: true })).toBeVisible();
     await view.locator('.note-host .ProseMirror a').click({ modifiers: ['Control'] });

@@ -92,6 +92,11 @@
   border-radius: 10px;
   box-shadow: 0 10px 30px rgb(0 0 0 / .22);
 }
+/* The workspace switcher is the card: the same soft gold edge as the notification panel, around the whole menu. */
+.ws-menu {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.25), 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
 .term-menu button { color: var(--overlay-text); border-radius: 7px; min-height: 34px; }
 .term-menu button:hover:not(:disabled), .term-menu button:focus-visible { background: var(--overlay-accent-soft); }
 .term-menu button svg { color: var(--overlay-accent); }

@@ -34,10 +34,10 @@ Registering a tool in Moki instead of directly in the IDE means the agents, the 
 
 **From the desktop app.** The cat icon above **New note** on the fixed rail opens **Moki in your IDE**. Choose an installed editor and press **Open**: Moki installs or updates its extension only when needed, then opens the project’s linked folder (or the framework folder). Close with the X. The same installer is available in **Settings › My AIs › Install the Moki extension and open** on the VS Code card installs the extension of the app's version (downloaded from its release and checked by SHA-256) and opens VS Code on the project's linked folder. The Cursor card does the same, marked *Not verified*.
 
-**From the release.** Download [moki-0.5.4.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.4/moki-0.5.4.vsix) from the [latest release](https://github.com/Orsi88/moki/releases/latest), then:
+**From the release.** Download [moki-0.5.5.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.5/moki-0.5.5.vsix) from the [latest release](https://github.com/Orsi88/moki/releases/latest), then:
 
 ```bash
-code --install-extension moki-0.5.4.vsix --force
+code --install-extension moki-0.5.5.vsix --force
 ```
 
 **From the source.** From the repository root:
@@ -85,7 +85,7 @@ To link a folder for good, open the project in the desktop app and use the **lin
 
 In **Activities**, **Agents** and **Operations** the panel lists only the starred items (the same stars as in the app) and the 5 most used ones, counted when you start something from the panel. A search box finds the others. With no star or use yet, the first 5 show.
 
-In **Context**, each context file, note and file shared by tags has a switch. Off, it stays out of the requests and out of what the AI can read through Moki's MCP server. The star makes it a priority: the AI gets it first, with its text, in the context pack. Files shared by tags with other projects wait for you (off) until you switch them on. The choices are kept per project in `workspace/projects/<id>/companion.json`.
+In **Context**, every file of the project is listed by folder: context first, then notes, then the inbox, runs, temporary and any other folder, then files shared by tags. Each has a switch. Off, it stays out of the requests and out of what the AI can read through Moki's MCP server. The star makes it a priority: the AI gets it first, with its text, in the context pack. Files shared by tags with other projects wait for you (off) until you switch them on. The choices are kept per project in `workspace/projects/<id>/companion.json`.
 
 ## The panel
 
@@ -109,7 +109,7 @@ While you code or write tests, ask in plain language: *"which business rules app
 | `moki_get_project` | Name, description, deliverable language, tags, agents, skills and MCP servers |
 | `moki_get_context` | A context pack for a task: starred files with their text (within about 24,000 characters), then references to the most related files |
 | `moki_search_knowledge` | Matching lines across the files it may read |
-| `moki_list_resources` / `moki_get_resource` | References, and the text of one context file, note, shared file, agent or skill |
+| `moki_list_resources` / `moki_get_resource` | References, and the text of one project file (context first, then the other folders; a PDF as its text), note, shared file, agent or skill |
 | `moki_get_agent` | An agent's instructions (reading them does not run the agent) |
 
 ### Start a QA activity

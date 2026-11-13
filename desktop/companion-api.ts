@@ -32,7 +32,9 @@ export interface ContextFile { id: string; path: string; title: string; descript
 export interface CompanionState { project: ProjectSummary | null; projects: { id: string; name: string }[]; folder: string | null; mcp: { id: string; name: string; access: string; transport: string }[] }
 export interface LaunchInput { activity?: unknown; files?: unknown; note?: unknown; language?: unknown; run?: unknown; agent?: unknown }
 
-const CONTEXT_KINDS = new Set(['context', 'note', 'shared']);
+// The panel lists every project file the person can hand to the AI, grouped later by folder.
+// Agents and skills stay on their own tabs.
+const PANEL_KINDS = new Set(['context', 'note', 'file', 'shared']);
 const included = (r: Resource): boolean => r.mode === 'auto' || r.selected;
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
 
@@ -42,13 +44,13 @@ export function createCompanionApi(root: string, service: Service, host: Compani
     if (!c) throw new Error('Choose the Moki project of this folder first.');
     return c;
   };
-  const contextFiles = (c: Companion): ContextFile[] => c.allResources().filter((r) => CONTEXT_KINDS.has(r.kind)).map((r) => ({
+  const contextFiles = (c: Companion): ContextFile[] => c.allResources().filter((r) => PANEL_KINDS.has(r.kind)).map((r) => ({
     id: r.id, path: r.id.replace(/^.*?\/projects\/[^/]+\//, ''), title: r.title, description: r.description, kind: r.kind, source: r.source,
     included: included(r), priority: r.selected,
   }));
   const context = (id: unknown): Resource => {
-    const r = active().allResources().find((x) => x.id === id && CONTEXT_KINDS.has(x.kind));
-    if (!r) throw new Error('This file is not in the project\'s context.');
+    const r = active().allResources().find((x) => x.id === id && PANEL_KINDS.has(x.kind));
+    if (!r) throw new Error('This file is not in the project.');
     return r;
   };
 
@@ -57,7 +59,7 @@ export function createCompanionApi(root: string, service: Service, host: Compani
     const c = active();
     const choice = service.contextChoice(c.project);
     const offered = new Set([...choice.own, ...choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths))]);
-    const exclude = contextFiles(c).filter((f) => !f.included && offered.has(f.id)).map((f) => f.id);
+    const exclude = contextFiles(c).filter((f) => !f.included && (offered.has(f.id) || f.kind === 'file' || f.kind === 'note')).map((f) => f.id);
     const result = service.launch({
       project: c.project, activity: String(input.activity ?? 'open'), tool, files: strings(input.files), note: String(input.note ?? ''),
       language: String(input.language ?? 'English'), run: input.run ? String(input.run) : undefined, agent: input.agent ? String(input.agent) : undefined,

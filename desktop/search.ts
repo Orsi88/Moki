@@ -123,17 +123,8 @@ async function fileText(full: string, extension: string): Promise<string> {
 async function extractText(data: Buffer, extension: string): Promise<string> {
   if (extension === '.docx') return docxToMarkdown(Buffer.from(data));
   if (extension === '.xlsx') return xlsxSheets(Buffer.from(data)).map((sheet: { name: string; rows: unknown[][] }) => `${sheet.name}\n${sheet.rows.map((row) => row.join(' ')).join('\n')}`).join('\n');
-  const { getDocument } = await import('./pdfjs.ts'); // pdf.js with its worker, loaded on the first PDF, not at startup
-  const task = getDocument({ data: new Uint8Array(data), useSystemFonts: false, verbosity: 0 });
-  const doc = await task.promise;
-  try {
-    const pages: string[] = [];
-    for (let n = 1; n <= doc.numPages; n++) {
-      const content = await (await doc.getPage(n)).getTextContent();
-      pages.push(content.items.map((item) => 'str' in item ? item.str : '').join(' '));
-    }
-    return pages.join('\n');
-  } finally { await task.destroy(); }
+  const { pdfPlainText } = await import('./pdfjs.ts'); // pdf.js with its worker, loaded on the first PDF, not at startup
+  return pdfPlainText(new Uint8Array(data));
 }
 
 export async function searchWorkspaceExpanded(root: string, query: string, tags: string[] = [], project?: string): Promise<SearchResult> {

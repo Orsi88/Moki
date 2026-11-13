@@ -36,10 +36,10 @@ Cadastrar uma ferramenta no Moki, em vez de direto na IDE, faz com que os agente
 
 **Pelo app desktop.** O ícone de gato acima de **Nova nota**, na barra fixa, abre **Moki na sua IDE**. Escolha um editor instalado e pressione **Abrir**: o Moki instala ou atualiza a extensão quando necessário e abre a pasta ligada do projeto (ou a pasta do framework). O X fecha a janela. O mesmo instalador fica em **Configurações › Minhas IAs › Instalar a extensão do Moki e abrir**, no cartão do VS Code, instala a extensão da versão do app (baixada da release e conferida por SHA-256) e abre o VS Code na pasta ligada do projeto. O cartão do Cursor faz o mesmo, marcado como *Não verificado*.
 
-**Pela release.** Baixe o [moki-0.5.4.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.4/moki-0.5.4.vsix) da [release mais recente](https://github.com/Orsi88/moki/releases/latest) e rode:
+**Pela release.** Baixe o [moki-0.5.5.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.5/moki-0.5.5.vsix) da [release mais recente](https://github.com/Orsi88/moki/releases/latest) e rode:
 
 ```bash
-code --install-extension moki-0.5.4.vsix --force
+code --install-extension moki-0.5.5.vsix --force
 ```
 
 **A partir do código.** Na raiz do repositório:
@@ -87,7 +87,7 @@ Para ligar uma pasta de vez, abra o projeto no app desktop e use o botão de **v
 
 Em **Atividades**, **Agentes** e **Operações** o painel lista só os itens com estrela (as mesmas do app) e os 5 mais usados, contados quando você inicia algo pelo painel. A caixa de busca encontra os outros. Sem estrela nem uso ainda, aparecem os 5 primeiros.
 
-Em **Contexto**, cada arquivo de contexto, nota e arquivo compartilhado por tags tem um botão de ligar. Desligado, ele fica fora dos pedidos e fora do que a IA consegue ler pelo servidor MCP do Moki. A estrela dá prioridade: a IA recebe o arquivo primeiro, com o texto, no pacote de contexto. Arquivos compartilhados por tags com outros projetos começam desligados e esperam você ligar. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
+Em **Contexto**, cada arquivo do projeto aparece por pasta: contexto primeiro, depois notas, entrada, execuções, temporários e qualquer outra pasta, e por fim os arquivos compartilhados por tags. Cada um tem um botão de ligar. Desligado, ele fica fora dos pedidos e fora do que a IA consegue ler pelo servidor MCP do Moki. A estrela dá prioridade: a IA recebe o arquivo primeiro, com o texto, no pacote de contexto. Arquivos compartilhados por tags com outros projetos começam desligados e esperam você ligar. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
 
 ## O painel
 
@@ -111,7 +111,7 @@ Enquanto programa ou escreve testes, pergunte em linguagem natural: *"quais regr
 | `moki_get_project` | Nome, descrição, idioma dos entregáveis, tags, agentes, skills e servidores MCP |
 | `moki_get_context` | Um pacote de contexto para uma tarefa: os arquivos com estrela, com o texto (até cerca de 24.000 caracteres), e referências aos arquivos mais relacionados |
 | `moki_search_knowledge` | Linhas que batem com a busca nos arquivos que ela pode ler |
-| `moki_list_resources` / `moki_get_resource` | Referências, e o texto de um arquivo de contexto, nota, arquivo compartilhado, agente ou skill |
+| `moki_list_resources` / `moki_get_resource` | Referências, e o texto de um arquivo do projeto (o contexto primeiro, depois as outras pastas; um PDF como texto), nota, arquivo compartilhado, agente ou skill |
 | `moki_get_agent` | As instruções de um agente (ler não executa o agente) |
 
 ### Iniciar uma atividade de QA

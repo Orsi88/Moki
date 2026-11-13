@@ -25,7 +25,7 @@ Selecione um trecho dentro de um parágrafo e um botão **Comentário** aparece 
 
 ### Diagramas e desenhos
 
-Um bloco ` ```mermaid ` é desenhado como diagrama, e um bloco ` ```excalidraw ` como desenho editável — clique no lápis para editar no [Excalidraw](https://excalidraw.com). Segure **Ctrl** e role para dar zoom. As IAs são orientadas a desenhar diagramas assim, dentro do documento, em vez de gerar imagens ou PDFs.
+Um bloco ` ```mermaid ` é desenhado como diagrama, e um bloco ` ```excalidraw ` como desenho editável — clique no lápis para editar no [Excalidraw](https://excalidraw.com). Um arquivo `.excalidraw` abre como esse mesmo desenho, ocupando a página, e as edições voltam para o arquivo. Segure **Ctrl** e role para dar zoom. As IAs são orientadas a desenhar diagramas assim, dentro do documento, em vez de gerar imagens ou PDFs.
 
 ### Links entre arquivos do projeto
 

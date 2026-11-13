@@ -1,6 +1,7 @@
 // One searchable list for calling an activity, agent, skill or operation from the panel or an AI terminal.
 import { useState } from 'react';
 import { activityTargetLabel, type ActivityInfo, type AgentInfo, type Invocation, type Operation, type ProjectDefault, type SkillInfo } from '../api';
+import { activityFace, agentFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { SearchField, matchesQuery } from './CatalogModal';
 import { ListTabs } from './ListPage';
@@ -22,9 +23,9 @@ export function InvokeCatalog({ activities, agents, skills, operations, onPick, 
   const kind: Kind = picked ?? KINDS.find((k) => defaults.some((d) => d.kind === k)) ?? 'activity';
   const isDefault = (item: Invocation) => defaults.some((d) => d.kind === item.kind && d.id === item.id);
   const rows: (Invocation & { description: string; search?: string; operation: boolean; favorite: boolean })[] = [
-    ...activities.map((a) => ({ kind: 'activity' as const, id: a.id, label: a.label, description: a.hint, search: activityTargetLabel(a.target), operation: a.target.kind === 'operation', favorite: a.favorite })),
-    ...agents.map((a) => ({ kind: 'agent' as const, id: a.name, label: a.name, description: a.description, operation: false, favorite: false })),
-    ...skills.map((s) => ({ kind: 'skill' as const, id: s.name, label: s.name, description: s.description, operation: false, favorite: false })),
+    ...activities.map((a) => { const face = activityFace(a.id, a.label, a.hint); return { kind: 'activity' as const, id: a.id, label: face.label, description: face.hint, search: `${t(a.label)} ${t(a.hint)} ${activityTargetLabel(a.target)}`, operation: a.target.kind === 'operation', favorite: a.favorite }; }),
+    ...agents.map((a) => { const face = agentFace(a.name, a.description); return { kind: 'agent' as const, id: a.name, label: face.label, description: face.hint, search: `${a.name} ${a.description}`, operation: false, favorite: false }; }),
+    ...skills.map((s) => { const face = skillFace(s.name, s.description); return { kind: 'skill' as const, id: s.name, label: face.label, description: face.hint, search: `${s.name} ${s.description}`, operation: false, favorite: false }; }),
     ...operations.map((o) => ({ kind: 'operation' as const, id: o.id, label: o.name, description: o.description, operation: true, favorite: false })),
   ];
   const found = rows.filter((item) => matchesQuery(query, t(item.label), t(item.description), item.id, item.search ?? ''));
@@ -37,8 +38,8 @@ export function InvokeCatalog({ activities, agents, skills, operations, onPick, 
     <div className="answer-list">
       {shown.map((item) => <button key={`${item.kind}:${item.id}`} type="button" className="answer invoke-row" onClick={() => onPick(item)}>
         <span className="answer-text">
-          <span className="answer-title">{t(item.label)}</span>
-          <span className="answer-hint">{t(item.description)}</span>
+          <span className="answer-title">{item.label}</span>
+          <span className="answer-hint">{item.description}</span>
           {item.operation && <span className="invoke-operation">{t('Each step uses its own terminal. Opens the operation form.')}</span>}
         </span>
         <span className="invoke-chips">

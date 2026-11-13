@@ -52,11 +52,11 @@ test('the project\'s skills and agents start the AI by themselves: where each is
   const prompt = buildStartPrompt({ project: 'logs', root: ROOT, items, defaults: [{ kind: 'skill', id: 'failure-analysis' }] });
   assert.match(prompt, /Skills of this project: read the SKILL\.md before acting when the task fits one, and follow its procedure and approval gates: billing \(workspace\/projects\/logs\/skills\/billing\/SKILL\.md\): About billing\.\./);
   assert.match(prompt, /Agents of this project: when I ask for one, or the task fits it, read its file and follow it, using only the skills it lists: helper \(workspace\/projects\/logs\/agents\/helper\.md\): About helper\.\./);
-  assert.doesNotMatch(prompt, /old/, 'a missing one is not offered');
+  assert.doesNotMatch(prompt, /skills\/old\/|About old/, 'a missing one is not offered');
   assert.equal(prompt.match(/failure-analysis/g)?.length, 2, 'a default is named in its own sentence only (its name and its path)');
   assert.match(prompt, /Talk to me in English\.$/);
   // Without anything else set, they are enough to start; without them (or only missing ones) nothing starts.
-  assert.match(buildStartPrompt({ project: 'logs', root: ROOT, defaults: [], items: [item('agent', 'helper')] }), /^Follow AGENTS\.md\. Project: logs\. Agents of this project/);
+  assert.match(buildStartPrompt({ project: 'logs', root: ROOT, defaults: [], items: [item('agent', 'helper')] }), /^Follow AGENTS\.md\. Project: logs\. Look in context\/ first:.*Agents of this project/);
   assert.equal(buildStartPrompt({ project: 'logs', root: ROOT, defaults: [], items: [item('skill', 'old', { missing: true })] }), '');
 });
 
@@ -71,7 +71,7 @@ test('the start prompt stays short: long descriptions are cut, and past 40 items
 });
 
 test('a skill, an agent or files: one request to type into an AI, with no shared context and no run', () => {
-  const head = 'Follow AGENTS.md. Project: logs.';
+  const head = 'Follow AGENTS.md. Project: logs. Look in context/ first: it prevails when it disagrees with another folder. Then prefer inbox/, notes/, runs/ and temporary/. Other folders of this project, and a file the person points to, stay available.';
   assert.equal(buildInvokePrompt({ project: 'logs', target: { kind: 'skill', name: 'billing', path: 'workspace/projects/logs/skills/billing/SKILL.md' } }),
     `${head} Use the billing skill: read workspace/projects/logs/skills/billing/SKILL.md and follow its procedure and approval gates. Talk to me in English.`);
   assert.equal(buildInvokePrompt({ project: 'logs', language: 'Portuguese (pt-BR)', target: { kind: 'agent', name: 'helper', path: 'agents/quality/helper.md' } }),

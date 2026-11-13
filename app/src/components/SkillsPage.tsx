@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type ProjectSummary, type TerminalRef, type ToolInfo } from '../api';
+import { skillFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { confirmDialog } from '../dialogs';
 import { skillCat } from '../icons/cats';
@@ -86,7 +87,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
   const atPlace = (s: Skill) => !where || s.places.some((pl) => (where === 'global' ? pl.kind === 'global' : pl.kind === 'project' && pl.project.id === where))
     || (s.plugin && (!s.plugin.optional || where === 'global' || (plugins[where] ?? []).includes(s.name)));
   const all = skills ?? [];
-  const shown = all.filter((s) => ofKind(s, kind) && atPlace(s) && matchesQuery(query, s.name, s.description));
+  const shown = all.filter((s) => { const face = skillFace(s.name, s.description); return ofKind(s, kind) && atPlace(s) && matchesQuery(query, s.name, s.description, face.label, face.hint); });
   const current = useMemo(() => all.find((s) => s.name === open) ?? null, [all, open]);
 
   const act = async (key: string, fn: () => Promise<string | void>) => {
@@ -162,7 +163,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
       <div className="list-page skill-page">
         <header className="library-head">
           <div>
-            <div className="title-row"><BackArrow label={t('Skills')} onBack={() => { setOpen(null); setInfo(''); setError(''); }} /><SkillCat name={current.name} size={32} /><h1>{current.name}</h1></div>
+            <div className="title-row"><BackArrow label={t('Skills')} onBack={() => { setOpen(null); setInfo(''); setError(''); }} /><SkillCat name={current.name} size={32} /><h1>{skillFace(current.name, current.description).label}</h1></div>
             <div className="agent-badges">{badges(current)}</div>
           </div>
         </header>
@@ -246,16 +247,19 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
       </ListTools>
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
       <ul className="list-cards">
-        {fav.first(shown, (s) => s.name).map((s) => (
+        {fav.first(shown, (s) => s.name).map((s) => {
+          const face = skillFace(s.name, s.description);
+          return (
           <li key={s.name} className="fav-item">
             <button type="button" className={`list-card skill-item${s.plugin ? ' is-plugin' : ''}`} onClick={() => setOpen(s.name)}>
-              <span className="list-card-title"><CatIcon id={skillCat(s.name)} size={26} />{s.name}<BroughtMark uploads={uploads} kind="skill" name={s.name} /></span>
-              <span className="list-card-desc">{s.description}</span>
+              <span className="list-card-title"><CatIcon id={skillCat(s.name)} size={26} />{face.label}<BroughtMark uploads={uploads} kind="skill" name={s.name} /></span>
+              <span className="list-card-desc">{face.hint}</span>
               <span className="chips">{badges(s)}</span>
             </button>
             <StarButton on={fav.has(s.name)} name={s.name} onToggle={() => fav.toggle(s.name)} />
           </li>
-        ))}
+          );
+        })}
       </ul>
       {skills && !shown.length && <p className="list-empty">{t('No skill with these filters.')}</p>}
     </div>

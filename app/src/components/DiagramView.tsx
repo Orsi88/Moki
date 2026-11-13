@@ -4,7 +4,7 @@ import { api } from '../api';
 import type { DiagramAnchor, DiagramComment, DiagramSettings, DiagramViewState } from '../../../scripts/lib/diagram-types';
 import { t } from '../i18n';
 import { SWATCH, isCommentColor, type CommentColor, type MdComment } from '../md-comments';
-import { clampDiagramZoom, diagramLayout, diagramPoint, diagramRegion, fitDiagram, zoomDiagramAt, type DiagramPoint, type DiagramSize } from '../diagram-viewport';
+import { clampDiagramZoom, diagramFocus, diagramLayout, diagramPoint, diagramRegion, diagramVisible, fitDiagram, zoomDiagramAt, type DiagramPoint, type DiagramSize } from '../diagram-viewport';
 import { sanitizeDiagramSvg } from '../diagram-svg';
 import { CommentColumn, CommentComposer, useCommentPlacement, type CommentActions } from './CommentColumn';
 import { IconChat, IconCode, IconCollapse, IconCopy, IconDownload, IconExpand, IconFitScreen, IconFitWidth, IconHand, IconRefresh, IconSelect } from './Icons';
@@ -41,14 +41,13 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
   const root = useRef<HTMLDivElement>(null), stage = useRef<HTMLDivElement>(null), viewport = useRef<HTMLDivElement>(null), pictureBox = useRef<HTMLDivElement>(null), rail = useRef<HTMLDivElement>(null);
   const [picture, setPicture] = useState<Picture | null>(null), [url, setUrl] = useState(''), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [comments, setComments] = useState<DiagramComment[]>([]), [commentsOn, setCommentsOn] = useState(false), [active, setActive] = useState('');
-  const [filter, setFilter] = useState<'open' | 'resolved' | 'all'>('open');
   const [busy, setBusy] = useState(false), [revision, setRevision] = useState(0), [showSource, setShowSource] = useState(false), [fullscreen, setFullscreen] = useState(false);
   const [zoom, setZoom] = useState(1), [mode, setMode] = useState<Mode>('select'), [viewSize, setViewSize] = useState<DiagramSize>(EMPTY_SIZE);
   const [space, setSpace] = useState(false);
   const [color, setColor] = useState<CommentColor>('yellow'), [composer, setComposer] = useState<{ anchor: DiagramAnchor; x: number; y: number } | null>(null);
   const [region, setRegion] = useState<ReturnType<typeof diagramRegion> | null>(null), [configOpen, setConfigOpen] = useState(false), [settings, setSettings] = useState<Settings>({ provider: 'local', url: '', allowRemote: false });
   const [copied, setCopied] = useState(false), [metadataReady, setMetadataReady] = useState(false);
-  const request = useRef(0), working = useRef(false), restored = useRef(false), pendingView = useRef<DiagramViewState | null>(null), lastView = useRef<DiagramViewState | null>(null), viewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const request = useRef(0), working = useRef(false), restored = useRef(false), pendingView = useRef<DiagramViewState | null>(null), lastView = useRef<DiagramViewState | null>(null), viewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), commentsPref = useRef<boolean | null>(null);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number; anchor: DiagramPoint | null; hand: boolean } | null>(null);
   const current = useRef({ picture, zoom, mode, viewSize, showSource }); current.current = { picture, zoom, mode, viewSize, showSource };
 
@@ -82,8 +81,14 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
     setComments([]); setMetadataReady(false); pendingView.current = null; lastView.current = null;
     void Promise.allSettled([api.diagramComments(project, path), api.diagramView(project, path), api.diagramSettings(project)]).then(([list, view, config]) => {
       if (!live) return;
-      if (list.status === 'fulfilled') { setComments(list.value); setCommentsOn(list.value.some((c) => !c.resolved)); }
-      if (view.status === 'fulfilled') pendingView.current = view.value;
+      const saved = view.status === 'fulfilled' ? view.value : null;
+      if (list.status === 'fulfilled') {
+        setComments(list.value);
+        const open = typeof saved?.commentsOpen === 'boolean' ? saved.commentsOpen : list.value.length > 0;
+        commentsPref.current = typeof saved?.commentsOpen === 'boolean' ? saved.commentsOpen : null;
+        setCommentsOn(open);
+      }
+      if (saved) pendingView.current = saved;
       if (config.status === 'fulfilled') setSettings(config.value);
       const failed = [list, view, config].find((result) => result.status === 'rejected');
       if (failed?.status === 'rejected') setError((failed.reason as Error).message);
@@ -109,16 +114,23 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
     if (!picture || !viewport.current || viewSize.width <= 1 || restored.current || !metadataReady || showSource) return;
     restored.current = true;
     const saved = pendingView.current;
-    if (saved?.sourceHash === picture.sourceHash) {
-      setZoom(saved.zoom); setMode(saved.mode);
-      requestAnimationFrame(() => { viewport.current?.scrollTo(saved.scrollLeft, saved.scrollTop); });
-    } else { setZoom(fitDiagram(picture.size, viewSize, 'screen')); viewport.current.scrollTo(0, 0); }
+    const savedHere = saved?.sourceHash === picture.sourceHash ? saved : null;
+    const nextZoom = savedHere?.zoom ?? fitDiagram(picture.size, viewSize, 'screen');
+    if (savedHere) setMode(savedHere.mode);
+    if (savedHere && diagramVisible(picture.size, viewSize, savedHere)) {
+      setZoom(savedHere.zoom);
+      requestAnimationFrame(() => { viewport.current?.scrollTo(savedHere.scrollLeft, savedHere.scrollTop); });
+    } else {
+      setZoom(nextZoom);
+      const focus = diagramFocus(picture.size, viewSize, nextZoom);
+      requestAnimationFrame(() => { viewport.current?.scrollTo(focus.scrollLeft, focus.scrollTop); });
+    }
   }, [picture, viewSize, metadataReady, showSource]);
 
   const keepView = useCallback(() => {
     const value = current.current, box = viewport.current;
     if (!project || !value.picture || !box || !restored.current || value.showSource) return;
-    lastView.current = { sourceHash: value.picture.sourceHash, zoom: value.zoom, scrollLeft: box.scrollLeft, scrollTop: box.scrollTop, mode: value.mode };
+    lastView.current = { sourceHash: value.picture.sourceHash, zoom: value.zoom, scrollLeft: box.scrollLeft, scrollTop: box.scrollTop, mode: value.mode, ...(commentsPref.current === null ? {} : { commentsOpen: commentsPref.current }) };
     clearTimeout(viewTimer.current);
     const epoch = request.current, snapshot = lastView.current;
     viewTimer.current = setTimeout(() => {
@@ -128,6 +140,16 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
     }, 400);
   }, [project, path]);
   useEffect(() => { keepView(); }, [zoom, mode, keepView]);
+  const showComments = (open: boolean) => {
+    commentsPref.current = open;
+    setCommentsOn(open);
+    clearTimeout(viewTimer.current);
+    const value = current.current, box = viewport.current, base = lastView.current;
+    if (!project || !value.picture || !box) return;
+    const next: DiagramViewState = { sourceHash: value.picture.sourceHash, zoom: value.zoom, scrollLeft: box.scrollLeft, scrollTop: box.scrollTop, mode: base?.mode ?? value.mode, commentsOpen: open };
+    lastView.current = next;
+    void api.saveDiagramView(project, path, next).catch(() => {});
+  };
   useEffect(() => () => {
     clearTimeout(viewTimer.current);
     if (project && lastView.current) void api.saveDiagramView(project, path, lastView.current).catch(() => {});
@@ -159,8 +181,9 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
   }, []);
   const fit = (type: 'screen' | 'width') => {
     if (!picture || !viewport.current) return;
-    setZoom(fitDiagram(picture.size, viewSize, type)); setComposer(null);
-    requestAnimationFrame(() => { viewport.current?.scrollTo(0, 0); keepView(); });
+    const next = fitDiagram(picture.size, viewSize, type), focus = diagramFocus(picture.size, viewSize, next);
+    setZoom(next); setComposer(null);
+    requestAnimationFrame(() => { viewport.current?.scrollTo(focus.scrollLeft, focus.scrollTop); keepView(); });
   };
   const toggleSource = () => {
     if (!showSource) keepView();
@@ -183,11 +206,10 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
     edit: (id, text) => { if (project) void save(() => api.changeDiagramComment(project, path, { op: 'edit', id, text })); },
     reply: (id, text) => { if (project) void save(() => api.changeDiagramComment(project, path, { op: 'reply', id, text })); },
     color: (id, color) => { if (project) void save(() => api.changeDiagramComment(project, path, { op: 'color', id, color })); },
-    resolve: (id, resolved) => { if (project) void save(() => api.changeDiagramComment(project, path, { op: 'resolve', id, resolved })); },
     remove: (id) => { if (project) void save(() => api.removeDiagramComment(project, path, id)); },
   };
-  const cards = useMemo<MdComment[]>(() => comments.filter((comment) => filter === 'all' || (filter === 'resolved' ? comment.resolved : !comment.resolved)).map((comment) => ({ id: comment.id, author: comment.author, at: comment.date, text: comment.text, replies: comment.replies ?? [], resolved: comment.resolved,
-    ...(isCommentColor(comment.color) ? { color: comment.color } : {}) })), [comments, filter]);
+  const cards = useMemo<MdComment[]>(() => comments.map((comment) => ({ id: comment.id, author: comment.author, at: comment.date, text: comment.text, replies: comment.replies ?? [],
+    ...(isCommentColor(comment.color) ? { color: comment.color } : {}) })), [comments]);
   const markOf = useCallback((_body: HTMLElement, id: string) => {
     const comment = comments.find((c) => c.id === id), canvas = pictureBox.current, box = viewport.current;
     if (showSource || !comment || !picture || comment.anchor.sourceHash !== picture.sourceHash || !canvas || !box) return null;
@@ -200,8 +222,7 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
   const placed = useCommentPlacement(stage, viewport, rail, cards, markOf);
   const choose = (id: string) => {
     const comment = comments.find((c) => c.id === id), box = viewport.current;
-    setActive(id); setCommentsOn(true);
-    if (comment?.resolved) setFilter('all');
+    setActive(id); showComments(true);
     if (!comment || !picture || comment.anchor.sourceHash !== picture.sourceHash || !box) return;
     const layout = diagramLayout(picture.size, viewSize, zoom);
     box.scrollTo({ left: Math.max(0, layout.left + (comment.anchor.x + comment.anchor.width / 2) * picture.size.width * zoom - box.clientWidth / 2),
@@ -215,7 +236,7 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
   };
   const down = (event: PointerEvent<HTMLDivElement>) => {
     if (!picture || showSource || composer || !(event.button === 0 || event.button === 1) || (event.target as HTMLElement).closest('button')) return;
-    const hand = mode === 'hand' || space || event.button === 1;
+    const hand = mode !== 'comment' || space || event.button === 1;
     if (!hand && mode !== 'comment') return;
     const anchor = pointAt(event);
     if (!hand && !anchor) return;
@@ -277,8 +298,7 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
       <button type="button" className="icon-btn" title={fullscreen ? t('Exit fullscreen') : t('Fullscreen')} aria-label={fullscreen ? t('Exit fullscreen') : t('Fullscreen')} onClick={() => { void full(); }}>{fullscreen ? <IconCollapse size={16} /> : <IconExpand size={16} />}</button>
       <span className="diagram-tool-spacer" />
       <button type="button" className={`icon-btn${showSource ? ' on' : ''}`} title={t('Diagram source')} aria-label={t('Diagram source')} aria-pressed={showSource} onClick={toggleSource}><IconCode size={16} /></button>
-      <button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${commentsOn ? ' on' : ''}`} title={t('Comments')} aria-label={`${t('Comments')} (${comments.length})`} aria-pressed={commentsOn} onClick={() => setCommentsOn((value) => !value)}><IconChat size={14} />{comments.length > 0 && <span className="pdf-rail-count">{comments.length}</span>}</button>
-      {commentsOn && <select className="diagram-comment-filter" value={filter} aria-label={t('Filter diagram comments')} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="open">{t('Open comments')}</option><option value="resolved">{t('Resolved comments')}</option><option value="all">{t('All comments')}</option></select>}
+      <button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${commentsOn ? ' on' : ''}`} title={t('Comments')} aria-label={`${t('Comments')} (${comments.length})`} aria-pressed={commentsOn} onClick={() => showComments(!commentsOn)}><IconChat size={14} />{comments.length > 0 && <span className="pdf-rail-count">{comments.length}</span>}</button>
       <button type="button" className="icon-btn" title={copied ? t('Copied') : t('Copy diagram image')} aria-label={copied ? t('Copied') : t('Copy diagram image')} disabled={!picture || busy} onClick={() => { void exportImage('copy'); }}><IconCopy size={16} /></button>
       <details className="diagram-export"><summary className="icon-btn" title={t('Export diagram')} aria-label={t('Export diagram')}><IconDownload size={16} /></summary><div>
         <button type="button" className="link-btn" disabled={!picture || busy} onClick={() => { void exportImage('svg'); }}>{t('Export SVG')}</button>
@@ -313,16 +333,16 @@ export function DiagramView({ project, path, source, kind, onReload, onExternal 
         {showSource ? <pre className="plain code-view diagram-source" aria-label={t('Diagram source')}><code>{picture?.source ?? source}</code></pre> : <div className="diagram-scroll-area" style={{ width: layout.width, height: layout.height }}>
           {picture && url && <div ref={pictureBox} className="diagram-image" style={{ left: layout.left, top: layout.top, width: picture.size.width * zoom, height: picture.size.height * zoom }}>
             <img src={url} alt={t('{kind} diagram', { kind })} draggable={false} />
-            {comments.filter((comment) => comment.anchor.sourceHash === picture.sourceHash).map((comment) => <button key={comment.id} type="button" className={`diagram-mark${comment.resolved ? ' resolved' : ''}${active === comment.id ? ' on' : ''}${comment.anchor.width === 0 && comment.anchor.height === 0 ? ' point' : ''}`}
+            {comments.filter((comment) => comment.anchor.sourceHash === picture.sourceHash).map((comment) => <button key={comment.id} type="button" className={`diagram-mark${active === comment.id ? ' on' : ''}${comment.anchor.width === 0 && comment.anchor.height === 0 ? ' point' : ''}`}
               style={{ ...regionStyle(comment.anchor), borderColor: isCommentColor(comment.color) ? SWATCH[comment.color] : undefined }} title={comment.text} aria-label={t('Open the comment: {text}', { text: comment.text })} onClick={() => choose(comment.id)} />)}
             {region && <span className="diagram-region" style={regionStyle(region)} />}
           </div>}
         </div>}
       </div>
       <CommentColumn comments={cards} placed={placed} rail={rail} shown={commentsOn} hidden={false} active={active} onActive={setActive} saving={busy} actions={actions} onJump={choose}
-        describe={(id) => { const comment = comments.find((item) => item.id === id); return <>{comment?.resolved && <span className="muted small">{t('Resolved')}</span>}{picture && comment?.anchor.sourceHash !== picture.sourceHash && <p className="diagram-missing muted small">{t('The diagram source changed. This region could not be located.')}</p>}</>; }} />
+        describe={(id) => { const comment = comments.find((item) => item.id === id); return <>{picture && comment?.anchor.sourceHash !== picture.sourceHash && <p className="diagram-missing muted small">{t('The diagram source changed. This region could not be located.')}</p>}</>; }} />
       {composer && <CommentComposer x={composer.x} y={composer.y} saving={busy} color={color} onColor={setColor} onCancel={() => setComposer(null)} onAdd={(text) => {
-        if (project) void save(() => api.addDiagramComment(project, path, composer.anchor, text, color)).then((ok) => { if (ok) { setComposer(null); setCommentsOn(true); setFilter('open'); } });
+        if (project) void save(() => api.addDiagramComment(project, path, composer.anchor, text, color)).then((ok) => { if (ok) { setComposer(null); showComments(true); } });
       }} />}
     </div>
   </div>;

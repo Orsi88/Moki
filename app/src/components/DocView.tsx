@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { api, type FileContent, type OpenWithApps } from '../api';
 import { t } from '../i18n';
-import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconExternal, IconEye, IconMore, IconRefresh, IconTag } from './Icons';
+import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconEdit, IconExternal, IconEye, IconMore, IconRefresh, IconTag } from './Icons';
 import { FileIcon } from '../icons';
 import { PdfDoc } from './PdfDoc';
 import { HtmlPreview } from './HtmlPreview';
 import { DiagramView } from './DiagramView';
+const DrawingFile = lazy(() => import('./DrawingEditor').then((mod) => ({ default: mod.DrawingFile })));
 import { OfficeEditor } from './OfficeEditor';
 import { LegacyOffice } from './LegacyOffice';
 import { MarkdownBody } from './MarkdownBody';
@@ -185,7 +186,8 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
   const [noteClosed, setNoteClosed] = useState(false);
   useEffect(() => { setNoteClosed(false); }, [content.path]);
   const [copied, setCopied] = useState(false);
-  useEffect(() => { setTagsOpen(false); }, [content.path]);
+  const [drawingEdit, setDrawingEdit] = useState(false);
+  useEffect(() => { setTagsOpen(false); setDrawingEdit(false); }, [content.path]);
   useLayoutEffect(() => {
     const host = body.current;
     if (!host || !scrollCallback.current) return;
@@ -287,6 +289,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         <div className="doc-actions">
           {nativeOffice && <><button type="button" className="icon-btn office-zoom" title={t('Reset zoom')} aria-label={t('Reset zoom')} onClick={() => setOfficeZoom(100)}>{officeZoom}%</button><button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${officeComments ? ' on' : ''}`} aria-pressed={officeComments} title={officeComments ? t(content.kind === 'xlsx' ? 'Hide the comments: the cells get the room' : 'Hide the comments: the text gets the room') : t(content.kind === 'xlsx' ? 'Show the comments beside the cells' : 'Show the comments beside the text')} aria-label={`${t('Comments')} (${officeStatus.comments})`} onClick={() => toggleOfficeComments(!officeComments)}><IconChat size={14} />{officeStatus.comments > 0 && <span className="pdf-rail-count">{officeStatus.comments}</span>}</button></>}
           {content.kind === 'markdown' && content.editable && <button type="button" className={`icon-btn${mode === 'preview' ? ' on' : ''}`} title={t('Reading view')} aria-label={t('Reading view')} aria-pressed={mode === 'preview'} onClick={() => onMode(mode === 'preview' ? home : 'preview')}><IconEye size={16} /></button>}
+          {content.kind === 'drawing' && <button type="button" className={`icon-btn${drawingEdit ? ' on' : ''}`} title={drawingEdit ? t('Hide the drawing tools') : t('Edit drawing')} aria-label={drawingEdit ? t('Hide the drawing tools') : t('Edit drawing')} aria-pressed={drawingEdit} onClick={() => setDrawingEdit((on) => !on)}><IconEdit size={16} /></button>}
           {tags && <button type="button" className={`icon-btn${tagsOpen ? ' on' : ''}`} title={t('Tags')} aria-label={t('Tags')} aria-expanded={tagsOpen} onClick={() => setTagsOpen((v) => !v)}><IconTag size={16} /></button>}
           {nativeOffice && <span role="status" className="doc-saved muted small">{officeStatus.busy || officeStatus.dirty ? t('Saving…') : t('Saved')}</span>}
           {content.kind === 'markdown' && <button type="button" className={`icon-btn${sourceMode ? ' on' : ''}`}
@@ -371,6 +374,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           : <PdfView url={content.url} title={content.path} />)}
         {content.kind === 'html' && <HtmlPreview key={content.path} project={project} toolbar={htmlToolbar} url={content.url} text={content.text} title={content.path} onExternal={onOpenExternal} />}
         {content.kind === 'diagram' && <DiagramView key={content.path} project={project} path={content.path} source={content.text} kind={content.diagram} onReload={onReload} onExternal={onOpenExternal} />}
+        {content.kind === 'drawing' && <Suspense fallback={<p role="status" className="diagram-notice">{t('Drawing diagram…')}</p>}><DrawingFile key={content.path} source={content.text} editing={drawingEdit} onSave={(text) => { if (project) return api.saveDrawing(project, content.path, text).then(() => undefined); }} /></Suspense>}
         {content.kind === 'image' && <ImageView url={content.url} alt={content.path} />}
         {content.kind === 'binary' && (
           <div className="binary-view">

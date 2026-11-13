@@ -27,10 +27,10 @@ export function MarkdownBody({ html, className, text, onChange, onClick, resolve
     linkProjectPaths(el, resolveLink);
     dressCodeEmbeds(el, false);
     const save = latest.current.onChange
-      ? (index: number, lang: DiagramLang, body: string) => {
+      ? (index: number, lang: DiagramLang, body: string, height?: number) => {
         const current = latest.current;
         if (cancel || current.text === undefined || !current.onChange) return;
-        current.onChange(replaceDiagram(current.text, index, lang, body));
+        current.onChange(replaceDiagram(current.text, index, lang, body, height));
       }
       : undefined;
     void mountDiagrams(el, save);

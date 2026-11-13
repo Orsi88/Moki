@@ -114,7 +114,9 @@ function markdownPiece(root: HTMLElement, probe: Probe): Piece {
     }
     if ((node.tagName === 'PRE' || node.tagName === 'DIV') && (node.dataset.diagram === 'mermaid' || node.dataset.diagram === 'excalidraw')) {
       const code = (node.dataset.source ?? node.querySelector('code')?.textContent ?? '').replace(/\n$/, '');
-      const fence = '```' + node.dataset.diagram + '\n' + code + '\n```';
+      const height = Number(node.dataset.height);
+      const info = height >= 120 && height <= 1200 ? ` height=${height}` : '';
+      const fence = '```' + node.dataset.diagram + info + '\n' + code + '\n```';
       place(probe && node.contains(probe.node) ? 0 : null, fence);
       continue;
     }
@@ -241,9 +243,9 @@ export function VisualMarkdownEditor({ text, project, path, onChange, onUnsuppor
     setReady(true);
     setWarning(false);
     const token = generation.current;
-    void mountDiagrams(box, (index, lang: DiagramLang, body) => {
+    void mountDiagrams(box, (index, lang: DiagramLang, body, height) => {
       if (token !== generation.current) return;
-      const updated = replaceDiagram(source.current, index, lang, body);
+      const updated = replaceDiagram(source.current, index, lang, body, height);
       source.current = updated;
       const next = markdown(box);
       if (next) previousMarkdown.current = next;

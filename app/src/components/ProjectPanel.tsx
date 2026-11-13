@@ -4,7 +4,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ProjectItems, type ProjectSummary } from '../api';
+import { agentFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
+import { HoverTip } from './HoverTip';
 import { confirmDialog } from '../dialogs';
 import { SkillCat } from './SkillCat';
 
@@ -43,7 +45,7 @@ export function ProjectPanel({ project }: Props) {
           <li key={s.name} className="skill-card">
             <div className="skill-card-head">
               {kind === 'skill' && <SkillCat name={s.name} />}
-              <span className="choice-title">{s.name}</span>
+              <HoverTip text={(kind === 'skill' ? skillFace(s.name, s.description) : agentFace(s.name, s.description)).hint}><span className="choice-title">{(kind === 'skill' ? skillFace(s.name, s.description) : agentFace(s.name, s.description)).label}</span></HoverTip>
               <span className="statusbar-spacer" />
               <button type="button" className="btn btn-ghost btn-sm" disabled={Boolean(busy)} onClick={() => { void remove(kind, s.name); }}>
                 {busy === `${kind}:${s.name}` ? t('Removing…') : t('Remove')}

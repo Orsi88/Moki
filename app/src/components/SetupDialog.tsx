@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api, type ActivityInfo, type AgentInfo, type Operation, type Plan, type ProjectDefault, type ProjectLinks, type ProjectSummary, type Reach, type UploadTarget } from '../api';
+import { activityFace, agentFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload, type UploadDone } from './ClaudeUpload';
@@ -136,9 +137,9 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
 
   // Agents: the ones on in this project; the star makes one a default.
   const agentChips = starredFirst(agents.filter((a) => enabled.includes(a.name)).map((a) => ({
-    id: a.name, name: a.name, star: stars('agent', a.name), locked: lockedWhy(links?.agents[a.name]), marked: aiSuggests(plan?.agents, a.name),
+    id: a.name, name: agentFace(a.name, a.description).label, star: stars('agent', a.name), locked: lockedWhy(links?.agents[a.name]), marked: aiSuggests(plan?.agents, a.name),
   })));
-  const agentOptions = byGroup(agents.filter((a) => !enabled.includes(a.name)).map((a) => ({ id: a.name, name: a.name, hint: a.description, group: a.source === 'custom' ? t('Your own') : 'Moki' })));
+  const agentOptions = byGroup(agents.filter((a) => !enabled.includes(a.name)).map((a) => { const face = agentFace(a.name, a.description); return { id: a.name, name: face.label, hint: face.hint, group: a.source === 'custom' ? t('Your own') : 'Moki' }; }));
   const addAgent = (id: string) => { setEnabled((s) => (s.includes(id) ? s : [...s, id])); setAgentsChanged(true); };
   const removeAgent = (id: string) => { setEnabled((s) => s.filter((x) => x !== id)); removeDefault('agent', id); setAgentsChanged(true); };
 
@@ -146,13 +147,13 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   // project, so one shows here only as a default.
   const linkable = [...global, ...artcraft];
   const skillChips = starredFirst([
-    ...linked.filter((n) => linkable.includes(n)).map((n) => ({ id: n, name: n, star: stars('skill', n), marked: aiSuggests(plan?.skills, n) })),
-    ...chosen('skill').filter((n) => !linkable.includes(n)).map((n) => ({ id: n, name: n, star: true })),
+    ...linked.filter((n) => linkable.includes(n)).map((n) => ({ id: n, name: skillFace(n).label, star: stars('skill', n), marked: aiSuggests(plan?.skills, n) })),
+    ...chosen('skill').filter((n) => !linkable.includes(n)).map((n) => ({ id: n, name: skillFace(n).label, star: true })),
   ]);
   const skillOptions = byGroup([
-    ...global.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: n, group: t('For all projects') })),
-    ...artcraft.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: n, group: 'ArtCraft' })),
-    ...skills.filter((n) => !linkable.includes(n) && !stars('skill', n)).map((n) => ({ id: n, name: n, group: 'Moki' })),
+    ...global.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: skillFace(n).label, hint: skillFace(n).hint, group: t('For all projects') })),
+    ...artcraft.filter((n) => !linked.includes(n)).map((n) => ({ id: n, name: skillFace(n).label, hint: skillFace(n).hint, group: 'ArtCraft' })),
+    ...skills.filter((n) => !linkable.includes(n) && !stars('skill', n)).map((n) => ({ id: n, name: skillFace(n).label, hint: skillFace(n).hint, group: 'Moki' })),
   ]);
   const addSkill = (id: string) => (linkable.includes(id) ? setLinked((s) => (s.includes(id) ? s : [...s, id])) : addDefault('skill', id));
   const removeSkill = (id: string) => { setLinked((s) => s.filter((x) => x !== id)); removeDefault('skill', id); };
@@ -164,11 +165,11 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const builtin = activities.filter((a) => a.source === 'builtin');
   const activityChips = starredFirst([
     ...yours.filter(yourOn).map((a) => ({ id: a.id, name: a.name, star: stars('activity', a.id), locked: lockedWhy(a) })),
-    ...builtin.filter((a) => stars('activity', a.id)).map((a) => ({ id: a.id, name: t(a.label), star: true })),
+    ...builtin.filter((a) => stars('activity', a.id)).map((a) => ({ id: a.id, name: activityFace(a.id, a.label, a.hint).label, star: true })),
   ]);
   const activityOptions = byGroup([
     ...yours.filter((a) => !yourOn(a)).map((a) => ({ id: a.id, name: a.name, group: t('Your own') })),
-    ...builtin.filter((a) => !stars('activity', a.id)).map((a) => ({ id: a.id, name: t(a.label), hint: t(a.hint), group: 'Moki' })),
+    ...builtin.filter((a) => !stars('activity', a.id)).map((a) => { const face = activityFace(a.id, a.label, a.hint); return { id: a.id, name: face.label, hint: face.hint, group: 'Moki' }; }),
   ]);
   const isYours = (id: string) => yours.some((a) => a.id === id);
   const addActivity = (id: string) => (isYours(id) ? setActivityOn((o) => ({ ...o, [id]: true })) : addDefault('activity', id));

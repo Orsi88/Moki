@@ -15,7 +15,7 @@ import { activeWorkspace } from '../../desktop/workspaces.ts';
 import { CompanionError, openCompanion, projectsForFolder, type Companion, type ResourceKind } from '../../desktop/companion.ts';
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const KINDS: ResourceKind[] = ['context', 'note', 'shared', 'agent', 'skill'];
+const KINDS: ResourceKind[] = ['context', 'note', 'file', 'shared', 'agent', 'skill'];
 
 interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; run: (c: Companion, args: Record<string, unknown>) => unknown }
 
@@ -30,13 +30,13 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'moki_list_resources',
-    description: 'References (id, title, short description, mode) to the project\'s context files, notes, context shared by tags, agents and skills. Content is not included: read it with moki_get_resource. Mode "ask" means the person must select it in the Moki panel first.',
+    description: 'References (id, title, short description, mode) to the project\'s files: context first, then notes, inbox, runs, temporary and the other folders, plus context shared by tags, agents and skills. Content is not included: read it with moki_get_resource. A PDF comes back as its text. Mode "ask" means the person must select it in the Moki panel first.',
     inputSchema: object({ kind: { type: 'string', enum: KINDS, description: 'Only this kind of resource.' } }),
     run: (c, a) => c.resources(a.kind),
   },
   {
     name: 'moki_search_knowledge',
-    description: 'Plain-text search (case-insensitive) in the project\'s readable context files, notes, shared context, agents and skills. Returns lines with the resource id.',
+    description: 'Plain-text search (case-insensitive) in the files the project may share: context first, then the other folders, notes, shared context, agents and skills. A PDF is searched by its text. Returns lines with the resource id.',
     inputSchema: object({ query: { type: 'string', description: 'Words or a phrase to find.' } }, ['query']),
     run: (c, a) => c.search(a.query),
   },
@@ -67,7 +67,7 @@ type Message = { jsonrpc?: string; id?: string | number | null; method?: string;
 
 // One JSON-RPC message in, its reply out (null for notifications).
 export function createHandler(companion: Companion | null, unbound: string) {
-  return (msg: Message): Record<string, unknown> | null => {
+  return async (msg: Message): Promise<Record<string, unknown> | null> => {
     const reply = (result: unknown) => ({ jsonrpc: '2.0', id: msg.id ?? null, result });
     const error = (code: number, message: string) => ({ jsonrpc: '2.0', id: msg.id ?? null, error: { code, message } });
     if (msg.id === undefined || msg.id === null) return null; // notifications (initialized, cancelled)
@@ -79,7 +79,7 @@ export function createHandler(companion: Companion | null, unbound: string) {
           capabilities: { tools: {} },
           serverInfo: { name: 'moki', version: (() => { try { return String((readJson(join(ROOT, 'package.json')) as { version: string }).version); } catch { return '0'; } })() },
           instructions: companion
-            ? `Moki project "${companion.project}". Call moki_get_context with the task before working, and read only the resources you need.`
+            ? `Moki project "${companion.project}". Call moki_get_context with the task before working, and read only the resources you need. context/ prevails when it disagrees with another folder; the project's other folders stay readable.`
             : unbound,
         });
       }
@@ -94,7 +94,7 @@ export function createHandler(companion: Companion | null, unbound: string) {
         const text = (t: string, isError = false) => reply({ content: [{ type: 'text', text: t }], isError });
         if (!companion) return text(unbound, true);
         try {
-          const value = tool.run(companion, args);
+          const value = await tool.run(companion, args);
           companion.log(name, { args });
           return text(JSON.stringify(value, null, 2));
         } catch (e) {
@@ -131,17 +131,20 @@ function main(): void {
   const handle = createHandler(project ? openCompanion(ROOT, project) : null, reason);
   // stdout carries only protocol messages: one JSON object per line.
   const rl = createInterface({ input: process.stdin });
+  let chain = Promise.resolve();
   rl.on('line', (line) => {
-    if (!line.trim()) return;
-    let msg: Message;
-    try { msg = JSON.parse(line) as Message; } catch {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`);
-      return;
-    }
-    const out = handle(msg);
-    if (out) process.stdout.write(`${JSON.stringify(out)}\n`);
+    chain = chain.then(async () => {
+      if (!line.trim()) return;
+      let msg: Message;
+      try { msg = JSON.parse(line) as Message; } catch {
+        process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`);
+        return;
+      }
+      const out = await handle(msg);
+      if (out) process.stdout.write(`${JSON.stringify(out)}\n`);
+    }).catch(() => { /* a broken line already got its error; keep reading */ });
   });
-  rl.on('close', () => process.exit(0));
+  rl.on('close', () => { void chain.then(() => process.exit(0)); });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

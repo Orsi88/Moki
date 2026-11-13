@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { joinDiagramFences, joinSource, splitDiagramFences, splitSource, takeDiagramFence } from '../app/src/diagram-source.ts';
+import { joinDiagramFences, joinSource, replaceDiagram, splitDiagramFences, splitSource, takeDiagramFence } from '../app/src/diagram-source.ts';
 
 test('a closed drawing or diagram folds out of the text and joins back', () => {
   const md = 'antes\n\n```excalidraw\n{"type":"excalidraw"}\n```\n\ndepois\n```mermaid\nflowchart LR\n  A --> B\n```\n';
@@ -14,6 +14,19 @@ test('an embedded image stays a picture and joins back to the same markdown', ()
   const parts = splitSource(md);
   assert.deepEqual(parts.map((part) => part.kind), ['text', 'image', 'text']);
   assert.equal(joinSource(parts), md);
+});
+
+test('the viewer height stays on the fence line and survives an edit', () => {
+  const md = '```mermaid height=320\nflowchart LR\n  A --> B\n```\n';
+  const taken = takeDiagramFence(md);
+  assert.equal(taken?.height, 320);
+  assert.equal(taken?.body, 'flowchart LR\n  A --> B');
+  const parts = splitDiagramFences(md);
+  assert.equal(joinDiagramFences(parts), md);
+  const edited = replaceDiagram(md, 0, 'mermaid', 'flowchart LR\n  A --> C');
+  assert.match(edited, /^```mermaid height=320\n/);
+  assert.match(edited, /A --> C/);
+  assert.match(replaceDiagram(md, 0, 'mermaid', 'flowchart LR\n  A --> C', 480), /^```mermaid height=480\n/);
 });
 
 test('a diagram fence is taken only from the start of the text', () => {

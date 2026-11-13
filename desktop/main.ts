@@ -296,7 +296,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.setName('Moki');
-  app.setAppUserModelId('io.github.orsi88.qualityagents');
+  // Windows draws the taskbar icon from the shortcut that first claimed this id.
+  // A run from the source is electron.exe; claiming the installed app's id leaves
+  // the Electron atom on the taskbar after Moki is installed.
+  app.setAppUserModelId(app.isPackaged ? 'io.github.orsi88.qualityagents' : 'io.github.orsi88.qualityagents.dev');
   app.on('second-instance', () => {
     if (!win) return;
     if (win.isMinimized()) win.restore();

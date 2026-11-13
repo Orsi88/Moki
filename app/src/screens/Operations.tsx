@@ -12,7 +12,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { api, type Operation, type OperationAgent, type OperationCheck, type OperationDraft, type OperationLane, type OperationLink, type ToolInfo } from '../api';
+import { agentFace } from '../catalog-copy';
 import { t } from '../i18n';
+import { HoverTip } from '../components/HoverTip';
 import { recall, remember } from '../prefs';
 import { IconAgent, IconCollapse, IconExpand, IconLanes, IconTrash, IconX } from '../components/Icons';
 import { BackArrow, ListHead, ListTabs, ListTools, countLabel, matchesQuery } from '../components/ListPage';
@@ -134,7 +136,11 @@ export function Operations({ tools }: Props) {
 
   const update = (fn: (d: OperationDraft) => OperationDraft) => setDraft((d) => (d ? fn(d) : d));
   const agentOf = (stepId: string) => agents.find((a) => a.key === draft?.steps.find((s) => s.id === stepId)?.agent);
-  const stepName = (stepId: string) => agentOf(stepId)?.name ?? stepId;
+  const stepName = (stepId: string) => {
+    const agent = agentOf(stepId);
+    if (agent) return agentFace(agent.name, agent.description).label;
+    return (draft?.steps.find((s) => s.id === stepId)?.agent ?? stepId).replace(/^\w+:/, '');
+  };
   const outcomesOf = (stepId: string) => agentOf(stepId)?.outcomes ?? [];
   const dotsOf = (stepId: string) => dotsFor(outcomesOf(stepId));
   const heightOf = (stepId: string) => cardHeight(outcomesOf(stepId));
@@ -265,7 +271,7 @@ export function Operations({ tools }: Props) {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
 
-  const shown = useMemo(() => agents.filter((a) => `${a.name} ${a.description}`.toLowerCase().includes(query.trim().toLowerCase())), [agents, query]);
+  const shown = useMemo(() => agents.filter((a) => { const face = agentFace(a.name, a.description); return `${a.name} ${a.description} ${face.label} ${face.hint}`.toLowerCase().includes(query.trim().toLowerCase()); }), [agents, query]);
   const steps = draft?.steps ?? [];
   const pos = (id: string) => steps.find((s) => s.id === id);
   const aiName = (id: string) => (id ? tools.find((x) => x.id === id)?.label.replace(/ \(.*\)$/, '') ?? id : t('Chosen when it runs'));
@@ -341,14 +347,19 @@ export function Operations({ tools }: Props) {
                     <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search your agents')} aria-label={t('Search your agents')}
                       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setAdding(false); } }} />
                     <ul>
-                      {shown.map((a) => (
+                      {shown.map((a) => {
+                        const face = agentFace(a.name, a.description);
+                        return (
                         <li key={a.key}>
-                          <button type="button" onClick={() => addAgent(a)} title={a.description}>
-                            <span className="ops-palette-name">{a.name}</span>
+                          <HoverTip text={face.hint}>
+                          <button type="button" onClick={() => addAgent(a)}>
+                            <span className="ops-palette-name">{face.label}</span>
                             <span className="muted small">{a.source === 'global' ? t('all projects') : ''} {t('{i} in · {o} out', { i: a.inputs.length, o: a.outputs.length })}</span>
                           </button>
+                          </HoverTip>
                         </li>
-                      ))}
+                        );
+                      })}
                       {!shown.length && <li className="muted small">{t('No agent matches.')}</li>}
                     </ul>
                   </div>
@@ -426,13 +437,15 @@ export function Operations({ tools }: Props) {
                   const agent = agentOf(s.id);
                   const n = check?.order.indexOf(s.id) ?? -1;
                   const executes = agent?.mcps.some((m) => m.mode === 'execute');
+                  const face = agent ? agentFace(agent.name, agent.description) : undefined;
                   return (
-                    <div key={s.id} data-step={s.id} role="button" tabIndex={0} aria-label={t('Step {name}', { name: agent?.name ?? s.agent })}
+                    <HoverTip key={s.id} text={face?.hint}>
+                    <div data-step={s.id} role="button" tabIndex={0} aria-label={t('Step {name}', { name: stepName(s.id) })}
                       className={`ops-card${selectedStep === s ? ' on' : ''}${agent ? '' : ' missing'}`} style={{ left: s.x, top: s.y, width: CARD_W, height: heightOf(s.id) }}
                       onPointerDown={(e) => startMove(e, s.id)} onKeyDown={(e) => { if (e.key === 'Enter') setSel({ kind: 'step', id: s.id }); }}>
                       <div className="ops-card-head">
                         {n >= 0 && <span className="ops-card-n">{n + 1}</span>}
-                        <span className="ops-card-name">{agent?.name ?? s.agent.replace(/^\w+:/, '')}</span>
+                        <span className="ops-card-name">{stepName(s.id)}</span>
                         {check?.start === s.id && <span className="ops-card-start">{t('Start')}</span>}
                       </div>
                       <div className="ops-card-meta muted small">
@@ -443,11 +456,12 @@ export function Operations({ tools }: Props) {
                         <span key={w || '*'}>
                           <button type="button" className={`ops-dot${w ? ' outcome' : ''}`} style={{ top: dotY(s.id, w) }} onPointerDown={(e) => startLink(e, s.id, w)}
                             title={w ? t('Drag to the step that follows "{result}"', { result: w }) : t('Drag to the next step')}
-                            aria-label={w ? t('Link {name} when it ends with "{result}"', { name: agent?.name ?? s.id, result: w }) : t('Link {name} to another step', { name: agent?.name ?? s.id })} />
+                            aria-label={w ? t('Link {name} when it ends with "{result}"', { name: stepName(s.id), result: w }) : t('Link {name} to another step', { name: stepName(s.id) })} />
                           {dotsOf(s.id).length > 1 && <span className="ops-dot-label" style={{ top: dotY(s.id, w) }}>{w || t('otherwise')}</span>}
                         </span>
                       ))}
                     </div>
+                    </HoverTip>
                   );
                 })}
               </div>
@@ -536,7 +550,7 @@ export function Operations({ tools }: Props) {
                       <header className="ops-panel-head">
                         <div>
                           <span className="ops-kicker">{n >= 0 ? t('Step {n}', { n: n + 1 }) : t('Step not linked')}{check?.start === selectedStep.id && ` · ${t('Start')}`}</span>
-                          <h2>{agent?.name ?? selectedStep.agent}</h2>
+                          <h2>{stepName(selectedStep.id)}</h2>
                         </div>
                         <span className="row-actions">
                           {check?.start !== selectedStep.id && <button type="button" className="btn btn-ghost btn-sm" onClick={() => update((d) => ({ ...d, start: selectedStep.id }))}>{t('Start with this step')}</button>}

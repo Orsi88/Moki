@@ -25,7 +25,7 @@ Select text inside one paragraph and a **Comment** button floats next to it. Com
 
 ### Diagrams and drawings
 
-A ` ```mermaid ` block is drawn as a diagram, and a ` ```excalidraw ` block as an editable drawing — click its pencil to edit it in [Excalidraw](https://excalidraw.com). Hold **Ctrl** and scroll to zoom. The AIs are told to draw diagrams this way, inside the document, instead of making images or PDFs.
+A ` ```mermaid ` block is drawn as a diagram, and a ` ```excalidraw ` block as an editable drawing — click its pencil to edit it in [Excalidraw](https://excalidraw.com). A `.excalidraw` file opens as that same drawing, filling the page, and edits are saved back into the file. Hold **Ctrl** and scroll to zoom. The AIs are told to draw diagrams this way, inside the document, instead of making images or PDFs.
 
 ### Links between project files
 

@@ -1,5 +1,6 @@
 // The IDE Companion's view of one project: what the AI of an IDE may read from
 // Moki (through ide/mcp/server.ts) and what the person chose for it (ide/vscode).
+// context/ is listed first and outranks an equal match; the project's other folders stay readable.
 // Read-only over the framework and the workspace; it writes only the project's
 // companion.json (choices) and logs/companion.log (what was read). Every request
 // is checked against the project it was opened for, never against an id the AI sends.
@@ -10,15 +11,15 @@ import { contextChoice, listProjects, listSkills, isUsable, projectSummary, proj
 import { isUsableAgent, listAgents } from '../scripts/lib/agents.ts';
 import { readJson, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
-import { PathError, resolveInside } from './fs-guard.ts';
+import { OFFICE_LIMIT, PathError, resolveInside } from './fs-guard.ts';
 import { enabledServers, type McpServer } from '../scripts/lib/mcp.ts';
 
-export type ResourceKind = 'context' | 'note' | 'shared' | 'agent' | 'skill';
+export type ResourceKind = 'context' | 'note' | 'file' | 'shared' | 'agent' | 'skill';
 // auto: listed and readable; ask: listed, readable once the person selects it; manual: hidden until selected.
 export type Mode = 'auto' | 'ask' | 'manual';
 export const MODES: Mode[] = ['auto', 'ask', 'manual'];
 // Another project's files reach this one only through a tag, so they wait for the person by default.
-export const DEFAULT_MODES: Record<ResourceKind, Mode> = { context: 'auto', note: 'auto', shared: 'ask', agent: 'auto', skill: 'auto' };
+export const DEFAULT_MODES: Record<ResourceKind, Mode> = { context: 'auto', note: 'auto', file: 'auto', shared: 'ask', agent: 'auto', skill: 'auto' };
 
 export interface Resource {
   id: string; // a file: its workspace label (workspace/projects/<id>/<path>); agent:<name>; skill:<name>
@@ -46,7 +47,10 @@ interface Choices { selected: string[]; modes: Record<string, Mode> }
 
 export class CompanionError extends Error {}
 
-const TEXT = new Set(['.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.xml', '.feature', '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv']);
+const TEXT = new Set(['.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.xml', '.feature', '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv', '.pdf']);
+// logs is Moki's own record of what was read; node_modules is not project content.
+const SKIP_FOLDERS = new Set(['logs', 'node_modules']);
+const STANDARD_FOLDERS = ['inbox', 'runs', 'temporary'];
 const SENSITIVE = [/^\.env(\..*)?$/i, /\.(pem|key|p12|pfx|crt|jks)$/i, /^(credentials|secrets?)(\..*)?$/i, /^id_(rsa|dsa|ecdsa|ed25519)/i];
 const FILE_LIMIT = 200_000; // characters of one resource
 export const DEFAULT_BUDGET = 24_000; // characters of selected content in one context pack
@@ -121,20 +125,41 @@ export function openCompanion(root: string, project: string) {
 
   const fileResource = (owner: string, path: string, kind: ResourceKind, c: Choices): Resource => {
     const file = join(projectsDir(root), owner, ...path.split('/'));
+    const pdf = extname(path).toLowerCase() === '.pdf';
     let text = '';
     let size = 0;
-    try { size = statSync(file).size; text = readFileSync(file, 'utf8').slice(0, 4000); } catch { /* listed, then gone */ }
+    try { size = statSync(file).size; if (!pdf) text = readFileSync(file, 'utf8').slice(0, 4000); } catch { /* listed, then gone */ }
     const id = label(owner, path);
     return {
-      id, kind, title: path, description: firstLine(text), source: owner, size,
+      id, kind, title: path, description: pdf ? 'PDF' : firstLine(text), source: owner, size,
       mode: c.modes[id] ?? DEFAULT_MODES[kind], selected: c.selected.includes(id),
     };
+  };
+
+  // context/ first, then the standard folders, then every other folder and loose file of the project.
+  const projectDocuments = (): { path: string; kind: ResourceKind }[] => {
+    const out: { path: string; kind: ResourceKind }[] = [];
+    const add = (folder: string, kind: ResourceKind) => {
+      for (const p of walk(join(dir, folder))) out.push({ path: `${folder}/${p}`, kind });
+    };
+    add('context', 'context');
+    add('notes', 'note');
+    for (const folder of STANDARD_FOLDERS) add(folder, 'file');
+    if (!existsSync(dir)) return out;
+    const standard = new Set(['context', 'notes', ...STANDARD_FOLDERS, ...SKIP_FOLDERS]);
+    for (const name of readdirSync(dir).sort()) {
+      if (name.startsWith('.') || standard.has(name)) continue;
+      let st;
+      try { st = statSync(join(dir, name)); } catch { continue; }
+      if (st.isDirectory()) add(name, 'file');
+      else if (TEXT.has(extname(name).toLowerCase()) && !isSensitive(name)) out.push({ path: name, kind: 'file' });
+    }
+    return out;
   };
 
   // Everything this project may offer, before the modes are applied.
   const all = (): Resource[] => {
     const c = choices();
-    const own = (sub: string, kind: ResourceKind) => walk(join(dir, sub)).map((p) => fileResource(project, `${sub}/${p}`, kind, c));
     const shared = new Map<string, Resource>();
     for (const { sources } of contextChoice(project, root).shared) {
       for (const s of sources) {
@@ -158,7 +183,7 @@ export function openCompanion(root: string, project: string) {
         const id = `skill:${s.name}`;
         return { id, kind: 'skill', title: s.name, description: s.description, source: 'framework', mode: c.modes[id] ?? DEFAULT_MODES.skill, selected: c.selected.includes(id) };
       });
-    return [...own('context', 'context'), ...own('notes', 'note'), ...shared.values(), ...agents, ...skills];
+    return [...projectDocuments().map((d) => fileResource(project, d.path, d.kind, c)), ...shared.values(), ...agents, ...skills];
   };
 
   const visible = (r: Resource): boolean => r.mode !== 'manual' || r.selected;
@@ -170,7 +195,7 @@ export function openCompanion(root: string, project: string) {
     return r;
   };
 
-  const text = (r: Resource): string => {
+  const text = async (r: Resource): Promise<string> => {
     if (r.kind === 'agent') {
       const agent = listAgents(root).find((a) => `agent:${a.name}` === r.id);
       if (!agent) throw new CompanionError('Unknown agent.');
@@ -183,6 +208,11 @@ export function openCompanion(root: string, project: string) {
       throw new CompanionError(e instanceof PathError ? e.message : 'File not found.');
     }
     if (isSensitive(file)) throw new CompanionError('This file is never shared.');
+    if (extname(file).toLowerCase() === '.pdf') {
+      if (statSync(file).size > OFFICE_LIMIT) throw new CompanionError('This PDF is too large to read here.');
+      const { pdfPlainText } = await import('./pdfjs.ts'); // the worker loads on the first PDF, not when the server starts
+      return pdfPlainText(new Uint8Array(readFileSync(file)), FILE_LIMIT);
+    }
     return readFileSync(file, 'utf8');
   };
 
@@ -216,22 +246,22 @@ export function openCompanion(root: string, project: string) {
     // What the AI sees: no manual resource that is not selected.
     resources: (kind?: unknown): Resource[] => all().filter(visible).filter((r) => !kind || r.kind === kind),
 
-    getResource: (id: unknown): { resource: Resource; text: string; truncated: boolean } => {
+    getResource: async (id: unknown): Promise<{ resource: Resource; text: string; truncated: boolean }> => {
       const r = find(id);
       if (!visible(r)) throw new CompanionError('This resource does not belong to the project, or it is gone.');
       if (!readable(r)) throw new CompanionError('The person must select this resource in the Moki panel before it can be read.');
-      const full = text(r);
+      const full = await text(r);
       return { resource: r, text: full.slice(0, FILE_LIMIT), truncated: full.length > FILE_LIMIT };
     },
 
     // Plain text search in the files the AI may read (no index: the projects are small).
-    search: (query: unknown): SearchHit[] => {
+    search: async (query: unknown): Promise<SearchHit[]> => {
       const q = String(query ?? '').trim().toLowerCase().slice(0, 200);
       if (!q) return [];
       const hits: SearchHit[] = [];
       for (const r of all().filter((x) => readable(x) && visible(x))) {
         let body: string;
-        try { body = text(r); } catch { continue; }
+        try { body = await text(r); } catch { continue; }
         const lines = body.split('\n');
         for (let i = 0; i < lines.length && hits.length < HIT_LIMIT; i++) {
           if (lines[i].toLowerCase().includes(q)) hits.push({ id: r.id, title: r.title, line: i + 1, snippet: lines[i].trim().slice(0, 200) });
@@ -242,7 +272,8 @@ export function openCompanion(root: string, project: string) {
     },
 
     // Selected resources with their text, within the budget, then the most related references.
-    contextPack: (task: unknown, budget?: unknown): ContextPack => {
+    // context/ ranks above an equal match in another folder.
+    contextPack: async (task: unknown, budget?: unknown): Promise<ContextPack> => {
       const words = terms(String(task ?? ''));
       const limit = Math.min(MAX_BUDGET, Math.max(1000, Number(budget) || DEFAULT_BUDGET));
       const list = all().filter(visible);
@@ -250,7 +281,7 @@ export function openCompanion(root: string, project: string) {
       const selected: ContextPack['selected'] = [];
       for (const r of list.filter((x) => x.selected)) {
         let body = '';
-        try { body = text(r); } catch { continue; }
+        try { body = await text(r); } catch { continue; }
         const room = limit - used;
         if (room <= 0) break;
         selected.push({ resource: r, text: body.slice(0, room), truncated: body.length > room });

@@ -18,7 +18,7 @@ function decode(html) {
 // The rendered blocks, in order. The source was escaped by markdownToHtml.
 export function diagramSources(html) {
   const out = [];
-  const re = /<pre class="diagram" data-diagram="(mermaid|excalidraw)"><code>([\s\S]*?)<\/code><\/pre>/g;
+  const re = /<pre class="diagram" data-diagram="(mermaid|excalidraw)"(?:\s+data-height="\d+")?><code>([\s\S]*?)<\/code><\/pre>/g;
   let m;
   while ((m = re.exec(html)) && out.length < MAX) out.push({ lang: m[1], source: decode(m[2]).slice(0, MAX_SOURCE) });
   return out;
@@ -138,7 +138,7 @@ export async function photographDiagrams(items, browser) {
 
 export function applyDiagramImages(html, uris) {
   let n = 0;
-  return html.replace(/<pre class="diagram" data-diagram="(?:mermaid|excalidraw)"><code>[\s\S]*?<\/code><\/pre>/g, (full) => {
+  return html.replace(/<pre class="diagram" data-diagram="(?:mermaid|excalidraw)"(?:\s+data-height="\d+")?><code>[\s\S]*?<\/code><\/pre>/g, (full) => {
     const uri = uris[n++];
     return uri ? `<img class="diagram" alt="Diagram" src="${uri}">` : full;
   });

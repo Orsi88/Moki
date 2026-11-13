@@ -475,7 +475,7 @@ test.describe.serial('Moki settings', () => {
   test('an agent shows what it needs and delivers; your copy edits it, MCPs and AI included', async () => {
     await page.getByRole('tab', { name: 'Agentes' }).click();
     await expect(page.getByRole('heading', { name: 'Agentes' })).toBeVisible(); // the list first
-    await page.locator('.library-item', { has: page.locator('.list-card-title', { hasText: /^test-designer$/ }) }).click();
+    await page.locator('.library-item', { has: page.locator('.list-card-title', { hasText: /^Designer de testes$/ }) }).click();
     const contract = page.getByRole('group', { name: 'Na operação' });
     await expect(contract.getByRole('list', { name: 'Entradas' })).toContainText('User stories');
     await expect(contract.getByRole('list', { name: 'Saídas' })).toContainText('test-cases.json');
@@ -511,8 +511,8 @@ test.describe.serial('Moki settings', () => {
 
     await page.getByRole('textbox', { name: 'Descrição' }).fill('Designs the tests of the Acme stories.');
     await page.getByRole('searchbox', { name: 'Adicionar skill' }).fill('requirements');
-    await page.locator('.skill-options button', { has: page.locator('.skill-name', { hasText: /^requirements-review$/ }) }).click();
-    await expect(page.locator('.skill-row .skill-name')).toHaveText(['test-design', 'project-context', 'requirements-review']);
+    await page.locator('.skill-options button', { has: page.locator('.skill-name', { hasText: /^Revisão de histórias$/ }) }).click();
+    await expect(page.locator('.skill-row .skill-name')).toHaveText(['Desenho de testes', 'Contexto do projeto', 'Revisão de histórias']);
     await page.locator('.agent-savebar').getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByText('Alterações não salvas')).toHaveCount(0);
 
@@ -556,7 +556,7 @@ test.describe.serial('Moki settings', () => {
     // The first time, an example to learn from: three lanes, the Moki agents, approval between them.
     const example = page.locator('.library-item', { hasText: 'Exemplo: da história às evidências' });
     await example.click();
-    await expect(page.locator('.ops-card-name')).toHaveText(['requirements-analyst', 'test-designer', 'evidence-builder']);
+    await expect(page.locator('.ops-card-name')).toHaveText(['Revisor de histórias', 'Designer de testes', 'Montador de evidência']);
     await expect(page.getByRole('region', { name: 'Checagem' }).locator('.ops-panel-head .pill')).toHaveText('Pronta');
     await page.getByRole('button', { name: 'Voltar para Operações' }).click(); // the list, like every tab
     await page.getByRole('button', { name: 'Nova operação' }).click();
@@ -565,13 +565,13 @@ test.describe.serial('Moki settings', () => {
       if (!(await page.locator('.ops-palette').isVisible())) await page.getByRole('button', { name: '+ Adicionar agente' }).click();
       await page.locator('.ops-palette button', { has: page.locator('.ops-palette-name', { hasText: new RegExp(`^${name}$`) }) }).click();
     };
-    await pick('requirements-analyst');
-    await pick('test-designer'); // linked to the end of the line on its own
+    await pick('Revisor de histórias');
+    await pick('Designer de testes'); // linked to the end of the line on its own
 
-    const arrow = page.getByRole('button', { name: 'Seta de requirements-analyst para test-designer' });
+    const arrow = page.getByRole('button', { name: 'Seta de Revisor de histórias para Designer de testes' });
     await expect(arrow).toHaveText('Aprovação');
     const inspector = page.getByRole('region', { name: 'Selecionado' });
-    await expect(inspector.getByRole('heading', { level: 2 })).toHaveText('requirements-analyst → test-designer');
+    await expect(inspector.getByRole('heading', { level: 2 })).toHaveText('Revisor de histórias → Designer de testes');
     await inspector.getByRole('combobox', { name: 'Resposta para Business rules' }).selectOption('review-matrix.json');
     const check = page.getByRole('region', { name: 'Checagem' });
     await expect(check.locator('.ops-initial-agent')).toHaveText(['requirements-analyst', 'test-designer']);
@@ -592,22 +592,22 @@ test.describe.serial('Moki settings', () => {
     expect(Math.round(left?.height ?? 0)).toBe(Math.round(right?.height ?? 1));
     expect(Math.round(left?.width ?? 0)).toBe(Math.round(right?.width ?? 1));
 
-    await inspector.getByRole('radio', { name: 'Seguir direto para test-designer' }).check();
+    await inspector.getByRole('radio', { name: 'Seguir direto para Designer de testes' }).check();
     await expect(arrow).toHaveText('Direto');
 
     // A third agent, linked by dragging from the dot of test-designer to its card.
-    await pick('failure-analyst');
-    await page.getByRole('button', { name: 'Seta de test-designer para failure-analyst' }).click();
+    await pick('Analista de falhas');
+    await page.getByRole('button', { name: 'Seta de Designer de testes para Analista de falhas' }).click();
     await inspector.getByRole('button', { name: 'Remover seta' }).click();
     await expect(check).toContainText('Etapas sem ligação com as outras: failure-analyst');
-    const dot = page.getByRole('button', { name: 'Ligar test-designer a outra etapa' });
-    const target = page.getByRole('button', { name: 'Etapa failure-analyst' });
+    const dot = page.getByRole('button', { name: 'Ligar Designer de testes a outra etapa' });
+    const target = page.getByRole('button', { name: 'Etapa Analista de falhas' });
     await dot.hover();
     await page.mouse.down();
     const box = await target.boundingBox();
     await page.mouse.move((box?.x ?? 0) + 60, (box?.y ?? 0) + 40, { steps: 8 });
     await page.mouse.up();
-    await expect(page.getByRole('button', { name: 'Seta de test-designer para failure-analyst' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Seta de Designer de testes para Analista de falhas' })).toBeVisible();
     await expect(page.locator('.ops-card-n')).toHaveText(['1', '2', '3']);
 
     // Lanes: coloured bands named after the phases; a colour from the palette; wider by dragging the border.
@@ -1114,7 +1114,6 @@ test.describe.serial('Moki project tree', () => {
   });
 
   test('typing / in a note lists the formatting commands; a checklist continues on Enter', async () => {
-    await treePage.locator('.tree-row[title="notes"]').click();
     await treePage.locator('.sidebar').getByRole('button', { name: 'Nova nota' }).click();
     const note = treePage.locator('.note-dialog'); // its name follows the title typed below
     await note.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
@@ -1836,7 +1835,6 @@ test.describe.serial('Moki PDF comments', () => {
     await expect(pdfPage.locator('.pdf-page-wrap').first().getByRole('textbox', { name: 'Título da nota' })).toHaveValue('Minha nota revisada');
     const storedHeight = JSON.parse(readFileSync(join(dirs[0], 'workspace', 'projects', 'acme', '.moki-pdf-notes.json'), 'utf8'))[0]?.notes[0]?.height as number;
     await expect.poll(async () => Math.abs(((await pdfPage.locator('.pdf-page-wrap').first().locator('.pdf-inline-note').boundingBox())?.height ?? 0) - storedHeight)).toBeLessThan(2);
-    await pdfPage.locator('.tree-row[title="notes"]').click();
     const source = pdfPage.locator('.tree-row[title="notes/nova-nota.md"]');
     await expect(source).toContainText('Minha nota revisada');
     const transfer = await pdfPage.evaluateHandle(() => new DataTransfer());
@@ -2038,7 +2036,7 @@ test.describe.serial('Moki activities', () => {
     await actPage.getByRole('button', { name: 'Nova atividade' }).click();
     await actPage.getByRole('textbox', { name: 'Nome' }).fill('Checar smoke');
     await actPage.getByRole('combobox', { name: 'Ela usa', exact: true }).selectOption('skills');
-    await actPage.getByRole('group', { name: 'Skills', exact: true }).getByRole('button', { name: 'test-design', exact: true }).click();
+    await actPage.getByRole('group', { name: 'Skills', exact: true }).getByRole('button', { name: 'Desenho de testes', exact: true }).click();
     await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Use the test-design skill to list smoke checks for: {files}.');
     await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(actPage.getByRole('heading', { name: 'Checar smoke', level: 1 })).toBeVisible();
@@ -2084,7 +2082,7 @@ test.describe.serial('Moki activities', () => {
     await actPage.getByRole('combobox', { name: 'Ela usa', exact: true }).selectOption('skills');
     const skills = actPage.getByRole('group', { name: 'Skills', exact: true });
     await expect(actPage.getByRole('button', { name: 'Salvar', exact: true })).toBeDisabled();
-    for (const name of ['requirements-review', 'test-design']) await skills.getByRole('button', { name, exact: true }).click();
+    for (const name of ['Revisão de histórias', 'Desenho de testes']) await skills.getByRole('button', { name, exact: true }).click();
     await actPage.getByRole('textbox', { name: 'Pedido enviado à IA' }).fill('Focus on permissions.');
     await actPage.screenshot({ path: test.info().outputPath('multiple-skills.png') });
     await actPage.getByRole('button', { name: 'Salvar', exact: true }).click();
@@ -2092,7 +2090,7 @@ test.describe.serial('Moki activities', () => {
     expect(readFileSync(join(library, 'revisar-e-desenhar.md'), 'utf8')).toContain('uses: skill:requirements-review, skill:test-design');
     await actPage.getByRole('button', { name: 'Voltar para Atividades' }).click();
     await actPage.locator('.activity-item .list-card', { hasText: 'Revisar e desenhar' }).click();
-    for (const name of ['requirements-review', 'test-design']) await expect(skills.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+    for (const name of ['Revisão de histórias', 'Desenho de testes']) await expect(skills.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
     const request = await actPage.evaluate(async () => {
       if (!window.qa) throw new Error('Moki bridge is missing');
       const result = await window.qa.call('launch', { project: 'acme', activity: 'revisar-e-desenhar', tool: 'print', files: [], note: '', language: 'English' });
@@ -2142,7 +2140,7 @@ test.describe.serial('Moki settings without a project', () => {
     await emptyPage.getByRole('button', { name: 'Configurações', exact: true }).click();
     await emptyPage.getByRole('tab', { name: 'Skills' }).click();
     await expect(emptyPage.getByRole('heading', { name: 'Skills', level: 1 })).toBeVisible();
-    await expect(emptyPage.locator('.list-card-title').getByText('test-design', { exact: true })).toBeVisible();
+    await expect(emptyPage.locator('.list-card-title').getByText('Desenho de testes', { exact: true })).toBeVisible();
     await expect(emptyPage.getByRole('button', { name: 'Adicionar skill' })).toHaveCount(0);
     await emptyPage.getByRole('button', { name: 'Enviar skills ou uma pasta .claude' }).click();
     await expect(emptyPage.getByRole('button', { name: 'Escolher uma pasta' })).toBeEnabled();
@@ -2187,7 +2185,7 @@ test.describe.serial('Moki favorites', () => {
     await favPage.getByRole('tab', { name: 'Agentes' }).click();
     await favPage.getByRole('button', { name: 'Favorita: test-designer' }).click();
     await expect(favPage.getByRole('button', { name: 'Favorita: test-designer' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(favPage.locator('.list-group').first().locator('.fav-item .list-card-title').first()).toHaveText('test-designer');
+    await expect(favPage.locator('.list-group').first().locator('.fav-item .list-card-title').first()).toHaveText('Designer de testes');
 
     await favPage.getByRole('tab', { name: 'Operações' }).click();
     await expect(favPage.locator('.fav-item .list-card-title')).toHaveText(['Alfa', 'Beta']);
@@ -2200,7 +2198,7 @@ test.describe.serial('Moki favorites', () => {
 
     await favPage.getByRole('tab', { name: 'Skills' }).click();
     await favPage.getByRole('button', { name: 'Favorita: test-design' }).click();
-    await expect(favPage.locator('.fav-item .list-card-title').first()).toHaveText('test-design');
+    await expect(favPage.locator('.fav-item .list-card-title').first()).toHaveText('Desenho de testes');
 
     await expect.poll(() => saved().skills).toEqual(['test-design']);
     expect(saved()).toMatchObject({ agents: ['test-designer'], operations: ['beta'], templates: ['default'] });
@@ -2251,7 +2249,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await card.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = aiPage.getByRole('dialog');
     await dialog.getByRole('tab', { name: /^Agentes/ }).click();
-    await dialog.locator('.invoke-row').filter({ hasText: /^requirements-analyst/ }).click();
+    await dialog.locator('.invoke-row').filter({ hasText: /^Revisor de histórias/ }).click();
     await dialog.getByRole('button', { name: 'Continuar sem arquivos' }).click();
     await dialog.getByRole('button', { name: 'Nada mais — continuar' }).click();
     await dialog.getByRole('button', { name: /Num terminal novo/ }).click();
@@ -2273,7 +2271,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await expect(dialog.getByRole('tab', { name: /^Atividades/ })).toHaveAttribute('aria-selected', 'true'); // starts on the activities
     await dialog.getByRole('tab', { name: /^Agentes/ }).click();
     await dialog.getByRole('searchbox').fill('requirements-analyst');
-    await expect(dialog.locator('.invoke-row').first()).toContainText('requirements-analyst');
+    await expect(dialog.locator('.invoke-row').first()).toContainText('Revisor de histórias');
     await aiPage.screenshot({ path: test.info().outputPath('call-picker.png') });
     await dialog.locator('.invoke-row').first().click();
     await dialog.getByRole('button', { name: 'Continuar sem arquivos' }).click();
@@ -2354,7 +2352,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await wizard.getByRole('tab', { name: /^Atividades/ }).click();
     await wizard.getByRole('searchbox').fill('requirements-review');
     // Two activities use the skill (pasted stories, and an MF read from the tracker); this one requires files.
-    await wizard.locator('.invoke-row', { hasText: 'Revisar histórias de usuário' }).click();
+    await wizard.locator('.invoke-row', { hasText: 'Revisar histórias' }).click();
     await expect(wizard.getByRole('button', { name: 'Escolha um arquivo para continuar' })).toBeDisabled();
     await wizard.getByText('us-1.md').click();
     await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();
@@ -3283,18 +3281,18 @@ test.describe.serial('Moki project defaults', () => {
   test('a default agent and skill with instructions: a new AI takes the role, uses the skill and waits', async () => {
     await dp.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
     const settings = dp.getByRole('dialog', { name: /^Configurações de / });
-    await settings.getByRole('button', { name: 'Padrão: failure-analyst' }).click();
-    await expect(settings.getByRole('button', { name: 'Padrão: failure-analyst' })).toHaveAttribute('aria-pressed', 'true');
+    await settings.getByRole('button', { name: 'Padrão: Analista de falhas' }).click();
+    await expect(settings.getByRole('button', { name: 'Padrão: Analista de falhas' })).toHaveAttribute('aria-pressed', 'true');
     // Every kind is one field: a click lists what can be added, typing filters it, a choice joins the field as a chip.
     const skills = settings.getByRole('combobox', { name: 'Skills' });
     await skills.click();
     await expect(settings.getByRole('listbox', { name: 'Skills' }).locator('.chip-picker-head')).toContainText(['Moki']);
     await skills.fill('failure-ana');
     await expect(settings.getByRole('listbox', { name: 'Skills' }).getByRole('option')).toHaveCount(1);
-    await settings.getByRole('option', { name: /failure-analysis/ }).click();
+    await settings.getByRole('option', { name: /Pré-análise de falha/ }).click();
     const chosen = settings.getByRole('list', { name: 'Skills' });
-    await expect(chosen).toContainText('failure-analysis');
-    await expect(chosen.getByRole('button', { name: 'Padrão: failure-analysis' })).toHaveAttribute('aria-pressed', 'true'); // a Moki skill joins as a default
+    await expect(chosen).toContainText('Pré-análise de falha');
+    await expect(chosen.getByRole('button', { name: 'Padrão: Pré-análise de falha' })).toHaveAttribute('aria-pressed', 'true'); // a Moki skill joins as a default
     await skills.press('Escape');
     await expect(settings.getByRole('listbox', { name: 'Skills' })).toBeHidden();
     await expect(settings).toBeVisible(); // Escape closed the list, not the settings
