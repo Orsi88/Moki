@@ -6,13 +6,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { slugify } from '../scripts/lib/core.ts';
+import { workspaceDataRoot } from '../scripts/lib/repo.mjs';
 
 export interface WorkspaceEntry { id: string; name: string; path: string }
 export interface WorkspaceInfo extends WorkspaceEntry { isDefault: boolean; missing: boolean; projects: number }
 interface Registry { active?: string; defaultName?: string; list: WorkspaceEntry[] }
 
 export const DEFAULT_WORKSPACE = 'default';
-export const workspacesHome = (root: string) => join(root, 'workspaces');
+export const workspacesHome = (root: string) => join(workspaceDataRoot(root), 'workspaces');
 const registryFile = (root: string) => join(workspacesHome(root), 'workspaces.json');
 const norm = (p: string) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p));
 const same = (a: string, b: string) => norm(a) === norm(b);
@@ -38,7 +39,7 @@ const projectCount = (dir: string): number => {
 
 export function listWorkspaces(root: string): WorkspaceInfo[] {
   const reg = read(root);
-  const all: WorkspaceEntry[] = [{ id: DEFAULT_WORKSPACE, name: reg.defaultName || 'Workspace', path: join(root, 'workspace') }, ...reg.list];
+  const all: WorkspaceEntry[] = [{ id: DEFAULT_WORKSPACE, name: reg.defaultName || 'Workspace', path: join(workspaceDataRoot(root), 'workspace') }, ...reg.list];
   return all.map((w) => ({ ...w, isDefault: w.id === DEFAULT_WORKSPACE, missing: !existsSync(w.path), projects: existsSync(w.path) ? projectCount(w.path) : 0 }));
 }
 
@@ -89,7 +90,7 @@ export function createWorkspace(root: string, name: string, parent?: string): Wo
 // An existing folder opened as a workspace (projects/ is created inside it when missing).
 export function addWorkspaceFolder(root: string, folder: string): WorkspaceInfo {
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new Error('Choose a folder.');
-  if (same(folder, root)) throw new Error('This is the Moki folder itself. Choose another folder.');
+  if (same(folder, root) || same(folder, workspaceDataRoot(root))) throw new Error('This is the Moki folder itself. Choose another folder.');
   const known = listWorkspaces(root).find((w) => same(w.path, folder));
   if (known) return known;
   prepare(folder);

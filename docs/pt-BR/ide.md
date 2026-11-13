@@ -54,7 +54,7 @@ Depois rode **Developer: Reload Window** no VS Code. Reinstale do mesmo jeito a 
 
 **Sem instalar (desenvolvimento).** `npm run vscode:build` e depois `code --extensionDevelopmentPath="$PWD/ide/vscode"`. Nesse modo a extensão usa o próprio repositório em vez de `<Documentos>/Moki`.
 
-**O que acontece na primeira vez.** A extensão instalada guarda a cópia do framework em `<Documentos>/Moki`, a mesma pasta do app desktop, então os dois enxergam os mesmos workspaces e projetos (`QA_ROOT` escolhe outra pasta). Ela abre o workspace que estava **ativo no app** quando o VS Code iniciou. O ícone do Moki (o gato) aparece na barra de atividades e **Moki: …** na barra de status.
+**O que acontece na primeira vez.** A extensão e o app desktop compartilham o framework instalado e os workspaces. O framework normalmente fica em `<Documentos>/Moki` ou na pasta indicada por `QA_ROOT`. Se esse local estiver em um checkout Git, os arquivos do framework instalado vão para o diretório de dados do aplicativo e os workspaces permanecem nos caminhos originais. A extensão abre o workspace que estava **ativo no app** quando o VS Code iniciou. O ícone do Moki (o gato) aparece na barra de atividades e **Moki: …** na barra de status.
 
 ## Configuração
 

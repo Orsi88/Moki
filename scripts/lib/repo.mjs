@@ -8,15 +8,20 @@ import { execFileSync } from 'node:child_process';
 export const ROOT = process.env.QA_ROOT ? resolve(process.env.QA_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // The active workspace: the folder with projects/, tags.json and the document style.
-// Default <root>/workspace. The desktop app switches it (setWorkspaceDir); the helper
-// commands it starts get QA_WORKSPACE.
+// Installed copies can keep workspace data separate from the framework. The desktop
+// app switches the active workspace (setWorkspaceDir); its helpers get QA_WORKSPACE.
 const workspaces = new Map();
+
+export function workspaceDataRoot(root = ROOT) {
+  const key = resolve(root);
+  return key === resolve(ROOT) && process.env.QA_WORKSPACE_DATA_ROOT ? resolve(process.env.QA_WORKSPACE_DATA_ROOT) : key;
+}
 
 export function workspaceDir(root = ROOT) {
   const key = resolve(root);
   if (workspaces.has(key)) return workspaces.get(key);
   if (key === resolve(ROOT) && process.env.QA_WORKSPACE) return resolve(process.env.QA_WORKSPACE);
-  return join(key, 'workspace');
+  return join(workspaceDataRoot(key), 'workspace');
 }
 
 export function setWorkspaceDir(root, dir) {
