@@ -120,6 +120,12 @@ npm run dist:linux   # .AppImage (build on Linux)
 
 A routine lives in the project (`routines/<id>/`) and owns the clock, the comparison and the notification. Saving it also writes an operation in the user's library; the operation prepares the proposal, and applying it still needs an explicit approval. The scheduler runs in the app process. Keeping it alive after the window closes, and opening Moki at sign-in, are both off until the person turns them on in Settings → Routines and notifications. A desktop without a tray still runs the clock.
 
+Azure DevOps MCP responses may wrap JSON in an untrusted-content envelope. The routine reader validates its matching delimiters and parses the JSON as data; content inside an item never becomes an instruction. Plain JSON responses continue to work.
+
+For hierarchical `wit_query` results (`get_results` or `wiql`), leave the advanced list and identifier fields empty to use automatic item reading. The reader collects unique source and target IDs from `workItemRelations`, then reads their fields and revisions in batches through `wit_work_item` (`get_batch`) on the same read-only connection and with the query's `project` parameter. Repeated references produce one checkpoint per item. Missing items, duplicate or unexpected batch IDs, missing revisions, and failed batches fail the check without accepting a partial baseline. Explicit advanced fields and other query formats retain their existing interpretation.
+
+The MCP query defaults to a `top` limit of 50 and supplies no continuation cursor. If the unique item count reaches that limit, the check stops; increase the query's `top` parameter or narrow its filter to obtain a result below the limit. Reading remains bounded by the routine's item and size limits. The first successful check records a baseline; later checks detect item revisions and items entering or leaving the query.
+
 ## Planned
 
 - Code signing for the installer, and automatic updates.

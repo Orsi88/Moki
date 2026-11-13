@@ -13,7 +13,6 @@ import { t } from '../i18n';
 import { SkillsDialog, pluginList } from './SkillsDialog';
 import { ClaudeUpload, type UploadDone } from './ClaudeUpload';
 import { IconLock, IconSearch, IconUpload, IconX } from './Icons';
-import { ConfiguratorButton, ConfiguratorPanel } from './ConfiguratorPanel';
 import { ChipPicker, type PickChip, type PickOption } from './ChipPicker';
 import { Modal } from './Modal';
 
@@ -70,7 +69,6 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
   const [prepare, setPrepare] = useState<boolean | null>(null);
   const [finding, setFinding] = useState<string | null>(null); // Find skills query while open
   const [uploading, setUploading] = useState(false); // "Bring to this project" is open on top
-  const [configuring, setConfiguring] = useState(false); // the Configurador panel above the sections
   const [uploadBusy, setUploadBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -226,14 +224,12 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
               : t('What the project is, what an AI opened in it starts with, and what it uses. You can change this later.')}</p>
           </div>
           <div className="modal-head-actions">
-            <ConfiguratorButton open={configuring} onToggle={() => setConfiguring((v) => !v)} disabled={busy} />
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUploading(true)} disabled={busy}
               title={t('Skills, agents, activities or a whole .claude folder')}><IconUpload size={15} /> {t('Bring to this project')}</button>
             <button type="button" className="icon-btn" onClick={onClose} disabled={busy} title={t('Close (Esc)')}><IconX size={18} /></button>
           </div>
         </header>
 
-        {configuring && <ConfiguratorPanel project={project.id} projectName={project.name} onApplied={() => { loadKinds(); loadGlobal(); api.projects().then((all) => { const now = all.find((p) => p.id === project.id); if (now) setDescription(now.description ?? ''); }).catch(() => { /* keep */ }); api.agents().then((list) => setAgents(list.filter((a) => a.usable))).catch(() => { /* keep */ }); }} />}
         <div className="modal-body">
           <Section title={t('Project')}>
             <label className="field"><span className="label">{t('Name')}</span>

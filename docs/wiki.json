@@ -15,6 +15,7 @@
       { "file": "call.md", "page": "Calling activities, agents and skills", "pt": { "file": "pt-BR/call.md", "page": "Chamar atividades, agentes e skills" } },
       { "file": "runs.md", "page": "Runs and deliverables", "pt": { "file": "pt-BR/runs.md", "page": "Execuções e entregas" } },
       { "file": "settings.md", "page": "Settings", "pt": { "file": "pt-BR/settings.md", "page": "Configurações" } },
+      { "file": "routines.md", "page": "Routines and notifications", "pt": { "file": "pt-BR/routines.md", "page": "Rotinas e notificações" } },
       { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } }
     ] },
     { "title": "QA work", "titlePt": "Trabalho de QA", "pages": [
@@ -26,7 +27,7 @@
     ] },
     { "title": "Integrations", "titlePt": "Integrações", "pages": [
       { "file": "trackers.md", "page": "Azure DevOps and Jira", "pt": { "file": "pt-BR/trackers.md", "page": "Azure DevOps e Jira" } },
-      { "file": "mcp-servers.md", "page": "MCP servers" },
+      { "file": "mcp-servers.md", "page": "MCP servers", "pt": { "file": "pt-BR/mcp-servers.md", "page": "Servidores MCP" } },
       { "file": "ide.md", "page": "Moki in the IDE", "pt": { "file": "pt-BR/ide.md", "page": "Moki na IDE" } },
       { "file": "artcraft.md", "page": "ArtCraft apps", "pt": { "file": "pt-BR/artcraft.md", "page": "Apps ArtCraft" } }
     ] },

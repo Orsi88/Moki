@@ -637,8 +637,21 @@
   "routine settings: intuitive navigation, complete schedules and responsive form": "configuração de rotinas: navegação intuitiva, agendas completas e formulário responsivo",
   "routine notifications: opening a proposal never applies it, exact changes require confirmation": "avisos de rotinas: abrir uma proposta nunca a aplica, e mudanças exatas pedem confirmação",
   "templates: upload a base file, see it in the list and tell the AI what to follow": "templates: enviar um arquivo-base, vê-lo na lista e dizer à IA o que seguir",
-  "Configurador: say what to set up, check the plan, apply it through the app checks": "Configurador: dizer o que configurar, conferir o plano e aplicar pelas validações do app",
   "My AIs distributes cards across the available width": "Minhas IAs distribui os cartões pela largura disponível",
   "local Mermaid supports zoom, hand movement and persistent region discussions without changing its source": "o Mermaid local tem zoom, movimento com a mão e conversas por região que persistem, sem alterar o fonte",
-  "a configured loopback Kroki renders each format and returned SVG is sanitized": "um Kroki local configurado renderiza cada formato, e o SVG devolvido é limpo"
+  "a configured loopback Kroki renders each format and returned SVG is sanitized": "um Kroki local configurado renderiza cada formato, e o SVG devolvido é limpo",
+  "installer framework sync rejects Git checkouts and worktrees before touching their files": "a sincronização do framework instalado recusa checkouts e worktrees Git antes de alterar seus arquivos",
+  "installed copies sync separately from Git and keep the existing default workspace and registry": "cópias instaladas sincronizam separadas do Git e preservam o workspace padrão e o registro existentes",
+  "an Excalidraw file opens as a drawing and only a scene can be saved back": "um arquivo Excalidraw abre como desenho e só uma cena pode ser salva de volta",
+  "the viewer height stays on the fence line and survives an edit": "a altura do visualizador fica na linha de abertura do bloco e é preservada após uma edição",
+  "closing a notification removes only that one": "fechar uma notificação remove somente aquele aviso",
+  "MCP JSON and matching Azure DevOps envelopes remain data, including instruction-like strings": "JSON MCP e envelopes válidos do Azure DevOps continuam sendo dados, inclusive textos que parecem instruções",
+  "an unrecognized, mismatched or truncated MCP envelope is never extracted as JSON": "um envelope MCP desconhecido, divergente ou truncado nunca é extraído como JSON",
+  "a hierarchical Azure query reads unique items and detects revisions, additions and removals": "uma query hierárquica do Azure lê itens sem repetições e detecta revisões, entradas e saídas",
+  "hierarchical query endpoints are deduplicated across bounded item batches": "as pontas das relações da query hierárquica são deduplicadas em lotes limitados de itens",
+  "an incomplete or invalid item batch cannot replace the last successful baseline": "um lote de itens incompleto ou inválido não pode substituir a última referência bem-sucedida",
+  "a later item batch failure never records a partial baseline": "a falha de um lote posterior nunca registra uma referência inicial parcial",
+  "empty trees are valid while invalid references and reached query limits stop before item reads": "árvores vazias são válidas; referências inválidas e limites de query atingidos interrompem antes de ler os itens",
+  "flat query results and explicit advanced fields retain their existing interpretation": "resultados planos e campos avançados explícitos preservam sua interpretação existente",
+  "a workspace switch during item hydration interrupts before the next batch": "mudar de workspace durante a leitura dos detalhes interrompe antes do próximo lote"
 }

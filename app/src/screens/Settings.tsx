@@ -6,8 +6,7 @@
 // one catalog for the workspace, each server global or for the projects chosen (components/McpManager.tsx).
 // My AIs: the AI tools, the default one, installing them and the Moki extension (components/AiToolsPage.tsx).
 
-import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { ConfiguratorButton, ConfiguratorPanel } from '../components/ConfiguratorPanel';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { api, type ProjectSummary, type SkillScope, type TerminalRef, type ToolInfo } from '../api';
 import { t } from '../i18n';
 import { recall, remember } from '../prefs';
@@ -51,8 +50,6 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
   const [skillsTab, setSkillsTab] = useState<SkillDialogTab>('installed');
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [installedTick, setInstalledTick] = useState(0);
-  const [configuring, setConfiguring] = useState(false); // the Configurador panel above the open page
-  const [applied, setApplied] = useState(0); // the open page reloads after the Configurador applies changes
   const [scope, setScope] = useState<SkillScope>(() => (recall('qa-skill-scope') === 'global' ? 'global' : 'project'));
   // Settings is for the whole workspace: the tabs that work on one project (Agents, Skills, Templates)
   // choose it inside the tab; it starts on the project Settings was opened from.
@@ -107,12 +104,9 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
             {group.items.map(({ id, label, icon: Icon }) => <button key={id} id={`settings-tab-${id}`} type="button" role="tab" tabIndex={tab === id ? 0 : -1} aria-selected={tab === id} aria-controls={`settings-panel-${id}`} title={label} className={`settings-nav-item${tab === id ? ' on' : ''}`} onClick={() => { void changeTab(id); }}><Icon size={18} /><span>{label}</span></button>)}
           </div>)}
         </nav>
-        <div className="settings-configurator"><ConfiguratorButton open={configuring} onToggle={() => setConfiguring((v) => !v)} /><span>{t('Configure with AI')}</span></div>
         {onBack && <button type="button" className="btn btn-ghost btn-sm settings-return" onClick={onBack}>{backLabel}</button>}
       </aside>
       <div className="settings-body" role="tabpanel" id={`settings-panel-${tab}`} aria-labelledby={`settings-tab-${tab}`}>
-        {configuring && <ConfiguratorPanel project={null} onApplied={() => { setApplied((n) => n + 1); api.projects().then(setProjects).catch(() => { /* keep */ }); }} onMyAis={() => { void changeTab('ai'); }} />}
-        <Fragment key={applied}>
         {tab === 'routines' ? <RoutinesPage projects={projects} tools={tools} registerLeave={registerLeave} />
           : tab === 'themes' ? <ThemesPage />
           : tab === 'documents' ? <DocumentStyleForm />
@@ -165,7 +159,6 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
               onTerminal={(terminal) => { if (target) onTerminal(terminal, target.id); }}
             />
           )}
-        </Fragment>
       </div>
     </div>
   );

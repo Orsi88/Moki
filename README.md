@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Download Moki for Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.6/Moki.Setup.0.5.6.exe">Moki.Setup.0.5.6.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe">Moki.Setup.0.5.7.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
 
@@ -20,11 +20,11 @@ It started as software quality work: review a story, design tests, look at a fai
 
 ## Install
 
-1. Download [Moki.Setup.0.5.6.exe](https://github.com/Orsi88/moki/releases/download/v0.5.6/Moki.Setup.0.5.6.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
+1. Download [Moki.Setup.0.5.7.exe](https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe) (or the latest file on [Releases](https://github.com/Orsi88/moki/releases)).
 2. If Windows says it protected your PC, choose **More info → Run anyway**. The installer is not digitally signed yet.
 3. Install an AI tool too (Claude Code, Cursor, Codex, Gemini, or a chat you already use).
 
-For VS Code, download [moki-0.5.6.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.6/moki-0.5.6.vsix) and run `code --install-extension moki-0.5.6.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
+For VS Code, download [moki-0.5.7.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.7/moki-0.5.7.vsix) and run `code --install-extension moki-0.5.7.vsix`: [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE).
 
 Your projects live in **Documents\Moki**, and a newer installer never touches them. macOS, Linux and running from the source: [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
@@ -48,6 +48,12 @@ Your projects live in **Documents\Moki**, and a newer installer never touches th
 | [Engineering specialists](docs/engineering-specialists.md) | Cartógrafo for data, Inventor for solutions, Artesão for working interface prototypes and Sentinela for API assessment/validation |
 
 Agents chain these into **multi-agent operations**, MCP servers give the AI your tools (Playwright, Azure DevOps, Jira…), and the **VS Code extension** brings the project's context to the AI of your editor.
+
+## New in 0.5.7
+
+- **Azure DevOps routines.** Saved hierarchical queries now read the MCP response envelope, follow each unique item and compare its fields and revision. The first successful reading establishes the baseline. Incomplete batches and queries that reach their result limit stop without replacing that baseline.
+- **Notification controls.** Close one notification or clear the bell. The panel fits above the status bar and stays scrollable; opening or dismissing a notification never approves a proposal.
+- **Direct setup and guides.** Configure the workspace in Settings; plain-language setup remains available through the `configurador` agent in a terminal. Follow the new [MCP connection steps](docs/mcp-servers.md#connect-a-server-step-by-step) and [routine setup guide](docs/routines.md), also available in Portuguese.
 
 ## New in 0.5.6
 
@@ -83,6 +89,7 @@ The full documentation is in the [wiki](https://github.com/Orsi88/moki/wiki):
 | [QA skills and agents](https://github.com/Orsi88/moki/wiki/QA-skills-and-agents) | The activities, their status, your own skills |
 | [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) | Agents, contracts and multi-agent operations |
 | [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) | The tools the AI gets, per project |
+| [Routines and notifications](https://github.com/Orsi88/moki/wiki/Routines-and-notifications) | Connect a source, schedule a check, understand the baseline and review changes |
 | [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE) | The VS Code extension: install, configure, every way to use it |
 | [Troubleshooting](https://github.com/Orsi88/moki/wiki/Troubleshooting) | Common problems and what to do |
 | [Credits and licenses](https://github.com/Orsi88/moki/wiki/Credits-and-licenses) | The open-source projects Moki is built with — thank you |

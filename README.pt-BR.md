@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.6/Moki.Setup.0.5.6.exe">Moki.Setup.0.5.6.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe">Moki.Setup.0.5.7.exe</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
@@ -20,11 +20,11 @@ Começou como trabalho de qualidade de software: revisar uma história, projetar
 
 ## Instalar
 
-1. Baixe o [Moki.Setup.0.5.6.exe](https://github.com/Orsi88/moki/releases/download/v0.5.6/Moki.Setup.0.5.6.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
+1. Baixe o [Moki.Setup.0.5.7.exe](https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
 2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
 3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
 
-Para o VS Code, baixe o [moki-0.5.6.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.6/moki-0.5.6.vsix) e rode `code --install-extension moki-0.5.6.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+Para o VS Code, baixe o [moki-0.5.7.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.7/moki-0.5.7.vsix) e rode `code --install-extension moki-0.5.7.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
 
 Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
@@ -48,6 +48,12 @@ Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca m
 | [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) | Cartógrafo para dados, Inventor para soluções, Artesão para protótipos funcionais de interface e Sentinela para avaliação/validação de APIs |
 
 Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
+
+## Novo na 0.5.7
+
+- **Rotinas do Azure DevOps.** Queries hierárquicas salvas agora têm o envelope MCP interpretado, acompanham cada item sem repetições e comparam campos e revisão. A primeira leitura bem-sucedida cria a referência inicial. Lotes incompletos e consultas que atingem o limite param sem substituir essa referência.
+- **Controles das notificações.** Feche um aviso ou limpe o sino. O painel cabe acima da barra de status e permite rolagem; abrir ou fechar uma notificação nunca aprova uma proposta.
+- **Configuração direta e guias.** Configure o workspace nas Configurações; a configuração em linguagem natural continua pelo agente `configurador` num terminal. Veja os novos [passos para conectar MCP](docs/pt-BR/mcp-servers.md#conectar-um-servidor-passo-a-passo) e o [guia de rotinas](docs/pt-BR/routines.md), também disponíveis em inglês.
 
 ## Novo na 0.5.6
 
@@ -85,7 +91,8 @@ A documentação completa está na [wiki](https://github.com/Orsi88/moki/wiki):
 | [Problemas comuns](https://github.com/Orsi88/moki/wiki/Problemas-comuns) | Problemas comuns e o que fazer |
 | [Créditos e licenças](https://github.com/Orsi88/moki/wiki/Créditos-e-licenças) | Os projetos de código aberto com que o Moki é feito — obrigado |
 | [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) (em inglês) | Agentes, contratos e operações multiagente |
-| [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) (em inglês) | As ferramentas que a IA recebe, por projeto |
+| [Servidores MCP](https://github.com/Orsi88/moki/wiki/Servidores-MCP) | Conectar, testar, escolher os projetos e disponibilizar ferramentas à IA |
+| [Rotinas e notificações](https://github.com/Orsi88/moki/wiki/Rotinas-e-notificações) | Conectar a fonte, agendar a verificação, entender a referência inicial e revisar mudanças |
 
 A wiki é publicada a partir de [docs/](docs/), onde a documentação é editada.
 

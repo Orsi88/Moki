@@ -221,42 +221,6 @@ textarea { width: 100%; resize: vertical; }
 .settings-nav-item.on { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 13%, transparent); font-weight: 600; }
 .settings-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings-return { margin: auto 12px 16px; text-align: left; }
-/* The AI pill (ConfiguratorButton): the look of the notes' quick-assistant mark, as one button. */
-.ai-pill {
-  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 26px; padding: 0 10px; border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 5%, transparent));
-  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer;
-  transition: box-shadow 0.15s, background 0.15s;
-}
-.ai-pill:hover, .ai-pill.on { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 26%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); box-shadow: 0 1px 10px color-mix(in srgb, var(--accent) 32%, transparent); }
-.ai-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ai-pill:disabled { opacity: 0.5; cursor: default; }
-.settings-configurator { display: flex; align-items: center; gap: 8px; margin: 14px 16px 0; color: var(--muted); font-size: 0.8rem; }
-.settings-configurator + .settings-return { margin-top: auto; }
-@media (max-width: 640px) { .settings-configurator { justify-content: center; margin: 14px 0 0; } .settings-configurator > span { display: none; } }
-/* The Configurador (ConfiguratorPanel): the quick assistants' look, as a band above the page or the project settings. */
-.note-assist.configurator { max-height: 60%; flex-shrink: 0; overflow: auto; }
-.configurator-request { width: 100%; min-height: 64px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font: inherit; font-size: 13.5px; resize: vertical; }
-.configurator-examples { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.configurator-examples .chip { cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
-.configurator-examples .chip:hover { border-color: var(--accent); color: var(--text); }
-.configurator-body { padding: 10px 14px; }
-.configurator-answer { margin: 0 0 10px; }
-.configurator-steps { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.configurator-step { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
-.configurator-step input { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
-.configurator-kind { flex-shrink: 0; font-size: 11px; }
-.configurator-step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.configurator-data { margin: 2px 0 0 26px; }
-.configurator-data pre { max-height: 220px; overflow: auto; margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--bg-2); font-size: 12px; }
-.configurator-questions { margin-top: 12px; }
-.configurator-questions ul { margin: 6px 0 0; padding-left: 20px; }
-.configurator-results { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.configurator-results .ok strong { color: var(--ok, #2f855a); }
-.configurator-results .failed strong { color: var(--danger, #c53030); }
-.setup-modal .note-assist.configurator { border-top: 1px solid var(--border); }
 .settings-body { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); container-type: inline-size; }
 .settings-body .library { flex: 1; height: auto; min-height: 0; }
 .settings-themes {
@@ -2489,17 +2453,19 @@ span.mcp-row-main { cursor: default; }
   border-radius: 8px; background: var(--warn); color: var(--bg); font-size: 9px; line-height: 14px; text-align: center;
 }
 .notification-trigger { position: relative; }
-.note-panel { position: fixed; z-index: 80; width: min(380px, calc(100vw - 24px)); max-height: min(560px, calc(100vh - 24px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--border)); border-radius: 12px; background: var(--bg-2); color: var(--text); box-shadow: 0 16px 48px rgb(0 0 0 / 0.25), 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent); text-align: left; }
-.note-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 16px; border-bottom: 1px solid var(--border); }
+.note-panel { position: fixed; z-index: 80; width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 36px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--border)); border-radius: 12px; background: var(--bg-2); color: var(--text); box-shadow: 0 16px 48px rgb(0 0 0 / 0.25), 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent); text-align: left; }
+.note-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .note-panel > header > div { display: grid; gap: 3px; }
-.note-panel > ul { list-style: none; margin: 0; padding: 6px; overflow: auto; min-height: 0; }
-.note-panel > footer { padding: 9px 12px; border-top: 1px solid var(--border); }
+.note-panel > ul { list-style: none; margin: 0; padding: 8px; overflow: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; }
+.note-panel > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
 .note-panel .result { margin: 12px; }
-.note-item { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 13px 10px; border: 0; border-radius: 7px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease; }
-.note-item.unread { background: var(--accent-soft); }
-.note-item:hover, .note-item:focus-visible { background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); outline: none; }
-.note-item:active { transform: scale(0.985); }
-@media (prefers-reduced-motion: reduce) { .note-item { transition: none; } .note-item:active { transform: none; } }
+.note-row { position: relative; display: flex; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow: hidden; flex-shrink: 0; }
+.note-row.unread { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.note-item { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 36px 12px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.note-row:hover, .note-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent); }
+.note-item:focus-visible { outline: none; }
+.note-dismiss { position: absolute; top: 6px; right: 4px; width: 24px; height: 24px; color: var(--muted); }
+.note-dismiss:hover { color: var(--text); background: var(--bg-3); }
 .note-item img { flex-shrink: 0; image-rendering: pixelated; }
 .note-item-copy { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .note-item-copy strong { font-size: 0.88rem; }
