@@ -46,6 +46,7 @@ New here? Read **[What is Moki](what-is-moki.md)** and take the **[tour of the s
 | 🖥️ | Use Moki inside VS Code or Cursor | [Moki in the IDE](ide.md) |
 | 🎨 | Download the ArtCraft apps, or ask about one | [ArtCraft apps](artcraft.md) |
 | 🔌 | Give the AI tools such as a browser or a database | [MCP servers](mcp-servers.md) |
+| 🔄 | Schedule project checks and review changes | [Routines and notifications](routines.md) |
 
 ---
 

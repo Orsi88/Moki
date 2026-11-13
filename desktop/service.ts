@@ -58,7 +58,7 @@ import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
-import { archiveRoutine, decideProposal, deleteRoutine, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
+import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
 import { listExecutions, listProposals, listRoutineFiles, readRoutine } from '../scripts/lib/routines.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
@@ -2890,6 +2890,7 @@ export function createService(root: string, deps: Deps) {
     notifications: () => notesOf(root),
     systemNotifications: () => systemNotesOf(root),
     readNotifications: (ids: unknown) => readNotes(root, ids === 'all' ? 'all' : Array.isArray(ids) ? ids.map(String) : []),
+    dismissNotifications: (ids: unknown) => dismissVisibleNotes(root, ids === 'all' ? 'all' : Array.isArray(ids) ? ids.map(String) : []),
 
     launch: (req: LaunchRequest) => {
       const { project, dir, files, run, shared, prompt, tool } = prepareLaunch(req);

@@ -11,14 +11,16 @@ As Configurações usam um menu lateral com os grupos **Seu workspace**, **Conex
 | **Minhas IAs** | As ferramentas de IA que o Moki abre, cada uma com a versão. **Tornar padrão** define em qual os pedidos começam. **Instalar** uma IA de terminal que falta (ele mostra o comando oficial e só roda depois que você digita `y`). No VS Code e no Cursor, instale a extensão do Moki — veja [Moki na IDE](ide.md). |
 | **Operações** | Agentes ligados por setas numa operação com vários agentes. Veja [Agentes e operações](../agents.md). |
 | **Skills** | O que está instalado, o que vem com o Moki, e **Adicionar skill**: buscar no registro público [SkillMD](https://skillmd.com), descrever uma para a sua IA rascunhar, ou **enviar** skills e agentes de uma pasta `.claude` (inclusive agentes em subpastas) ou de um `.zip`. Com um projeto aberto, você escolhe **todos os projetos** ou **só este projeto**. Você escolhe e confirma antes de qualquer instalação. |
-| **Servidores MCP** | As ferramentas que a IA recebe — navegadores, bancos de dados, trackers — para todos os projetos ou para os escolhidos. Veja [Servidores MCP](../mcp-servers.md). |
+| **Servidores MCP** | As ferramentas que a IA recebe — navegadores, bancos de dados, trackers — para todos os projetos ou para os escolhidos. Veja [Servidores MCP](mcp-servers.md). |
 | **Templates** | Fonte, cores, cabeçalho, rodapé, logo e marca d'água dos PDFs, Word e Excel que as atividades geram; as tags dizem quais projetos usam cada um. **Enviar arquivo-base** (.docx, .xlsx, .md ou .pdf; .doc e .xls são convertidos): a IA segue a estrutura e a formatação dele nos documentos novos, como um modelo anexado no chat, com uma nota opcional do que manter. |
 | **Temas** | A paleta e a aparência do Moki, com temas independentes para terminais e documentos. |
 | **Rotinas e notificações** | Verificações agendadas por projeto, análises concluídas para revisar, histórico e preferências do workspace. |
 
-**Configurador** (abaixo das seções, e nas configurações de cada projeto): diga com suas palavras o que você quer configurar — uma rotina que acompanha uma pasta, uma atividade, um agente, uma conexão, um template, tags. A sua IA monta um plano com o que existe de verdade; você marca os passos que quer e clica em **Aplicar**, e cada um passa pelas mesmas validações destas telas. Nada muda antes de você aplicar. Num terminal, peça o agente `configurador`: ele mostra o plano no chat e aplica com `npm run configure` depois do seu OK.
+Para configurar em linguagem natural num terminal, peça o agente `configurador`. Ele lê a configuração existente, mostra o plano no chat e aplica os passos aprovados com `npm run configure`, pelas mesmas validações destas telas.
 
 ### Rotinas e notificações
+
+Para configurar desde a primeira conexão até uma leitura bem-sucedida, siga [Rotinas e notificações](routines.md) e [Conectar um servidor MCP](mcp-servers.md#conectar-um-servidor-passo-a-passo).
 
 **Rotinas** mostra projeto, agenda, próxima verificação e estado. Abra uma rotina para editar objetivo, fontes, agenda e modo de resposta. Uma fonte é uma **consulta numa conexão** (refeita a cada execução; acompanha tudo o que ela devolver), **arquivos do projeto** ou uma **pasta do projeto**: cada execução mostra o que entrou, mudou ou saiu. Agendas semanais mostram os dias; mensais mostram o dia do mês; intervalos são definidos em minutos. **Executar agora** inicia uma verificação. As ações adicionais pausam, retomam, duplicam ou arquivam a rotina. Arquivar preserva o histórico.
 

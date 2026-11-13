@@ -3741,35 +3741,3 @@ test('templates: upload a base file, see it in the list and tell the AI what to 
     await running?.close();
   }
 });
-
-test('Configurador: say what to set up, check the plan, apply it through the app checks', async ({}, info) => {
-  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-configurador-'));
-  let running: ElectronApplication | undefined;
-  try {
-    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' });
-    running = opened.app;
-    const view = opened.page;
-    await sizeRoutineWindow(opened.app, view, 1320, 860);
-    await view.getByRole('button', { name: 'Configurações', exact: true }).click();
-    await view.getByRole('button', { name: 'Configurar com IA', exact: true }).click();
-    const panel = view.getByRole('region', { name: 'Configurador' });
-    await panel.getByRole('textbox', { name: 'O que você quer configurar?' }).fill('Quero uma tag para o cliente Y');
-    await panel.getByRole('button', { name: 'Montar o plano', exact: true }).click();
-    await expect(panel.getByRole('checkbox')).toHaveCount(1);
-    await expect(panel.getByText('Criar a tag Cliente Y')).toBeVisible();
-    await captureRoutineWindow(opened.app, info.outputPath('configurador-plan.png'));
-    await panel.getByRole('button', { name: 'Aplicar 1 de 1', exact: true }).click();
-    await expect(panel.getByRole('status')).toContainText('✓ Criar a tag Cliente Y');
-    await captureRoutineWindow(opened.app, info.outputPath('configurador-applied.png'));
-    expect(JSON.parse(readFileSync(join(root, 'workspace', 'tags.json'), 'utf8')).tags.some((tag: { name: string }) => tag.name === 'Cliente Y')).toBe(true);
-    // The same Configurador in the project settings, for that project.
-    await view.getByRole('button', { name: 'Fechar configurações', exact: true }).click();
-    await view.locator('.pp').getByRole('button', { name: 'Configurações do projeto' }).click();
-    const settings = view.getByRole('dialog', { name: /^Configurações de / });
-    await settings.getByRole('button', { name: 'Configurar com IA', exact: true }).click();
-    await expect(settings.getByRole('region', { name: 'Configurador' })).toContainText('configura Acme Library para você');
-    await captureRoutineWindow(opened.app, info.outputPath('configurador-project.png'));
-  } finally {
-    await running?.close();
-  }
-});

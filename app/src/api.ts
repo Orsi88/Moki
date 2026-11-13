@@ -585,6 +585,7 @@ export const api = {
   notifications: () => call<RoutineNote[]>('notifications'),
   onOpenRoutine: (callback: (target: RoutineTarget) => void) => window.qa?.onOpenRoutine?.(callback) ?? (() => {}),
   readNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('readNotifications', ids),
+  dismissNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('dismissNotifications', ids),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
   // Embedded terminals (desktop/terminals.ts); only available inside the app.

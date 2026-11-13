@@ -9,7 +9,7 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
   const [notes, setNotes] = useState<RoutineNote[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [position, setPosition] = useState({ left: 52, top: 16 });
+  const [position, setPosition] = useState({ left: 52, top: 16, maxHeight: 480 });
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const unread = notes.filter((n) => !n.readAt).length;
@@ -27,7 +27,16 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
     if (!open) return;
     const place = () => {
       const box = trigger.current?.getBoundingClientRect();
-      if (box) setPosition({ left: Math.max(12, Math.min(box.right + 8, window.innerWidth - 396)), top: Math.max(12, Math.min(box.top, window.innerHeight - 340)) });
+      if (!box) return;
+      // The status bar is 24px. Keep the panel above that line, with a small gap.
+      const bottom = window.innerHeight - 32;
+      let top = Math.max(12, box.top);
+      let maxHeight = bottom - top;
+      if (maxHeight < 220) {
+        top = Math.max(12, bottom - Math.min(480, bottom - 12));
+        maxHeight = bottom - top;
+      }
+      setPosition({ left: Math.max(12, Math.min(box.right + 8, window.innerWidth - 396)), top, maxHeight: Math.min(480, maxHeight) });
     };
     const outside = (e: PointerEvent) => { if (e.target instanceof Node && !panel.current?.contains(e.target) && !trigger.current?.contains(e.target)) setOpen(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); } };
@@ -40,6 +49,10 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
   }, [open]);
   const mark = async (ids: string[] | 'all') => {
     try { setNotes(await api.readNotifications(ids)); setError(''); window.dispatchEvent(new Event('qa:notifications-read')); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const dismiss = async (ids: string[] | 'all') => {
+    try { setNotes(await api.dismissNotifications(ids)); setError(''); window.dispatchEvent(new Event('qa:notifications-read')); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const openNote = (note: RoutineNote) => {
@@ -55,12 +68,16 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
     {open && <aside ref={panel} className="note-panel" role="dialog" aria-label={t('Notifications')} style={position}>
       <header><div><strong>{t('Notifications')}</strong><span className="muted small">{unread ? t('{n} unread', { n: unread }) : t('You are all caught up.')}</span></div><button type="button" className="icon-btn" aria-label={t('Close notifications')} onClick={close}><IconX size={17} /></button></header>
       {error && <p className="result warn" role="alert">{error}<button type="button" className="link" onClick={load}>{t('Try again')}</button></p>}
-      {loading ? <p className="notification-empty" role="status">{t('Loading…')}</p> : notes.length === 0 ? <div className="notification-empty"><IconBell size={28} /><strong>{t('No notifications yet.')}</strong><p className="muted small">{t('Changes and requests for your approval will appear here.')}</p></div> : <ul>{notes.slice(0, 50).map((note) => <li key={note.id}>
-        <button type="button" className={`note-item${note.readAt ? '' : ' unread'}`} onClick={() => openNote(note)}>
+      {loading ? <p className="notification-empty" role="status">{t('Loading…')}</p> : notes.length === 0 ? <div className="notification-empty"><IconBell size={28} /><strong>{t('No notifications yet.')}</strong><p className="muted small">{t('Changes and requests for your approval will appear here.')}</p></div> : <ul>{notes.slice(0, 50).map((note) => <li key={note.id} className={`note-row${note.readAt ? '' : ' unread'}`}>
+        <button type="button" className="note-item" onClick={() => openNote(note)}>
           <img src="./notify-cup.png" alt="" width={32} height={32} /><span className="note-item-copy"><strong>{note.title}</strong><span className="muted small">{note.message}</span><time className="muted small" dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString()}</time></span>{!note.readAt && <i className="note-unread-dot" aria-hidden="true" />}
         </button>
+        <button type="button" className="icon-btn note-dismiss" aria-label={t('Dismiss notification')} onClick={() => { void dismiss([note.id]); }}><IconX size={14} /></button>
       </li>)}</ul>}
-      {unread > 0 && <footer><button type="button" className="btn btn-ghost btn-sm" onClick={() => void mark('all')}>{t('Mark all as read')}</button></footer>}
+      {notes.length > 0 && <footer>
+        {unread > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => void mark('all')}>{t('Mark all as read')}</button>}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void dismiss('all')}>{t('Clear all')}</button>
+      </footer>}
     </aside>}
   </>;
 }

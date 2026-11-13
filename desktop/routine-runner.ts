@@ -11,7 +11,7 @@ import { enabledServers, type McpServer } from '../scripts/lib/mcp.ts';
 import { checkOperation, formatMessage, listOperations, removeOperation, writeOperation, type Operation, type OperationAgent } from '../scripts/lib/operations.ts';
 import {
   appendEvent, appendNote, assertRoutineWorkspace, bodyHash, boundedNumber, classify, cleanRoutine, defaultSettings, dueAction, listExecutions, listNotes, listProposals,
-  listRoutineFiles, markNotes, newId, pidAlive, readCheckpoints, readLock, readProposal, readRoutine, readSettings, removeRoutineFiles, RoutineError,
+  dismissNotes, listRoutineFiles, markNotes, newId, pidAlive, readCheckpoints, readLock, readProposal, readRoutine, readSettings, removeRoutineFiles, RoutineError,
   routineDir, routineProjectDir, routineWorkspace, RoutineInterrupted, sameProposal, saveChange, saveExecution, saveProposal, saveRoutineFile, textHash, trimExecutions, withRoutineWorkspace, writeCheckpoints, writeLock, writeSettings,
   type ChangeKind, type Execution, type Proposal, type Routine, type RoutineNote, type RoutineSettings, type Snapshot,
 } from '../scripts/lib/routines.ts';
@@ -598,6 +598,13 @@ export function readNotes(root: string, ids: string[] | 'all'): RoutineNote[] {
   const visible = notesOf(root);
   const selected = ids === 'all' ? visible.map((note) => note.id) : ids.filter((id) => visible.some((note) => note.id === id));
   return markNotes(root, selected).filter((n) => n.internal !== false);
+}
+
+export function dismissVisibleNotes(root: string, ids: string[] | 'all'): RoutineNote[] {
+  const visible = notesOf(root);
+  const known = new Set(visible.map((note) => note.id));
+  const drop = ids === 'all' ? visible.map((note) => note.id) : ids.filter((id) => known.has(id));
+  return dismissNotes(root, drop).filter((n) => n.internal !== false);
 }
 
 export function analystAvailable(root: string): boolean {

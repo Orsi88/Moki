@@ -10,10 +10,14 @@ const MAX_FILES = 5000;
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_ITEMS = 10000;
 const MAX_PAGES = 100;
+const ITEM_BATCH_SIZE = 50;
 const INTERNAL = new Set(['runs', 'routines', 'temporary', 'backups']);
 const keyOf = (path: string) => path.replace(/\\/g, '/');
 
 export interface SourceResult { sourceId: string; snapshots: Snapshot[]; records: unknown[]; files: string[] }
+type SourceCall = (server: McpServer, tool: string, args: Record<string, unknown>) => Promise<unknown>;
+type QueryReader = (payload: unknown, args: Record<string, unknown>, server: McpServer, call: SourceCall, assertCurrent: () => void) => Promise<unknown[] | null>;
+const QUERY_READERS: Readonly<Partial<Record<string, QueryReader>>> = { wit_query: readAzureQuery };
 
 export function sourcePath(path: string): string {
   const clean = keyOf(path).trim().replace(/^\.\//, '');
@@ -37,7 +41,7 @@ export function sourceArguments(value: unknown, project: { id: string; name: str
   return value;
 }
 
-export async function readSource(root: string, project: { id: string; name: string }, source: RoutineResource, call: (server: McpServer, tool: string, args: Record<string, unknown>) => Promise<unknown>, assertCurrent: () => void): Promise<SourceResult> {
+export async function readSource(root: string, project: { id: string; name: string }, source: RoutineResource, call: SourceCall, assertCurrent: () => void): Promise<SourceResult> {
   if (source.kind === 'files' || source.kind === 'folder') return readFiles(root, project.id, source);
   const server = enabledServers(project.id, root).find((entry) => entry.id === source.serverId);
   if (!server || server.access !== 'read') throw new RoutineError('Choose a read-only MCP server enabled for this project.');
@@ -51,10 +55,11 @@ export async function readSource(root: string, project: { id: string; name: stri
     const payload = toolPayload(await call(server, source.tool, pageArgs));
     assertCurrent();
     const body = source.recordsPath ? field(payload, source.recordsPath) : payload;
-    const rows = rowsOf(body);
+    const reader = !source.recordsPath && !source.idPath ? QUERY_READERS[source.tool] : undefined;
+    const rows = reader ? await reader(body, pageArgs, server, call, assertCurrent) ?? rowsOf(body) : rowsOf(body);
     if (!rows) throw new RoutineError('The query did not return a list. Set the result list field for this source.');
     records.push(...rows);
-    if (records.length > MAX_ITEMS || JSON.stringify(records).length > MAX_BYTES) throw new RoutineError('The query result is too large. Narrow its filter before running it again.');
+    assertResultSize(records);
     const next = source.pagination?.nextCursorPath ? field(payload, source.pagination.nextCursorPath) : undefined;
     if (next === undefined || next === null || next === '') {
       const more = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
@@ -75,6 +80,56 @@ export async function readSource(root: string, project: { id: string; name: stri
     cursor = next;
   }
   throw new RoutineError('The query exceeded the page limit. Narrow its filter before running it again.');
+}
+
+function assertResultSize(records: unknown[]): void {
+  if (records.length > MAX_ITEMS || JSON.stringify(records).length > MAX_BYTES) throw new RoutineError('The query result is too large. Narrow its filter before running it again.');
+}
+
+// Linked queries return references rather than revisions. Read their unique items from the same read-only server.
+async function readAzureQuery(payload: unknown, args: Record<string, unknown>, server: McpServer, call: SourceCall, assertCurrent: () => void): Promise<unknown[] | null> {
+  if (!payload || typeof payload !== 'object' || !['get_results', 'wiql'].includes(String(args.action))) return null;
+  const relations = (payload as Record<string, unknown>).workItemRelations;
+  if (!Array.isArray(relations)) return null;
+  assertResultSize(relations);
+  if (typeof args.project !== 'string' || !args.project.trim()) throw new RoutineError('Set the Azure DevOps project in the query parameters before reading its items.');
+  const ids = new Set<number>();
+  for (const relation of relations) {
+    if (!relation || typeof relation !== 'object') throw new RoutineError('The query returned an invalid work item reference. No partial result was accepted.');
+    const link = relation as Record<string, unknown>;
+    let endpoints = 0;
+    for (const reference of [link.source, link.target]) {
+      if (reference === null || reference === undefined) continue;
+      const id = typeof reference === 'object' ? (reference as Record<string, unknown>).id : undefined;
+      if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1) throw new RoutineError('The query returned an invalid work item reference. No partial result was accepted.');
+      ids.add(id);
+      endpoints++;
+    }
+    if (!endpoints) throw new RoutineError('The query returned an invalid work item reference. No partial result was accepted.');
+  }
+  assertResultSize([...ids]);
+  const top = args.top ?? 50;
+  if (typeof top !== 'number' || !Number.isSafeInteger(top) || top < 1) throw new RoutineError('Set a positive integer top parameter for this Azure DevOps query.');
+  // The MCP query defaults to 50 and has no continuation cursor. A full limit cannot prove a complete result.
+  if (ids.size >= top) throw new RoutineError('The query reached its result limit. Increase its top parameter or narrow its filter before running it again.');
+  const ordered = [...ids].sort((a, b) => a - b);
+  const items = new Map<number, Record<string, unknown>>();
+  for (let at = 0; at < ordered.length; at += ITEM_BATCH_SIZE) {
+    const batch = ordered.slice(at, at + ITEM_BATCH_SIZE);
+    const result = toolPayload(await call(server, 'wit_work_item', { action: 'get_batch', project: args.project, ids: batch }));
+    assertCurrent();
+    const rows = rowsOf(result);
+    if (!rows || rows.length !== batch.length) throw new RoutineError('The item batch was incomplete or invalid. No partial result was accepted.');
+    for (const row of rows) {
+      const item = row && typeof row === 'object' ? row as Record<string, unknown> : {};
+      const fields = item.fields && typeof item.fields === 'object' && !Array.isArray(item.fields) ? item.fields as Record<string, unknown> : null;
+      const revision = item.rev ?? fields?.['System.Rev'];
+      if (typeof item.id !== 'number' || !batch.includes(item.id) || items.has(item.id) || !fields || typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) throw new RoutineError('The item batch was incomplete or invalid. No partial result was accepted.');
+      items.set(item.id, item);
+    }
+    assertResultSize([...items.values()]);
+  }
+  return [...items.values()].sort((a, b) => Number(a.id) - Number(b.id));
 }
 
 function rowsOf(value: unknown): unknown[] | null {

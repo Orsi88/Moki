@@ -4,7 +4,7 @@
 
 Settings uses a sidebar grouped into **Your workspace**, **Connections** and **Preferences**. Choose a section with the mouse or the Up/Down keys; Home/End moves to the first/last section. The sidebar becomes an icon rail in a narrow window. Each section keeps its own task-specific search and actions. The ☆ on a card makes it a favorite: favorites come first in their list.
 
-**Configurador** (below the sections, and in each project's settings): say in your own words what you want set up — a routine that watches a folder, an activity, an agent, a connection, a template, tags. Your AI prepares a plan with what really exists; you check the steps you want and **Apply**, and each one goes through the same checks as these screens. Nothing changes before you apply. In a terminal, ask for the `configurador` agent: it shows the plan in the chat and applies it with `npm run configure` after your OK.
+For plain-language setup from a terminal, ask for the `configurador` agent. It reads the existing configuration, shows a plan in the chat and applies the approved steps with `npm run configure`, through the same checks as these screens.
 
 | Tab | What you do there |
 |---|---|
@@ -19,6 +19,8 @@ Settings uses a sidebar grouped into **Your workspace**, **Connections** and **P
 | **Routines and notifications** | Scheduled project checks, completed analyses awaiting review, execution history and workspace preferences. |
 
 ### Routines and notifications
+
+For setup from the first connection to a successful reading, follow [Routines and notifications](routines.md) and [Connect an MCP server](mcp-servers.md#connect-a-server-step-by-step).
 
 **Routines** lists the project, schedule, next check and state. Open a routine to edit its objective, sources, schedule and response mode. A source is a **query in a connection** (called again on every run; every record it returns is followed), **project files** or a **project folder**: each run shows what is new, what changed and what is gone. Weekly schedules show weekdays; monthly schedules show the day; intervals are entered in minutes. **Run now** starts one check; the additional actions pause, resume, duplicate or archive it. Archiving preserves history.
 
