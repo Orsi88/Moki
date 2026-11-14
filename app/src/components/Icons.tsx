@@ -131,6 +131,10 @@ export const IconMemory = ({ size }: IconProps) => (
 export const IconFile =({ size }: IconProps) => (
   <svg {...base(size)}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
 );
+// Markers (Settings › Markers): a small flag, apart from the tag of shared context.
+export const IconFlag = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
+);
 export const IconTag = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z" /><circle cx="7.5" cy="7.5" r="1" /></svg>
 );

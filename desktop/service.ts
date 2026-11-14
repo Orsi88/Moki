@@ -60,6 +60,7 @@ import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, gene
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
 import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
 import { listExecutions, listProposals, listRoutineFiles, readReport, readRoutine, type UpdateReport } from '../scripts/lib/routines.ts';
+import { ensureMarkers, saveMarkers } from '../scripts/lib/markers.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
@@ -1342,6 +1343,9 @@ export function createService(root: string, deps: Deps) {
       failing(() => removeLibraryActivity(a.id, root));
       return true;
     },
+    // The workspace's markers (Settings › Markers): icon, name and meaning of each; the defaults until it is saved.
+    markers: (defaults?: unknown) => ensureMarkers(workspaceDir(root), defaults),
+    saveMarkers: (raw: unknown) => failing(() => saveMarkers(workspaceDir(root), raw)),
     // An activity pinned to (or unpinned from) one project's panel: project.json pinnedActivities. Not the workspace's star.
     setActivityPin: (project: string, id: unknown, on: unknown) => {
       const file = join(projectDir(project), 'project.json');

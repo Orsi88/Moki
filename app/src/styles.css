@@ -2666,3 +2666,31 @@ span.mcp-row-main { cursor: default; }
 .update-report-before { background: color-mix(in srgb, var(--err) 6%, transparent); }
 .update-report-after { background: color-mix(in srgb, var(--ok) 7%, transparent); }
 @media (max-width: 720px) { .update-report-action { align-items: flex-start; text-align: left; } }
+
+/* Markers (Settings › Markers; a comment's marker is the prefix of its text). */
+.marker-badge { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; max-width: 100%; margin: 2px 0 4px; padding: 1px 8px 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--text); font-size: 0.76rem; font-weight: 600; line-height: 1.6; }
+.marker-toggle { display: grid; place-items: center; width: 24px; height: 24px; color: var(--faint); font-size: 0.85rem; }
+.marker-toggle.on { color: var(--text); }
+.marker-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
+.marker-choice { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); font-size: 0.95rem; cursor: pointer; }
+.marker-choice:hover:not(:disabled) { border-color: var(--muted); }
+.marker-choice.on { border-color: var(--accent); background: var(--accent-soft); }
+.marker-none { margin-left: 4px; font-size: 0.78rem; }
+.settings-markers { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 980px; height: 100%; padding: var(--settings-page-y) var(--settings-page-x) var(--settings-page-bottom); overflow: auto; }
+.settings-markers h1 { font-size: 1.6rem; margin: 0; }
+.settings-markers > p { margin: 0; }
+.marker-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.marker-row { display: grid; grid-template-columns: 52px minmax(140px, 1fr) minmax(200px, 2fr) auto; align-items: end; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.marker-icon-field { width: 52px; height: 38px; padding: 0; text-align: center; font-size: 1.3rem; }
+.marker-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.76rem; font-weight: 600; color: var(--muted); }
+.marker-field input { font-weight: 400; color: var(--text); }
+.marker-row-actions { display: flex; gap: 2px; padding-bottom: 4px; }
+.marker-footer { display: flex; align-items: center; gap: 12px; }
+.marker-footer .muted { margin-left: auto; }
+@media (max-width: 720px) { .marker-row { grid-template-columns: 52px 1fr; } .marker-field.wide, .marker-row-actions { grid-column: 1 / -1; } }
+/* A marker drawn at the start of its marked text (Markdown and Word), and a marker without a comment: a compact card. */
+[data-marker]::before { content: attr(data-marker); display: inline-block; margin-right: 3px; font-size: 0.9em; line-height: 1; vertical-align: 0.05em; text-decoration: none; }
+.md-card.marker-only { padding-top: 8px; padding-bottom: 6px; }
+.md-card.marker-only .pdf-comment-head { display: none; }
+.md-card.marker-only .marker-badge { margin: 0 0 2px; }
+.pdf-composer.marking .marker-picker { margin: 0 0 8px; }

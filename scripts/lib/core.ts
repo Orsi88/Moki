@@ -11,6 +11,7 @@ import { ROOT, SLUG, readJson, workspaceDir, workspaceLabel } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { contractLines, isUsableAgent, listAgents, type AgentContract } from './agents.ts';
 import { activityRequest, activitySkills, getActivity, listActivities, type ActivityDef } from './activities.ts';
+import { MARKERS_FILE, markersForAi, readMarkers } from './markers.ts';
 
 // Activities are scripts/lib/activities.ts: the app's own actions in code, the others in activities/ and the workspace library.
 export type ActivityKey = string;
@@ -751,6 +752,8 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
       + " Read nothing else from other projects. Record these files in the run's state.json under contextSources.");
   }
   if (excluded.length) parts.push(`Do not use these files of this project in this activity: ${excluded.join(', ')}.`);
+  // The person's markers (Settings › Markers): what each icon on a comment or passage means.
+  if (existsSync(join(workspaceDir(root), MARKERS_FILE)) && readMarkers(workspaceDir(root)).length) parts.push(markersForAi(`${workspace}/${MARKERS_FILE}`));
   if (note.trim()) parts.push(`Additional instructions: ${note.trim().replace(/([^.!?])$/, '$1.')}`);
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');

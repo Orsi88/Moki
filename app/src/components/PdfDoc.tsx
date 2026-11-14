@@ -3,11 +3,14 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { api, type PdfChange, type PdfComment, type PdfMark, type PdfNote } from '../api';
 import { t } from '../i18n';
 import { selectionNote, stackCards } from '../pdf-quads';
-import { IconChat, IconEdit, IconHighlight, IconNativeViewer, IconNotePlus, IconPages, IconPlus, IconSearch, IconTrash, IconX } from './Icons';
+import { IconChat, IconEdit, IconFlag, IconHighlight, IconNativeViewer, IconNotePlus, IconPages, IconPlus, IconSearch, IconTrash, IconX } from './Icons';
 import { recall, remember } from '../prefs';
 import { lazyHeavy } from '../lazy-module';
 import { useLoaded } from './useLoaded';
 import { NoteDialog } from './NoteDialog';
+import { MarkerBadge, MarkerPicker } from './Markers';
+import { splitMarker, useMarkers, withMarker } from '../markers';
+import type { Marker } from '../api';
 import { COLORS, SWATCH as COLOR_SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
 import { confirmDialog } from '../dialogs';
@@ -114,7 +117,10 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
   const [hit, setHit] = useState(0);
   const pdf = useRef<PDFDocumentProxy | null>(null);
   const onDoc = useCallback((d: PDFDocumentProxy | null) => { pdf.current = d; setHits(null); }, []);
-  const [composer, setComposer] = useState<{ marks: PdfMark[]; x: number; y: number; text: string; quote: string; rects: { left: number; top: number; width: number; height: number }[] } | null>(null);
+  const [composer, setComposer] = useState<{ marks: PdfMark[]; x: number; y: number; text: string; quote: string; rects: { left: number; top: number; width: number; height: number }[]; marker?: Marker | null } | null>(null);
+  // A comment's marker is the prefix of its contents (scripts/lib/marker-labels.ts): a badge here, kept on edit.
+  const markers = useMarkers();
+  const [markerPicker, setMarkerPicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [active, setActive] = useState('');
   // The comment column, opened or closed from the bar (remembered); closed, the pages take the room and marks on their edge show where comments are.
@@ -255,7 +261,8 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
   };
   const highlightSelection = () => {
     if (!composer) return;
-    void apply({ op: 'highlight', marks: composer.marks, contents: composer.text.trim() || undefined, color }).then((ok) => {
+    const contents = composer.text.trim() ? withMarker(composer.text.trim(), composer.marker ?? null, markers) : composer.marker ? withMarker('', composer.marker, markers).trim() : undefined;
+    void apply({ op: 'highlight', marks: composer.marks, contents, color }).then((ok) => {
       if (!ok) return;
       setComposer(null);
       dropSelection();
@@ -333,7 +340,8 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
 
   const finishEdit = () => {
     if (!editing) return;
-    const change: PdfChange = editing.mode === 'reply' ? { op: 'reply', id: editing.id, text: editing.text } : { op: 'edit', id: editing.id, contents: editing.text };
+    const kept = editing.mode === 'edit' ? splitMarker(comments.find((c) => c.id === editing.id)?.contents ?? '', markers).marker : null;
+    const change: PdfChange = editing.mode === 'reply' ? { op: 'reply', id: editing.id, text: editing.text } : { op: 'edit', id: editing.id, contents: withMarker(editing.text, kept, markers) };
     void apply(change).then((ok) => { if (ok) setEditing(null); });
   };
   const remove = async (c: PdfComment) => {
@@ -434,12 +442,17 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
         </div>
       ) : (
         <>
-          {c.contents ? <p className="pdf-comment-text">{c.contents}</p> : !reply && <p className="muted small">{t('Highlight without a comment.')}</p>}
+          {(() => { const { marker, body } = splitMarker(c.contents ?? '', markers); return <>
+          {marker && <MarkerBadge marker={marker} />}
+          {body ? <p className="pdf-comment-text">{body}</p> : !reply && !marker && <p className="muted small">{t('Highlight without a comment.')}</p>}
           <div className="pdf-actions">
+            {!reply && <button type="button" className={`icon-btn marker-toggle${marker ? ' on' : ''}`} title={t('Marker')} aria-label={t('Marker')} aria-expanded={markerPicker === c.id} disabled={off} onClick={() => setMarkerPicker(markerPicker === c.id ? null : c.id)}>{marker ? <span aria-hidden="true">{marker.icon}</span> : <IconFlag size={14} />}</button>}
             {!reply && <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>}
-            <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.contents ?? '' })}>{t('Edit')}</button>
+            <button type="button" className="link-btn" disabled={off} onClick={() => setEditing({ id: c.id, mode: 'edit', text: body })}>{t('Edit')}</button>
             <button type="button" className="link-btn" disabled={off} onClick={() => remove(c)}>{t('Delete')}</button>
           </div>
+          {markerPicker === c.id && <MarkerPicker markers={markers} value={marker} disabled={off} onPick={(next) => { edit({ op: 'edit', id: c.id, contents: withMarker(body, next, markers) }); setMarkerPicker(null); }} />}
+          </>; })()}
         </>
       )}
       {c.replies.length > 0 && <div className="pdf-replies">{c.replies.map((r) => <div key={r.id}>{item(r, true)}</div>)}</div>}
@@ -571,6 +584,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
                 <textarea autoFocus rows={3} maxLength={4000} value={composer.text} placeholder={t('Comment (optional)')}
                   onChange={(e) => setComposer({ ...composer, text: e.target.value })}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); highlightSelection(); } }} />
+                {markers.length > 0 && <MarkerPicker markers={markers} value={composer.marker ?? null} disabled={off} onPick={(next) => setComposer({ ...composer, marker: next })} />}
                 <div className="pdf-actions">
                   <button type="button" className="btn btn-sm" disabled={off} onClick={highlightSelection}>{busy ? t('Saving…') : composer.text.trim() ? t('Add the comment') : t('Highlight')}</button>
                   <button type="button" className="btn btn-ghost btn-sm" disabled={!composer.quote.trim()} onClick={noteFromSelection}>{t('Create a note from here')}</button>

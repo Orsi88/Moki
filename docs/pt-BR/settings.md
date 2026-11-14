@@ -13,6 +13,7 @@ As Configurações usam um menu lateral com os grupos **Seu workspace**, **Conex
 | **Skills** | O que está instalado, o que vem com o Moki, e **Adicionar skill**: buscar no registro público [SkillMD](https://skillmd.com), descrever uma para a sua IA rascunhar, ou **enviar** skills e agentes de uma pasta `.claude` (inclusive agentes em subpastas) ou de um `.zip`. Com um projeto aberto, você escolhe **todos os projetos** ou **só este projeto**. Você escolhe e confirma antes de qualquer instalação. |
 | **Servidores MCP** | As ferramentas que a IA recebe — navegadores, bancos de dados, trackers — para todos os projetos ou para os escolhidos. Veja [Servidores MCP](mcp-servers.md). |
 | **Templates** | Fonte, cores, cabeçalho, rodapé, logo e marca d'água dos PDFs, Word e Excel que as atividades geram; as tags dizem quais projetos usam cada um. **Enviar arquivo-base** (.docx, .xlsx, .md ou .pdf; .doc e .xls são convertidos): a IA segue a estrutura e a formatação dele nos documentos novos, como um modelo anexado no chat, com uma nota opcional do que manter. |
+| **Marcadores** | Os ícones que você coloca nos comentários (⭐ Importante, 🔍 Revisar…), cada um com nome e significado. As IAs leem os significados em `workspace/markers.json`. Veja [Arquivos e editor](files-and-editor.md#comentários). |
 | **Temas** | A paleta e a aparência do Moki, com temas independentes para terminais e documentos. |
 | **Rotinas e notificações** | Verificações agendadas por projeto, análises concluídas para revisar, histórico e preferências do workspace. |
 

@@ -23,6 +23,8 @@ A `.md` file opens in a formatted editor ([TipTap](https://tiptap.dev)): heading
 
 Select text inside one paragraph and a **Comment** button floats next to it. Comments sit beside the text, joined to their words, with a color, replies, edit and delete. They live inside the file itself, invisible to other Markdown viewers, so they travel with it.
 
+**Markers.** The flag on a comment puts a marker on it — ⭐ Important, 🔍 To review, ➕ To complete or one of your own (**Settings › Markers**). It shows as a badge on the card and is written at the start of the comment's text, `[🔍 To review] …`, so it travels with the comment in every format that takes comments (Markdown, Word, Excel, PDF, HTML and diagrams), Word shows it as written, and the AIs read it: ask "review what I marked 🔍" and they find it. Editing the text keeps the marker.
+
 ### Diagrams and drawings
 
 A ` ```mermaid ` block is drawn as a diagram, and a ` ```excalidraw ` block as an editable drawing — click its pencil to edit it in [Excalidraw](https://excalidraw.com). A `.excalidraw` file opens as that same drawing, filling the page, and edits are saved back into the file. Hold **Ctrl** and scroll to zoom. The AIs are told to draw diagrams this way, inside the document, instead of making images or PDFs.

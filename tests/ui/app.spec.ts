@@ -3767,6 +3767,82 @@ test('routine update report: one notification opens the items before and after, 
   }
 });
 
+test('markers: set in Settings in the person language, put on a comment as the prefix of its text, kept when it is edited', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-markers-ui-'));
+  const file = join(root, 'workspace', 'projects', 'acme', 'context', 'regras.md');
+  writeFileSync(file, 'A senha <!--c:k1-->expira hoje<!--/c:k1-->.\n\nO limite diário é de cinco tentativas.\n\n<!-- moki-comments\n[{"id":"k1","author":"ana","at":"2026-11-01T10:00:00.000Z","text":"Confere o prazo?","replies":[]}]\n-->\n');
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 860);
+    await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/regras.md"]').click();
+    const card = view.locator('.md-card');
+    await expect(card).toContainText('Confere o prazo?');
+    // The starting set is written in the person's language the first time it is read.
+    await expect.poll(() => existsSync(join(root, 'workspace', 'markers.json'))).toBe(true);
+    expect(JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8')).map((m: { name: string }) => m.name)).toEqual(['Importante', 'Revisar', 'Completar', 'Atenção', 'Pronto']);
+    await card.getByRole('button', { name: 'Marcador', exact: true }).click();
+    await card.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
+    await expect(card.locator('.marker-badge')).toHaveText('🔍Revisar');
+    await expect(card.locator('.pdf-comment-text')).toHaveText('Confere o prazo?');
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[🔍 Revisar] Confere o prazo?"');
+    await captureRoutineWindow(opened.app, info.outputPath('marker-on-comment.png'));
+    // Editing the text keeps the marker; changing the marker keeps the text.
+    await card.getByRole('button', { name: 'Editar', exact: true }).click();
+    await card.locator('textarea').fill('Confere o prazo de 30 dias?');
+    await card.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[🔍 Revisar] Confere o prazo de 30 dias?"');
+    await card.getByRole('button', { name: 'Marcador', exact: true }).click();
+    await card.getByRole('button', { name: 'Sem marcador', exact: true }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"Confere o prazo de 30 dias?"');
+    await expect(card.locator('.marker-badge')).toHaveCount(0);
+
+    // Marking a passage without commenting on it: "Mark" beside "Comment on it", a marker, no text.
+    const editor = view.locator('.commented-editor .tiptap-body');
+    await selectWords(view, editor.locator('p', { hasText: 'O limite diário' }), 'cinco tentativas');
+    await view.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Marcar', exact: true }).click();
+    const box = view.getByRole('dialog', { name: 'Marcar' });
+    await expect(box.getByRole('button', { name: 'Marcar', exact: true })).toBeDisabled();
+    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Completar' }).click();
+    await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/O limite diário é de <!--c:[a-z0-9]+-->cinco tentativas<!--\/c:[a-z0-9]+-->\./);
+    expect(readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar]"');
+    // Shown as a marker, not as a comment: the icon at the start of the marked text and a compact card.
+    await expect(editor.locator('[data-marker="➕"]')).toHaveText('cinco tentativas');
+    const mark = view.locator('.md-card.marker-only');
+    await expect(mark.locator('.marker-badge')).toHaveText('➕Completar');
+    await expect(mark.locator('.pdf-comment-text')).toHaveCount(0);
+    await captureRoutineWindow(opened.app, info.outputPath('marker-in-text.png'));
+    // A comment can be added to it later; the marker stays.
+    await mark.getByRole('button', { name: 'Adicionar um comentário', exact: true }).click();
+    await mark.locator('textarea').fill('Falta o bloqueio depois disso.');
+    await mark.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar] Falta o bloqueio depois disso."');
+
+    // Settings › Markers: add one, give it a meaning, save; the comment picker offers it.
+    await view.getByRole('button', { name: 'Configurações', exact: true }).click();
+    await view.getByRole('tablist', { name: 'Configurações', exact: true }).getByRole('tab', { name: 'Marcadores', exact: true }).click();
+    await expect(view.getByRole('heading', { name: 'Marcadores' })).toBeVisible();
+    await view.getByRole('button', { name: 'Adicionar marcador', exact: true }).click();
+    const row = view.locator('.marker-row').last();
+    await row.getByLabel('Ícone').fill('🧪');
+    await row.getByRole('textbox', { name: 'Nome' }).fill('Testar');
+    await row.getByRole('textbox', { name: 'O que significa' }).fill('Precisa de um teste antes de seguir.');
+    await captureRoutineWindow(opened.app, info.outputPath('markers-settings.png'));
+    await view.getByRole('button', { name: 'Salvar marcadores', exact: true }).click();
+    await expect(view.getByRole('status')).toContainText('Marcadores salvos.');
+    const saved = JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8'));
+    expect(saved.at(-1)).toMatchObject({ icon: '🧪', name: 'Testar', meaning: 'Precisa de um teste antes de seguir.' });
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
 test('templates: upload a base file, see it in the list and tell the AI what to follow', async ({}, info) => {
   const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-template-model-'));
   let running: ElectronApplication | undefined;

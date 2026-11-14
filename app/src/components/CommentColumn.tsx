@@ -8,7 +8,10 @@ import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode, type
 import { t } from '../i18n';
 import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
-import { IconChat } from './Icons';
+import { IconChat, IconFlag } from './Icons';
+import { MarkerBadge, MarkerPicker } from './Markers';
+import { markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
+import type { Marker } from '../api';
 import { CommentColors } from './CommentColors';
 import { confirmDialog } from '../dialogs';
 
@@ -54,6 +57,18 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
   }, [comments, stage, body, rail, markOf]);
   useLayoutEffect(() => { measure(); });
+  // The marker of each comment, drawn at the start of its marked text (Markdown and Word mark their text with the id).
+  const markers = useMarkers();
+  useLayoutEffect(() => {
+    const text = body.current;
+    if (!text) return;
+    for (const el of text.querySelectorAll<HTMLElement>('[data-marker]')) el.removeAttribute('data-marker');
+    for (const c of comments) {
+      const marker = splitMarker(c.text, markers).marker;
+      const first = marker && text.querySelector<HTMLElement>(`[data-md-comment="${CSS.escape(c.id)}"], [data-comment-id="${CSS.escape(c.id)}"]`);
+      if (first) first.setAttribute('data-marker', marker.icon);
+    }
+  });
   useEffect(() => {
     const box = stage.current;
     if (!box) return undefined;
@@ -88,13 +103,22 @@ interface ColumnProps {
 export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions, readOnly = false, describe, onJump, empty }: ColumnProps) {
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [colorPicker, setColorPicker] = useState<string | null>(null);
+  const [markerPicker, setMarkerPicker] = useState<string | null>(null);
+  const markers = useMarkers();
   const where = new Map(placed.items.map((p) => [p.id, p]));
+  // A comment's marker is the prefix of its text: shown as a badge, kept when the text is edited.
+  const markerOf = (id: string) => splitMarker(comments.find((c) => c.id === id)?.text ?? '', markers).marker;
   const finish = () => {
-    if (!editing || !editing.text.trim() || saving || readOnly) return;
-    if (editing.mode === 'reply') actions.reply(editing.id, editing.text.trim()); else actions.edit(editing.id, editing.text.trim());
+    if (!editing || saving || readOnly) return;
+    // A marker without a comment may stay without one; anything else needs some text.
+    if (!editing.text.trim() && !(editing.mode === 'edit' && markerOf(editing.id))) return;
+    if (editing.mode === 'reply') actions.reply(editing.id, editing.text.trim()); else actions.edit(editing.id, withMarker(editing.text.trim(), markerOf(editing.id), markers));
     setEditing(null);
   };
-  const remove = async (id: string) => { if (await confirmDialog(t('Delete this comment?'), { danger: true })) actions.remove(id); };
+  const remove = async (id: string) => {
+    const only = markerOnly(comments.find((c) => c.id === id)?.text ?? '', markers);
+    if (await confirmDialog(only ? t('Remove this marker?') : t('Delete this comment?'), { danger: true })) actions.remove(id);
+  };
   return (
     <>
       {shown && (
@@ -109,14 +133,15 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
           </svg>
           <div className="md-rail" ref={rail} style={{ height: Math.max(0, placed.height - placed.railTop) }} aria-label={t('Comments')}>
             {comments.length === 0 && (empty ?? <p className="muted small pdf-rail-empty">{t('No comments yet.')}</p>)}
-            {comments.map((c) => (
-              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}${c.resolved ? ' resolved' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
+            {comments.map((c) => { const { marker, body } = splitMarker(c.text, markers); return (
+              <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}${c.resolved ? ' resolved' : ''}${markerOnly(c.text, markers) ? ' marker-only' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
                 tabIndex={onJump ? 0 : undefined} onClick={(e) => { if (!(e.target as HTMLElement).closest('button, textarea, a, input')) onJump?.(c.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget && onJump) { e.preventDefault(); onJump(c.id); } }}
                 onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')} onFocus={() => onActive(c.id)}>
                 {describe?.(c.id)}
                 <div className="pdf-comment-head"><strong>{c.author || t('Unknown author')}</strong><span className="muted small">{when(c.at)}</span></div>
-                {editing?.id === c.id && editing.mode === 'edit' ? null : <p className="pdf-comment-text">{c.text}</p>}
+                {marker && <MarkerBadge marker={marker} />}
+                {editing?.id === c.id && editing.mode === 'edit' ? null : body.trim() ? <p className="pdf-comment-text">{body}</p> : null}
                 {c.replies.length > 0 && (
                   <div className="pdf-replies">
                     {c.replies.map((r, i) => (
@@ -133,22 +158,24 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
                       onChange={(e) => setEditing({ ...editing, text: e.target.value })}
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); finish(); } }} />
                     <div className="pdf-actions">
-                      <button type="button" className="btn btn-sm" disabled={saving || readOnly || !editing.text.trim()} onClick={finish}>{t('Save')}</button>
+                      <button type="button" className="btn btn-sm" disabled={saving || readOnly || (!editing.text.trim() && !(editing.mode === 'edit' && markerOf(editing.id)))} onClick={finish}>{t('Save')}</button>
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(null)}>{t('Cancel')}</button>
                     </div>
                   </div>
                 ) : (
                   <div className="pdf-actions">
                     <button type="button" className="icon-btn md-color-toggle" title={t('Change comment color')} aria-label={t('Change comment color')} aria-expanded={colorPicker === c.id} disabled={saving || readOnly} onClick={() => setColorPicker(colorPicker === c.id ? null : c.id)}><span style={{ background: c.color ? SWATCH[c.color] : 'var(--accent)' }} /></button>
-                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button>
-                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'edit', text: c.text })}>{t('Edit')}</button>
+                    {body.trim() ? <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button> : null}
+                    <button type="button" className={`icon-btn marker-toggle${marker ? ' on' : ''}`} title={t('Marker')} aria-label={t('Marker')} aria-expanded={markerPicker === c.id} disabled={saving || readOnly} onClick={() => setMarkerPicker(markerPicker === c.id ? null : c.id)}>{marker ? <span aria-hidden="true">{marker.icon}</span> : <IconFlag size={14} />}</button>
+                    <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'edit', text: body })}>{body.trim() ? t('Edit') : t('Add a comment')}</button>
                     {actions.resolve && <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => actions.resolve?.(c.id, !c.resolved)}>{c.resolved ? t('Reopen comment') : t('Resolve comment')}</button>}
                     <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => remove(c.id)}>{t('Delete')}</button>
                   </div>
                 )}
                 {colorPicker === c.id && <CommentColors value={c.color} disabled={saving || readOnly} onChange={(next) => { actions.color(c.id, next); setColorPicker(null); }} />}
+                {markerPicker === c.id && <MarkerPicker markers={markers} value={marker} disabled={saving || readOnly} onPick={(next) => { actions.edit(c.id, withMarker(c.text, next, markers)); setMarkerPicker(null); }} />}
               </div>
-            ))}
+            ); })}
           </div>
         </>
       )}
@@ -181,6 +208,8 @@ export function useBubbleLife(bubble: Bubble | null, close: () => void, inside: 
 
 // Selecting is often only reading or copying, so the comment box opens from this button, never by itself.
 // Above the selection (below it at the very top); mousedown would clear the selection before the click.
+// "Mark" opens the same box in marker mode (a marker, the comment optional): every editor's box, with no change to it.
+let nextMode: 'comment' | 'marker' = 'comment';
 export function SelectionBubble({ bubble, onComment }: { bubble: Bubble; onComment: () => void }) {
   const below = bubble.y < 44;
   return (
@@ -188,6 +217,9 @@ export function SelectionBubble({ bubble, onComment }: { bubble: Bubble; onComme
       style={{ left: bubble.x, top: below ? bubble.below + 6 : bubble.y - 6 }} onMouseDown={(e) => e.preventDefault()}>
       <button type="button" disabled={Boolean(bubble.why)} aria-describedby={bubble.why ? 'md-select-why' : undefined} onClick={onComment}>
         <IconChat size={15} /> {t('Comment on it')}
+      </button>
+      <button type="button" disabled={Boolean(bubble.why)} onClick={() => { nextMode = 'marker'; onComment(); }}>
+        <IconFlag size={15} /> {t('Mark')}
       </button>
       {bubble.why && <span id="md-select-why" className="md-select-why">{bubble.why}</span>}
     </div>
@@ -198,16 +230,23 @@ interface ComposerProps { x: number; y: number; saving: boolean; color: CommentC
 
 export function CommentComposer({ x, y, saving, color, onColor, onAdd, onCancel }: ComposerProps) {
   const [text, setText] = useState('');
-  const add = () => { if (!saving && text.trim()) onAdd(text.trim()); };
+  const markers = useMarkers();
+  const [marker, setMarker] = useState<Marker | null>(null);
+  const [mode] = useState(() => { const m = nextMode; nextMode = 'comment'; return m; });
+  // A marker alone marks the passage; with text it is a comment carrying that marker.
+  const ready = Boolean(text.trim()) || Boolean(marker);
+  const add = () => { if (!saving && ready) onAdd(text.trim() ? withMarker(text.trim(), marker, markers) : withMarker('', marker, markers).trim()); };
   return (
-    <div className="pdf-composer" style={{ left: x, top: y }} role="dialog" aria-label={t('Comment')}
+    <div className={`pdf-composer${mode === 'marker' ? ' marking' : ''}`} style={{ left: x, top: y }} role="dialog" aria-label={mode === 'marker' ? t('Mark') : t('Comment')}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel(); } }}>
-      <textarea autoFocus rows={3} maxLength={4000} value={text} placeholder={t('Your comment')}
+      {mode === 'marker' && <MarkerPicker markers={markers} value={marker} onPick={setMarker} disabled={saving} />}
+      <textarea autoFocus={mode !== 'marker'} rows={mode === 'marker' ? 2 : 3} maxLength={4000} value={text} placeholder={mode === 'marker' ? t('Comment (optional)') : t('Your comment')}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } }} />
       <CommentColors value={color} onChange={onColor} disabled={saving} />
+      {mode !== 'marker' && markers.length > 0 && <MarkerPicker markers={markers} value={marker} onPick={setMarker} disabled={saving} />}
       <div className="pdf-actions">
-        <button type="button" className="btn btn-sm" disabled={saving || !text.trim()} onClick={add}>{t('Add the comment')}</button>
+        <button type="button" className="btn btn-sm" disabled={saving || !ready} onClick={add}>{text.trim() ? t('Add the comment') : t('Mark')}</button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>{t('Cancel')}</button>
         <span className="muted small">{t('Ctrl+Enter')}</span>
       </div>

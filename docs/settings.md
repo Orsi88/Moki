@@ -15,6 +15,7 @@ For plain-language setup from a terminal, ask for the `configurador` agent. It r
 | **Skills** | What is installed, what ships with Moki, and **Add a skill**: search the public [SkillMD](https://skillmd.com) registry, describe one for your AI to draft, or **upload** skills and agents from a `.claude` folder (agents in subfolders included) or a `.zip`. With a project open you choose **all projects** or **this project only**. You choose and confirm before anything is installed. |
 | **MCP servers** | The tools the AI gets — browsers, databases, trackers — for every project or for chosen ones. See [MCP servers](mcp-servers.md). |
 | **Templates** | Font, colors, header, footer, logo and watermark of the PDF, Word and Excel files activities generate; tags say which projects use each one. **Upload a base file** (.docx, .xlsx, .md or .pdf; .doc and .xls are converted) and the AI follows its structure and formatting for new documents, like a model attached in a chat, with an optional note on what to keep. |
+| **Markers** | The icons you put on comments (⭐ Important, 🔍 To review…), each with a name and what it means. The AIs read the meanings in `workspace/markers.json`. See [Files and editor](files-and-editor.md#comments). |
 | **Themes** | Moki's palette and appearance, plus independent themes for terminals and documents. |
 | **Routines and notifications** | Scheduled project checks, completed analyses awaiting review, execution history and workspace preferences. |
 

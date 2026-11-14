@@ -20,10 +20,11 @@ import { McpManager } from '../components/McpManager';
 import { ActivitiesPage } from '../components/ActivitiesPage';
 import { AiToolsPage } from '../components/AiToolsPage';
 import { RoutinesPage } from '../components/RoutinesPage';
+import { MarkersPage } from '../components/MarkersPage';
 import { ThemesPage } from '../components/ThemesPage';
-import { IconAgent, IconBell, IconLanes, IconMcp, IconMoon, IconPages, IconPlay, IconSkill, IconTerminal, IconX } from '../components/Icons';
+import { IconAgent, IconBell, IconFlag, IconLanes, IconMcp, IconMoon, IconPages, IconPlay, IconSkill, IconTerminal, IconX } from '../components/Icons';
 
-export type SettingsTab = 'agents' | 'activities' | 'ai' | 'operations' | 'skills' | 'mcp' | 'documents' | 'themes' | 'routines';
+export type SettingsTab = 'agents' | 'activities' | 'ai' | 'operations' | 'skills' | 'mcp' | 'documents' | 'themes' | 'routines' | 'markers';
 
 interface Props {
   tab: SettingsTab;
@@ -69,6 +70,7 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
     ] },
     { label: t('Preferences'), items: [
       { id: 'routines', label: t('Routines and notifications'), icon: IconBell },
+      { id: 'markers', label: t('Markers'), icon: IconFlag },
       { id: 'documents', label: t('Templates'), icon: IconPages },
       { id: 'themes', label: t('Themes'), icon: IconMoon },
     ] },
@@ -109,6 +111,7 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
       <div className="settings-body" role="tabpanel" id={`settings-panel-${tab}`} aria-labelledby={`settings-tab-${tab}`}>
         {tab === 'routines' ? <RoutinesPage projects={projects} tools={tools} registerLeave={registerLeave} onTerminal={onTerminal} />
           : tab === 'themes' ? <ThemesPage />
+          : tab === 'markers' ? <MarkersPage />
           : tab === 'documents' ? <DocumentStyleForm />
           : tab === 'mcp' ? <McpManager key={target?.id ?? 'none'} project={target} projects={projects} />
           : tab === 'operations' ? <Operations tools={tools} />

@@ -23,6 +23,8 @@ Um `.md` abre num editor formatado ([TipTap](https://tiptap.dev)): títulos, lis
 
 Selecione um trecho dentro de um parágrafo e um botão **Comentário** aparece ao lado. Os comentários ficam ao lado do texto, ligados às palavras, com cor, respostas, edição e exclusão. Eles moram dentro do próprio arquivo, invisíveis para outros leitores de Markdown, então viajam junto com ele.
 
+**Marcadores.** A bandeirinha de um comentário coloca um marcador nele — ⭐ Importante, 🔍 Revisar, ➕ Completar ou um seu (**Configurações › Marcadores**). Ele aparece como um selo no cartão e fica escrito no começo do texto do comentário, `[🔍 Revisar] …`, então viaja com o comentário em todo formato que aceita comentário (Markdown, Word, Excel, PDF, HTML e diagramas), o Word mostra do jeito que está escrito e as IAs leem: peça "revise o que marquei com 🔍" e elas acham. Editar o texto mantém o marcador.
+
 ### Diagramas e desenhos
 
 Um bloco ` ```mermaid ` é desenhado como diagrama, e um bloco ` ```excalidraw ` como desenho editável — clique no lápis para editar no [Excalidraw](https://excalidraw.com). Um arquivo `.excalidraw` abre como esse mesmo desenho, ocupando a página, e as edições voltam para o arquivo. Segure **Ctrl** e role para dar zoom. As IAs são orientadas a desenhar diagramas assim, dentro do documento, em vez de gerar imagens ou PDFs.

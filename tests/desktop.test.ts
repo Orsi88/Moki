@@ -733,6 +733,19 @@ test('a run records the activity it came from; the requests and the tree show it
   }
 });
 
+test('markers: the set is written once in the language of the person and every request points the AI to it', () => {
+  const file = join(root, 'workspace', 'markers.json');
+  rmSync(file, { force: true });
+  const base = { project: 'acme', activity: 'review', tool: 'print', files: ['us-1.md'], language: 'English', note: '' };
+  assert.doesNotMatch(service.launch(base).prompt, /markers\.json/, 'no file yet: nothing to point to');
+  const pt = [{ id: 'review', icon: '🔍', name: 'Revisar', meaning: 'Conferir.' }];
+  assert.deepEqual(service.markers(pt), pt);
+  assert.deepEqual(service.markers([{ id: 'x', icon: '🔥', name: 'Other', meaning: '' }]), pt, 'written once');
+  assert.match(service.launch(base).prompt, /listed with their meaning in workspace\/markers\.json/);
+  assert.deepEqual(service.saveMarkers([...pt, { id: 'done', icon: '✅', name: 'Pronto', meaning: '' }]).map((m: { id: string }) => m.id), ['review', 'done']);
+  rmSync(file, { force: true });
+});
+
 test('an activity pinned to a project lands in its project.json, in the order pinned, and only a known activity', () => {
   const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
   const before = readFileSync(file, 'utf8');

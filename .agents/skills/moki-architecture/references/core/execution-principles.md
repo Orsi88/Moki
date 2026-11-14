@@ -47,6 +47,14 @@ The user keeps what they asked for, nothing else.
 - Check a deliverable by reading it (`npm run xlsx -- read`, `npm run docx -- inspect`, reading the text), not by rendering screenshots of it. Render an image only when the user asks for one.
 - `state.json` `artifacts` lists the deliverables only; anything in `outputs/` that is not listed there is treated as leftover.
 
+## Markers
+
+The person marks comments and passages of documents with markers (⭐ Important, 🔍 To review…), defined with their meaning in `workspace/markers.json` (Settings › Markers).
+
+- A comment whose text starts with `[icon name]` carries that marker; a comment whose text is only that label marks its passage without commenting on it. They are stored like any comment of the format (in Markdown, the passage sits between `<!--c:ID-->` and `<!--/c:ID-->` and the text is in the `moki-comments` block at the end).
+- Markers are the person's own notes: keep them, their position and their text as they are when you edit a document, the same as comments.
+- Act on them when asked (for example "complete what is marked ➕"), reading their meaning in `workspace/markers.json`.
+
 ## Language
 
 Skill instructions are written in English.

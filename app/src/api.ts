@@ -2,6 +2,8 @@ import type { HtmlAnchor, HtmlComment, HtmlCommentChange } from '../../scripts/l
 import type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 export type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
+import type { Marker } from '../../scripts/lib/marker-labels.ts';
+export type { Marker } from '../../scripts/lib/marker-labels.ts';
 // Client for the desktop app's main process (see desktop/preload.ts and
 // desktop/service.ts). Every call goes through one validated IPC channel.
 
@@ -416,6 +418,8 @@ export const api = {
   duplicateActivity: (id: string) => call<ActivityInfo>('duplicateActivity', id),
   deleteActivity: (id: string) => call<boolean>('deleteActivity', id),
   setActivityFavorite: (id: string, on: boolean) => call<string[]>('setActivityFavorite', id, on),
+  markers: (defaults?: Marker[]) => call<Marker[]>('markers', defaults),
+  saveMarkers: (markers: Marker[]) => call<Marker[]>('saveMarkers', markers),
   setActivityPin: (project: string, id: string, on: boolean) => call<string[]>('setActivityPin', project, id, on),
   integrations: () => call<ToolInfo[]>('integrations'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
