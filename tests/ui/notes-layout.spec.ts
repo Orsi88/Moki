@@ -83,11 +83,38 @@ test('the Notes section of a project is resized on its top edge, within bounds, 
   expect((await page.locator('.sidebar-scroll').boundingBox())!.height).toBeGreaterThanOrEqual(110);
   for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowDown');
   expect((await notes.boundingBox())!.height).toBeGreaterThanOrEqual(79);
-  await page.screenshot({ path: test.info().outputPath('notes-resized.png') });
+  writeFileSync(test.info().outputPath('notes-resized.png'), Buffer.from(await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
   // Collapsed, the section shrinks to its heading and the handle goes away.
   await notes.getByRole('button', { name: 'Notas' }).click();
   await expect(handle).toHaveCount(0);
   await notes.getByRole('button', { name: 'Notas' }).click();
+});
+
+test('with more tabs than fit, discreet arrows at the row ends scroll it, only on the side with hidden tabs', async () => {
+  const row = page.locator('.pane-row').first();
+  await expect(row.locator('.tabs-scroll')).toHaveCount(0);
+  await page.locator('.tree-row[title="context"]').click();
+  const files = page.locator('.tree-row[title^="context/"][title$=".md"]');
+  const n = await files.count();
+  for (let i = 0; i < n; i++) await files.nth(i).click();
+  // The last tab opened is active and in view: tabs are hidden to the left only.
+  await expect(row.locator('.tabs-scroll.left')).toBeVisible();
+  await expect(row.locator('.tabs-scroll.right')).toHaveCount(0);
+  const tabs = row.locator('.pane-tabs');
+  const before = await tabs.evaluate((el) => el.scrollLeft);
+  await row.getByRole('button', { name: 'Abas anteriores' }).click();
+  await expect.poll(() => tabs.evaluate((el) => el.scrollLeft)).toBeLessThan(before);
+  await expect(row.locator('.tabs-scroll.right')).toBeVisible();
+  writeFileSync(test.info().outputPath('tab-arrows.png'), Buffer.from(await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
+  // At the start of the row (wheel or arrows), the left arrow goes away.
+  await tabs.evaluate((el) => { el.scrollLeft = 0; });
+  await expect(row.locator('.tabs-scroll.left')).toHaveCount(0);
+  await row.getByRole('button', { name: 'Próximas abas' }).click();
+  await expect(row.locator('.tabs-scroll.left')).toBeVisible();
+  // Closing the tabs until they fit removes both arrows.
+  for (let i = 0; i < n; i++) await page.keyboard.press('Control+w');
+  await expect(row.locator('.tabs-scroll')).toHaveCount(0);
+  await page.locator('.tree-row[title="context"]').click();
 });
 
 test('start-screen sections keep their headings and scroll on their own', async () => {

@@ -73,6 +73,7 @@ Kroki is a separate service, not a JavaScript dependency embedded in Moki. Its o
 
 ## Tabs, groups and split views
 
+- When the tabs do not fit, discreet ‹ › arrows show at the ends of the row, only on the side with hidden tabs, to scroll to them (the mouse wheel scrolls the row too).
 - Tabs **reopen** in their order when you come back to a project, with the active file, the view mode and the scroll position.
 - Every AI terminal starts its own **group**, with a name and a color; the files it delivers open in its group with a dot until you look at them. Right-click a group to rename it, change its color or close its files; right-click a tab to move it to another group.
 - The **split** button (top right) divides the screen into up to four views, each with its own groups and tabs — the terminal on one side and the file you review on the other. Drag tabs between views and the dividers to resize.

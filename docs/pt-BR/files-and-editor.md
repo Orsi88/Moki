@@ -73,6 +73,7 @@ O Kroki é um serviço separado, não uma dependência JavaScript embarcada no M
 
 ## Abas, grupos e telas divididas
 
+- Quando as abas não cabem, setinhas discretas ‹ › aparecem nas pontas da linha, só do lado em que há abas escondidas, para rolar até elas (a roda do mouse também rola a linha).
 - As abas **reabrem** na mesma ordem quando você volta a um projeto, com o arquivo ativo, o modo de visualização e a posição da rolagem.
 - Cada terminal de IA começa o seu próprio **grupo**, com nome e cor; os arquivos que ele entrega abrem no grupo dele com uma bolinha até você olhar. Botão direito num grupo para renomear, trocar a cor ou fechar os arquivos; botão direito numa aba para movê-la para outro grupo.
 - O botão de **dividir** (canto superior direito) divide a tela em até quatro visões, cada uma com seus grupos e abas — o terminal de um lado e o arquivo que você revisa do outro. Arraste abas entre as visões e os divisores para redimensionar.

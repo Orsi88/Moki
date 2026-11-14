@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { ARRANGEMENTS, GENERAL, GROUP_COLORS, type Arrangement, type Group, type GroupColor, type TabKey } from '../tab-groups';
-import { IconX } from './Icons';
+import { IconChevron, IconX } from './Icons';
 
 export const TAB_DRAG = 'application/x-moki-tab';
 export const groupLabel = (g: Group): string => (g.id === GENERAL ? t('General') : g.name || t('Group'));
@@ -65,6 +65,25 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
   // The active tab comes into view when it changes (many tabs scroll).
   const row = useRef<HTMLDivElement>(null);
   useEffect(() => { row.current?.querySelector('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [active]);
+  // Discreet arrows at the ends of the row, only on a side that has tabs out of sight; a click moves most of a row.
+  const [hidden, setHidden] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const measure = () => {
+      // The row's own padding (8px each side) is not a hidden tab.
+      const left = el.scrollLeft > 10, right = el.scrollLeft + el.clientWidth < el.scrollWidth - 10;
+      setHidden((now) => (now.left === left && now.right === right ? now : { left, right }));
+    };
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const resized = new ResizeObserver(measure);
+    resized.observe(el);
+    const changed = new MutationObserver(measure);
+    changed.observe(el, { childList: true, subtree: true });
+    return () => { el.removeEventListener('scroll', measure); resized.disconnect(); changed.disconnect(); };
+  }, []);
+  const slide = (side: -1 | 1) => { const el = row.current; if (el) el.scrollBy({ left: side * Math.max(120, el.clientWidth * 0.7), behavior: 'smooth' }); };
   const grouped = groups.some((g) => g.id !== GENERAL && counts(g.id) > 0);
   const chips = grouped ? groups.filter((g) => counts(g.id) > 0 || g.id === shown) : [];
   const tabRow = tabs.map((tab) => (
@@ -94,6 +113,7 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
   };
   return (
     <div className="pane-row">
+      {hidden.left && <button type="button" className="tabs-scroll left" onClick={() => slide(-1)} title={t('Previous tabs')} aria-label={t('Previous tabs')}><IconChevron size={14} /></button>}
       <div ref={row} className={`tabs pane-tabs${over ? ' drop-over' : ''}`} role="tablist"
         onWheel={(e) => { const el = e.currentTarget; if (e.deltaY && el.scrollWidth > el.clientWidth) el.scrollLeft += e.deltaY; }}
         onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
@@ -102,6 +122,7 @@ export function PaneHead({ groups, shown, counts, fresh, tabs, active, onShowGro
           ? <span key={`seg-${g.id}`} className={`tab-group${g.id === GENERAL ? ' general' : ''}`} style={groupStyle(g)}>{chip(g)}{tabRow}</span>
           : chip(g))) : tabRow}
       </div>
+      {hidden.right && <button type="button" className="tabs-scroll right" onClick={() => slide(1)} title={t('Next tabs')} aria-label={t('Next tabs')}><IconChevron size={14} /></button>}
       {actions && <div className="pane-actions">{actions}</div>}
     </div>
   );

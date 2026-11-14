@@ -2326,6 +2326,11 @@ span.mcp-row-main { cursor: default; }
 .pane-row > .tabs { flex: 1; min-width: 0; height: 100%; box-sizing: border-box; padding: 5px 8px 0; border-bottom: 0; overflow-y: hidden; scrollbar-width: none; }
 .pane-row > .tabs::-webkit-scrollbar { display: none; }
 .pane-row .tab { box-sizing: border-box; height: 32px; padding: 0 6px 0 12px; flex-shrink: 0; }
+.tabs-scroll { display: grid; place-items: center; flex-shrink: 0; align-self: center; width: 20px; height: 26px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--faint); cursor: pointer; }
+.tabs-scroll:hover, .tabs-scroll:focus-visible { background: var(--bg-3); color: var(--text); }
+.tabs-scroll.left { margin-left: 2px; }
+.tabs-scroll.left svg { transform: scaleX(-1); }
+.tabs-scroll.right { margin-right: 2px; }
 .pane-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; align-self: stretch; padding: 0 6px; }
 .pane-actions .icon-btn, .pane-actions .add-btn { width: 26px; height: 26px; margin: 0; border-radius: 6px; }
 .pane-actions .add-btn-ghost:hover:not(:disabled), .pane-actions .icon-btn:hover:not(:disabled) { background: var(--bg-3); color: var(--text); }

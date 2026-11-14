@@ -453,6 +453,8 @@
   "Hide the file sidebar": "Ocultar barra de archivos",
   "Resize file sidebar": "Ajustar ancho de la barra de archivos",
   "Resize notes": "Ajustar altura de las notas",
+  "Previous tabs": "Pestañas anteriores",
+  "Next tabs": "Pestañas siguientes",
   "Only its revision, dates or comment count changed: no field you read is different.": "Solo cambiaron la revisión, las fechas o el número de comentarios: ningún campo legible es diferente.",
   "{n} updates. Open the report to see what changed.": "{n} actualizaciones. Abre el informe para ver qué cambió.",
   "1 update. Open the report to see what changed.": "1 actualización. Abre el informe para ver qué cambió.",
