@@ -132,6 +132,32 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   await expect(code.locator('.code-file-bar')).toContainText('typescript · linha 3');
   await expect(code.locator('.code-line-mark')).toBeVisible();
   await expect(code.getByRole('button', { name: /Abrir na IDE/ })).toBeVisible();
+  // Shift+click extends the selection to a block; "Mark" makes it an area in the marker's color, its icon in the corner.
+  await code.locator('.code-gutter button').nth(1).click();
+  await code.locator('.code-gutter button').nth(3).click({ modifiers: ['Shift'] });
+  await expect(code.locator('.code-file-bar')).toContainText('linhas 2–4');
+  await page.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Marcar', exact: true }).click();
+  const box = page.getByRole('dialog', { name: 'Marcar' });
+  await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
+  await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+  const area = code.locator('.code-area.marked');
+  await expect(area).toHaveAttribute('data-marker-color', 'blue');
+  await expect(area.locator('.code-area-icon')).toHaveText('🔍');
+  const marked = await area.boundingBox();
+  const second = await code.locator('.code-gutter button').nth(1).boundingBox();
+  expect(Math.abs((marked?.y ?? 0) - (second?.y ?? 0))).toBeLessThan(4); // starts on line 2
+  expect((marked?.height ?? 0) / (second?.height ?? 1)).toBeCloseTo(3, 0); // three lines
+  // A comment on line 1, beside the code; the file itself never changes.
+  await code.locator('.code-gutter button').nth(0).click();
+  await page.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Comentar' }).click();
+  await page.getByRole('dialog', { name: 'Comentário' }).getByRole('textbox').fill('Explicar quem chama esta função.');
+  await page.getByRole('dialog', { name: 'Comentário' }).getByRole('button', { name: 'Comentar' }).click();
+  await expect(code.locator('.md-card', { hasText: 'Explicar quem chama' })).toContainText('linha 1');
+  await expect(code.locator('.md-card.marker-only')).toContainText('linhas 2–4');
+  await expect(code.getByRole('button', { name: 'Comentários (2)' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
+  expect(readFileSync(file, 'utf8')).toContain('export async function login');
+  expect(readFileSync(join(root, 'workspace', 'projects', 'p1', '.moki-html-comments.json'), 'utf8')).toContain('"kind": "code"');
   writeFileSync(test.info().outputPath('code-view.png'), Buffer.from(await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
   await page.keyboard.press('Control+w');
   await page.locator('.tree-row[title="inbox"]').click();

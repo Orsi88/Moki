@@ -71,7 +71,7 @@ Kroki is a separate service, not a JavaScript dependency embedded in Moki. Its o
 
 ## Source code
 
-Code files (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` and many more) open **read-only** with the colors of an IDE and line numbers. Click a line number to select it, then **Open in the IDE** opens VS Code or Cursor on the project at that line, where the code is changed. Configuration files (`.yaml`, `.xml`, `.txt`) stay editable text.
+Code files (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` and many more) open **read-only** with the colors of an IDE and line numbers. Click a line number to select it, then **Open in the IDE** opens VS Code or Cursor on the project at that line, where the code is changed. **Shift+click** another number to select a block of lines; the selection can be **commented on** or **marked**, like a passage of a document: a marked block becomes an area in its marker's color with the icon in its corner. Comments and markers on code are kept in the project, apart from the file, so the code never changes; when lines move, they follow their first line. Configuration files (`.yaml`, `.xml`, `.txt`) stay editable text.
 
 ## Images and other files
 

@@ -779,6 +779,27 @@ test('source code opens read-only with its language; configuration formats stay 
   }
 });
 
+test('code comments: on lines of a source file, kept apart from it; a marker is the prefix of the text', () => {
+  const inbox = join(root, 'workspace', 'projects', 'acme', 'inbox');
+  const file = join(inbox, 'login.ts'), code = 'export function login() {\n  return 1;\n}\n';
+  writeFileSync(file, code);
+  try {
+    const anchor = { kind: 'code', line: 1, endLine: 3, first: 'export function login() {' };
+    const [c] = service.addCodeComment('acme', 'inbox/login.ts', anchor, '[🔍 To review] check the return', 'blue');
+    assert.deepEqual([c.anchor, c.text, c.color], [anchor, '[🔍 To review] check the return', 'blue']);
+    assert.equal(service.changeCodeComment('acme', 'inbox/login.ts', { op: 'reply', id: c.id, text: 'Done.' })[0].replies?.[0].text, 'Done.');
+    assert.equal(service.changeCodeComment('acme', 'inbox/login.ts', { op: 'resolve', id: c.id, resolved: true })[0].resolved, true);
+    assert.equal(readFileSync(file, 'utf8'), code, 'the code never changes');
+    assert.equal(service.codeComments('acme', 'inbox/login.ts').length, 1);
+    assert.deepEqual(service.removeCodeComment('acme', 'inbox/login.ts', c.id), []);
+    assert.throws(() => service.addCodeComment('acme', 'inbox/login.ts', { kind: 'code', line: 3, endLine: 1, first: '' }, 'x'), /Select lines/);
+    writeFileSync(join(inbox, 'notes.txt'), 'x');
+    assert.throws(() => service.codeComments('acme', 'inbox/notes.txt'), /Choose a source file/);
+  } finally {
+    rmSync(file, { force: true }); rmSync(join(inbox, 'notes.txt'), { force: true });
+  }
+});
+
 test('Deliveries: the tree lists only the files the runs delivered, straight under runs/, newest run first', () => {
   const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
   const id = '20261109-1500-requirements-review-us-12';

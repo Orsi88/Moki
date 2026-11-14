@@ -71,7 +71,7 @@ O Kroki é um serviço separado, não uma dependência JavaScript embarcada no M
 
 ## Código-fonte
 
-Arquivos de código (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` e muitos outros) abrem **só para leitura**, com as cores de uma IDE e números de linha. Clique no número de uma linha para selecioná-la; **Abrir na IDE** abre o VS Code ou o Cursor no projeto, naquela linha, onde o código é alterado. Arquivos de configuração (`.yaml`, `.xml`, `.txt`) continuam como texto editável.
+Arquivos de código (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` e muitos outros) abrem **só para leitura**, com as cores de uma IDE e números de linha. Clique no número de uma linha para selecioná-la; **Abrir na IDE** abre o VS Code ou o Cursor no projeto, naquela linha, onde o código é alterado. **Shift+clique** em outro número seleciona um bloco de linhas; a seleção pode ser **comentada** ou **marcada**, como um trecho de documento: um bloco marcado vira uma área na cor do marcador, com o ícone no canto. Comentários e marcadores no código ficam guardados no projeto, à parte do arquivo, então o código nunca muda; quando as linhas mudam de lugar, eles seguem a primeira linha. Arquivos de configuração (`.yaml`, `.xml`, `.txt`) continuam como texto editável.
 
 ## Imagens e outros arquivos
 

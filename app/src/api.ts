@@ -1,4 +1,6 @@
 import type { HtmlAnchor, HtmlComment, HtmlCommentChange } from '../../scripts/lib/html-comments.ts';
+import type { CodeAnchor, CodeComment, CodeCommentChange } from '../../scripts/lib/code-comment-types.ts';
+export type { CodeAnchor, CodeComment, CodeCommentChange } from '../../scripts/lib/code-comment-types.ts';
 import type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 export type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
@@ -434,6 +436,10 @@ export const api = {
   saveDrawing: (project: string, path: string, text: string) => call<FileContent>('saveDrawing', project, path, text),
   editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
   htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
+  codeComments: (project: string, path: string) => call<CodeComment[]>('codeComments', project, path),
+  addCodeComment: (project: string, path: string, anchor: CodeAnchor, text: string, color?: string) => call<CodeComment[]>('addCodeComment', project, path, anchor, text, color),
+  changeCodeComment: (project: string, path: string, change: CodeCommentChange) => call<CodeComment[]>('changeCodeComment', project, path, change),
+  removeCodeComment: (project: string, path: string, id: string) => call<CodeComment[]>('removeCodeComment', project, path, id),
   addHtmlComment: (project: string, path: string, anchor: HtmlAnchor, text: string, color?: string) => call<HtmlComment[]>('addHtmlComment', project, path, anchor, text, color),
   changeHtmlComment: (project: string, path: string, change: HtmlCommentChange) => call<HtmlComment[]>('changeHtmlComment', project, path, change),
   removeHtmlComment: (project: string, path: string, id: string) => call<HtmlComment[]>('removeHtmlComment', project, path, id),

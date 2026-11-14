@@ -49,7 +49,8 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView } from './html-comments.ts';
+import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment } from './html-comments.ts';
+import { isCodeAnchor, isCodeCommentChange } from '../scripts/lib/code-comment-types.ts';
 import { isHtmlAnchor, isHtmlColor, isHtmlCommentChange } from '../scripts/lib/html-comments.ts';
 import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type DiagramKind } from '../scripts/lib/diagram-types.ts';
 import { DIAGRAM_SOURCE_LIMIT, diagramHash, diagramKind, readDiagramSettings, renderDiagramSource, verifyPngExport, verifySvgExport, writeDiagramSettings } from './diagrams.ts';
@@ -592,6 +593,13 @@ export function createService(root: string, deps: Deps) {
 
 
   // The work/ folder (helper files) of each completed or cancelled run, deleted for good. Returns what went.
+  // A source file of the project (the code viewer's kinds), for its line comments.
+  function codeTarget(project: string, rel: string): string {
+    const file = projectPath(project, String(rel ?? ''));
+    if (!codeLanguage(basename(file)) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose a source file.');
+    return file;
+  }
+
   function removeFinishedWork(project: string): string[] {
     const dir = projectDir(project);
     const removed: string[] = [];
@@ -1478,6 +1486,21 @@ export function createService(root: string, deps: Deps) {
       if (!/\.html?$/i.test(file) || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose an HTML page.');
       return failing(() => removeHtmlComment(projectDir(project), rel, id));
     },
+
+    // Comments and markers on lines of a source file, kept in the project's comment store: the code never changes.
+    codeComments: (project: string, rel: string) => { codeTarget(project, rel); return failing(() => codeComments(projectDir(project), rel)); },
+    addCodeComment: (project: string, rel: string, anchor: unknown, text: unknown, color?: unknown) => {
+      codeTarget(project, rel);
+      if (!isCodeAnchor(anchor) || typeof text !== 'string') throw new ServiceError('Select lines and write a comment.');
+      if (color !== undefined && !isHtmlColor(color)) throw new ServiceError('Invalid comment color.');
+      return failing(() => addCodeComment(projectDir(project), rel, anchor, text, userInfo().username, color));
+    },
+    changeCodeComment: (project: string, rel: string, change: unknown) => {
+      codeTarget(project, rel);
+      if (!isCodeCommentChange(change)) throw new ServiceError('Invalid code comment.');
+      return failing(() => changeCodeComment(projectDir(project), rel, change, userInfo().username));
+    },
+    removeCodeComment: (project: string, rel: string, id: string) => { codeTarget(project, rel); return failing(() => removeCodeComment(projectDir(project), rel, String(id))); },
 
     diagramSettings: (project: string) => failing(() => readDiagramSettings(projectDir(project))),
     saveDiagramSettings: (project: string, raw: unknown) => failing(() => writeDiagramSettings(projectDir(project), raw)),

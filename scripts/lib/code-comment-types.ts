@@ -1,0 +1,40 @@
+// Comments and markers on lines of a source file, kept apart from it (the project's comment store) so the code is
+// never changed. A comment holds its lines and the text of its first line: when the file changes, the app finds that
+// text again near where it was (codeAnchorLine).
+
+export interface CodeAnchor { kind: 'code'; line: number; endLine: number; first: string }
+export interface CodeReply { author: string; at: string; text: string }
+export interface CodeComment { id: string; author: string; date: string; text: string; anchor: CodeAnchor; color?: string; replies?: CodeReply[]; resolved?: boolean }
+export type CodeCommentChange = { op: 'edit' | 'reply'; id: string; text: string } | { op: 'color'; id: string; color: string } | { op: 'resolve'; id: string; resolved: boolean };
+
+const COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'red', 'purple'];
+const LINE_LIMIT = 1_000_000;
+
+export function isCodeAnchor(value: unknown): value is CodeAnchor {
+  const a = value as CodeAnchor | null;
+  return Boolean(a && typeof a === 'object' && a.kind === 'code' && Number.isSafeInteger(a.line) && Number.isSafeInteger(a.endLine)
+    && a.line >= 1 && a.endLine >= a.line && a.endLine <= LINE_LIMIT && typeof a.first === 'string' && a.first.length <= 500);
+}
+
+export function isCodeCommentChange(value: unknown): value is CodeCommentChange {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  if (typeof c.id !== 'string' || !c.id || c.id.length > 100) return false;
+  if (c.op === 'color') return typeof c.color === 'string' && COLORS.includes(c.color);
+  if (c.op === 'resolve') return typeof c.resolved === 'boolean';
+  return (c.op === 'edit' || c.op === 'reply') && typeof c.text === 'string' && Boolean(c.text.trim()) && c.text.length <= 10000;
+}
+
+// Where a comment's lines are now: where they were when the first line still reads the same, else the nearest line
+// that reads like it (within 200 lines), else where they were. The range keeps its length. Pure: the app uses it.
+export function codeAnchorLine(anchor: CodeAnchor, lines: string[]): { line: number; endLine: number; moved: boolean } {
+  const span = anchor.endLine - anchor.line;
+  const same = (n: number) => (lines[n - 1] ?? '').trim() === anchor.first.trim();
+  if (!anchor.first.trim() || same(anchor.line)) return { line: anchor.line, endLine: anchor.endLine, moved: false };
+  for (let d = 1; d <= 200; d++) {
+    for (const n of [anchor.line - d, anchor.line + d]) {
+      if (n >= 1 && n <= lines.length && same(n)) return { line: n, endLine: Math.min(n + span, lines.length), moved: true };
+    }
+  }
+  return { line: anchor.line, endLine: anchor.endLine, moved: false };
+}
