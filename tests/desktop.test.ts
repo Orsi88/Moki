@@ -116,6 +116,35 @@ test('deleting a project needs the word "delete" and removes only its folder', a
   rmSync(linked, { recursive: true, force: true });
 });
 
+test('suspending moves the project out of every listing and resuming brings it back as it was', async () => {
+  const tag = service.saveTag({ name: 'Sleepy tag' });
+  service.createProject('Sleepy');
+  service.setProjectTags('sleepy', [tag.id]);
+  const dir = join(root, 'workspace', 'projects', 'sleepy');
+  writeFileSync(join(dir, 'inbox', 'note.md'), 'zzz-unique-word');
+  assert.equal((await service.search('zzz-unique-word', [])).files.length, 1);
+
+  // A project with a terminal still running is not moved (its files are open, and Windows would refuse).
+  const busy = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {}, runningTerminals: (p) => (p === 'sleepy' ? 1 : 0) });
+  assert.throws(() => busy.suspendProject('sleepy'), /still running.*terminal/);
+  assert.throws(() => service.suspendProject('../sleepy'), /Unknown project/);
+
+  assert.equal(service.suspendProject('sleepy'), true);
+  assert.ok(!existsSync(dir));
+  assert.ok(!(await service.projects()).some((p) => p.id === 'sleepy'));
+  assert.deepEqual(service.suspendedProjects(), [{ id: 'sleepy', name: 'Sleepy' }]);
+  assert.equal((await service.search('zzz-unique-word', [])).files.length, 0, 'search does not read a suspended project');
+  assert.throws(() => service.createProject('Sleepy'), /already exists \(suspended\)/);
+  service.removeTag(tag.id); // removed while suspended: resuming drops it from the project
+
+  assert.throws(() => service.resumeProject('acme'), /Unknown suspended project/);
+  assert.equal(service.resumeProject('sleepy').id, 'sleepy');
+  assert.ok(existsSync(join(dir, 'inbox', 'note.md')));
+  assert.deepEqual(projectSummary('sleepy', root).tags, []);
+  assert.deepEqual(service.suspendedProjects(), []);
+  service.deleteProject('sleepy', 'delete');
+});
+
 test('tree lists the project, hides dot files and annotates activities', () => {
   const tree = service.tree('acme');
   assert.deepEqual(tree.slice(0, 3).map((n) => n.name), ['context', 'inbox', 'runs']);
@@ -240,6 +269,29 @@ test('notes: a selection of a PDF becomes a note titled by file and page, with i
   assert.equal(slugify(n.title), 'relatorio-final-p3');
   assert.equal(n.text, '> linha um\n> linha dois\n\nSource: [@Relatório final.pdf](inbox/Relatório final.pdf) · page 3 · rect [10, 20, 50, 42] pt\n');
   assert.equal(service.createNote('acme', n.title, n.text), 'notes/relatorio-final-p3.md');
+});
+
+test('files: exported as a byte-for-byte copy, comments included, to the place the save dialog returns', async (t) => {
+  const dir = join(root, 'workspace', 'projects', 'acme', 'inbox');
+  mkdirSync(dir, { recursive: true });
+  const text = 'Um <!--c:k1-->trecho<!--/c:k1--> comentado.\n\n<!-- moki-comments\n[{"id":"k1","author":"ana","at":"2026-11-13T10:00:00Z","text":"Revisar","replies":[]}]\n-->\n';
+  writeFileSync(join(dir, 'comentado.md'), text);
+  const out = mkdtempSync(join(tmpdir(), 'moki-export-file-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  let asked = '', answer: string | null = join(out, 'copia.md');
+  const exporter = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {}, saveFile: async (n, e, title) => { asked = `${n}|${e}|${title}`; return answer; } });
+  assert.equal(await exporter.exportFile('acme', 'inbox/comentado.md'), join(out, 'copia.md'));
+  assert.equal(asked, 'comentado|md|Export a copy');
+  assert.equal(readFileSync(join(out, 'copia.md'), 'utf8'), text);
+  assert.deepEqual(readdirSync(out), ['copia.md'], 'no temporary file is left behind');
+  answer = null;
+  assert.equal(await exporter.exportFile('acme', 'inbox/comentado.md'), null, 'cancelled dialog');
+  answer = join(dir, 'comentado.md');
+  await assert.rejects(exporter.exportFile('acme', 'inbox/comentado.md'), /different place/);
+  assert.equal(readFileSync(join(dir, 'comentado.md'), 'utf8'), text);
+  await assert.rejects(exporter.exportFile('acme', '../other/project.json'));
+  await assert.rejects(exporter.exportFile('acme', 'inbox'), /not found/);
+  await assert.rejects(service.exportFile('acme', 'inbox/comentado.md'), /not available here/);
 });
 
 test('notes: exported as md, txt and pdf to the file the save dialog returns; nothing else is exported', async (t) => {
@@ -3371,4 +3423,45 @@ test('my AIs: tools are found through PATH, kept while it is the same, and aiToo
     process.env.PATH = `${bin}${process.platform === 'win32' ? ';' : ':'}${tmpdir()}`; // a new PATH is a new lookup
     assert.equal(await claude(), true);
   } finally { process.env.PATH = savedPath; rmSync(bin, { recursive: true, force: true }); }
+});
+
+test('an activity effort level goes to the AI as its own flag; an AI without one starts with its default', () => {
+  const sent: { tool: ToolKey; extra: string[] }[] = [];
+  const svc = createService(root, { launch: (tool, _p, _r, _pl, extra = []) => { sent.push({ tool, extra }); return { opened: true, message: '' }; }, openFolder: () => {}, openPath: () => {} });
+  assert.throws(() => svc.saveActivity({ label: 'Deep', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [], template: 'Think.', effort: 'huge' }), /effort/);
+  const own = svc.saveActivity({ label: 'Deep think', description: '', category: '', kind: 'prompt', target: '', files: 'none', note: '', tags: [], template: 'Think hard.', effort: 'max' });
+  try {
+    assert.equal(own.effort, 'max');
+    const req = { project: 'acme', activity: own.id, files: [], language: 'English', note: '' };
+    for (const tool of ['claude', 'codex', 'gemini']) svc.launch({ ...req, tool });
+    const flags = (tool: string) => sent.find((s) => s.tool === tool)!.extra.slice(-2);
+    assert.deepEqual(flags('claude'), ['--effort', 'max']);
+    assert.deepEqual(flags('codex'), ['-c', 'model_reasoning_effort="high"'], 'Codex has no max');
+    assert.ok(!sent.find((s) => s.tool === 'gemini')!.extra.some((a) => /effort/.test(a)));
+    sent.length = 0;
+    svc.launch({ ...req, activity: 'review', files: ['us-1.md'], tool: 'claude' });
+    assert.ok(!sent[0].extra.includes('--effort'), 'no effort set: the AI default');
+  } finally { svc.deleteActivity(own.id); }
+});
+
+test('files mentioned with @ go as context: the project files and the linked folder code, checked like the panel ▶', async () => {
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'qa-mention-')));
+  mkdirSync(join(repo, 'src'), { recursive: true });
+  writeFileSync(join(repo, 'src', 'cart.ts'), 'export const total = 1;');
+  writeFileSync(join(repo, 'src', 'keys.ts'), `const key = "${'AKIA'}${'ABCDEFGHIJKLMNOP'}";`); // split: the repository's own secret check
+  writeFileSync(join(repo, 'src', 'logo.png'), 'png');
+  const svc = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {}, pickFolder: async () => repo });
+  try {
+    await svc.pickFolder();
+    const made = svc.createProject('Mention shop', 'minimal', repo, []);
+    const req = { project: made.id, activity: 'open', tool: 'print', files: [], language: 'English', note: 'see @@folder/src/cart.ts' };
+    const { prompt } = svc.launch({ ...req, context: ['@folder/src/cart.ts'] });
+    assert.match(prompt, new RegExp(`Files I point you to as context for this request[^.]*: ${repo.split(sep).join('/')}/src/cart\\.ts\\.`));
+    assert.doesNotMatch(svc.launch(req).prompt, /Files I point you to/);
+    assert.throws(() => svc.launch({ ...req, context: ['@folder/src/keys.ts'] }), /credential/);
+    assert.throws(() => svc.launch({ ...req, context: ['@folder/src/logo.png'] }), /cannot be used this way/);
+    assert.throws(() => svc.launch({ ...req, context: ['@folder/../secret.txt'] }), ServiceError);
+    assert.throws(() => svc.launch({ ...req, context: Array.from({ length: 21 }, (_, i) => `f${i}.md`) }), /at most 20/);
+    rmSync(join(root, 'workspace', 'projects', made.id), { recursive: true, force: true });
+  } finally { rmSync(repo, { recursive: true, force: true }); }
 });

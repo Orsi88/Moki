@@ -1,5 +1,5 @@
 // "Open in your AI tool": a short wizard — one question per screen — that
-// prepares the request (activity, inbox files, shared context, agent, notes) and opens the AI
+// prepares the request (activity, inbox files, shared context, agent, notes with @ files) and opens the AI
 // tool the QA already uses. Moki has no chat of its own.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -10,6 +10,7 @@ import { defaultTool, remember } from '../prefs';
 import { IconCheck, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPlay, IconRefresh, IconTerminal, IconX } from './Icons';
 import { FileIcon } from '../icons';
 import { TagChip } from './TagPicker';
+import { flattenTree, useFileMention } from './useFileMention';
 import { AgentPick } from './AgentCatalog';
 import { AiPick } from './ToolCatalog';
 import { InvokeCatalog } from './InvokeCatalog';
@@ -59,6 +60,15 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [agent, setAgent] = useState(preset?.agent ?? '');
   const [note, setNote] = useState('');
+  // @ in the notes: the project's files and its linked folder's code; the ones still written in the notes go as context.
+  const [projectFiles, setProjectFiles] = useState<string[]>([]);
+  const noteBox = useRef<HTMLTextAreaElement>(null);
+  const mention = useFileMention(projectFiles, (file, start) => {
+    const end = noteBox.current?.selectionStart ?? note.length;
+    setNote((n) => `${n.slice(0, start)}@${file} ${n.slice(end)}`.slice(0, 2000));
+  });
+  const context = projectFiles.filter((f) => note.includes(`@${f}`));
+  useEffect(() => { api.tree(project.id).then((nodes) => setProjectFiles(flattenTree(nodes))).catch(() => setProjectFiles([])); }, [project.id]);
   const [language, setLanguage] = useState(conversationLanguage);
   const [tool, setTool] = useState(() => {
     const saved = preset?.tool ?? defaultTool();
@@ -147,7 +157,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
       setError(t('The request is taking too long. Close this and try again.'));
     }, 20000);
     try {
-      const req = { project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, skill: skill || undefined, exclude: resume ? [] : exclude, ...(trackingId ? { trackingId } : {}) };
+      const req = { project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, skill: skill || undefined, exclude: resume ? [] : exclude, ...(context.length ? { context } : {}), ...(trackingId ? { trackingId } : {}) };
       if (destination === 'current' && preset?.terminal) {
         await api.invokeInTerminal(req, preset.terminal.id);
         if (!late) { onActivityUpdate?.(trackingId, 'prepared'); onPrepared?.(preset.terminal); }
@@ -208,6 +218,8 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
       ...(agents.length && !fromPanel && activity !== 'talk' ? [{ step: 'agent' as StepKey, label: t('Who does it'), value: agentLabel }] : []),
     ]),
     { step: 'details', label: t('Notes'), value: note.trim() || t('None') },
+    ...(current?.effort && destination === 'new' ? [{ step: 'tool' as StepKey, label: t('Effort level'), value: t(({ low: 'Low', medium: 'Medium', high: 'High', max: 'Maximum' } as Record<string, string>)[current.effort])
+      + (selectedTool && !selectedTool.effort ? ` · ${t('not supported by this AI')}` : '') }] : []),
     ...(resume ? [] : [{ step: 'details' as StepKey, label: t('Conversation language'), value: t(language) }]),
     { step: 'destination', label: t('Destination'), value: destination === 'current' ? `${t('This terminal')} · ${preset?.terminal?.title ?? ''}` : t('New terminal') },
     ...(destination === 'current' || fromPanel ? [] : [{ step: 'tool' as StepKey, label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' }]),
@@ -307,7 +319,14 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
 
           {step === 'details' && (
             <>
-              <textarea rows={4} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} placeholder={current?.note || t('e.g. focus on permissions')} autoFocus />
+              <div className="launch-mention">
+                <textarea ref={noteBox} rows={4} maxLength={2000} value={note} autoFocus
+                  onChange={(e) => { setNote(e.target.value); mention.find(e.target.value, e.target.selectionStart); }}
+                  onKeyDown={(e) => { mention.key(e); }} onBlur={() => setTimeout(mention.close, 150)}
+                  placeholder={current?.note || t('e.g. focus on permissions')} />
+                {mention.list()}
+              </div>
+              <p className="muted small">{context.length ? t('Files sent as context: {files}', { files: context.join(', ') }) : t('Type @ to point the AI to a file of the project or of its code folder.')}</p>
               {!resume && (
                 <label className="field inline">
                   <span className="label">{t('The AI should talk to me in')}</span>

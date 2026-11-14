@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { ROOT, SLUG, readJson, workspaceDir, workspaceLabel } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { contractLines, isUsableAgent, listAgents, type AgentContract } from './agents.ts';
-import { activityRequest, activitySkills, getActivity, listActivities, type ActivityDef } from './activities.ts';
+import { activityRequest, activitySkills, getActivity, listActivities, type ActivityDef, type Effort } from './activities.ts';
 
 // Activities are scripts/lib/activities.ts: the app's own actions in code, the others in activities/ and the workspace library.
 export type ActivityKey = string;
@@ -37,6 +37,7 @@ export interface Tool {
   install?: { docs: string; posix?: string; windows?: string };
   download?: string; // editors: where to get the editor itself
   mokiExtension?: 'supported' | 'unverified'; // editors that take the Moki extension (ide/vscode); 'unverified': not tested there
+  effort?: (level: Effort) => string[]; // an activity's effort as this tool's arguments; a tool without it starts with its own default
 }
 
 // The Moki extension's id (publisher.name in ide/vscode/package.json), as `--list-extensions` prints it.
@@ -47,10 +48,12 @@ export const TOOLS: Record<ToolKey, Tool> = {
   // "--": the prompt is never taken by an option before it (--mcp-config and --plugin-dir take several values).
   claude: {
     label: 'Claude Code', command: 'claude', args: (p) => ['--', p],
+    effort: (l) => ['--effort', l], // claude --help: low, medium, high, xhigh, max
     install: { docs: 'https://code.claude.com/docs/en/setup', posix: 'curl -fsSL https://claude.ai/install.sh | bash', windows: 'irm https://claude.ai/install.ps1 | iex' },
   },
   codex: {
     label: 'OpenAI Codex CLI', command: 'codex', args: (p) => [p],
+    effort: (l) => ['-c', `model_reasoning_effort="${l === 'max' ? 'high' : l}"`], // config.toml key; Codex has no "max"
     install: { docs: 'https://github.com/openai/codex', posix: 'npm install -g @openai/codex', windows: 'npm install -g @openai/codex' }, // needs Node/npm
   },
   // The installer creates "agent" and the legacy "cursor-agent" on every system (cursor.com/install).
@@ -64,6 +67,7 @@ export const TOOLS: Record<ToolKey, Tool> = {
   },
   antigravity: {
     label: 'Antigravity CLI', command: 'agy', args: (p) => ['-i', p],
+    effort: (l) => ['--effort', l], // agy --help: low|medium|high|xhigh|max
     install: { docs: 'https://antigravity.google/docs/getting-started?tab=cli', posix: 'curl -fsSL https://antigravity.google/cli/install.sh | bash', windows: 'irm https://antigravity.google/cli/install.ps1 | iex' },
   },
   cursor: { label: 'Cursor editor', hint: 'opens the folder, request copied to clipboard', command: 'cursor', args: () => [ROOT], clipboard: true, download: 'https://cursor.com/download', mokiExtension: 'unverified' },
@@ -207,7 +211,17 @@ export function parseDefaults(value: unknown): ProjectDefault[] {
 export const projectsDir = (root = ROOT): string => join(workspaceDir(root), 'projects');
 
 export function listProjects(root = ROOT): string[] {
-  const dir = projectsDir(root);
+  return projectFolders(projectsDir(root));
+}
+
+// Suspended projects (desktop app): the folder moved out of projects/ to save machine resources. Nothing that lists
+// projects sees them (routines, search, runs, IDE, AI tools) until they are moved back.
+export const suspendedDir = (root = ROOT): string => join(workspaceDir(root), 'suspended');
+export function listSuspended(root = ROOT): string[] {
+  return projectFolders(suspendedDir(root));
+}
+
+function projectFolders(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((d) => existsSync(join(dir, d, 'project.json'))).sort();
 }
@@ -392,6 +406,7 @@ export function createProject(id: string, name: string, root = ROOT, starter: St
   if (!SLUG.test(id)) throw new Error('Project id: use lowercase letters, digits and single hyphens.');
   const target = join(projectsDir(root), id);
   if (existsSync(target)) throw new Error(`Project "${id}" already exists.`);
+  if (existsSync(join(suspendedDir(root), id))) throw new Error(`Project "${id}" already exists (suspended).`);
   cpSync(join(root, 'templates', 'project-context'), target, { recursive: true });
   renameSync(join(target, 'gitignore.txt'), join(target, '.gitignore'));
   if (starter !== 'qa') rmSync(join(target, 'context'), { recursive: true, force: true });
@@ -584,6 +599,7 @@ export interface Request {
   available?: { skills: string[]; agents: string[] }; // what the plan activity may recommend (global skills, usable agents)
   shared?: { tag: string; project: string; paths: string[] }[]; // other projects' files shared through tags and kept by the user
   excluded?: string[]; // this project's context files the user left out of the activity
+  references?: string[]; // project or linked-folder files the user mentioned with @ for this request (checked by the service)
   root?: string; // the framework whose activities/ and workspace library hold the activity (tests use another)
   workspace?: string; // workspaceLabel: "workspace", or the folder of another workspace
   skill?: string; // the skill named by the project panel's "Use a skill" start
@@ -678,7 +694,7 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
   return parts.join(' ');
 }
 
-export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], root = ROOT, workspace = 'workspace', skill = '', skillPath = '' }: Request): string {
+export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], references = [], root = ROOT, workspace = 'workspace', skill = '', skillPath = '' }: Request): string {
   // Resolve an activity's agent here too, so the terminal menu and the app ask for the same role.
   const definition = getActivity(activity, root);
   if (!agent && definition?.target.kind === 'agent') {
@@ -749,6 +765,7 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
       + " Read nothing else from other projects. Record these files in the run's state.json under contextSources.");
   }
   if (excluded.length) parts.push(`Do not use these files of this project in this activity: ${excluded.join(', ')}.`);
+  if (references.length) parts.push(`Files I point you to as context for this request (read them; do not change them unless I ask): ${references.join(', ')}.`);
   if (note.trim()) parts.push(`Additional instructions: ${note.trim().replace(/([^.!?])$/, '$1.')}`);
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');

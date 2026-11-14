@@ -4,7 +4,8 @@
 
 - **Drop files on the window** and they are copied into **Inbox** — up to 40 files, 200 MB each (folders are skipped).
 - **Drop a file on a folder** of the tree to copy it there; **drag a file** of the tree onto another folder to move it.
-- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, **use in the terminal** (Context and Notes files: the AI reads it as context for what you ask next), and **delete** — to the trash.
+- **Right-click** (or the ⋯ menu) for: new file or folder, **rename** (F2), show in the folder, copy the path or a link, **export a copy** (files only: saved where you choose, unchanged), **use in the terminal** (Context and Notes files: the AI reads it as context for what you ask next), and **delete** — to the trash.
+- **Take a commented Markdown file to another Moki:** export a copy and send it; the other person drops it on their window or a folder. The comments, with their authors and dates, travel inside the `.md`. HTML and diagram comments are kept with the project, so they do not go with the copy.
 - The fixed folders (Context, Inbox, Notes, Temporary, Execution files) are emptied, never removed. Files the AI saves show up in the tree as they land.
 
 ## Markdown: one editor for reading, writing and commenting

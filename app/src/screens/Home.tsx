@@ -8,7 +8,7 @@ import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
 import { SearchPanel } from '../components/SearchPanel';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
-import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPin, IconStar, IconTrash, IconX } from '../components/Icons';
+import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPause, IconPin, IconPlay, IconStar, IconTrash, IconX } from '../components/Icons';
 import { NoteDialog } from '../components/NoteDialog';
 import { RenameField } from '../components/RenameField';
 import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, retitleNote, setFavorite, showProject, togglePin } from '../side-menu';
@@ -70,6 +70,9 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
   const [pins, setPins] = useState<string[]>(pinnedIds);
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
+  // Suspended projects: their folder is out of the workspace's project list until resumed (saves machine resources).
+  const [suspended, setSuspended] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => { api.suspendedProjects().then(setSuspended).catch(() => setSuspended([])); }, [projects]);
   // A saved note opened here, inside the app. New loose notes are created from the fixed icon rail.
   const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null); // { loose: null }: a new loose note
   useEffect(() => { if (newNote) setOpenNote({ loose: null }); }, [newNote]);
@@ -159,6 +162,14 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
     setPins(pinnedIds());
   };
 
+  const suspend = async (p: ProjectSummary) => {
+    if (!await confirmDialog(t('Suspend {name}? Moki stops its routines, search and AI tools until you resume it. No file is lost.', { name: p.name }))) return;
+    api.suspendProject(p.id).then(() => onDeleted?.()).catch((e: Error) => setError(e.message));
+  };
+  const resume = (id: string) => {
+    api.resumeProject(id).then(() => onDeleted?.()).catch((e: Error) => setError(e.message));
+  };
+
   const deleted = (id: string) => {
     forgetProject(id);
     setHidden(hiddenIds()); setPins(pinnedIds()); setNoteTick((n) => n + 1); setDeleting(null);
@@ -176,6 +187,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
       renameItem(`project:${p.id}`),
       { label: pinnedRow ? t('Unpin') : t('Pin'), icon: <IconPin size={15} />, run: () => setPins(togglePin(p.id)) },
       { label: t('Hide from Moki'), icon: <IconEyeOff size={15} />, run: () => hide(p) },
+      { label: t('Suspend'), icon: <IconPause size={15} />, run: () => { void suspend(p); } },
       { label: t('Delete for good'), icon: <IconTrash size={15} />, danger: true, run: () => setDeleting(p) },
     ])}>
       {renaming === `project:${p.id}` ? nameCell(`project:${p.id}`, p.name, (name) => renameProject(p, name), projectMeta(p)) : (
@@ -319,6 +331,22 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
                         {onboarding(p.onboardingStatus)} · {p.runs} {p.runs === 1 ? t('activity') : t('activities')}
                       </span>
                       <IconChevron size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {suspended.length > 0 && (
+            <details className="home-hidden">
+              <summary className="home-list-head">{t('Suspended ({n})', { n: suspended.length })}</summary>
+              <ul>
+                {suspended.map((p) => (
+                  <li key={p.id} className="home-row">
+                    <button type="button" className="home-project" onClick={() => resume(p.id)} title={t('Resume')}>
+                      <span className="home-project-name">{p.name}</span>
+                      <span className="home-project-meta">{t('Suspended')}</span>
+                      <IconPlay size={16} />
                     </button>
                   </li>
                 ))}

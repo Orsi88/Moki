@@ -759,6 +759,8 @@
   "Underline": "Subrayado",
   "Show in folder": "Mostrar en la carpeta",
   "Copy path": "Copiar ruta",
+  "Export a copy…": "Exportar una copia…",
+  "Copy saved.": "Copia guardada.",
   "Path copied: {path}": "Ruta copiada: {path}",
   "More options": "Más opciones",
   "Project folder options": "Opciones de la carpeta del proyecto",
@@ -2314,5 +2316,17 @@
   "Asks the onboarding questions and updates what the project has confirmed.": "Hace las preguntas de entrada y actualiza lo que el proyecto ya confirmó.",
   "Adapts the context to the project description.": "Adapta el contexto a la descripción del proyecto.",
   "Interviews you and leaves a plan for you to review.": "Entrevista y deja un plan para que lo revises.",
-  "Continues a review or a piece of work that stopped.": "Continúa una revisión o un trabajo que quedó parado."
+  "Continues a review or a piece of work that stopped.": "Continúa una revisión o un trabajo que quedó parado.",
+  "Suspend": "Suspender",
+  "Suspended": "Suspendido",
+  "Suspended ({n})": "Suspendidos ({n})",
+  "Suspend {name}? Moki stops its routines, search and AI tools until you resume it. No file is lost.": "¿Suspender {name}? Moki detiene sus rutinas, la búsqueda y las IA hasta que lo reanudes. No se pierde ningún archivo.",
+  "The AI's default": "Predeterminado de la IA",
+  "Maximum": "Máximo",
+  "Effort level": "Nivel de esfuerzo",
+  "Effort: {level}": "Esfuerzo: {level}",
+  "not supported by this AI": "no compatible con esta IA",
+  "Files sent as context: {files}": "Archivos enviados como contexto: {files}",
+  "Type @ to point the AI to a file of the project or of its code folder.": "Escribe @ para indicar a la IA un archivo del proyecto o de su carpeta de código.",
+  "How hard the AI thinks: Claude Code, Codex and Antigravity take it; other AIs use their default.": "Cuánto piensa la IA: Claude Code, Codex y Antigravity lo aceptan; las demás IA usan su valor predeterminado."
 }

@@ -13,7 +13,7 @@ An **activity** is a reusable request: the entry you pick in **Call…** (also a
 
 **Call…** opens one searchable list of Activities, Agents, Skills and Operations in the project panel and above a running AI terminal. Use **Ctrl+Shift+K** (macOS: **Cmd+Shift+K**) for the same list.
 
-Choose an item, then supply its inbox files, shared context and optional note. **This terminal** pastes the prepared request at the current cursor without sending it or clearing your draft; add context and press Enter when ready. The terminal must be a running AI terminal in this project. **New terminal** uses the usual tool selection and launch.
+Choose an item, then supply its inbox files, shared context and optional note. In the note, type `@` to point the AI to a file of the project or of its linked code folder: the files still mentioned when you send go in the request as context, checked first (no hidden files, no credentials; documents, data and code files, at most 20). **This terminal** pastes the prepared request at the current cursor without sending it or clearing your draft; add context and press Enter when ready. The terminal must be a running AI terminal in this project. **New terminal** uses the usual tool selection and launch.
 
 An operation, including an activity that points to one, always opens its own start form: each step uses its own terminal. The list explains this before you choose it. A pasted request remains *prepared* until an actual matching run registers; Moki does not infer that you sent it.
 
@@ -33,7 +33,7 @@ The built-in list also includes **Model data with Cartógrafo**, **Design a solu
 
 The tab lists every activity with filters (All, Favorites, Comes with Moki, Your activities, Moki actions) and a search field.
 
-- **New activity**: a name, a description, a category, its model (Text only, Agent, Skills, Workflow or Operation), which inbox files it needs (required, optional or none), the request sent to the AI, a hint for the note and the tags. Skills allows one or several selections.
+- **New activity**: a name, a description, a category, its model (Text only, Agent, Skills, Workflow or Operation), which inbox files it needs (required, optional or none), the effort level, the request sent to the AI, a hint for the note and the tags. Skills allows one or several selections.
 - **The star** makes an activity a favorite: favorites come first wherever activities are picked.
 - An activity of an **operation** opens the operation's start form instead of a request.
 - An activity of an **agent** asks the AI to act as that agent, unless you choose another agent when you open it.
@@ -64,6 +64,7 @@ Use the test-design skill to map the test scenarios for: {files}.
 | `description`, `category`, `note` | Free text (the note is the hint shown for the person's note) |
 | `uses` | Optional: `skill:<name>`, several distinct skills separated by commas (`skill:requirements-review, skill:test-design`), `agent:<name>`, `workflow:<id>` (a workflow of `qa-orchestrator`) or `operation:<id>`. Omit it for text only; then the request is required. Mixing target kinds is refused |
 | `files` | `required`, `optional` or `none` |
+| `effort` | Optional: `low`, `medium`, `high` or `max`, how hard the AI thinks. Claude Code and Antigravity get `--effort`, Codex gets `model_reasoning_effort` (`max` becomes `high`); Gemini and Cursor Agent use their default. Omit it for the AI's default |
 | `tags` | Tags separated by commas; empty = every project |
 
 In the request, `{files}` becomes the chosen inbox files (a line with `{files}` is left out when there are none), a line that starts with `{no-files}` is kept only when there are none, and `{project}` becomes the project id. An empty request asks for the skill, the workflow or the agent the activity uses. The app adds the rest of the request as for any activity: the project, the linked folder, the agent, the shared context, the files left out, your note and the language.

@@ -20,8 +20,9 @@ import { BroughtMark, useUploads } from './BroughtMark';
 type Kind = 'all' | 'favorites' | 'moki' | 'builtin' | 'library';
 type Targets = { skills: string[]; agents: string[]; workflows: string[]; operations: { id: string; name: string }[] };
 
-const EMPTY: ActivityDraft = { label: '', description: '', category: '', kind: 'prompt', target: '', skills: [], files: 'optional', note: '', tags: [], template: '' };
+const EMPTY: ActivityDraft = { label: '', description: '', category: '', kind: 'prompt', target: '', skills: [], files: 'optional', note: '', tags: [], template: '', effort: '' };
 const sourceLabel = (s: ActivityInfo['source']) => ({ moki: t('Moki action'), builtin: t('Comes with Moki'), library: t('Your activity') })[s];
+const effortLabel = (e: string) => ({ '': t("The AI's default"), low: t('Low'), medium: t('Medium'), high: t('High'), max: t('Maximum') } as Record<string, string>)[e] ?? e;
 const filesLabel = (f: string) => ({ required: t('Needs inbox files'), optional: t('Inbox files optional'), none: t('No files') } as Record<string, string>)[f] ?? f;
 const kindLabel = (k: string) => ({ prompt: t('Text only'), skills: t('Skills'), skill: t('Skill'), agent: t('Agent'), workflow: t('Workflow'), operation: t('Operation'), moki: t('Moki') } as Record<string, string>)[k] ?? k;
 const targetLabel = (a: ActivityInfo) => a.target.kind === 'prompt' ? t('Text only') : `${kindLabel(a.target.kind)}: ${activityTargetLabel(a.target)}`;
@@ -29,7 +30,7 @@ const toDraft = (a: ActivityDetail): ActivityDraft => ({
   id: a.source === 'library' ? a.id : undefined, label: a.label, description: a.hint, category: a.category,
   kind: a.target.kind === 'moki' || a.target.kind === 'skill' ? 'skills' : a.target.kind,
   target: a.target.kind === 'prompt' || a.target.kind === 'skills' ? '' : a.target.name,
-  skills: a.skills, files: a.files, note: a.note, tags: a.tags, template: a.template,
+  skills: a.skills, files: a.files, note: a.note, tags: a.tags, template: a.template, effort: a.effort,
 });
 
 export function ActivitiesPage() {
@@ -101,6 +102,11 @@ export function ActivitiesPage() {
             {['required', 'optional', 'none'].map((f) => <option key={f} value={f}>{filesLabel(f)}</option>)}
           </select>
         </label>
+        <label className="field"><span className="label">{t('Effort level')}</span>
+          <select value={d.effort ?? ''} onChange={(e) => set({ effort: e.target.value })} title={t('How hard the AI thinks: Claude Code, Codex and Antigravity take it; other AIs use their default.')}>
+            {['', 'low', 'medium', 'high', 'max'].map((e) => <option key={e} value={e}>{effortLabel(e)}</option>)}
+          </select>
+        </label>
       </div>
       {d.kind === 'skills' && <div className="field">
         <span className="label">{t('Choose one or more skills')}</span>
@@ -152,6 +158,7 @@ export function ActivitiesPage() {
             <span className={`chip${open.source === 'library' ? ' chip-accent' : ''}`}>{sourceLabel(open.source)}</span>
             <span className="chip">{targetLabel(open)}</span>
             <span className="chip">{filesLabel(open.files)}</span>
+            {open.effort && <span className="chip">{t('Effort: {level}', { level: effortLabel(open.effort) })}</span>}
             {!open.available && <span className="chip">{t('Not available yet')}</span>}
           </div>
         </header>

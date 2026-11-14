@@ -25,6 +25,8 @@ A project is one body of work. Its id is short and lowercase (`billing-portal`) 
 
 On the start screen, **pin** a project to keep it on top, or **hide** one (its files stay; it moves under *Hidden*). **Deleting a project for good** asks you to type a word, and does not use the trash.
 
+**Suspend** a project you are not using (right click on it) to save machine resources: its folder moves to `workspace/suspended/`, so routines, search, the AI tools and the IDE extension stop reading it, and nothing in it changes. A project with a terminal or a routine still running is not suspended. It shows under *Suspended*; a click resumes it as it was.
+
 ### Inside a project folder
 
 ```text

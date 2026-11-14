@@ -184,6 +184,11 @@ function held(root: string, routine: Routine): boolean {
   return exec?.status === 'running' || exec?.status === 'waiting';
 }
 
+// Routines of the project with an execution in progress (a project cannot be suspended under them).
+export function runningRoutines(root: string, project: string): number {
+  return listRoutineFiles(root, project).filter((routine) => held(root, routine)).length;
+}
+
 export async function runRoutine(root: string, project: string, routineId: string, trigger: Execution['triggerType'], hooks: RunHooks): Promise<Execution> {
   return withRoutineWorkspace(root, () => runScoped(root, project, routineId, trigger, hooks));
 }

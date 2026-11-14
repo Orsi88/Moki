@@ -13,7 +13,7 @@ Uma **atividade** é um modelo de pedido reutilizável: o item que você escolhe
 
 **Chamar…** abre uma lista com busca de Atividades, Agentes, Skills e Operações no painel do projeto e acima de um terminal de IA em execução. O atalho **Ctrl+Shift+K** (macOS: **Cmd+Shift+K**) abre a mesma lista.
 
-Escolha um item e informe os arquivos da Entrada, o contexto compartilhado e uma observação, conforme necessário. **Neste terminal** cola o pedido no cursor, sem enviar e sem apagar o que você já escreveu; acrescente contexto e pressione Enter quando quiser. Essa opção exige um terminal de IA em execução neste projeto. **Num terminal novo** mantém a escolha da ferramenta e a abertura habitual.
+Escolha um item e informe os arquivos da Entrada, o contexto compartilhado e uma observação, conforme necessário. Na observação, digite `@` para indicar à IA um arquivo do projeto ou da pasta de código vinculada: os arquivos ainda mencionados no envio vão no pedido como contexto, verificados antes (sem arquivos ocultos, sem credenciais; documentos, dados e código, no máximo 20). **Neste terminal** cola o pedido no cursor, sem enviar e sem apagar o que você já escreveu; acrescente contexto e pressione Enter quando quiser. Essa opção exige um terminal de IA em execução neste projeto. **Num terminal novo** mantém a escolha da ferramenta e a abertura habitual.
 
 Uma operação, inclusive uma atividade que aponta para ela, sempre abre seu próprio formulário: cada etapa usa seu próprio terminal. A lista explica isso antes da escolha. Um pedido colado fica como *preparado* até que uma execução correspondente seja registrada; o Moki não presume que você o enviou.
 
@@ -33,7 +33,7 @@ A lista também inclui **Modelar dados com o Cartógrafo**, **Desenhar uma solu�
 
 A aba lista todas as atividades, com filtros (Todos, Favoritas, Vem com o Moki, Suas, Ações do Moki) e busca.
 
-- **Nova atividade**: nome, descrição, categoria, modelo (Só texto, Agente, Skills, Fluxo ou Operação), quais arquivos da entrada precisa (obrigatórios, opcionais ou nenhum), o pedido enviado à IA, uma dica para a observação e as tags. Em Skills, selecione uma ou várias.
+- **Nova atividade**: nome, descrição, categoria, modelo (Só texto, Agente, Skills, Fluxo ou Operação), quais arquivos da entrada precisa (obrigatórios, opcionais ou nenhum), o nível de esforço, o pedido enviado à IA, uma dica para a observação e as tags. Em Skills, selecione uma ou várias.
 - **A estrela** torna uma atividade favorita: as favoritas aparecem primeiro em todo lugar onde se escolhe uma atividade.
 - Uma atividade de **operação** abre o formulário de início da operação, em vez de um pedido; a operação precisa estar vinculada ao projeto (no painel Operações dele).
 - Uma atividade de **agente** pede à IA que aja como aquele agente, a menos que você escolha outro agente ao abrir.
@@ -64,6 +64,7 @@ Use the test-design skill to map the test scenarios for: {files}.
 | `description`, `category`, `note` | Texto livre (a `note` é a dica mostrada para a observação da pessoa) |
 | `uses` | Opcional: `skill:<nome>`, várias skills distintas separadas por vírgulas (`skill:requirements-review, skill:test-design`), `agent:<nome>`, `workflow:<id>` (um workflow do `qa-orchestrator`) ou `operation:<id>`. Omita para só texto; nesse caso, o pedido é obrigatório. Não é permitido misturar tipos |
 | `files` | `required`, `optional` ou `none` |
+| `effort` | Opcional: `low`, `medium`, `high` ou `max`, quanto a IA pensa. Claude Code e Antigravity recebem `--effort`, o Codex recebe `model_reasoning_effort` (`max` vira `high`); Gemini e Cursor Agent usam o padrão deles. Omita para usar o padrão da IA |
 | `tags` | Tags separadas por vírgula; vazio = todos os projetos |
 
 No pedido, `{files}` vira os arquivos da entrada escolhidos (uma linha com `{files}` some quando não há arquivos), uma linha que começa com `{no-files}` só fica quando não há arquivos, e `{project}` vira o id do projeto. Um pedido vazio pede a skill, o workflow ou o agente que a atividade usa. O app acrescenta o resto do pedido como em qualquer atividade: o projeto, a pasta vinculada, o agente, o contexto compartilhado, os arquivos deixados de fora, a sua observação e o idioma.

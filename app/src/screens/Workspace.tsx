@@ -26,7 +26,7 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconBroom, IconChevron, IconCode, IconCopy, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconChevron, IconCode, IconCopy, IconDownload, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -744,6 +744,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     api.copyPath(project.id, path).then((full) => setNotice(t('Path copied: {path}', { path: full }))).catch((e: Error) => setError(e.message));
   };
 
+  const exportItem = (path: string) => {
+    setItemMenu(null);
+    api.exportFile(project.id, path).then((saved) => { if (saved) flash(t('Copy saved.')); }).catch((e: Error) => setError(e.message));
+  };
+
   // Leaving the workspace keeps its terminals running (they come back with it); only unsaved changes ask first.
   const canLeave = async () => {
     flushEdits();
@@ -1199,6 +1204,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
             )}
             <li><button type="button" role="menuitem" autoFocus={!itemMenu.canCreate && !isNote(itemMenu.path) && !canRename(itemMenu.path)} onClick={() => revealItem(itemMenu.path)}><IconFolder size={15} /> {t('Show in folder')}</button></li>
             <li><button type="button" role="menuitem" onClick={() => copyItemPath(itemMenu.path)}><IconCopy size={15} /> {t('Copy path')}</button></li>
+            {findFile(tree, itemMenu.path)?.type === 'file' && <li><button type="button" role="menuitem" onClick={() => exportItem(itemMenu.path)}><IconDownload size={15} /> {t('Export a copy…')}</button></li>}
             {findFile(tree, itemMenu.path) && <li><button type="button" role="menuitem" onClick={() => {
               const path = itemMenu.path; setItemMenu(null);
               api.copyText(projectLink(path)).then(() => flash(t('Link copied.'))).catch((e: Error) => setError(e.message));

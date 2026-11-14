@@ -79,7 +79,9 @@ const service = createService(ROOT, {
   saveFile: async (name, extension, title) => {
     const parent = BrowserWindow.getFocusedWindow() ?? win; // the note window or the main one
     if (!parent) return null;
-    const r = await dialog.showSaveDialog(parent, { title: title ?? 'Export the note', defaultPath: `${name}.${extension}`, filters: [{ name: extension.toUpperCase(), extensions: [extension] }] });
+    const r = await dialog.showSaveDialog(parent, extension
+      ? { title: title ?? 'Export the note', defaultPath: `${name}.${extension}`, filters: [{ name: extension.toUpperCase(), extensions: [extension] }] }
+      : { title: title ?? 'Export the note', defaultPath: name });
     return r.canceled ? null : r.filePath ?? null;
   },
   pickFile: async () => {
@@ -90,6 +92,7 @@ const service = createService(ROOT, {
   onWorkspace: (dir) => { searchWindow?.close(); setWorkspaceEnv(ROOT, dir); },
   killTerminal: (id) => terminals.kill(id),
   startTerminal: (id, project) => { const error = terminals.start(id, 100, 30, project); terminals.detach(id); return error; },
+  runningTerminals: (project) => terminals.list().filter((term) => term.project === project).length,
   terminalAlive: (id) => terminals.alive(id),
   writeTerminal: (id, data) => terminals.write(id, data),
   pasteRequest: (project, id, prompt) => terminals.pasteRequest(project, id, prompt),

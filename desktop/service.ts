@@ -16,7 +16,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   CRAFT_APPS, LANGUAGES, TOOLS, START_INSTRUCTIONS_LIMIT, buildInvokePrompt, buildStartPrompt, type InvokeTarget, parseDefaults, type ProjectDefault, agentFiles, contextChoice, fileTags, listTags, moveFileTags, removeTag, saveTag, setFileTags, setProjectTags, agentMarkdown, buildPrompt, copyToInbox, createProject, detectTools, detectToolsAsync, installedAgents, installedSkills, isProject, isTool, isUsable, linkedFolder, listProjects, listProjectsAsync, mapLimit, projectSummaryAsync, IO_LIMIT,
-  listRuns, listSkills, openRuns, mirrorProjectSkills, projectAgentsDir, projectRepository, projectSkillTargets, projectSkillsDir, projectSummary, projectsDir, skillFolders, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
+  listRuns, listSkills, listSuspended, openRuns, mirrorProjectSkills, projectAgentsDir, projectRepository, projectSkillTargets, projectSkillsDir, projectSummary, projectsDir, skillFolders, suspendedDir, skillStatus, slugify, which, windowsSafePrompt, PROJECT_PLUGINS, STARTERS, type ProjectSummary, type Starter, type ToolKey,
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
@@ -37,7 +37,7 @@ import { checkOperation, cleanOperation, formatMessage, listOperations, removeOp
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 import { allFavorites, isFavoriteKind, setFavoriteOf } from '../scripts/lib/favorites.ts';
-import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
+import { FILES_RULES, ID as ACTIVITY_ID, TARGET_KINDS, isEffort, activityId, activityMarkdown, activitySkills, favorites, getActivity, isPickable, listActivities, parseActivity, removeLibraryActivity, saveLibraryActivity, setFavorite, type ActivityDef, type ActivityTarget, type FilesRule, type TargetKind } from '../scripts/lib/activities.ts';
 import { listTemplates, removeTemplate, saveTemplate, saveTemplateModel, setProjectTemplate, templateFor, templateModelPath } from '../scripts/lib/doc-style.mjs';
 import { agentTags, agentsOfProject, setAgentTags, setAgentsOfProject } from '../scripts/lib/agent-tags.ts';
 import { artcraftSkills as artcraftSkillsOf, linkedGlobalSkills as linkedSkillsOf, projectItems as listProjectItems, type ProjectItem } from '../scripts/lib/project-items.ts';
@@ -58,7 +58,7 @@ import { noteTitles, setNoteTitle } from './note-titles.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
-import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
+import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, runningRoutines, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
 import { listExecutions, listProposals, listRoutineFiles, readRoutine } from '../scripts/lib/routines.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
@@ -97,6 +97,7 @@ export interface Deps {
   probe?: (server: McpServer) => Promise<ProbeResult>; // MCP server test (tests pass a fake)
   callTool?: RunHooks['callTool']; // a routine's MCP read (tests pass a fake)
   startTerminal?: (id: string, project: string) => string; // routines start their prepared terminal even with no project view
+  runningTerminals?: (project: string) => number; // terminal tabs still running for the project (a busy project is not suspended)
 }
 
 export interface TreeNode {
@@ -142,6 +143,7 @@ export interface LaunchRequest {
   skill?: string; // activity "skill": the skill the request names
   exclude?: string[]; // context files (this project's or shared through tags) to leave out
   trackingId?: string; // optional UI request identity, never a run status
+  context?: string[]; // project or linked-folder files the person mentioned with @ in the notes (checked like the panel's ▶, code files included)
 }
 
 export interface AgentInfo extends Omit<Agent, 'body'> { usable: boolean }
@@ -240,6 +242,13 @@ export function createService(root: string, deps: Deps) {
       if (e instanceof PathError) throw new ServiceError(e.message);
       throw e;
     }
+  };
+  // Whether a destination picked in a save dialog is the source itself (same path, or a hard link to it).
+  const sameFile = (source: string, destination: string): boolean => {
+    const sourceStat = statSync(source), destinationStat = existsSync(destination) ? statSync(destination) : null;
+    const canonicalDestination = destinationStat ? realpathSync(destination) : resolve(destination);
+    const samePath = process.platform === 'win32' ? canonicalDestination.toLowerCase() === realpathSync(source).toLowerCase() : canonicalDestination === realpathSync(source);
+    return samePath || !!destinationStat && destinationStat.dev === sourceStat.dev && destinationStat.ino === sourceStat.ino;
   };
   // Every path of a project the UI sends: "@folder/…" is inside the folder linked to it (shown live in the tree,
   // never copied), anything else inside the project folder. Both stay confined by resolveInside.
@@ -643,7 +652,7 @@ export function createService(root: string, deps: Deps) {
       : skills.every((s) => !frameworkSkill(s) || isUsable(s, root)); // installed skills outside the framework remain usable
     return {
       id: a.id, label: a.label, hint: a.description, category: a.category, source: a.source, target: a.target, files: a.files,
-      needsFiles: a.files === 'required', note: a.note, tags: a.tags, skill, skills, favorite: stars.includes(a.id),
+      needsFiles: a.files === 'required', note: a.note, tags: a.tags, effort: a.effort, skill, skills, favorite: stars.includes(a.id),
       available, status: unavailableSkill ? skillStatus(unavailableSkill, root) : skill && frameworkSkill(skill) ? skillStatus(skill, root) : available ? 'ready' : 'unavailable',
     };
   };
@@ -675,7 +684,9 @@ export function createService(root: string, deps: Deps) {
     const template = String(r.template ?? '').replace(/\r\n/g, '\n').slice(0, 4000);
     if (target.kind === 'prompt' && !template.trim()) throw new ServiceError('Write the request for this text-only activity.');
     if (/^---/m.test(template)) throw new ServiceError('The text of the request cannot have a line with ---.');
-    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template }) };
+    if (r.effort && !isEffort(r.effort)) throw new ServiceError('Choose the effort from the list.');
+    const effort = isEffort(r.effort) ? r.effort : '';
+    return { label, text: activityMarkdown({ label, description: cleanPrompt(String(r.description ?? '')).slice(0, 300), category: cleanPrompt(String(r.category ?? '')).slice(0, 40) || 'Other', target, files, note: cleanPrompt(String(r.note ?? '')).slice(0, 200), tags, template, effort }) };
   };
   const knownOperation = (id: unknown) => {
     const op = listOperations(root).find((o) => o.id === id);
@@ -956,14 +967,17 @@ export function createService(root: string, deps: Deps) {
       paths: s.paths.filter((p) => !exclude.has(p) && !seen.has(p) && Boolean(seen.add(p))),
     }))).filter((s) => s.paths.length);
     const excluded = choice.own.filter((p) => exclude.has(p));
-    const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, workspace: workspaceLabel(root),
+    const mentioned = Array.isArray(req.context) ? [...new Set(req.context.map(String))] : [];
+    if (mentioned.length > MAX_INVOKE_FILES) throw new ServiceError(`Mention at most ${MAX_INVOKE_FILES} files.`);
+    const references = mentioned.map((p) => invokeFile(project, p, true));
+    const request = buildPrompt({ project, activity, root, files: readableInputs(files, root), note, run, language, agent, repository: projectRepository(project, root), shared, excluded, references, workspace: workspaceLabel(root),
       skills: installedSkills(project, root), agents: installedAgents(project, root),
       description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
       available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
     // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
     const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
-    return { project, dir, files, run, shared, prompt, tool };
+    return { project, dir, files, run, shared, references, prompt, tool, def };
   }
 
   function organizeCandidates(project: string): OrganizeCandidate[] {
@@ -997,6 +1011,8 @@ export function createService(root: string, deps: Deps) {
   const MAX_INVOKE_FILES = 20;
   const INVOKE_FILE_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm', '.pdf', '.docx', '.xlsx', '.pptx']);
   const SCANNED_TYPES = new Set(['.md', '.txt', '.csv', '.json', '.log', '.xml', '.yaml', '.yml', '.html', '.htm']); // text: read for credentials; the Office files and PDFs are not
+  // Code files: only for the files mentioned with @ in an activity's notes (the linked folder's code as context); always scanned.
+  const CODE_FILE_TYPES = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.java', '.kt', '.py', '.cs', '.go', '.rb', '.php', '.sql', '.css', '.scss', '.sh', '.properties', '.gradle', '.toml', '.ini']);
   const SCAN_LIMIT = 2 * 1024 * 1024;
   const invokeRank = (rel: string): number => {
     const top = rel.replace(/\\/g, '/').replace(/^\.\//, '').split('/')[0];
@@ -1004,7 +1020,7 @@ export function createService(root: string, deps: Deps) {
     if (top === 'inbox' || top === 'notes' || top === 'runs' || top === 'temporary') return 1;
     return 2;
   };
-  const invokeFile = (project: string, rel: unknown): string => {
+  const invokeFile = (project: string, rel: unknown, code = false): string => {
     const file = projectPath(project, rel);
     const local = posix(relative(realpathSync(projectDir(project)), file));
     const outside = local.startsWith('..') || isAbsolute(local);
@@ -1012,8 +1028,9 @@ export function createService(root: string, deps: Deps) {
     if (!shown || shown.split('/').some((part) => part.startsWith('.'))) throw new ServiceError('Hidden files stay out.');
     if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('File not found.');
     const ext = extname(file).toLowerCase();
-    if (!INVOKE_FILE_TYPES.has(ext)) throw new ServiceError('This kind of file cannot be used this way.');
-    if (SCANNED_TYPES.has(ext)) {
+    const isCode = code && CODE_FILE_TYPES.has(ext);
+    if (!INVOKE_FILE_TYPES.has(ext) && !isCode) throw new ServiceError('This kind of file cannot be used this way.');
+    if (SCANNED_TYPES.has(ext) || isCode) {
       if (statSync(file).size > SCAN_LIMIT) throw new ServiceError('File too large to check for credentials.');
       const text = readFileSync(file, 'utf8');
       const hit = (SECRET_PATTERNS as [string, RegExp][]).find(([, re]) => re.test(text));
@@ -1196,6 +1213,37 @@ export function createService(root: string, deps: Deps) {
       return true;
     },
 
+    // Suspending moves the project folder to workspace/suspended/ (to save machine resources): routines, search, the
+    // project list, the IDE and the AI tools stop seeing it. No file changes; resuming moves it back.
+    suspendedProjects: () => listSuspended(root).map((id) => {
+      let name = id;
+      try { name = String((JSON.parse(readFileSync(join(suspendedDir(root), id, 'project.json'), 'utf8')) as { name?: unknown }).name || id); } catch { /* unreadable: the id */ }
+      return { id, name };
+    }),
+    suspendProject: (project: unknown) => {
+      const from = projectDir(project);
+      const id = project as string;
+      const busy = [
+        deps.runningTerminals?.(id) ? 'a terminal' : '',
+        runningRoutines(root, id) ? 'a routine' : '',
+      ].filter(Boolean);
+      if (busy.length) throw new ServiceError(`Close what is still running in this project first (${busy.join(', ')}).`);
+      mkdirSync(suspendedDir(root), { recursive: true });
+      failing(() => renameSync(from, join(suspendedDir(root), id))); // same parent: all or nothing
+      projectsScan = null;
+      return true;
+    },
+    resumeProject: (id: unknown) => {
+      if (typeof id !== 'string' || !listSuspended(root).includes(id)) throw new ServiceError('Unknown suspended project.');
+      const target = join(projectsDir(root), id);
+      if (existsSync(target)) throw new ServiceError(`A project "${id}" already exists. Rename or delete it before resuming this one.`);
+      mkdirSync(projectsDir(root), { recursive: true });
+      failing(() => renameSync(join(suspendedDir(root), id), target));
+      projectsScan = null;
+      setProjectTags(id, projectSummary(id, root).tags, root); // drops tags removed from the catalog while it was suspended
+      return projectSummary(id, root);
+    },
+
     // "Open a project" (start screen): the folder chosen in the native dialog. A folder already linked to a project
     // returns that project (it just opens); otherwise the folder and a suggested name, for createProject to link it.
     pickFolder: async (): Promise<{ folder: string; name: string; project?: ProjectSummary } | null> => {
@@ -1326,7 +1374,7 @@ export function createService(root: string, deps: Deps) {
         id: k, label: TOOLS[k].label, hint: TOOLS[k].hint ?? '', command: TOOLS[k].command ?? '',
         kind: TOOLS[k].chat ? 'chat' : TOOLS[k].print ? 'print' : TOOLS[k].clipboard ? 'editor' : 'terminal',
         available: available[k], installable: Boolean(TOOLS[k].install),
-        docs: TOOLS[k].install?.docs ?? '', download: TOOLS[k].download ?? '', mokiExtension: TOOLS[k].mokiExtension ?? '',
+        docs: TOOLS[k].install?.docs ?? '', download: TOOLS[k].download ?? '', mokiExtension: TOOLS[k].mokiExtension ?? '', effort: Boolean(TOOLS[k].effort),
       }));
     },
 
@@ -1452,10 +1500,7 @@ export function createService(root: string, deps: Deps) {
       const destination = await deps.saveFile(basename(target.path, extname(target.path)), format, 'Export the diagram');
       if (!destination) return { saved: false };
       // Export is a copy. A native dialog choosing the source still cannot replace its text with image bytes.
-      const sourceStat = statSync(target.file), destinationStat = existsSync(destination) ? statSync(destination) : null;
-      const canonicalDestination = destinationStat ? realpathSync(destination) : resolve(destination);
-      const samePath = process.platform === 'win32' ? canonicalDestination.toLowerCase() === realpathSync(target.file).toLowerCase() : canonicalDestination === realpathSync(target.file);
-      if (samePath || destinationStat && destinationStat.dev === sourceStat.dev && destinationStat.ino === sourceStat.ino) throw new ServiceError('Choose a different file for the exported diagram.');
+      if (sameFile(target.file, destination)) throw new ServiceError('Choose a different file for the exported diagram.');
       // Replace the selected entry atomically: a symlink swapped in while the dialog was open is never followed by a write.
       const temporary = join(dirname(destination), `.moki-diagram-export-${randomBytes(12).toString('hex')}.tmp`);
       failing(() => {
@@ -1463,6 +1508,23 @@ export function createService(root: string, deps: Deps) {
         finally { if (existsSync(temporary)) rmSync(temporary); }
       });
       return { saved: true };
+    },
+    // A copy of any project file, byte for byte, to a place the user picks in the save dialog (the UI never sends
+    // the destination). A Markdown file carries its comments inside it, so the copy imported into another Moki keeps them.
+    exportFile: async (project: string, rel: unknown) => {
+      const file = projectPath(project, rel);
+      if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('File not found.');
+      if (!deps.saveFile) throw new ServiceError('Choosing a file is not available here.');
+      const extension = extname(file);
+      const destination = await deps.saveFile(basename(file, extension), extension.slice(1), 'Export a copy');
+      if (!destination) return null;
+      if (sameFile(file, destination)) throw new ServiceError('Choose a different place for the copy.');
+      const temporary = join(dirname(destination), `.moki-export-${randomBytes(12).toString('hex')}.tmp`);
+      failing(() => {
+        try { copyFileSync(file, temporary); renameSync(temporary, destination); }
+        finally { if (existsSync(temporary)) rmSync(temporary); }
+      });
+      return destination;
     },
     copyDiagramImage: (project: string, rel: string, data: unknown) => {
       diagramTarget(project, rel);
@@ -2893,19 +2955,20 @@ export function createService(root: string, deps: Deps) {
     dismissNotifications: (ids: unknown) => dismissVisibleNotes(root, ids === 'all' ? 'all' : Array.isArray(ids) ? ids.map(String) : []),
 
     launch: (req: LaunchRequest) => {
-      const { project, dir, files, run, shared, prompt, tool } = prepareLaunch(req);
+      const { project, dir, files, run, shared, references, prompt, tool, def } = prepareLaunch(req);
       const t = TOOLS[tool];
       if (t.print || t.chat) {
         const upload = t.chat ? [
           join(root, 'dist', 'chat', 'quality-agents-all.md'), join(dir, 'project.json'),
           ...[join(dir, 'context', 'index.md'), join(dir, 'plan.json')].filter((f) => existsSync(f)), // blank projects start without context/
           ...(run ? [join(dir, 'runs', run, 'state.json')] : []), ...files.map((f) => resolve(root, f)),
-          ...shared.flatMap((s) => s.paths.map((p) => resolve(root, p))),
+          ...shared.flatMap((s) => s.paths.map((p) => resolve(root, p))), ...references.map((p) => resolve(root, p)),
         ] : [];
         return { opened: false, prompt, upload, bundleReady: existsSync(join(root, 'dist', 'chat', 'quality-agents-all.md')) };
       }
       const sent = t.clipboard ? prompt : windowsSafePrompt(prompt, project, root);
-      return { ...deps.launch(tool, sent, root, projectSummary(project, root).plugins, mcpLaunch(tool, project)), prompt };
+      const effort = def.effort && t.effort ? t.effort(def.effort) : []; // the activity's effort, in this tool's own flag
+      return { ...deps.launch(tool, sent, root, projectSummary(project, root).plugins, [...mcpLaunch(tool, project), ...effort]), prompt };
     },
 
     // The Configurador (desktop/configurator.ts): what the workspace has now, for the AI to reuse names and ids.

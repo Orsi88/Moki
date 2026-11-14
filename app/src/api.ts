@@ -54,6 +54,7 @@ export type ToolKind = 'terminal' | 'editor' | 'chat' | 'print';
 export interface ToolInfo {
   id: string; label: string; hint: string; command: string; kind: ToolKind; available: boolean; installable?: boolean;
   docs?: string; download?: string; mokiExtension?: '' | 'supported' | 'unverified'; // install instructions; editors: download page, Moki extension
+  effort?: boolean; // takes an activity's effort level
 }
 // Settings › My AIs: where a tool is, its version and, in an editor, the Moki extension's version ('' = unknown or none).
 export interface AiToolStatus { id: string; available: boolean; path: string; version: string; extension: string }
@@ -65,10 +66,11 @@ export type ActivityTarget =
 export interface ActivityInfo {
   id: string; label: string; hint: string; skill: string; skills: string[]; needsFiles: boolean; available: boolean; status: string;
   category: string; source: 'moki' | 'builtin' | 'library'; target: ActivityTarget; files: 'required' | 'optional' | 'none'; note: string; tags: string[]; favorite: boolean;
+  effort: '' | 'low' | 'medium' | 'high' | 'max'; // '' = the AI tool's default
 }
 export interface ActivityDetail extends ActivityInfo { template: string; path: string }
 export type FavoriteKind = 'activities' | 'agents' | 'operations' | 'templates' | 'skills';
-export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; skills?: string[]; files: string; note: string; tags: string[]; template: string }
+export interface ActivityDraft { id?: string; label: string; description: string; category: string; kind: string; target: string; skills?: string[]; files: string; note: string; tags: string[]; template: string; effort?: string }
 // The activity's chosen role or procedures, for badges and search in the renderer.
 export const activityTargetLabel = (target: ActivityTarget): string => target.kind === 'prompt' ? t('Text only')
   : target.kind === 'skills' ? target.names.join(', ') : target.name;
@@ -216,7 +218,7 @@ export interface DocumentStyle {
 }
 export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Verdana', 'Tahoma', 'Georgia', 'Times New Roman', 'Cambria', 'Garamond', 'Consolas'];
 
-export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string }
+export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string; context?: string[] }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
 export interface TerminalRef { id: string; title: string; tool?: string }
 export type Invocation = { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string; label: string };
@@ -386,6 +388,9 @@ export const api = {
   setProjectName: (project: string, name: string) => call<ProjectSummary>('setProjectName', project, name),
   setProjectDescription: (project: string, description: string) => call<ProjectSummary>('setProjectDescription', project, description),
   deleteProject: (project: string, confirm: string) => call<boolean>('deleteProject', project, confirm),
+  suspendProject: (project: string) => call<boolean>('suspendProject', project),
+  resumeProject: (id: string) => call<ProjectSummary>('resumeProject', id),
+  suspendedProjects: () => call<{ id: string; name: string }[]>('suspendedProjects'),
   deleteNote: (project: string, path: string) => call<boolean>('deleteNote', project, path),
   tags: () => call<Tag[]>('tags'),
   saveTag: (tag: { id?: string; name: string; color?: string; description?: string }) => call<Tag>('saveTag', tag),
@@ -436,6 +441,7 @@ export const api = {
   diagramView: (project: string, path: string) => call<DiagramViewState | null>('diagramView', project, path),
   saveDiagramView: (project: string, path: string, view: DiagramViewState) => call<DiagramViewState>('saveDiagramView', project, path, view),
   exportDiagram: (project: string, path: string, format: 'svg' | 'png', data: string) => call<{ saved: boolean }>('exportDiagram', project, path, format, data),
+  exportFile: (project: string, path: string) => call<string | null>('exportFile', project, path),
   copyDiagramImage: (project: string, path: string, data: string) => call<boolean>('copyDiagramImage', project, path, data),
   convertOffice: (project: string, path: string) => call<{ path: string; created: boolean }>('convertOffice', project, path),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),

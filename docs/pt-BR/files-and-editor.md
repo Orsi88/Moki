@@ -4,7 +4,8 @@
 
 - **Solte arquivos na janela** e eles são copiados para a **Entrada** — até 40 arquivos, 200 MB cada (pastas são ignoradas).
 - **Solte um arquivo numa pasta** da árvore para copiá-lo para lá; **arraste um arquivo** da árvore para outra pasta para movê-lo.
-- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, **usar no terminal** (arquivos do Contexto e de Notas: a IA lê como contexto para o que você pedir em seguida), e **apagar** — para a lixeira.
+- **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, **exportar uma cópia** (só arquivos: salva onde você escolher, sem mudanças), **usar no terminal** (arquivos do Contexto e de Notas: a IA lê como contexto para o que você pedir em seguida), e **apagar** — para a lixeira.
+- **Levar um Markdown comentado para outro Moki:** exporte uma cópia e envie; a outra pessoa solta o arquivo na janela ou numa pasta. Os comentários, com autores e datas, vão dentro do `.md`. Comentários de HTML e de diagramas ficam guardados com o projeto e não vão com a cópia.
 - As pastas fixas (Contexto, Entrada, Notas, Temporários, Arquivos de execuções) são esvaziadas, nunca removidas. Os arquivos que a IA salva aparecem na árvore assim que chegam.
 
 ## Markdown: um editor para ler, escrever e comentar

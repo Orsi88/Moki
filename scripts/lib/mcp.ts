@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { readJson, workspaceDir } from './repo.mjs';
 import { PATTERNS } from './secret-patterns.mjs';
-import { listProjects, slugify } from './core.ts';
+import { listProjects, listSuspended, slugify } from './core.ts';
 
 export type McpTransport = 'stdio' | 'http';
 export type McpAccess = 'read' | 'execute'; // read: queries data; execute: changes something outside Moki
@@ -140,7 +140,7 @@ export function clean(raw: unknown): McpServer {
 export function saveServer(raw: unknown, root: string): McpServer {
   const list = listServers(root);
   const server = clean(raw);
-  const known = new Set(listProjects(root));
+  const known = new Set([...listProjects(root), ...listSuspended(root)]); // a suspended project keeps its servers
   const specific = (raw as { projects?: unknown } | null)?.projects;
   server.projects = server.projects.filter((p) => known.has(p));
   if (Array.isArray(specific) && specific.length && !server.projects.length) throw new McpError(`${server.name}: choose at least one project of this workspace, or make it global.`);
