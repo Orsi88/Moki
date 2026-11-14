@@ -24,7 +24,7 @@ A skill stops at its approval points and asks in the terminal. If you close the 
 
 ## Only what you asked for
 
-The AI delivers only the files you asked for, in the format you asked; when the format is not set, it asks. No copies in other formats, no screenshots of a spreadsheet. Helper files go to the run's `work/` folder and are cleared when the run is completed. Anything extra that still lands next to the deliverables is listed on the run's page under **Leftovers**, to send to the trash.
+The AI delivers only the files you asked for, in the format you asked; when the format is not set, it asks. No copies in other formats, no screenshots of a spreadsheet. Helper files go to the run's `work/` folder and are deleted when the run is completed. Anything extra that still lands next to the deliverables is listed on the run's page under **Leftovers**, to send to the trash.
 
 ## Hudson organizes what runs leave behind
 
@@ -44,8 +44,11 @@ Hudson is also an agent: in a terminal, ask it to organize the project and it sh
 
 ## Clean on its own
 
-- `temporary/` — anything older than **7 days** goes to the trash when the project opens.
-- A finished run's `work/` folder is cleared when the project opens.
+Scratch files are not kept: once used, they are **deleted for good** (not sent to the trash).
+
+- A finished run's `work/` folder is deleted as soon as the run is completed or cancelled (and, if Moki was closed then, when the project opens).
+- `temporary/` (requests sent to the AI, pasted screenshots, inspection renders) is emptied when the project's last AI terminal ends, and when the project opens with none of its terminals running.
+- The workspace's own scratch files (launch requests, MCP configuration for a terminal) are deleted when Moki starts and when its terminals end.
 - Optional, in the project's settings (**Cleanup**): a finished activity's `outputs/` folder goes to the trash when the project opens, once every file it delivered is in `context/` (moved there, or an identical copy). It is off by default.
 
 ## See also

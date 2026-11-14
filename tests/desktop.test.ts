@@ -1,6 +1,6 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync, utimesSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symlinkSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -2229,7 +2229,18 @@ test('upload of skills and agents: preview writes nothing, blocks per item, inst
   for (const dir of [home, src, repo, join(root, 'workspace', 'projects', 'up-linked'), join(projectDir, 'skills'), join(projectDir, 'agents')]) rmSync(dir, { recursive: true, force: true });
 });
 
-test('leftovers: old scratch files and finished runs\' helper files go when the project opens; outputs not delivered are cleaned on request', async () => {
+test('workspace scratch files: a project\'s --mcp-config files go with its last terminal, everything goes otherwise', () => {
+  const tmp = join(root, 'workspace', 'temporary');
+  rmSync(tmp, { recursive: true, force: true }); // what earlier tests left
+  mkdirSync(tmp, { recursive: true });
+  const names = ['mcp-acme-20261114-101500.json', 'mcp-acme-site-20261114-101500.json', 'open-claude-x.json', 'request-20261114-101500.md'];
+  for (const name of names) writeFileSync(join(tmp, name), '{}');
+  assert.deepEqual(service.cleanWorkspaceScratch('acme'), ['mcp-acme-20261114-101500.json'], 'another project\'s file stays');
+  assert.deepEqual(service.cleanWorkspaceScratch().sort(), names.slice(1).sort());
+  assert.deepEqual(readdirSync(tmp), []);
+});
+
+test('leftovers: scratch files and finished runs\' helper files are deleted for good; outputs not delivered are cleaned on request', async () => {
   const dir = join(root, 'workspace', 'projects', 'acme');
   const runs = join(dir, 'runs');
   const make = (rel: string, text = 'x') => { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), text); };
@@ -2237,17 +2248,30 @@ test('leftovers: old scratch files and finished runs\' helper files go when the 
   const done = '20261108-1100-test-design-done';
   const going = '20261108-1101-test-design-going';
   try {
-    make('temporary/request-old.md'); make('temporary/request-new.md');
-    const old = (Date.now() - 8 * 86_400_000) / 1000;
-    utimesSync(join(dir, 'temporary', 'request-old.md'), old, old);
+    rmSync(join(dir, 'temporary'), { recursive: true, force: true }); // what earlier tests left
+    make('temporary/request-old.md'); make('temporary/pasted/print-1.png');
+    for (let i = 0; i < 200; i++) make(`runs/${done}/work/many/part-${i}.json`);
     make(`runs/${done}/work/data.json`); make(`runs/${done}/outputs/Test cases.xlsx`); make(`runs/${done}/outputs/Test cases.png`); make(`runs/${done}/outputs/extra/Test cases.csv`);
     state(done, 'completed', [`workspace/projects/acme/runs/${done}/outputs/Test cases.xlsx`]);
     make(`runs/${going}/work/review-matrix.json`); make(`runs/${going}/outputs/draft.md`);
     state(going, 'awaiting-input', []);
 
-    // Opening the project: the old scratch file and the finished run's work/ go; the rest stays.
-    assert.deepEqual((await service.cleanProject('acme')).sort(), [`runs/${done}/work`, 'temporary/request-old.md']);
-    assert.ok(existsSync(join(dir, 'temporary', 'request-new.md')));
+    // Hidden from the tree without being walked: thousands of helper files never use up its entries.
+    const runNode = service.tree('acme').find((n) => n.name === 'runs')?.children?.find((n) => n.name === done);
+    assert.deepEqual(runNode?.children?.map((n) => n.name).sort(), ['Test cases.png', 'Test cases.xlsx', 'extra']);
+    // A terminal of the project still runs (busy): temporary/ stays; the finished run's work/ goes anyway, for good.
+    assert.deepEqual(await service.cleanProject('acme', { busy: true }), [`runs/${done}/work`]);
+    assert.ok(existsSync(join(dir, 'temporary', 'request-old.md')));
+    assert.equal(existsSync(join(runs, done, 'work')), false, 'deleted, not kept anywhere');
+    // No terminal: every scratch file goes, whatever its age.
+    assert.deepEqual((await service.cleanProject('acme')).sort(), ['temporary/pasted', 'temporary/request-old.md']);
+    assert.deepEqual(readdirSync(join(dir, 'temporary')), []);
+    // A run that finishes while the project is open: its work/ goes as soon as the change is seen.
+    make(`runs/${going}/work/late.json`);
+    state(going, 'cancelled', []);
+    assert.deepEqual(service.removeFinishedWork('acme'), [`runs/${going}/work`]);
+    state(going, 'awaiting-input', []);
+    make(`runs/${going}/work/review-matrix.json`);
     assert.ok(existsSync(join(runs, going, 'work', 'review-matrix.json')), 'a run still going keeps its working files');
     // Leftovers: in outputs/ but not delivered. A run listing no deliverables has nothing to compare with.
     assert.deepEqual(service.runLeftovers('acme', done), [`runs/${done}/outputs/Test cases.png`, `runs/${done}/outputs/extra/Test cases.csv`]);

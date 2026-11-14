@@ -24,7 +24,7 @@ Uma skill para nos seus pontos de aprovação e pergunta no terminal. Se você f
 
 ## Só o que você pediu
 
-A IA entrega só os arquivos que você pediu, no formato pedido; quando o formato não está definido, ela pergunta. Nada de cópias em outros formatos, nada de print de planilha. Arquivos de apoio vão para a pasta `work/` da execução e são limpos quando ela termina. Qualquer extra que ainda caia junto das entregas aparece na página da execução em **Sobras**, para mandar para a lixeira.
+A IA entrega só os arquivos que você pediu, no formato pedido; quando o formato não está definido, ela pergunta. Nada de cópias em outros formatos, nada de print de planilha. Arquivos de apoio vão para a pasta `work/` da execução e são apagados quando ela termina. Qualquer extra que ainda caia junto das entregas aparece na página da execução em **Sobras**, para mandar para a lixeira.
 
 ## O Hudson organiza o que as execuções deixam
 
@@ -44,8 +44,11 @@ O Hudson também é um agente: num terminal, peça para ele organizar o projeto 
 
 ## Limpeza automática
 
-- `temporary/` — o que tem mais de **7 dias** vai para a lixeira quando o projeto abre.
-- A pasta `work/` de uma execução terminada é limpa quando o projeto abre.
+Arquivos de rascunho não ficam guardados: usou, são **apagados de vez** (não vão para a lixeira).
+
+- A pasta `work/` de uma execução é apagada assim que ela é concluída ou cancelada (e, se o Moki estava fechado nessa hora, quando o projeto abre).
+- `temporary/` (pedidos enviados à IA, prints colados, renders de inspeção) é esvaziada quando o último terminal de IA do projeto fecha, e quando o projeto abre sem nenhum terminal dele rodando.
+- Os rascunhos do próprio workspace (pedidos de abertura, configuração de MCP de um terminal) são apagados quando o Moki abre e quando os terminais dele fecham.
 - Opcional, nas configurações do projeto (**Limpeza**): a pasta `outputs/` de uma atividade concluída vai para a lixeira quando o projeto abre, se todos os arquivos que ela entregou estiverem em `context/` (movidos para lá ou como cópia idêntica). Vem desligada.
 
 ## Veja também

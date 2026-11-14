@@ -143,3 +143,21 @@ test('a symlinked folder is not followed', async () => {
     rmSync(outside, { recursive: true, force: true });
   }
 });
+
+test('a folder skipped by skipDir is neither watched nor scanned', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qa-watch-skip-'));
+  for (let i = 0; i < 30; i++) mkdirSync(join(dir, 'runs', 'r1', 'work', `part-${i}`), { recursive: true });
+  const watched = mock.method(fs, 'watch');
+  syncBuiltinESMExports();
+  const stop = watchProject(dir, () => {}, { skipDir: (d) => d.endsWith('work') });
+  try {
+    const paths = watched.mock.calls.map((c) => String(c.arguments[0]));
+    assert.ok(paths.includes(join(dir, 'runs', 'r1')), 'the run itself is watched');
+    assert.equal(paths.filter((p) => p.includes('work')).length, 0, 'nothing inside the skipped folder gets a watcher');
+  } finally {
+    stop();
+    watched.mock.restore();
+    syncBuiltinESMExports();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

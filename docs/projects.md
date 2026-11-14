@@ -35,7 +35,7 @@ workspace/projects/billing-portal/
 ├── activity-log.md
 ├── inbox/                # files you hand to the AI
 ├── notes/
-├── temporary/            # scratch files, cleared after 7 days
+├── temporary/            # scratch files, deleted once used
 └── runs/<run-id>/        # one folder per piece of work that delivered something
 ```
 

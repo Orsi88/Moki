@@ -6,7 +6,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, protocol, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { existsSync, writeFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
-import { dirname, join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ROOT, workspaceDir } from '../scripts/lib/repo.mjs';
 import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, which, type ToolKey } from '../scripts/lib/core.ts';
@@ -42,6 +42,13 @@ process.env.QA_MCP_SERVER = join(DIST, 'mcp.mjs').replace(`app.asar${sep}`, `app
 // A terminal that ended may have run a step of an operation: the run learns it here, even when its project is not on screen.
 const terminals = createTerminals((channel, id, payload) => win?.webContents.send(channel, id, payload), (id, project) => {
   if (project) { try { service.operationStepExited(project, id); } catch { /* a run that is gone */ } }
+  // Scratch files are not kept: the last terminal of a project takes its temporary/ (requests, pasted prints, renders)
+  // and its --mcp-config files with it; with no terminal left at all, the workspace's scratch files go too.
+  const left = terminals.list();
+  try {
+    if (project && !left.some((t) => t.project === project)) { void service.cleanProject(project).catch(() => { /* next time */ }); service.cleanWorkspaceScratch(project); }
+    if (!left.length) service.cleanWorkspaceScratch();
+  } catch { /* a project that is gone */ }
 });
 
 // QA_FAKE_TOOLS (UI tests only): every AI tool looks installed; AI launches are faked.
@@ -312,6 +319,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
+    // No terminal runs yet: the workspace's scratch files left by an earlier session are no longer of use.
+    try { service.cleanWorkspaceScratch(); } catch { /* next time */ }
 
     protocol.handle(PREVIEW_SCHEME, (request) => previews.serve(request.method, request.url));
     protocol.handle(FILE_SCHEME, async (request) => {
@@ -344,11 +353,15 @@ if (!app.requestSingleInstanceLock()) {
       linkedWatcher?.();
       linkedWatcher = null;
       if (typeof project !== 'string' || !isProject(project, ROOT)) return false;
-      const changed = () => win?.webContents.send('qa:changed', project);
-      // Opening a project clears what it no longer needs (old scratch files, helper files of finished runs) to the trash.
-      service.cleanProject(project).catch(() => { /* cleaning is a convenience */ });
+      // A change may be a run that just finished: its helper files (work/) are deleted right away.
+      const changed = () => { try { service.removeFinishedWork(project); } catch { /* next change */ } win?.webContents.send('qa:changed', project); };
+      // Opening a project deletes what it no longer needs: its scratch files (unless one of its terminals still runs)
+      // and the helper files of finished runs.
+      service.cleanProject(project, { busy: terminals.list().some((t) => t.project === project) }).catch(() => { /* cleaning is a convenience */ });
       try {
-        watcher = watchProject(join(projectsDir(ROOT), project), changed, { maxDirs: 2000 });
+        // A run's work/ is not watched: an activity writing thousands of helper files there is not news for the tree.
+        const runWork = (dir: string) => basename(dir) === 'work' && basename(dirname(dirname(dir))) === 'runs';
+        watcher = watchProject(join(projectsDir(ROOT), project), changed, { maxDirs: 2000, skipDir: runWork });
       } catch { return false; }
       // The linked folder shows live in the tree too; changes in its build and dependency folders are not news.
       const linked = projectRepository(project, ROOT);

@@ -35,7 +35,7 @@ workspace/projects/portal-de-cobranca/
 ├── activity-log.md
 ├── inbox/                # arquivos que você entrega à IA
 ├── notes/
-├── temporary/            # rascunhos, limpos depois de 7 dias
+├── temporary/            # rascunhos, apagados depois de usados
 └── runs/<run-id>/        # uma pasta por trabalho que entregou algo
 ```
 

@@ -11,8 +11,8 @@ Activities may span several sessions and several AI tools. There is **no shared 
 | History of activities | `workspace/projects/<project-id>/activity-log.md` |
 | Progress, pending items, approvals, artifacts of one execution | `workspace/projects/<project-id>/runs/<run-id>/state.json` |
 | Deliverables and evidence of one execution | `workspace/projects/<project-id>/runs/<run-id>/{outputs,evidence}/` |
-| Files that only help produce a deliverable (generator data, working data between steps, drafts) | `workspace/projects/<project-id>/runs/<run-id>/work/`, deleted when the run is completed |
-| Scratch files outside any run | `workspace/projects/<project-id>/temporary/` (the app empties what is older than a few days) |
+| Files that only help produce a deliverable (generator data, working data between steps, drafts) | `workspace/projects/<project-id>/runs/<run-id>/work/`, deleted for good when the run is completed |
+| Scratch files outside any run | `workspace/projects/<project-id>/temporary/` (not kept: deleted once used, and emptied when the project's terminals end) |
 
 Keep these separate: activity results never go into `context/`, and context is never edited from inside a run folder.
 

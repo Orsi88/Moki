@@ -175,8 +175,6 @@ export const servedFile = (content: unknown): string | undefined => (typeof cont
 const SKIP_LINKED = new Set(['node_modules', '.git', '.moki-backup', 'dist', 'build', '__pycache__']); // not listed from a linked folder
 const TOP_ORDER = ['context', 'inbox', 'runs', 'notes', PROPOSALS, 'proposed-updates.md', 'activity-log.md', 'project.json', 'README.md', 'temporary'];
 const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);
-// Scratch files in a project's temporary/ untouched for this many days go to the trash when the project opens.
-export const TEMPORARY_DAYS = 7;
 const DONE_STATUSES = new Set(['completed', 'cancelled']);
 // Root files Moki itself keeps up to date or reads by name: they keep their name.
 const KEPT_NAMES = new Set(['project.json', 'tags.json', 'README.md', 'activity-log.md', 'proposed-updates.md']);
@@ -572,6 +570,18 @@ export function createService(root: string, deps: Deps) {
     .filter((c) => !RUN_INTERNALS.has(c.name) && !(c.type === 'dir' && !c.children?.length))
     .flatMap((c) => (c.name === 'outputs' && c.type === 'dir' ? c.children ?? [] : [c]));
 
+  // The work/ folder (helper files) of each completed or cancelled run, deleted for good. Returns what went.
+  function removeFinishedWork(project: string): string[] {
+    const dir = projectDir(project);
+    const removed: string[] = [];
+    for (const run of listRuns(project, root)) {
+      const work = join(dir, 'runs', run.id, 'work');
+      if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
+      try { rmSync(work, { recursive: true, force: true }); removed.push(`runs/${run.id}/work`); } catch { /* in use: next time */ }
+    }
+    return removed;
+  }
+
   function tree(project: string): TreeNode[] {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
@@ -588,7 +598,11 @@ export function createService(root: string, deps: Deps) {
         const full = join(dir, e.name);
         const path = prefix + posix(relative(from, full));
         if (e.isDirectory()) {
-          const run = path.startsWith('runs/') && path.split('/').length === 2 ? runs.get(e.name) : undefined;
+          // A run's own folders (work/, inputs/, logs/…) never show: not walked at all, so thousands of helper files
+          // cannot slow the tree down or use up its entries.
+          const parts = path.split('/');
+          if (!prefix && parts.length === 3 && parts[0] === 'runs' && runs.has(parts[1]) && RUN_INTERNALS.has(e.name)) { count--; continue; }
+          const run = path.startsWith('runs/') && parts.length === 2 ? runs.get(e.name) : undefined;
           const children = depth < 8 ? walk(full, depth + 1, from, prefix) : [];
           const node: TreeNode = { name: e.name, path, type: 'dir', children: run ? deliverablesOf(children) : children };
           if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...(typeof run.title === 'string' && run.title.trim() ? { title: run.title.trim() } : {}), ...runOrigin(run, labels) };
@@ -2107,26 +2121,21 @@ export function createService(root: string, deps: Deps) {
 
     // A file or folder goes to the trash. A fixed project folder is emptied and stays (the tree
     // recreates it if it is missing). project.json and the linked folder itself stay.
-    // What a project no longer needs, to the trash (recoverable), when it opens: scratch files in temporary/ untouched
-    // for TEMPORARY_DAYS days, and the work/ folder (helper files) of each completed or cancelled run. Returns what went.
-    cleanProject: async (project: string, now: unknown = Date.now()) => {
+    // Scratch files are not kept: what served its purpose is deleted for good (never the trash — thousands of helper
+    // files sent to the Windows trash froze the app as the project opened). The work/ folder of each completed or
+    // cancelled run always goes. temporary/ is emptied unless a terminal of this project still runs (busy): it may be
+    // reading a pasted print or its request file there; the app empties it when that project's last terminal ends.
+    // Returns what went.
+    cleanProject: async (project: string, options: { busy?: boolean } = {}) => {
       const dir = projectDir(project);
-      const at = typeof now === 'number' ? now : Date.now();
-      const trashed: string[] = [];
+      const removed: string[] = [];
       const tmp = join(dir, 'temporary');
-      if (existsSync(tmp)) {
+      if (!options.busy && existsSync(tmp)) {
         for (const name of readdirSync(tmp)) {
-          try { if (at - statSync(join(tmp, name)).mtimeMs > TEMPORARY_DAYS * 86_400_000) { await trash(join(tmp, name)); trashed.push(`temporary/${name}`); } } catch { /* in use or gone: next time */ }
+          try { rmSync(join(tmp, name), { recursive: true, force: true }); removed.push(`temporary/${name}`); } catch { /* in use: next time */ }
         }
       }
-      for (const run of listRuns(project, root)) {
-        const work = join(dir, 'runs', run.id, 'work');
-        if (!DONE_STATUSES.has(String(run.status)) || !existsSync(work)) continue;
-        // An empty work/ (older runs made it up front) has nothing to recover: removed, not trashed — sending an empty
-        // folder to the Windows trash can hang the app as the project opens.
-        try { if (!readdirSync(work).length) { rmSync(work, { recursive: true, force: true }); continue; } } catch { continue; }
-        try { await trash(work); trashed.push(`runs/${run.id}/work`); } catch { /* next time */ }
-      }
+      removed.push(...removeFinishedWork(project));
       // Opted in (project.json cleanOutputsAfterContext): a finished run whose deliverables are all in context/ no longer
       // needs its outputs/. Operation runs keep theirs (their steps read them). context/ itself is never touched.
       if (projectSummary(project, root).cleanOutputsAfterContext) {
@@ -2136,10 +2145,27 @@ export function createService(root: string, deps: Deps) {
           const outputs = join(dir, 'runs', run.id, 'outputs');
           const delivered = deliveredPaths(project, run.artifacts).filter((rel) => rel.startsWith(`runs/${run.id}/outputs/`));
           if (!delivered.length || !existsSync(outputs) || !delivered.every((rel) => inContext(join(dir, rel), context))) continue;
-          try { await trash(outputs); trashed.push(`runs/${run.id}/outputs`); } catch { /* in use: next time */ }
+          try { await trash(outputs); removed.push(`runs/${run.id}/outputs`); } catch { /* in use: next time */ }
         }
       }
-      return trashed;
+      return removed;
+    },
+
+    // A run just finished (the project watcher saw a change): its helper files go at once, not at the next opening.
+    removeFinishedWork: (project: string) => removeFinishedWork(project),
+
+    // The workspace's scratch files (launch requests, --mcp-config files): deleted for good. With a project, only the
+    // MCP files written for it (its last terminal ended); without one, everything (the app started, or no terminal runs).
+    cleanWorkspaceScratch: (project?: string) => {
+      const removed: string[] = [];
+      for (const tmp of new Set([join(workspaceDir(root), 'temporary'), join(root, 'workspace', 'temporary')])) {
+        if (!existsSync(tmp)) continue;
+        for (const name of readdirSync(tmp)) {
+          if (project && !(name.startsWith(`mcp-${project}-`) && /^\d{8}-\d{6}\.json$/.test(name.slice(`mcp-${project}-`.length)))) continue;
+          try { rmSync(join(tmp, name), { recursive: true, force: true }); removed.push(name); } catch { /* in use: next time */ }
+        }
+      }
+      return removed;
     },
 
     // The deliverables of the runs each terminal created (state.json terminal + artifacts), as paths relative to the

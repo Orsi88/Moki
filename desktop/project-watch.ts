@@ -8,6 +8,8 @@ import { join } from 'node:path';
 
 export interface WatchOptions {
   ignore?: string[];
+  /** A folder (full path) neither watched nor scanned, with all it holds. */
+  skipDir?: (dir: string) => boolean;
   maxDepth?: number;
   maxDirs?: number;
   /** Quiet time before a burst is reported (default 400 ms). */
@@ -21,6 +23,7 @@ const MAX_WAIT_MS = 2000;
 
 export function watchProject(root: string, onChange: () => void, options: WatchOptions = {}): () => void {
   const ignore = new Set(options.ignore ?? []);
+  const skipDir = options.skipDir ?? (() => false);
   const maxDepth = options.maxDepth ?? Number.POSITIVE_INFINITY;
   const maxDirs = options.maxDirs ?? Number.POSITIVE_INFINITY;
   const burstMs = options.burstMs ?? BURST_MS;
@@ -45,7 +48,7 @@ export function watchProject(root: string, onChange: () => void, options: WatchO
     try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
     // A Dirent of a symlink is never a directory, so links are not followed.
     for (const entry of entries) {
-      if (!entry.isDirectory() || ignore.has(entry.name)) continue;
+      if (!entry.isDirectory() || ignore.has(entry.name) || skipDir(join(dir, entry.name))) continue;
       arm(join(dir, entry.name), depth + 1);
     }
   };
@@ -55,7 +58,8 @@ export function watchProject(root: string, onChange: () => void, options: WatchO
     let opened: FSWatcher;
     try {
       // Only a rename (create, delete, move) can add a folder; a change just reports.
-      opened = watch(dir, (eventType) => { if (eventType === 'rename') scan(dir, depth); fire(); });
+      // A skipped folder changing shows up in its parent too (Windows touches the folder entry): not news either.
+      opened = watch(dir, (eventType, name) => { if (name && skipDir(join(dir, String(name)))) return; if (eventType === 'rename') scan(dir, depth); fire(); });
     } catch (e) {
       if (watchers.size === 0) throw e;
       return;
