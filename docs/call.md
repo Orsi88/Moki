@@ -56,4 +56,4 @@ You can write **your own activities** in **Settings › Activities**. More: [Act
 
 ## What happens after
 
-The AI follows the skill's procedure and **stops at its approval points** — a test plan, a bug before it is published — and waits for you in the terminal. Questions and definitions are answered in the conversation; documents land in **Execution files** and open next to the terminal. See [Runs and deliverables](runs.md).
+The AI follows the skill's procedure and **stops at its approval points** — a test plan, a bug before it is published — and waits for you in the terminal. Questions and definitions are answered in the conversation; documents land in **Deliveries** and open next to the terminal. See [Runs and deliverables](runs.md).

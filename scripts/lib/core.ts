@@ -183,6 +183,7 @@ export interface ProjectSummary {
   defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with (project.json defaults)
   startInstructions: string; // sent with that start only (project.json startInstructions)
   cleanOutputsAfterContext: boolean; // a finished run's outputs/ go to the trash once its deliverables are in context/ (project.json)
+  pinnedActivities: string[]; // activities pinned to this project's panel, in the order pinned (project.json pinnedActivities)
 }
 
 // A project's defaults: the activities, agents, skills and operations set for it, several of each if wanted.
@@ -250,6 +251,7 @@ function summaryOf(id: string, data: Record<string, unknown>, runs: RunState[]):
     defaults: parseDefaults(data.defaults),
     startInstructions: typeof data.startInstructions === 'string' ? data.startInstructions.slice(0, START_INSTRUCTIONS_LIMIT) : '',
     cleanOutputsAfterContext: data.cleanOutputsAfterContext === true,
+    pinnedActivities: Array.isArray(data.pinnedActivities) ? [...new Set(data.pinnedActivities.filter((s): s is string => typeof s === 'string' && /^[a-z0-9][a-z0-9-]{0,59}$/.test(s)))] : [],
   };
 }
 

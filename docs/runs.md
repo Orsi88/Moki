@@ -4,7 +4,7 @@
 
 Most of what you ask is answered **in the conversation**: a question, an explanation, a definition, an investigation, a small change. No file is created for that.
 
-The AI creates a **run** — a folder under *Execution files* — only when:
+The AI creates a **run** — a folder under *Deliveries* — only when:
 
 - you **ask for a file**; or
 - the activity's result **is a document** — a review matrix, test cases, a report, evidence, a bug; or
@@ -12,11 +12,13 @@ The AI creates a **run** — a folder under *Execution files* — only when:
 
 It never writes support documents nobody asked for (notes, summaries, plans) or logs of its own work. When one would help, it offers it in one line and waits for your yes.
 
-## What you see in Execution files
+## What you see in Deliveries
 
-Each run shows **what was asked** — its title — and **only its deliverables**. Its internal files (the state that lets it resume, the inputs, helper files) stay out of sight, still on disk.
+**Deliveries** lists **only the files you asked for** — what each run delivered — straight under it, the newest first. There are no run folders to open: a run's internal files (the state that lets it resume, the inputs, helper files) stay out of sight, still on disk.
 
-The **Executions** card of the project panel lists the same work under **Requests**: each activity you started, its status, and the scenario it was about. What waits for you — an approval, an answer — comes first under **Needs you**, with a ▶ to continue it in your AI.
+The **Activities** card of the project panel shows, first, the activities **pinned** to this project (📌 in **Call…**; one click calls the AI with it), then what is **under way**. What waits for you — an approval, an answer — comes first, with a ▶ to continue it in your AI. Finished and cancelled activities are not listed. The 📌 belongs to the project; the ⭐ in the lists of Settings is for the whole workspace.
+
+Multi-agent operations have their own **Operations** card below it.
 
 ## Approvals and coming back
 
@@ -28,7 +30,7 @@ The AI delivers only the files you asked for, in the format you asked; when the 
 
 ## Hudson organizes what runs leave behind
 
-When files pile up, **right-click Execution files › Organize with Hudson**.
+When files pile up, **right-click Deliveries › Organize with Hudson**.
 
 ![Hudson's plan: take to the project context, rename, delete to the trash, keep](assets/wiki/en/hudson.png)
 

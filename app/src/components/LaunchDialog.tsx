@@ -24,6 +24,7 @@ interface Props {
   onTerminal: (terminal: TerminalRef) => void; // the tool opened in a terminal tab of the app
   onPrepared?: (terminal: TerminalRef) => void; // pasted without Enter; close the dialog and focus this exact terminal
   onActivityStart?: (activity: string, label: string) => string | undefined;
+  onPin?: (activity: string, on: boolean) => void; // the 📌 of an activity: pinned to this project's panel
   onActivityUpdate?: (id: string | undefined, phase: ActivityLaunchPhase) => void;
   onOperation?: (operation: string) => void; // an activity of an operation opens its start form instead
   onMyAis?: () => void; // Settings › My AIs, to install the AIs not found here
@@ -41,7 +42,10 @@ const kindHint = (kind: ToolKind): string => ({
 
 const formatSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPrepared, onActivityStart, onActivityUpdate, onOperation, onMyAis }: Props) {
+export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPrepared, onActivityStart, onActivityUpdate, onOperation, onMyAis, onPin }: Props) {
+  // The activities pinned to this project, changed at once here and saved by the workspace.
+  const [pins, setPins] = useState<string[]>(project.pinnedActivities);
+  const pin = onPin && ((id: string, on: boolean) => { setPins((now) => (on ? [...now.filter((x) => x !== id), id] : now.filter((x) => x !== id))); onPin(id, on); });
   const [activities, setActivities] = useState<ActivityInfo[]>([]);
   const [languages, setLanguages] = useState<string[]>(['English']);
   const [activity, setActivity] = useState(preset?.activity ?? '');
@@ -229,7 +233,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
           {error && step !== 'review' && <p className="error" role="alert">{error}</p>}
           {step === 'activity' && (
             <InvokeCatalog activities={activities.filter((a) => a.available && (a.id !== 'resume' || runs.length > 0))}
-              agents={agents} skills={skills} operations={operations} onPick={pick} defaults={project.defaults} />
+              agents={agents} skills={skills} operations={operations} onPick={pick} defaults={project.defaults} pinned={pins} onPin={pin} />
           )}
 
           {step === 'run' && (

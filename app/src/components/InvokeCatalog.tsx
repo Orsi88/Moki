@@ -4,18 +4,23 @@ import { activityTargetLabel, type ActivityInfo, type AgentInfo, type Invocation
 import { activityFace, agentFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
 import { SearchField, matchesQuery } from './CatalogModal';
+import { IconPin } from './Icons';
 import { ListTabs } from './ListPage';
 
 interface Props {
   activities: ActivityInfo[]; agents: AgentInfo[]; skills: SkillInfo[]; operations: Operation[];
   onPick: (item: Invocation) => void;
   defaults?: ProjectDefault[]; // the project's defaults come first, marked
+  pinned?: string[]; // activities pinned to this project's panel (the 📌, not the workspace's star)
+  onPin?: (activity: string, on: boolean) => void; // without it, no pin is shown
 }
+// What cannot be pinned: opening the project, talking or resuming are not activities kept at hand.
+const UNPINNABLE = new Set(['open', 'talk', 'resume']);
 type Kind = Invocation['kind'];
 const KINDS: Kind[] = ['activity', 'agent', 'skill', 'operation'];
 const kindLabel = (kind: Kind) => ({ activity: t('Activities'), agent: t('Agents'), skill: t('Skills'), operation: t('Operations') })[kind];
 
-export function InvokeCatalog({ activities, agents, skills, operations, onPick, defaults = [] }: Props) {
+export function InvokeCatalog({ activities, agents, skills, operations, onPick, defaults = [], pinned = [], onPin }: Props) {
   const [query, setQuery] = useState('');
   // Opens on the first kind (in tab order) that has a project default, else on the activities, and follows the
   // defaults as they load until a tab is chosen. Each tab counts what the search finds in it.
@@ -30,13 +35,14 @@ export function InvokeCatalog({ activities, agents, skills, operations, onPick, 
   ];
   const found = rows.filter((item) => matchesQuery(query, t(item.label), t(item.description), item.id, item.search ?? ''));
   const shown = found.filter((item) => item.kind === kind)
-    .sort((a, b) => Number(isDefault(b)) - Number(isDefault(a)) || Number(b.favorite) - Number(a.favorite));
+    .sort((a, b) => Number(isDefault(b)) - Number(isDefault(a)) || Number(pinned.includes(b.id) && b.kind === 'activity') - Number(pinned.includes(a.id) && a.kind === 'activity') || Number(b.favorite) - Number(a.favorite));
   return <div className="invoke-catalog">
     <SearchField value={query} onChange={setQuery} placeholder={t('Search activities, agents, skills and operations')} autoFocus />
     <ListTabs<Kind> label={t('Call type')} value={kind} onChange={setKind}
       tabs={KINDS.map((id) => ({ id, label: kindLabel(id), count: found.filter((item) => item.kind === id).length }))} />
     <div className="answer-list">
-      {shown.map((item) => <button key={`${item.kind}:${item.id}`} type="button" className="answer invoke-row" onClick={() => onPick(item)}>
+      {shown.map((item) => <div key={`${item.kind}:${item.id}`} className="invoke-item">
+        <button type="button" className="answer invoke-row" onClick={() => onPick(item)}>
         <span className="answer-text">
           <span className="answer-title">{item.label}</span>
           <span className="answer-hint">{item.description}</span>
@@ -45,7 +51,13 @@ export function InvokeCatalog({ activities, agents, skills, operations, onPick, 
         <span className="invoke-chips">
           {isDefault(item) && <span className="chip chip-accent">{t('Default')}</span>}
         </span>
-      </button>)}
+        </button>
+        {onPin && item.kind === 'activity' && !UNPINNABLE.has(item.id) && (() => {
+          const on = pinned.includes(item.id);
+          return <button type="button" className={`icon-btn pin-btn${on ? ' on' : ''}`} aria-pressed={on} onClick={() => onPin(item.id, !on)}
+            title={on ? t('Unpin from this project') : t('Pin to this project')} aria-label={t('Pin {name} to this project', { name: item.label })}><IconPin size={15} /></button>;
+        })()}
+      </div>)}
       {!shown.length && <p className="muted small">{t('Nothing matches this search.')}</p>}
     </div>
   </div>;

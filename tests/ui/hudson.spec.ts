@@ -52,14 +52,11 @@ test.afterAll(async () => {
   }
 });
 
-test('the execution files show each run by its title and only its deliverables', async () => {
+test('Deliveries lists only the files a run delivered: this run listed none, so nothing of it shows', async () => {
+  await expect(page.locator('.tree-row[title="runs"]')).toContainText('Entregas');
   await page.locator('.tree-row[title="runs"]').click();
-  const run = page.locator(`.tree-row[title^="Revisão da US-12"]`);
-  await expect(run).toContainText('Revisão da US-12');
-  await run.click();
-  await expect(page.locator(`.tree-row[title="runs/${RUN}/outputs/definicoes.md"]`)).toBeVisible();
-  await expect(page.locator(`.tree-row[title="runs/${RUN}/inputs"]`)).toHaveCount(0);
-  await expect(page.locator(`.tree-row[title="runs/${RUN}/state.json"]`)).toHaveCount(0);
+  await expect(page.locator(`.tree-row[title^="runs/${RUN}"]`)).toHaveCount(0);
+  await expect(page.locator(`.tree-row[title^="Revisão da US-12"]`)).toHaveCount(0);
 });
 
 test('Hudson proposes, the person unchecks one, and only the kept steps are applied', async () => {

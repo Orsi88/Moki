@@ -116,13 +116,12 @@ test('deleting a project needs the word "delete" and removes only its folder', a
   rmSync(linked, { recursive: true, force: true });
 });
 
-test('tree lists the project, hides dot files and annotates activities', () => {
+test('tree lists the project, hides dot files and shows runs only as their deliveries', () => {
   const tree = service.tree('acme');
   assert.deepEqual(tree.slice(0, 3).map((n) => n.name), ['context', 'inbox', 'runs']);
   const all = flatten(tree);
   assert.equal(all.some((n) => n.name.startsWith('.')), false);
-  const run = all.find((n) => n.path === `runs/${RUN}`);
-  assert.equal(run?.run?.status, 'awaiting-approval');
+  assert.equal(all.some((n) => n.path === `runs/${RUN}`), false, 'a run is not a folder of the tree');
   assert.throws(() => service.tree('../..'), /Unknown project/);
 });
 
@@ -728,29 +727,49 @@ test('a run records the activity it came from; the requests and the tree show it
     const free = listed.find((r) => r.id === '20261108-1031-failure-analysis-checkout');
     assert.equal(free?.activity, null);
     assert.equal(free?.scenario, 'checkout');
-    const node = service.tree('acme').find((n) => n.path === 'runs')?.children?.find((n) => n.name === '20261108-1030-requirements-review-login-error');
-    assert.deepEqual({ id: node?.run?.activity?.id, scenario: node?.run?.scenario }, { id: 'review', scenario: 'login error' });
   } finally {
     rmSync(join(runs, '20261108-1030-requirements-review-login-error'), { recursive: true });
     rmSync(join(runs, '20261108-1031-failure-analysis-checkout'), { recursive: true });
   }
 });
 
-test('a run shows its title and only its deliverables in the tree: outputs come up, its state, inputs, logs and empty folders stay out', () => {
+test('an activity pinned to a project lands in its project.json, in the order pinned, and only a known activity', () => {
+  const file = join(root, 'workspace', 'projects', 'acme', 'project.json');
+  const before = readFileSync(file, 'utf8');
+  try {
+    assert.deepEqual(service.setActivityPin('acme', 'review', true), ['review']);
+    assert.deepEqual(service.setActivityPin('acme', 'failure', true), ['review', 'failure']);
+    assert.deepEqual(service.setActivityPin('acme', 'review', true), ['failure', 'review'], 'pinning again moves it last, never twice');
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pinnedActivities, ['failure', 'review']);
+    assert.deepEqual(service.setActivityPin('acme', 'failure', false), ['review']);
+    assert.throws(() => service.setActivityPin('acme', 'nao-existe', true), /Unknown activity/);
+    assert.throws(() => service.setActivityPin('acme', '../x', true), /Unknown activity/);
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).name, JSON.parse(before).name, 'the rest of project.json stays');
+  } finally {
+    writeFileSync(file, before);
+  }
+});
+
+test('Deliveries: the tree lists only the files the runs delivered, straight under runs/, newest run first', () => {
   const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
   const id = '20261109-1500-requirements-review-us-12';
   const dir = join(runs, id);
   for (const sub of ['inputs', 'logs', 'work', 'outputs', 'evidence', 'empty']) mkdirSync(join(dir, sub), { recursive: true });
-  writeFileSync(join(dir, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', skill: 'requirements-review', title: 'Revisão da US-12', status: 'completed', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x' }));
+  const delivered = [`workspace/projects/acme/runs/${id}/outputs/final-report.md`, `workspace/projects/acme/runs/${id}/evidence/print.png`, `workspace/projects/acme/runs/${id}/outputs/gone.pdf`, 'workspace/projects/acme/context/glossary.md', `workspace/projects/acme/runs/${id}/../../inbox/x.md`];
+  writeFileSync(join(dir, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', skill: 'requirements-review', title: 'Revisão da US-12', status: 'completed', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: delivered, createdAt: 'x', updatedAt: 'x' }));
   writeFileSync(join(dir, 'inputs', 'us-12.md'), 'x');
   writeFileSync(join(dir, 'logs', 'publication.jsonl'), '{}');
   writeFileSync(join(dir, 'work', 'draft.md'), 'x');
   writeFileSync(join(dir, 'outputs', 'final-report.md'), '# Report');
   writeFileSync(join(dir, 'evidence', 'print.png'), 'x');
   try {
-    const node = service.tree('acme').find((n) => n.name === 'runs')?.children?.find((n) => n.name === id);
-    assert.equal(node?.run?.title, 'Revisão da US-12');
-    assert.deepEqual(node?.children?.map((c) => c.path).sort(), [`runs/${id}/evidence`, `runs/${id}/outputs/final-report.md`]);
+    const deliveries = service.tree('acme').find((n) => n.name === 'runs')?.children ?? [];
+    // Only what the run delivered and still exists, as files right under runs/: no run folder, no outputs/ step,
+    // no work, inputs or logs, nothing outside the run, nothing that is gone.
+    assert.deepEqual(deliveries.filter((c) => c.path.startsWith(`runs/${id}/`)).map((c) => [c.name, c.path, c.type]), [
+      ['final-report.md', `runs/${id}/outputs/final-report.md`, 'file'], ['print.png', `runs/${id}/evidence/print.png`, 'file'],
+    ]);
+    assert.ok(deliveries.every((c) => c.type === 'file'));
     assert.ok(existsSync(join(dir, 'logs', 'publication.jsonl'))); // out of sight, not deleted
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -2256,9 +2275,8 @@ test('leftovers: scratch files and finished runs\' helper files are deleted for 
     make(`runs/${going}/work/review-matrix.json`); make(`runs/${going}/outputs/draft.md`);
     state(going, 'awaiting-input', []);
 
-    // Hidden from the tree without being walked: thousands of helper files never use up its entries.
-    const runNode = service.tree('acme').find((n) => n.name === 'runs')?.children?.find((n) => n.name === done);
-    assert.deepEqual(runNode?.children?.map((n) => n.name).sort(), ['Test cases.png', 'Test cases.xlsx', 'extra']);
+    // The tree shows only the delivered file, without walking the helper files: thousands of them never use up its entries.
+    assert.deepEqual(service.tree('acme').find((n) => n.name === 'runs')?.children?.filter((n) => n.path.startsWith(`runs/${done}/`)).map((n) => n.name), ['Test cases.xlsx']);
     // A terminal of the project still runs (busy): temporary/ stays; the finished run's work/ goes anyway, for good.
     assert.deepEqual(await service.cleanProject('acme', { busy: true }), [`runs/${done}/work`]);
     assert.ok(existsSync(join(dir, 'temporary', 'request-old.md')));

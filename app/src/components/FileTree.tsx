@@ -27,7 +27,7 @@ interface Props {
 }
 
 export const friendlyName = (name: string): string => ({
-  context: t('Context'), inbox: t('Inbox'), runs: t('Execution files'), notes: t('Notes'), temporary: t('Temporary'),
+  context: t('Context'), inbox: t('Inbox'), runs: t('Deliveries'), notes: t('Notes'), temporary: t('Temporary'),
   'proposed-updates.md': t('Proposed updates'), 'activity-log.md': t('Activity log'),
 } as Record<string, string>)[name] ?? name;
 

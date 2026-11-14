@@ -32,6 +32,7 @@ export interface ProjectSummary {
   defaults: ProjectDefault[]; // what an AI opened in the project without a choice starts with
   startInstructions: string; // sent with that start only
   cleanOutputsAfterContext: boolean; // a finished run's outputs/ go to the trash once its deliverables are in context/
+  pinnedActivities: string[]; // activities pinned to this project's panel (the pin, not the workspace's star)
 }
 // A tag shares context between projects: the context of the projects with it and the files marked with it.
 export interface Tag { id: string; name: string; color: string; description: string }
@@ -412,6 +413,7 @@ export const api = {
   duplicateActivity: (id: string) => call<ActivityInfo>('duplicateActivity', id),
   deleteActivity: (id: string) => call<boolean>('deleteActivity', id),
   setActivityFavorite: (id: string, on: boolean) => call<string[]>('setActivityFavorite', id, on),
+  setActivityPin: (project: string, id: string, on: boolean) => call<string[]>('setActivityPin', project, id, on),
   integrations: () => call<ToolInfo[]>('integrations'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
   openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string }>('openMokiInEditor', tool, project),

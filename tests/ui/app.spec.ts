@@ -1010,16 +1010,15 @@ test.describe.serial('Moki project tree', () => {
     await expect(treePage.locator('.tree-row[title="project.json"]')).toHaveCount(0);
     await expect(treePage.locator('.tree-row[title="README.md"]')).toHaveCount(0);
     await expect(treePage.locator('.tree-row[title=".mcps"]')).toBeVisible();
-    // Operations is the last card of the project panel, below the AI assistant. With nothing under way it stays on that list; an operation is chosen on the assistant card.
-    const ops = treePage.locator('.panel').getByRole('region', { name: 'Execuções' });
+    // The project panel: the AI assistant, the Activities card (pinned and under way), then Operations, the last card.
+    // No "Needs you" list and no Requests tab: what needs the person leads the Activities card.
+    const ops = treePage.locator('.panel').getByRole('region', { name: 'Operações' });
     await expect(ops.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
-    // The tabs are the header of both cards: neither shows a title of its own.
-    await expect(ops.getByText('Execuções', { exact: true })).toHaveCount(0);
+    await expect(ops.getByRole('tab', { name: 'Pedidos', exact: true })).toHaveCount(0);
+    await expect(treePage.locator('.panel').getByRole('region', { name: 'Atividades' })).toBeVisible();
+    await expect(treePage.locator('.panel').getByText('Precisa de você', { exact: true })).toHaveCount(0);
     await expect(treePage.locator('.panel').getByText('Assistente de IA', { exact: true })).toHaveCount(0);
     await expect(ops.getByRole('button', { name: 'Vincular operações a este projeto' })).toHaveCount(0);
-    await ops.getByRole('tab', { name: 'Pedidos', exact: true }).click();
-    await expect(ops.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
-    await ops.getByRole('tab', { name: 'Operações', exact: true }).click();
     const order = await treePage.locator('.sidebar-scroll > *').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.className));
     expect(order).toEqual(['tree']); // only the files scroll
     // The sidebar keeps the files, the Notes section and, fixed below them, the settings.
@@ -1268,7 +1267,7 @@ test.describe.serial('Moki operations in a project', () => {
   });
 
   test('an operation is started from its form, and moves on as each agent delivers its files', async () => {
-    const side = opsPage.getByRole('region', { name: 'Execuções' });
+    const side = opsPage.getByRole('region', { name: 'Operações' });
     const assistant = opsPage.getByRole('region', { name: 'Assistente de IA' });
     await assistant.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const dialog = opsPage.getByRole('dialog');
@@ -2318,7 +2317,9 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     const panel = aiPage.locator('.pp');
     await panel.getByRole('button', { name: 'Chamar…', exact: true }).click();
     const wizard = aiPage.getByRole('dialog');
-    await wizard.getByRole('button', { name: /Só abrir o projeto/ }).click();
+    // An activity (not "Just open the project", which is never recorded as one).
+    await wizard.getByRole('tab', { name: /^Atividades/ }).click();
+    await wizard.locator('.invoke-row', { hasText: 'Pré-analisar uma falha' }).click();
     await wizard.getByRole('button', { name: 'Continuar sem arquivos' }).click();
     const decide = wizard.getByRole('button', { name: /Deixar a skill decidir/ });
     if (await decide.count()) await decide.click();
@@ -2327,9 +2328,9 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     await wizard.getByRole('button', { name: /OpenAI Codex CLI/ }).click();
     await wizard.getByRole('button', { name: 'Abrir no OpenAI Codex CLI' }).click();
     await wizard.getByRole('button', { name: 'Concluir', exact: true }).click();
-    const side = aiPage.getByRole('region', { name: 'Execuções' });
-    await expect(side.getByRole('tab', { name: 'Pedidos', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(side.getByText('Aguardando registro da execução')).toBeVisible();
+    // The request shows in the Activities card until its run appears.
+    const side = aiPage.getByRole('region', { name: 'Atividades' });
+    await expect(side.getByText('Iniciando…')).toBeVisible();
     const token = await aiPage.evaluate(() => {
       const key = Object.keys(localStorage).find((item) => item.startsWith('qa-activity-launches:'))!;
       return (JSON.parse(localStorage.getItem(key)!) as { id: string }[])[0].id;
@@ -2338,11 +2339,11 @@ test.describe.serial('Moki my AIs and the project panel', () => {
     const path = join(dirs[0], 'workspace', 'projects', 'acme', 'runs', run);
     mkdirSync(path, { recursive: true });
     writeFileSync(join(path, 'state.json'), JSON.stringify({ status: 'in-progress', skill: 'project-context' }));
-    await expect(side.getByText('Aguardando registro da execução')).toHaveCount(0);
-    await expect(side.getByText('Em andamento', { exact: true })).toBeVisible();
+    await expect(side.getByText('Iniciando…')).toHaveCount(0);
+    await expect(side.locator(`[title="${run}"]`)).toContainText('Em andamento');
+    // Finished, it leaves the card.
     writeFileSync(join(path, 'state.json'), JSON.stringify({ status: 'completed', skill: 'project-context' }));
-    await side.getByRole('tab', { name: 'Concluídas' }).click();
-    await expect(side.getByText('Concluída', { exact: true })).toBeVisible();
+    await expect(side.locator(`[title="${run}"]`)).toHaveCount(0);
   });
 
   test('calling an activity retains required files, optional agent and destination choices', async () => {
@@ -2366,7 +2367,7 @@ test.describe.serial('Moki my AIs and the project panel', () => {
 });
 
 test.describe('Moki run details panel', () => {
-  test('the executions card shows all finished activity and operation runs in the right tabs', async () => {
+  test('the Activities card shows only what is under way; the Operations card keeps its finished tab; the tree shows Deliveries', async () => {
     const root = fixture();
     const userData = mkdtempSync(join(tmpdir(), 'moki-profile-'));
     const project = join(root, 'workspace', 'projects', 'acme');
@@ -2383,18 +2384,18 @@ test.describe('Moki run details panel', () => {
     try {
       const opened = await openApp(root, userData); window = opened.app;
       const page = opened.page;
-      await expect(page.locator('.tree-row[title="runs"]')).toContainText('Arquivos de execuções');
-      const card = page.getByRole('region', { name: 'Execuções' });
-      await expect(card.getByRole('tab', { name: 'Operações', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('.tree-row[title="runs"]')).toContainText('Entregas');
+      const card = page.getByRole('region', { name: 'Operações' });
       await expect(card.getByText('Operação 0', { exact: true })).toBeVisible();
       await card.getByRole('tab', { name: 'Concluídas' }).click();
       await expect(card.locator('.ops-side-row')).toHaveCount(7);
       await expect(card.getByText('Operação 1', { exact: true })).toBeAttached();
-      await card.getByRole('tab', { name: 'Pedidos', exact: true }).click();
-      await expect(card.locator('.activity-launch-row')).toHaveCount(1);
-      await card.getByRole('tab', { name: 'Concluídas' }).click();
-      await expect(card.locator('.activity-launch-row')).toHaveCount(7);
-      await expect(card.getByText('operation-example')).toHaveCount(0);
+      // Activities: the one under way only; the finished and the cancelled ones are not listed, nor the operations.
+      const activities = page.getByRole('region', { name: 'Atividades' });
+      await expect(activities.locator('.activity-launch-row')).toHaveCount(1);
+      await expect(activities.locator('[title="20261105-1200-activity-example"]')).toBeVisible();
+      await expect(activities.getByText('operation-example')).toHaveCount(0);
+      writeFileSync(test.info().outputPath('activities-card.png'), Buffer.from(await window.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
     } finally {
       await window?.close();
       rmSync(root, { recursive: true, force: true });
@@ -2424,14 +2425,14 @@ test.describe('Moki run details panel', () => {
       const opened = await openApp(root, userData); window = opened.app;
       const page = opened.page;
       await page.locator('.tree-row[title="runs"]').click();
-      await page.locator(`.tree-row[title*="${activity}"]`).click(); // the tooltip names the run first, then its folder
-      await expect(page.locator(`.tree-row[title="runs/${activity}/state.json"]`)).toHaveCount(0); // a run shows its deliverables, not its state
-      await page.locator(`.tree-row[title="runs/${activity}/outputs/s1"]`).click(); // outputs/ comes straight under the run
+      // Deliveries: the delivered files straight under the folder, no run folder, no state, no leftovers.
+      await expect(page.locator(`.tree-row[title="runs/${activity}"]`)).toHaveCount(0);
+      await expect(page.locator(`.tree-row[title="runs/${activity}/state.json"]`)).toHaveCount(0);
+      await expect(page.locator(`.tree-row[title="runs/${activity}/outputs/revisao.csv"]`)).toHaveCount(0);
       await page.locator(`.tree-row[title="runs/${activity}/outputs/s1/revisao.md"]`).click();
       await expect(page.locator('.panel.run-detail')).toHaveCount(0);
       await expect(page.locator('.panel.pp')).toBeVisible();
-      const card = page.getByRole('region', { name: 'Execuções' });
-      await card.getByRole('tab', { name: 'Pedidos', exact: true }).click();
+      const card = page.getByRole('region', { name: 'Atividades' });
       await card.locator(`[title="${activity}"]`).click();
       const details = page.locator('main .ops-run');
       await expect(details).toHaveAttribute('aria-label', 'Atividade');
@@ -2453,8 +2454,6 @@ test.describe('Moki run details panel', () => {
       expect(existsSync(join(project, 'runs', activity, 'outputs', 's2', 'revisao.png'))).toBe(false);
       expect(existsSync(join(project, 'runs', activity, 'outputs', 's2', 'revisao.md'))).toBe(true);
       await details.getByRole('button', { name: 'Fechar' }).click();
-      await page.locator(`.tree-row[title*="${operation}"]`).click();
-      await page.locator(`.tree-row[title="runs/${operation}/outputs/s1"]`).click();
       await page.locator(`.tree-row[title="runs/${operation}/outputs/s1/revisao.md"]`).click();
       const operationDetails = page.locator('.panel.run-detail');
       await expect(operationDetails).toHaveAttribute('aria-label', 'Operação');
@@ -3108,7 +3107,7 @@ test.describe.serial('Moki requests', () => {
   let qp: Page;
   let runs = '';
   const dirs: string[] = [];
-  const card = () => qp.getByRole('region', { name: 'Execuções' });
+  const card = () => qp.getByRole('region', { name: 'Atividades' });
   const make = (id: string, extra: Record<string, unknown>) => {
     mkdirSync(join(runs, id), { recursive: true });
     writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ schemaVersion: '1', id, project: 'acme', currentStep: '', completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [], createdAt: 'x', updatedAt: 'x', ...extra }));
@@ -3130,38 +3129,40 @@ test.describe.serial('Moki requests', () => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
   });
 
-  test('each request shows the activity it came from and its scenario, or that it was a free request', async () => {
-    await card().getByRole('tab', { name: 'Pedidos', exact: true }).click();
-    await expect(card().getByRole('tab', { name: 'Atividades', exact: true })).toHaveCount(0); // executions are not activities
+  test('the Activities card lists what is under way with the activity it came from and its scenario, never what is finished', async () => {
     const fromActivity = card().locator('.ops-side-row', { hasText: '· erro no login' });
     await expect(fromActivity).toBeVisible();
-    await expect(fromActivity.locator('.ops-free')).toHaveCount(0);
-    const free = card().locator('.ops-side-row', { hasText: 'carrinho' });
-    await expect(free.locator('.ops-free')).toHaveText('Pedido livre');
-    await card().getByRole('tab', { name: 'Concluídas' }).click();
-    await expect(card().locator('.ops-side-row', { hasText: '· checkout lento' })).toBeVisible();
-    await card().getByRole('tab', { name: 'Em andamento' }).click();
-    // The tree's run folders have the same names.
+    await expect(card().locator('.ops-side-row', { hasText: 'carrinho' })).toBeVisible(); // asked straight to the AI
+    await expect(card().locator('.ops-side-row', { hasText: 'checkout lento' })).toHaveCount(0); // completed
+    await expect(card().getByRole('combobox')).toHaveCount(0); // no filter: the list is short by design
+    // The tree has no run folders: Deliveries lists only delivered files, and these runs delivered none.
     await qp.locator('.tree-row[title="runs"]').click();
-    const tree = qp.locator('.sidebar');
-    // The tree is narrow: its rows say the scenario; the whole name is in the tooltip.
-    await expect(tree.locator('.tree-row', { hasText: 'erro no login' })).toHaveAttribute('title', /· erro no login/);
-    await expect(tree.locator('.tree-row', { hasText: 'checkout lento' })).toBeVisible();
-    await expect(tree.locator('.tree-row', { hasText: 'carrinho' })).toBeVisible();
+    await expect(qp.locator('.sidebar .tree-row', { hasText: 'erro no login' })).toHaveCount(0);
   });
 
-  test('the requests are filtered by activity, and the filter is there only when they come from more than one place', async () => {
-    const filter = card().getByRole('combobox', { name: 'Mostrar os pedidos de' });
-    await expect(filter).toBeVisible();
-    await filter.selectOption({ label: 'Pedido livre' });
-    await expect(card().locator('.ops-side-row', { hasText: 'carrinho' })).toBeVisible();
-    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toHaveCount(0);
-    await filter.selectOption({ label: 'Todas' });
-    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toBeVisible();
-    // Only one place left: no filter.
-    rmSync(join(runs, '20261108-1200-test-design-carrinho'), { recursive: true });
-    await expect(filter).toHaveCount(0);
-    await expect(card().locator('.ops-side-row', { hasText: 'erro no login' })).toBeVisible();
+  test('an activity pinned in Call… comes first in the Activities card, calls the AI in one click, and is unpinned there', async () => {
+    await expect(card().getByRole('list', { name: 'Fixadas neste projeto' })).toHaveCount(0);
+    await qp.getByRole('region', { name: 'Assistente de IA' }).getByRole('button', { name: 'Chamar…', exact: true }).click();
+    const wizard = qp.getByRole('dialog');
+    await wizard.getByRole('tab', { name: /^Atividades/ }).click();
+    const row = wizard.locator('.invoke-item', { hasText: 'Pré-analisar uma falha' });
+    // Opening the project is not an activity kept at hand: it has no pin.
+    await expect(wizard.locator('.invoke-item', { hasText: 'Só abrir o projeto' }).locator('.pin-btn')).toHaveCount(0);
+    await row.hover();
+    await row.getByRole('button', { name: /^Fixar .* neste projeto$/ }).click();
+    await expect(row.locator('.pin-btn')).toHaveAttribute('aria-pressed', 'true');
+    await qp.keyboard.press('Escape');
+    const pinned = card().getByRole('list', { name: 'Fixadas neste projeto' });
+    await expect(pinned).toContainText('Pré-analisar uma falha');
+    expect(JSON.parse(readFileSync(join(runs, '..', 'project.json'), 'utf8')).pinnedActivities).toEqual(['failure']);
+    writeFileSync(test.info().outputPath('activities-pinned.png'), Buffer.from(await reqApp.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
+    // One click opens Call… on that activity.
+    await pinned.locator('.pp-pinned-call', { hasText: 'Pré-analisar uma falha' }).click();
+    await expect(qp.getByRole('dialog')).toBeVisible();
+    await qp.keyboard.press('Escape');
+    await pinned.getByRole('button', { name: /^Desafixar .* deste projeto$/ }).click();
+    await expect(card().getByRole('list', { name: 'Fixadas neste projeto' })).toHaveCount(0);
+    expect(JSON.parse(readFileSync(join(runs, '..', 'project.json'), 'utf8')).pinnedActivities).toEqual([]);
   });
 });
 

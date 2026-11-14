@@ -49,7 +49,7 @@ Clique no **+** ao lado da lista de projetos e digite um nome — por exemplo *L
 |---|---|
 | **Contexto** | O que está confirmado sobre o sistema. Começa vazia e vai enchendo conforme você confirma definições. |
 | **Entrada** | Os arquivos que você entrega à IA. |
-| **Arquivos de execuções** | O que cada trabalho entregou. |
+| **Entregas** | O que cada trabalho entregou. |
 | **Notas** | As suas notas sobre o projeto. |
 | **Temporários** | Arquivos de rascunho; o que tem mais de 7 dias vai para a lixeira. |
 
@@ -68,7 +68,7 @@ Clique em **Chamar…** no painel do projeto, à direita (ou **Ctrl+Shift+K**).
 2. Marque os arquivos da entrada que ele deve usar.
 3. Escreva uma observação se quiser (*foque nos cupons*), escolha **Num terminal novo** e a sua IA.
 
-A IA abre numa aba de terminal dentro do Moki com o pedido pronto, segue o procedimento da skill e para sempre que precisa de uma decisão sua. O que ela entrega aparece em **Arquivos de execuções** e abre ao lado do terminal dela.
+A IA abre numa aba de terminal dentro do Moki com o pedido pronto, segue o procedimento da skill e para sempre que precisa de uma decisão sua. O que ela entrega aparece em **Entregas** e abre ao lado do terminal dela.
 
 ![A lista do Chamar…: atividades, agentes, skills e operações numa só busca](../assets/wiki/pt-BR/call.png)
 

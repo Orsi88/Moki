@@ -562,13 +562,6 @@ export function createService(root: string, deps: Deps) {
       .sort((a, b) => b.modified.localeCompare(a.modified));
   }
 
-  // What a run shows in the tree: its deliverables. The files of outputs/ come straight under the run (their paths
-  // stay real); the run's state, inputs, logs, helper files and the operation's own folders stay out of sight, and so
-  // does an empty folder. The files are all still there (the Requests card and the run view read them).
-  const RUN_INTERNALS = new Set(['state.json', 'inputs', 'logs', 'work', 'handoff', 'waiting']);
-  const deliverablesOf = (children: TreeNode[]): TreeNode[] => children
-    .filter((c) => !RUN_INTERNALS.has(c.name) && !(c.type === 'dir' && !c.children?.length))
-    .flatMap((c) => (c.name === 'outputs' && c.type === 'dir' ? c.children ?? [] : [c]));
 
   // The work/ folder (helper files) of each completed or cancelled run, deleted for good. Returns what went.
   function removeFinishedWork(project: string): string[] {
@@ -586,7 +579,20 @@ export function createService(root: string, deps: Deps) {
     const base = projectDir(project);
     for (const name of FIXED_FOLDERS) mkdirSync(join(base, name), { recursive: true });
     const runs = new Map(listRuns(project, root).map((r) => [r.id, r]));
-    const labels = runs.size ? activityLabels(project) : new Map<string, string>();
+    const deliveries = (): TreeNode[] => [...runs.values()].sort((a, b) => b.id.localeCompare(a.id)).flatMap((run) => {
+      const seen = new Set<string>();
+      return deliveredPaths(project, run.artifacts).flatMap((rel): TreeNode[] => {
+        const parts = rel.split('/');
+        if (parts[0] !== 'runs' || parts[1] !== run.id || parts.some((p) => !p || p === '..' || p.startsWith('.')) || seen.has(rel)) return [];
+        seen.add(rel);
+        const full = join(base, ...parts);
+        try {
+          const st = statSync(full);
+          if (!st.isFile() || ++count > MAX_TREE_ENTRIES) return [];
+          return [{ name: parts[parts.length - 1], path: rel, type: 'file', size: st.size, mtime: st.mtimeMs }];
+        } catch { return []; } // listed but gone
+      });
+    });
     let count = 0;
     const walk = (dir: string, depth: number, from = base, prefix = ''): TreeNode[] => {
       const entries = readdirSync(dir, { withFileTypes: true })
@@ -598,16 +604,10 @@ export function createService(root: string, deps: Deps) {
         const full = join(dir, e.name);
         const path = prefix + posix(relative(from, full));
         if (e.isDirectory()) {
-          // A run's own folders (work/, inputs/, logs/…) never show: not walked at all, so thousands of helper files
-          // cannot slow the tree down or use up its entries.
-          const parts = path.split('/');
-          if (!prefix && parts.length === 3 && parts[0] === 'runs' && runs.has(parts[1]) && RUN_INTERNALS.has(e.name)) { count--; continue; }
-          const run = path.startsWith('runs/') && parts.length === 2 ? runs.get(e.name) : undefined;
-          const children = depth < 8 ? walk(full, depth + 1, from, prefix) : [];
-          const node: TreeNode = { name: e.name, path, type: 'dir', children: run ? deliverablesOf(children) : children };
-          if (run) node.run = { status: run.status, skill: String(run.skill ?? run.workflow ?? ''), currentStep: String(run.currentStep ?? ''), ...(typeof run.title === 'string' && run.title.trim() ? { title: run.title.trim() } : {}), ...runOrigin(run, labels) };
-          if (path.startsWith('runs/') && !run && node.children?.length === 0 && path.split('/').length > 2) continue; // an empty folder inside a run
-          nodes.push(node);
+          // runs/ shows as Deliveries: only the files the runs delivered (state.json artifacts), straight under it, newest
+          // run first. The runs' folders are not walked (their run view and the Activities card show them).
+          if (!prefix && depth === 0 && e.name === 'runs') { nodes.push({ name: e.name, path, type: 'dir', children: deliveries() }); continue; }
+          nodes.push({ name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] });
         } else if (e.isFile()) {
           const st = statSync(full);
           nodes.push({ name: e.name, path, type: 'file', size: st.size, mtime: st.mtimeMs });
@@ -1327,6 +1327,18 @@ export function createService(root: string, deps: Deps) {
       if (!a || a.source !== 'library') throw new ServiceError('Only your own activities can be deleted.');
       failing(() => removeLibraryActivity(a.id, root));
       return true;
+    },
+    // An activity pinned to (or unpinned from) one project's panel: project.json pinnedActivities. Not the workspace's star.
+    setActivityPin: (project: string, id: unknown, on: unknown) => {
+      const file = join(projectDir(project), 'project.json');
+      const a = typeof id === 'string' && ACTIVITY_ID.test(id) ? getActivity(id, root) : undefined;
+      if (!a) throw new ServiceError('Unknown activity.');
+      const pinned = projectSummary(project, root).pinnedActivities.filter((x) => x !== a.id);
+      if (on === true) pinned.push(a.id);
+      const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+      writeFileSync(file, `${JSON.stringify({ ...data, pinnedActivities: pinned }, null, 2)}
+`);
+      return pinned;
     },
     setActivityFavorite: (id: unknown, on: unknown) => {
       const a = typeof id === 'string' && ACTIVITY_ID.test(id) ? getActivity(id, root) : undefined;

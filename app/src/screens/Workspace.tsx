@@ -17,6 +17,7 @@ import { LaunchDialog } from '../components/LaunchDialog';
 import { HudsonDialog } from '../components/HudsonDialog';
 import { NoteDialog } from '../components/NoteDialog';
 import { OperationsPanel } from '../components/OperationsPanel';
+import { ActivitiesCard } from '../components/ActivitiesCard';
 import { OperationLaunch } from '../components/OperationLaunch';
 import { ActivityRunView } from '../components/ActivityRunView';
 import { OperationRunView } from '../components/OperationRunView';
@@ -177,23 +178,21 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const showOperationRun = (id: string) => { setNote(null); setActivityView(null); setOpView({ kind: 'run', id }); };
   // An activity of an operation: its start form, in place of the request.
   const startOperationForm = (id: string) => { setLaunch(null); setNote(null); setActivityView(null); setOpView({ kind: 'launch', id }); };
-  const openListedRun = (id: string) => {
-    setNote(null);
-    void api.run(project.id, id).then((run) => {
-      if (run.operation) showOperationRun(id); else showActivity(id);
-    }).catch((e: Error) => setError(e.message));
-  };
   const [opsTick, setOpsTick] = useState(0);
   const launchKey = `qa-activity-launches:${workspaceId}:${project.id}`;
-  const [activityLaunches, setActivityLaunches] = useState<ActivityLaunch[]>(() => parseActivityLaunches(recall(launchKey)));
-  const [activityLaunchTick, setActivityLaunchTick] = useState(0);
+  // "Just open the project" requests kept by older versions were never activities: they go.
+  const [activityLaunches, setActivityLaunches] = useState<ActivityLaunch[]>(() => parseActivityLaunches(recall(launchKey)).filter((l) => l.activity !== 'open'));
   useEffect(() => { remember(launchKey, JSON.stringify(activityLaunches)); }, [launchKey, activityLaunches]);
   const beginActivity = (activity: string, label: string): string | undefined => {
-    if (activity === 'resume' || activity === 'talk') return undefined;
+    // Opening the project, talking or resuming is not a new activity: nothing to wait for.
+    if (activity === 'resume' || activity === 'talk' || activity === 'open') return undefined;
     const id = crypto.randomUUID().replace(/-/g, '');
     setActivityLaunches((items) => [{ id, activity, label, at: new Date().toISOString(), phase: 'sending' }, ...items]);
-    setActivityLaunchTick((n) => n + 1);
     return id;
+  };
+  // An activity pinned to this project's panel, or unpinned (project.json pinnedActivities); the project reloads with it.
+  const pinActivity = (activity: string, on: boolean) => {
+    void api.setActivityPin(project.id, activity, on).then(() => onProjectChanged()).catch((e: Error) => setError(e.message));
   };
   const updateActivity = (id: string | undefined, phase: ActivityLaunchPhase) => {
     if (id) setActivityLaunches((items) => items.map((item) => item.id === id ? { ...item, phase } : item));
@@ -1128,13 +1127,13 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         </div>
       </main>
 
-      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onOpenRun={openListedRun} onSetup={() => setShowSetup(true)} onInvoke={callItem} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
-        operations={(
-          <OperationsPanel project={project.id} tick={opsTick} active={activityView ?? opView?.id ?? null} launches={activityLaunches} activityLaunchTick={activityLaunchTick}
-            onDismissLaunch={(id) => setActivityLaunches((items) => items.filter((item) => item.id !== id))} onActivityRun={showActivity}
-            onResumeActivity={(id) => setLaunch({ activity: 'resume', run: id })}
-            onRun={showOperationRun} />
-        )} />
+      <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onSetup={() => setShowSetup(true)} onInvoke={callItem} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
+        activities={(
+          <ActivitiesCard project={project} tick={opsTick} active={activityView} launches={activityLaunches}
+            onLaunch={openCall} onPin={pinActivity} onRun={showActivity} onResume={(id) => setLaunch({ activity: 'resume', run: id })}
+            onDismissLaunch={(id) => setActivityLaunches((items) => items.filter((item) => item.id !== id))} />
+        )}
+        operations={<OperationsPanel project={project.id} tick={opsTick} active={opView?.id ?? null} onRun={showOperationRun} />} />
       </>}
 
       {dropping && <div className="drop-veil" role="status">{t('Drop to keep the files in this project')}</div>}
@@ -1231,7 +1230,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {creating && <NewEntryDialog project={project.id} parent={creating.parent} kind={creating.kind} ext={creating.ext} folders={creating.ext ? folders : undefined} onClose={() => setCreating(null)} onCreated={(path) => created(path, creating.kind)} />}
       {showSetup && <SetupDialog project={project} onClose={() => setShowSetup(false)}
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
-      {launch && <LaunchDialog project={project} tools={tools} preset={launch} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
+      {launch && <LaunchDialog project={project} tools={tools} preset={launch} onPin={pinActivity} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
         onPrepared={(terminal) => {
           setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
           flash(t('Request pasted. Add context and press Enter when ready.'));

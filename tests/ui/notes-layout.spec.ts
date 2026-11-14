@@ -55,7 +55,7 @@ test.afterAll(async () => {
 });
 
 test('execution phases are separate buttons, and the plus is not one of them', async () => {
-  const ops = page.getByRole('region', { name: 'Execuções' });
+  const ops = page.getByRole('region', { name: 'Operações' });
   const phases = ops.locator('.ops-phases');
   const tabs = phases.getByRole('tablist');
   await expect(tabs.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');

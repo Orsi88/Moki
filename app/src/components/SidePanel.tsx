@@ -16,7 +16,6 @@ interface Props {
   onOpenPath: (path: string) => void;
   onLaunch: (preset?: LaunchPreset) => void;
   onOperationRun: (run: string) => void;
-  onOpenRun: (run: string) => void; // a run from this panel opens in the main area
   onSetup: () => void; // description and the global skills the project uses
   onInvoke: (target: InvokeTarget, tool?: string) => void; // a skill or an agent of the "Skills and agents" card, with the AI picked here
   collapsed: boolean; // shown as a thin rail
@@ -24,13 +23,13 @@ interface Props {
   graphOn: boolean;
   onGraph: () => void;
   onMyAis: () => void; // Settings › My AIs
+  activities?: ReactNode; // the Activities card (ActivitiesCard): pinned activities and what is under way
   operations?: ReactNode; // the Operations card (OperationsPanel), below everything, taking the room left
 }
 
-const statusDot = (s: string): string => (s === 'completed' ? 'dot-ok' : s === 'cancelled' ? 'dot-muted' : s === 'blocked' ? 'dot-err' : 'dot-warn');
 const NEEDS_YOU = ['awaiting-approval', 'awaiting-input', 'blocked'];
 
-export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onOpenRun, onSetup, onInvoke, collapsed, onToggle, graphOn, onGraph, onMyAis, operations }: Props) {
+export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLaunch, onOperationRun, onSetup, onInvoke, collapsed, onToggle, graphOn, onGraph, onMyAis, activities, operations }: Props) {
   const [run, setRun] = useState<RunState | null>(null);
   const [runs, setRuns] = useState<OpenRun[]>([]);
   const [planPending, setPlanPending] = useState(false); // the AI left a plan.json to review
@@ -143,25 +142,7 @@ export function SidePanel({ project, runId, refreshKey, tools, onOpenPath, onLau
         {!tool && <p className="pp-hint">{t('No AI tool found on this computer.')} <button type="button" className="link" onClick={onMyAis}>{t('Install in Settings › My AIs')}</button></p>}
       </section>
 
-      {needsYou.length > 0 && (
-        <section className="panel-section pp-needs">
-          <h3>{t('Needs you')}</h3>
-          <ul className="pp-runs">
-            {needsYou.map((r) => (
-              <li key={r.id}>
-                <button type="button" onClick={() => onOpenRun(r.id)} title={r.currentStep || undefined}>
-                  <span className={`dot ${statusDot(r.status)}`} />
-                  <span className="pp-run-title">{describeRun(r.id).title}</span>
-                  <span className="pp-run-status">{statusLabel(r.status)}</span>
-                </button>
-                {r.status !== 'blocked' && (
-                  <button type="button" className="pp-resume" onClick={() => onLaunch({ activity: 'resume', run: r.id })} title={t('Continue in your AI tool')}><IconPlay size={13} /></button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {activities}
       <ProjectItems project={project.id} refreshKey={refreshKey} settings={JSON.stringify([project.linkedSkills, project.defaults, project.repository])} onOpenPath={onOpenPath} onSetup={onSetup} onInvoke={(target) => onInvoke(target, tool?.id)}
         canInvoke={tools.some((x) => x.available && x.kind === 'terminal')} />
       {operations}

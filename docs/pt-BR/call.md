@@ -56,4 +56,4 @@ Você pode escrever **as suas próprias atividades** em **Configurações › At
 
 ## O que acontece depois
 
-A IA segue o procedimento da skill e **para nos pontos de aprovação** — um plano de testes, um bug antes de ser publicado — e espera por você no terminal. Dúvidas e definições são respondidas na conversa; documentos chegam em **Arquivos de execuções** e abrem ao lado do terminal. Veja [Execuções e entregas](runs.md).
+A IA segue o procedimento da skill e **para nos pontos de aprovação** — um plano de testes, um bug antes de ser publicado — e espera por você no terminal. Dúvidas e definições são respondidas na conversa; documentos chegam em **Entregas** e abrem ao lado do terminal. Veja [Execuções e entregas](runs.md).

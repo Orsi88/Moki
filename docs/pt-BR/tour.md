@@ -26,7 +26,7 @@ O nome do projeto com as tags dele, e depois as pastas:
 
 - **Contexto** — o que está confirmado sobre o sistema.
 - **Entrada** — o que você entrega à IA. Solte arquivos na janela para acrescentar.
-- **Arquivos de execuções** — cada trabalho, pelo que foi pedido, só com as entregas.
+- **Entregas** — só os arquivos que você pediu, o que cada trabalho entregou.
 - **Notas** — as suas notas.
 - **Temporários** — rascunhos, limpos depois de 7 dias.
 - **Acompanhamento** — os arquivos que o Moki mantém em dia: atualizações propostas e o registro de atividades.
@@ -45,7 +45,8 @@ A barra acima de um documento tem, da esquerda para a direita: o modo de leitura
 - O **nome e a descrição** do projeto; os controles deslizantes abrem as **configurações do projeto**.
 - **Chamar…** — o que a IA deve fazer: atividades, agentes, skills e operações. Veja [Chamar atividades, agentes e skills](call.md).
 - **Skills e agentes** — os que o projeto tem: os próprios, as skills globais vinculadas e os padrões. Um nome abre o arquivo; o ▶ pede para a IA usá-lo.
-- **Execuções** — *Pedidos* (cada atividade que você começou e onde ela está) e *Operações*, com o que precisa de você no topo.
+- **Atividades** — as atividades fixadas neste projeto (📌) e o que está em andamento, com o que precisa de você no topo; o que terminou não aparece.
+- **Operações** — as operações multiagente, em andamento e concluídas.
 
 O botão ◧ no alto recolhe o painel numa barra fina.
 

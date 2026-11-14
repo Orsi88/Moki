@@ -1411,6 +1411,31 @@ button.pp-item-main:hover { background: var(--bg-3); }
   color: #fff; background: #8d6bc9; box-shadow: 0 0 0 4px rgb(141 107 201 / 0.28); transform: scale(1.08); outline: none;
 }
 
+/* Activities card (ActivitiesCard): the activities pinned to this project, then what is under way. */
+.pp-card-title { margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.ops-side > .pp-card-title { padding: 0 8px 6px; }
+.pp-activities ul { list-style: none; margin: 0; padding: 0; }
+.pp-activities .activity-launch-row { margin-bottom: 0; }
+.pp-activities .pp-underway { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
+.pp-pinned { display: flex; flex-direction: column; gap: 2px; }
+.pp-pinned li { display: flex; align-items: center; gap: 2px; }
+.pp-pinned-call { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font: inherit; font-size: 0.86rem; text-align: left; cursor: pointer; }
+.pp-pinned-call span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-pinned-call svg { flex-shrink: 0; color: var(--accent); }
+.pp-pinned-call:hover { background: var(--bg-3); }
+.pp-pinned + .pp-underway { padding-top: 8px; border-top: 1px solid var(--border); }
+.pp-activities-empty { margin: 0; line-height: 1.4; }
+/* The 📌 of an activity (this project's panel), apart from the workspace's star. */
+.pin-btn, .icon-btn.pin-btn { color: var(--faint); }
+.icon-btn.pin-btn:hover:not(:disabled) { color: var(--accent); }
+.icon-btn.pin-btn.on, .icon-btn.pin-btn.on:hover:not(:disabled) { color: var(--accent); background: transparent; }
+.pin-btn.on .pin-head { fill: currentColor; }
+.invoke-item { position: relative; }
+.invoke-item > .invoke-row { width: 100%; padding-right: 40px; }
+.invoke-item > .pin-btn { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); }
+.invoke-item > .pin-btn:not(.on) { opacity: 0; }
+.invoke-item:hover > .pin-btn, .invoke-item > .pin-btn:focus-visible { opacity: 1; }
+
 /* Assistant card: "what to do", then "in" (the tool), then start */
 .pp-field { display: flex; flex-direction: column; gap: 4px; }
 .pp-field-label { font-size: 0.74rem; font-weight: 600; color: var(--muted); }

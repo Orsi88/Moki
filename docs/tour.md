@@ -26,7 +26,7 @@ The project's name with its tags, then its folders:
 
 - **Context** — what is confirmed about the system.
 - **Inbox** — what you hand to the AI. Drop files on the window to add them.
-- **Execution files** — each piece of work, by what was asked, with only its deliverables.
+- **Deliveries** — only the files you asked for, what each piece of work delivered.
 - **Notes** — your notes.
 - **Temporary** — scratch files, cleared after 7 days.
 - **Tracking** — the files Moki keeps up to date: proposed updates and the activity log.
@@ -45,7 +45,8 @@ The bar above a document has, from left to right: the reading view (eye), tags, 
 - The project's **name and description**; the sliders open the **project settings**.
 - **Call…** — what the AI should do: activities, agents, skills and operations. See [Calling activities, agents and skills](call.md).
 - **Skills and agents** — the ones this project has: its own, the global skills it links, and its defaults. A name opens its file; ▶ asks the AI to use it.
-- **Executions** — *Requests* (each activity you started and where it is) and *Operations*, with what needs you on top.
+- **Activities** — the activities pinned to this project (📌) and what is under way, with what needs you on top; finished work is not listed.
+- **Operations** — multi-agent operations, under way and finished.
 
 The ◧ button at the top collapses the panel into a thin rail.
 

@@ -49,7 +49,7 @@ Press **+** next to the project list and type a name — say *Online store* — 
 |---|---|
 | **Context** | What is confirmed about the system. Starts empty; it fills as you confirm definitions. |
 | **Inbox** | The files you hand to the AI. |
-| **Execution files** | What each piece of work delivered. |
+| **Deliveries** | What each piece of work delivered. |
 | **Notes** | Your notes on the project. |
 | **Temporary** | Scratch files; anything older than 7 days goes to the trash. |
 
@@ -68,7 +68,7 @@ Press **Call…** in the project panel on the right (or **Ctrl+Shift+K**).
 2. Pick the inbox files it should use.
 3. Add a note if you want (*focus on coupons*), choose **New terminal**, and your AI.
 
-The AI opens in a terminal tab inside Moki with the request ready, follows the skill's procedure and stops whenever it needs your decision. What it delivers shows up in **Execution files** and opens next to its terminal.
+The AI opens in a terminal tab inside Moki with the request ready, follows the skill's procedure and stops whenever it needs your decision. What it delivers shows up in **Deliveries** and opens next to its terminal.
 
 ![The Call… list: activities, agents, skills and operations in one search](assets/wiki/en/call.png)
 

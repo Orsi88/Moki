@@ -4,7 +4,7 @@
 
 A maior parte do que você pede é respondida **na conversa**: uma dúvida, uma explicação, uma definição, uma investigação, uma pequena mudança. Nada disso cria arquivo.
 
-A IA só cria uma **execução** — uma pasta em *Arquivos de execuções* — quando:
+A IA só cria uma **execução** — uma pasta em *Entregas* — quando:
 
 - você **pede um arquivo**; ou
 - o resultado da atividade **é um documento** — uma matriz de revisão, casos de teste, um relatório, evidências, um bug; ou
@@ -12,11 +12,13 @@ A IA só cria uma **execução** — uma pasta em *Arquivos de execuções* — 
 
 Ela nunca escreve documentos de apoio que ninguém pediu (anotações, resumos, planos) nem registros do próprio trabalho. Quando um deles ajudaria, ela oferece numa linha e espera o seu sim.
 
-## O que aparece em Arquivos de execuções
+## O que aparece em Entregas
 
-Cada execução mostra **o que foi pedido** — o título dela — e **só as entregas**. Os arquivos internos (o estado que permite retomar, as entradas, os arquivos de apoio) ficam escondidos, mas continuam no disco.
+**Entregas** lista **só os arquivos que você pediu** — o que cada execução entregou —, direto dentro dela, os mais novos primeiro. Não há pastas de execução para abrir: os arquivos internos (o estado que permite retomar, as entradas, os arquivos de apoio) ficam escondidos, mas continuam no disco.
 
-O cartão **Execuções** do painel do projeto lista o mesmo trabalho em **Pedidos**: cada atividade que você começou, o status e o cenário de que tratava. O que espera por você — uma aprovação, uma resposta — vem primeiro em **Precisa de você**, com um ▶ para continuar na sua IA.
+O cartão **Atividades** do painel do projeto mostra primeiro as atividades **fixadas** neste projeto (📌 no **Chamar…**; um clique chama a IA com ela) e depois o que está **em andamento**. O que espera por você — uma aprovação, uma resposta — vem primeiro, com um ▶ para continuar na sua IA. Atividades concluídas e canceladas não aparecem. O 📌 é do projeto; a ⭐ das listas de Configurações vale para o workspace inteiro.
+
+As operações multiagente têm o próprio cartão **Operações**, logo abaixo.
 
 ## Aprovações e voltar depois
 
@@ -28,7 +30,7 @@ A IA entrega só os arquivos que você pediu, no formato pedido; quando o format
 
 ## O Hudson organiza o que as execuções deixam
 
-Quando os arquivos se acumulam, use **botão direito em Arquivos de execuções › Organizar com o Hudson**.
+Quando os arquivos se acumulam, use **botão direito em Entregas › Organizar com o Hudson**.
 
 ![O plano do Hudson: levar para o contexto do projeto, renomear, apagar para a lixeira, manter](../assets/wiki/pt-BR/hudson.png)
 
