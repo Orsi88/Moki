@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { CodeView } from './CodeView';
 import { api, type FileContent, type OpenWithApps } from '../api';
 import { t } from '../i18n';
 import { IconChat, IconCheck, IconChevron, IconCode, IconCopy, IconEdit, IconExternal, IconEye, IconMore, IconRefresh, IconTag } from './Icons';
@@ -356,6 +357,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
           ? <textarea className="editor" spellCheck value={draft} onChange={(e) => onDraft(e.target.value)} />
           : <pre className="plain">{content.text}</pre>)}
         {content.kind === 'json' && <pre className="plain code-view">{content.text}</pre>}
+        {content.kind === 'code' && <CodeView project={project} path={content.path} text={content.text} language={content.language} />}
         {project && ((content.kind === 'docx' && content.document) || (content.kind === 'xlsx' && content.workbook)) && <OfficeEditor key={content.path} content={content} project={project} onReload={onReload} commentsOn={officeComments} onShowComments={() => toggleOfficeComments(true)} zoom={officeZoom} onZoom={setOfficeZoom} onStatus={setOfficeStatus} />}
         {content.kind === 'docx' && !(project && content.document) && (
           <>

@@ -763,6 +763,22 @@ test('an activity pinned to a project lands in its project.json, in the order pi
   }
 });
 
+test('source code opens read-only with its language; configuration formats stay editable text', async () => {
+  const inbox = join(root, 'workspace', 'projects', 'acme', 'inbox');
+  const files: Record<string, string> = { 'app.ts': 'const a: number = 1;\n', 'main.py': 'print(1)\n', 'Dockerfile': 'FROM node\n', 'config.yaml': 'a: 1\n', 'Service.cs': 'class A {}\n' };
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(inbox, name), text);
+    assert.deepEqual(await service.readFile('acme', 'inbox/app.ts'), { kind: 'code', path: 'inbox/app.ts', text: files['app.ts'], language: 'typescript' });
+    assert.equal((await service.readFile('acme', 'inbox/main.py') as { language: string }).language, 'python');
+    assert.equal((await service.readFile('acme', 'inbox/Service.cs') as { language: string }).language, 'csharp');
+    assert.equal((await service.readFile('acme', 'inbox/Dockerfile') as { language: string }).language, 'dockerfile');
+    assert.equal((await service.readFile('acme', 'inbox/config.yaml')).kind, 'text');
+    await assert.rejects(async () => service.openFileInIde('acme', 'inbox/nope.ts', 3), /File not found/);
+  } finally {
+    for (const name of Object.keys(files)) rmSync(join(inbox, name), { force: true });
+  }
+});
+
 test('Deliveries: the tree lists only the files the runs delivered, straight under runs/, newest run first', () => {
   const runs = join(root, 'workspace', 'projects', 'acme', 'runs');
   const id = '20261109-1500-requirements-review-us-12';

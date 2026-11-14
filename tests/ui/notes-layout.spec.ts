@@ -117,6 +117,26 @@ test('with more tabs than fit, discreet arrows at the row ends scroll it, only o
   await page.locator('.tree-row[title="context"]').click();
 });
 
+test('a code file opens read-only with IDE colors and line numbers; a line is selected for "Open in the IDE"', async () => {
+  const file = join(root, 'workspace', 'projects', 'p1', 'inbox', 'login.ts');
+  writeFileSync(file, '// Signs the person in.\nexport async function login(user: string): Promise<boolean> {\n  const tries = 3;\n  return user.length > tries;\n}\n');
+  await page.locator('.tree-row[title="inbox"]').click();
+  await page.locator('.tree-row[title="inbox/login.ts"]').click();
+  const code = page.locator('.code-file');
+  await expect(code.locator('.hljs-keyword').first()).toHaveText('export');
+  await expect(code.locator('.hljs-comment')).toHaveText('// Signs the person in.');
+  await expect(code.locator('.hljs-string, .hljs-number').first()).toBeVisible();
+  await expect(code.locator('.code-gutter button')).toHaveCount(6);
+  await expect(code.locator('textarea')).toHaveCount(0); // read-only: changed in the IDE
+  await code.locator('.code-gutter button').nth(2).click();
+  await expect(code.locator('.code-file-bar')).toContainText('typescript · linha 3');
+  await expect(code.locator('.code-line-mark')).toBeVisible();
+  await expect(code.getByRole('button', { name: /Abrir na IDE/ })).toBeVisible();
+  writeFileSync(test.info().outputPath('code-view.png'), Buffer.from(await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
+  await page.keyboard.press('Control+w');
+  await page.locator('.tree-row[title="inbox"]').click();
+});
+
 test('start-screen sections keep their headings and scroll on their own', async () => {
   await page.locator('.project-switch').click();
   const projects = page.locator('.home-block').filter({ hasText: 'Projetos' });

@@ -112,6 +112,7 @@ export type FileContent =
   | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
   | { kind: 'drawing'; path: string; text: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
+  | { kind: 'code'; path: string; text: string; language: string } // source code: read-only, with its colors; changed in the IDE
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
   | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
@@ -406,6 +407,7 @@ export const api = {
   // Open a project from a folder: the project already linked to it, or the folder and a suggested name (null: cancelled).
   pickFolder: () => call<{ folder: string; name: string; project?: ProjectSummary } | null>('pickFolder'),
   openInEditor: (project: string, tool: string) => call<boolean>('openInEditor', project, tool),
+  openFileInIde: (project: string, path: string, line: number, tool?: string) => call<string>('openFileInIde', project, path, line, tool),
   skills: () => call<SkillInfo[]>('skills'),
   // Favorites first (a stable sort keeps the order of the rest).
   activities: (project?: string) => call<{ activities: ActivityInfo[]; languages: string[] }>('activities', project)

@@ -69,6 +69,10 @@ When the source changes, the viewer updates through the existing file watcher. C
 
 Kroki is a separate service, not a JavaScript dependency embedded in Moki. Its official [deployment guide](https://docs.kroki.io/kroki/setup/about-docker-podman/) covers Docker on Windows and Docker or Podman on Linux; some engines use companion containers. Moki does not install or start those services automatically. If a configured server is unavailable, the file's source and the rest of Moki remain accessible.
 
+## Source code
+
+Code files (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` and many more) open **read-only** with the colors of an IDE and line numbers. Click a line number to select it, then **Open in the IDE** opens VS Code or Cursor on the project at that line, where the code is changed. Configuration files (`.yaml`, `.xml`, `.txt`) stay editable text.
+
 ## Images and other files
 
 **Images** open in a viewer. The ↗ button opens a file in its own program; **⋯ › Open with…** lets you choose which one for Excel, Word and PDF, and remembers it.

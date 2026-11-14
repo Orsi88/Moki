@@ -25,7 +25,7 @@ const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.rou
 // One file's content as the preview shows it.
 function Preview({ file }: { file: FileContent }) {
   if (file.kind === 'markdown' || file.kind === 'docx') return <article className="markdown run-preview-doc" dangerouslySetInnerHTML={{ __html: file.html }} />;
-  if (file.kind === 'text' || file.kind === 'json' || file.kind === 'html') return <pre className="run-preview-text">{file.text}</pre>;
+  if (file.kind === 'text' || file.kind === 'code' || file.kind === 'json' || file.kind === 'html') return <pre className="run-preview-text">{file.text}</pre>;
   if (file.kind === 'xlsx') {
     const sheet = file.sheets.find((s) => !s.hidden) ?? file.sheets[0];
     if (!sheet) return <p className="muted small">{t('Empty spreadsheet.')}</p>;

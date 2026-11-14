@@ -69,6 +69,10 @@ Quando o código-fonte muda, o visualizador é atualizado pelo mecanismo de obse
 
 O Kroki é um serviço separado, não uma dependência JavaScript embarcada no Moki. O [guia oficial de instalação](https://docs.kroki.io/kroki/setup/about-docker-podman/) cobre Docker no Windows e Docker ou Podman no Linux; alguns motores usam contêineres auxiliares. O Moki não instala nem inicia esses serviços automaticamente. Se um servidor configurado estiver indisponível, o código-fonte do arquivo e o restante do Moki continuam acessíveis.
 
+## Código-fonte
+
+Arquivos de código (`.ts`, `.js`, `.py`, `.java`, `.cs`, `.go`, `.css`, `.sql`, `.sh` e muitos outros) abrem **só para leitura**, com as cores de uma IDE e números de linha. Clique no número de uma linha para selecioná-la; **Abrir na IDE** abre o VS Code ou o Cursor no projeto, naquela linha, onde o código é alterado. Arquivos de configuração (`.yaml`, `.xml`, `.txt`) continuam como texto editável.
+
 ## Imagens e outros arquivos
 
 **Imagens** abrem num visualizador. O botão ↗ abre um arquivo no programa dele; **⋯ › Abrir com…** deixa escolher qual para Excel, Word e PDF, e lembra a escolha.

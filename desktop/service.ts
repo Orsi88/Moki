@@ -128,6 +128,7 @@ export type FileContent =
   | { kind: 'diagram'; path: string; text: string; diagram: DiagramKind; editable: false; version: string }
   | { kind: 'drawing'; path: string; text: string }
   | { kind: 'text'; path: string; text: string; editable: boolean }
+  | { kind: 'code'; path: string; text: string; language: string } // read-only, with its colors
   | { kind: 'json'; path: string; text: string }
   | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
   | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
@@ -163,7 +164,19 @@ const TEXT_LIMIT = 2 * 1024 * 1024;
 const AGENT_TEXT_LIMIT = 8000;
 const MAX_TREE_ENTRIES = 5000;
 const OFFICE_TYPES: Record<string, 'docx' | 'xlsx'> = { '.docx': 'docx', '.docm': 'docx', '.dotx': 'docx', '.dotm': 'docx', '.xlsx': 'xlsx', '.xlsm': 'xlsx', '.xltx': 'xlsx', '.xltm': 'xlsx' };
-const TEXT_TYPES = new Set(['.txt', '.log', '.csv', '.xml', '.yaml', '.yml', '.html', '.htm', '.feature', '.ts', '.js']);
+const TEXT_TYPES = new Set(['.txt', '.log', '.csv', '.xml', '.yaml', '.yml', '.html', '.htm', '.feature']);
+// Source code: shown read-only with its colors (app/src/components/CodeView.tsx), opened in the IDE to change it.
+// The value is the highlight.js language. Configuration formats (yaml, xml…) stay editable text.
+export const CODE_LANGUAGES: Readonly<Record<string, string>> = {
+  '.ts': 'typescript', '.tsx': 'typescript', '.mts': 'typescript', '.cts': 'typescript', '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+  '.py': 'python', '.java': 'java', '.kt': 'kotlin', '.kts': 'kotlin', '.scala': 'scala', '.groovy': 'groovy', '.gradle': 'groovy',
+  '.cs': 'csharp', '.vb': 'vbnet', '.fs': 'fsharp', '.go': 'go', '.rs': 'rust', '.rb': 'ruby', '.php': 'php', '.swift': 'swift', '.dart': 'dart',
+  '.c': 'c', '.h': 'c', '.cpp': 'cpp', '.cc': 'cpp', '.hpp': 'cpp', '.m': 'objectivec', '.lua': 'lua', '.pl': 'perl', '.r': 'r',
+  '.css': 'css', '.scss': 'scss', '.less': 'less', '.vue': 'xml', '.svelte': 'xml', '.sql': 'sql', '.graphql': 'graphql', '.gql': 'graphql',
+  '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash', '.ps1': 'powershell', '.psm1': 'powershell', '.bat': 'dos', '.cmd': 'dos',
+  '.toml': 'ini', '.ini': 'ini', '.properties': 'properties', '.dockerfile': 'dockerfile', '.tf': 'plaintext', '.proto': 'protobuf',
+};
+const codeLanguage = (name: string): string | undefined => CODE_LANGUAGES[extname(name).toLowerCase()] ?? (/^(dockerfile|containerfile)$/i.test(name) ? 'dockerfile' : /^makefile$/i.test(name) ? 'makefile' : undefined);
 const PROPOSALS = 'skill-proposals'; // skills drafted by the AI tool from "Create skill", waiting for review
 // Office files "New" can create, empty (the app shows them; they are edited in Excel, Word or a Craft app).
 const BLANK_FILES: Record<string, () => Uint8Array> = { '.xlsx': () => blankXlsx(), '.docx': () => buildDocx({ blocks: [] }).buffer };
@@ -918,12 +931,14 @@ export function createService(root: string, deps: Deps) {
       if (size > IMAGE_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Image too large to preview.' };
       return served({ kind: 'image', path, size, mtime: stat.mtimeMs }, file);
     }
-    const isText = ext === '.md' || ext === '.json' || TEXT_TYPES.has(ext);
+    const language = codeLanguage(basename(file));
+    const isText = ext === '.md' || ext === '.json' || TEXT_TYPES.has(ext) || Boolean(language);
     if (!isText) return { kind: 'binary', path, size, openable: isOpenable(file) };
     if (size > TEXT_LIMIT) return { kind: 'binary', path, size, openable: isOpenable(file), reason: 'File too large to preview.' };
     const text = readFileSync(file, 'utf8');
     if (ext === '.md') return { kind: 'markdown', path, text, html: markdownToHtml(text, { image: imageResolver(project, path), comments: true }), editable: true };
     if (ext === '.html' || ext === '.htm') return served({ kind: 'html', path, text }, file);
+    if (language) return { kind: 'code', path, text, language };
     if (ext === '.json') {
       try { return { kind: 'json', path, text: JSON.stringify(JSON.parse(text), null, 2) }; } catch { return { kind: 'json', path, text }; }
     }
@@ -1246,6 +1261,22 @@ export function createService(root: string, deps: Deps) {
       if (!toolsNow()[tool]) throw new ServiceError(`${TOOLS[tool].label} is not installed on this computer.`);
       await failingAsync(() => runCmd(TOOLS[tool].command!, [folder], 15_000));
       return true;
+    },
+
+    // "Open in the IDE" from a code file: VS Code or Cursor (the one asked for, else the first installed), on its
+    // folder (the linked one for a file in it, else the project's) and at that line: `<ide> <folder> -g <file>:<line>`.
+    openFileInIde: async (project: string, rel: unknown, line: unknown, tool?: unknown) => {
+      const path = String(rel ?? '');
+      const file = projectPath(project, path);
+      if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('File not found.');
+      const installed = toolsNow();
+      const ides = (['vscode', 'cursor'] as const).filter((k) => installed[k]);
+      const chosen = typeof tool === 'string' && (ides as readonly string[]).includes(tool) ? tool as 'vscode' | 'cursor' : ides[0];
+      if (!chosen) throw new ServiceError('Install VS Code or Cursor to open files in an IDE.');
+      const folder = path === LINKED || path.startsWith(`${LINKED}/`) ? projectRepository(project, root) : projectDir(project);
+      const at = Number.isSafeInteger(line) && (line as number) > 0 ? line as number : 1;
+      await failingAsync(() => runCmd(TOOLS[chosen].command!, [folder, '-g', `${file}:${at}`], 15_000));
+      return TOOLS[chosen].label.replace(/ \(.*\)$/, '');
     },
 
     // Tags share context between projects (see contextChoice in scripts/lib/core.ts).
