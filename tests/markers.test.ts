@@ -45,6 +45,9 @@ test('the set: defaults until saved, cleaned on save, written once in the person
   assert.deepEqual(saved.map((m) => [m.icon, m.name]), [['🔍', 'To re view'], ['📌', 'Pinned']]);
   assert.notEqual(saved[1].id, 'review');
   assert.deepEqual(JSON.parse(readFileSync(join(dir, MARKERS_FILE), 'utf8')), saved);
+  // A color is one of the comment colors; anything else is dropped (the app then uses the default of the same id).
+  assert.deepEqual(cleanMarkers([{ id: 'a', icon: '⭐', name: 'A', color: 'purple' }, { id: 'b', icon: '🔍', name: 'B', color: '#123456' }]).map((m) => m.color), ['purple', undefined]);
+  assert.ok(DEFAULT_MARKERS.every((m) => m.color));
   assert.throws(() => cleanMarkers('nope'), /Invalid markers/);
   writeFileSync(join(dir, MARKERS_FILE), '{broken');
   assert.deepEqual(readMarkers(dir), DEFAULT_MARKERS, 'a broken file falls back to the defaults');

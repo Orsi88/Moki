@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { api, type Marker } from '../api';
 import { t } from '../i18n';
 import { confirmDialog } from '../dialogs';
-import { markersChanged, useMarkers } from '../markers';
+import { markerColor, markersChanged, useMarkers } from '../markers';
+import { MARKER_COLORS } from '../../../scripts/lib/marker-labels.ts';
+import { SWATCH } from '../md-comments';
+import { colorName } from './CommentColors';
 import { IconX } from './Icons';
 
 const SUGGESTED = ['⭐', '🔍', '➕', '⚠️', '✅', '❓', '📌', '🔥', '💡', '🧪', '🐞', '📝', '🚧', '❌', '👀', '🎯'];
@@ -19,7 +22,7 @@ export function MarkersPage() {
   const changed = JSON.stringify(draft) !== JSON.stringify(saved);
   const edit = (i: number, patch: Partial<Marker>) => { setNotice(''); setDraft((d) => d.map((m, j) => (j === i ? { ...m, ...patch } : m))); };
   const move = (i: number, by: -1 | 1) => setDraft((d) => { const next = [...d]; const [m] = next.splice(i, 1); next.splice(i + by, 0, m); return next; });
-  const add = () => { const used = new Set(draft.map((m) => m.icon)); setNotice(''); setDraft((d) => [...d, { id: '', icon: SUGGESTED.find((s) => !used.has(s)) ?? '🏷️', name: '', meaning: '' }]); };
+  const add = () => { const used = new Set(draft.map((m) => m.icon)); const colors = new Set(draft.map((m) => markerColor(m))); setNotice(''); setDraft((d) => [...d, { id: '', icon: SUGGESTED.find((s) => !used.has(s)) ?? '🏷️', name: '', meaning: '', color: MARKER_COLORS.find((c) => !colors.has(c)) ?? 'yellow' }]); };
   const remove = async (i: number) => {
     if (!await confirmDialog(t('Remove the marker "{name}"? Comments that already carry it keep it in their text.', { name: draft[i].name || draft[i].icon }), { danger: true })) return;
     setNotice(''); setDraft((d) => d.filter((_, j) => j !== i));
@@ -41,6 +44,11 @@ export function MarkersPage() {
           <li key={i} className="marker-row">
             <input className="marker-icon-field" value={m.icon} maxLength={16} aria-label={t('Icon')} list="marker-icons" onChange={(e) => edit(i, { icon: e.target.value.trim() })} />
             <label className="marker-field"><span>{t('Name')}</span><input value={m.name} maxLength={40} placeholder={t('For example: To review')} onChange={(e) => edit(i, { name: e.target.value })} /></label>
+            <div className="marker-field marker-colors"><span>{t('Color')}</span>
+              <div className="pdf-colors" role="radiogroup" aria-label={t('Color of {name}', { name: m.name || m.icon })}>
+                {MARKER_COLORS.map((c) => <button key={c} type="button" role="radio" aria-checked={markerColor(m) === c} className={`pdf-color${markerColor(m) === c ? ' on' : ''}`} title={colorName(c)} aria-label={colorName(c)} style={{ background: SWATCH[c] }} onClick={() => edit(i, { color: c })} />)}
+              </div>
+            </div>
             <label className="marker-field wide"><span>{t('What it means')}</span><input value={m.meaning} maxLength={200} placeholder={t('For example: needs to be checked before it is relied on')} onChange={(e) => edit(i, { meaning: e.target.value })} /></label>
             <div className="marker-row-actions">
               <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title={t('Move up')} aria-label={t('Move {name} up', { name: m.name || m.icon })}>↑</button>

@@ -11,17 +11,22 @@ let loading: Promise<Marker[]> | null = null;
 
 // The starting set, in the person's language: written once, the first time the workspace's markers are read.
 export const defaultMarkers = (): Marker[] => [
-  { id: 'important', icon: '⭐', name: t('Important'), meaning: t('Matters most: read it first.') },
-  { id: 'review', icon: '🔍', name: t('To review'), meaning: t('Needs to be checked before it is relied on.') },
-  { id: 'complete', icon: '➕', name: t('To complete'), meaning: t('Something is missing here and has to be added.') },
-  { id: 'attention', icon: '⚠️', name: t('Attention'), meaning: t('A risk, a doubt or a point that may be wrong.') },
+  { id: 'important', icon: '⭐', name: t('Important'), meaning: t('Matters most: read it first.'), color: 'yellow' },
+  { id: 'review', icon: '🔍', name: t('To review'), meaning: t('Needs to be checked before it is relied on.'), color: 'blue' },
+  { id: 'complete', icon: '➕', name: t('To complete'), meaning: t('Something is missing here and has to be added.'), color: 'purple' },
+  { id: 'attention', icon: '⚠️', name: t('Attention'), meaning: t('A risk, a doubt or a point that may be wrong.'), color: 'orange' },
   // A key of its own: "Done" alone is already a button's verb in the dictionaries.
-  { id: 'done', icon: '✅', name: t('Done (marker)') === 'Done (marker)' ? 'Done' : t('Done (marker)'), meaning: t('Checked and settled.') },
+  { id: 'done', icon: '✅', name: t('Done (marker)') === 'Done (marker)' ? 'Done' : t('Done (marker)'), meaning: t('Checked and settled.'), color: 'green' },
 ];
 
 function load(): Promise<Marker[]> {
   loading ??= api.markers(defaultMarkers()).then((list) => { cache = list; return list; }).catch(() => { cache = []; return []; }).finally(() => { loading = null; });
   return loading;
+}
+
+// A marker's color; a set saved before markers had colors takes the default of the same id, else yellow.
+export function markerColor(m: Partial<Marker> | null | undefined): NonNullable<Marker['color']> {
+  return m?.color ?? defaultMarkers().find((d) => d.id === m?.id)?.color ?? 'yellow';
 }
 
 export function markersChanged(list: Marker[]): void {

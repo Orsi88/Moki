@@ -3812,6 +3812,9 @@ test('markers: set in Settings in the person language, put on a comment as the p
     expect(readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar]"');
     // Shown as a marker, not as a comment: the icon at the start of the marked text and a compact card.
     await expect(editor.locator('[data-marker="➕"]')).toHaveText('cinco tentativas');
+    // An area in the marker's color (➕ To complete is purple), with a firmer rounded border; the icon in its corner.
+    await expect(editor.locator('[data-marker="➕"]')).toHaveAttribute('data-marker-color', 'purple');
+    await expect(editor.locator('[data-marker="➕"]')).toHaveCSS('border-top-left-radius', '6px');
     const mark = view.locator('.md-card.marker-only');
     await expect(mark.locator('.marker-badge')).toHaveText('➕Completar');
     await expect(mark.locator('.pdf-comment-text')).toHaveCount(0);
@@ -3831,11 +3834,12 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await row.getByLabel('Ícone').fill('🧪');
     await row.getByRole('textbox', { name: 'Nome' }).fill('Testar');
     await row.getByRole('textbox', { name: 'O que significa' }).fill('Precisa de um teste antes de seguir.');
+    await row.getByRole('radiogroup', { name: 'Cor de Testar' }).getByRole('radio', { name: 'Vermelho' }).click();
     await captureRoutineWindow(opened.app, info.outputPath('markers-settings.png'));
     await view.getByRole('button', { name: 'Salvar marcadores', exact: true }).click();
     await expect(view.getByRole('status')).toContainText('Marcadores salvos.');
     const saved = JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8'));
-    expect(saved.at(-1)).toMatchObject({ icon: '🧪', name: 'Testar', meaning: 'Precisa de um teste antes de seguir.' });
+    expect(saved.at(-1)).toMatchObject({ icon: '🧪', name: 'Testar', meaning: 'Precisa de um teste antes de seguir.', color: 'red' });
   } finally {
     await running?.close();
     rmSync(root, { recursive: true, force: true });

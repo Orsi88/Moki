@@ -10,7 +10,7 @@ import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
 import { IconChat, IconFlag } from './Icons';
 import { MarkerBadge, MarkerPicker } from './Markers';
-import { markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
+import { markerColor, markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
 import type { Marker } from '../api';
 import { CommentColors } from './CommentColors';
 import { confirmDialog } from '../dialogs';
@@ -62,11 +62,25 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
   useLayoutEffect(() => {
     const text = body.current;
     if (!text) return;
-    for (const el of text.querySelectorAll<HTMLElement>('[data-marker]')) el.removeAttribute('data-marker');
+    // A marked passage is an area in its marker's color, its icon in the corner of the first piece. Only what changed
+    // is touched: the editor watches its DOM, and rewriting the same attributes on every render would loop with it.
+    const wanted = new Map<HTMLElement, { color: string; icon: string }>();
     for (const c of comments) {
       const marker = splitMarker(c.text, markers).marker;
-      const first = marker && text.querySelector<HTMLElement>(`[data-md-comment="${CSS.escape(c.id)}"], [data-comment-id="${CSS.escape(c.id)}"]`);
-      if (first) first.setAttribute('data-marker', marker.icon);
+      if (!marker) continue;
+      const color = markerColor(markers.find((m) => m.icon === marker.icon) ?? marker);
+      text.querySelectorAll<HTMLElement>(`[data-md-comment="${CSS.escape(c.id)}"], [data-comment-id="${CSS.escape(c.id)}"]`)
+        .forEach((el, i) => wanted.set(el, { color, icon: i === 0 ? marker.icon : '' }));
+    }
+    for (const el of text.querySelectorAll<HTMLElement>('[data-marker-area]')) {
+      if (wanted.has(el)) continue;
+      el.removeAttribute('data-marker-area'); el.removeAttribute('data-marker'); el.removeAttribute('data-marker-color');
+    }
+    for (const [el, want] of wanted) {
+      if (!el.hasAttribute('data-marker-area')) el.setAttribute('data-marker-area', '');
+      if (el.getAttribute('data-marker-color') !== want.color) el.setAttribute('data-marker-color', want.color);
+      if (want.icon && el.getAttribute('data-marker') !== want.icon) el.setAttribute('data-marker', want.icon);
+      if (!want.icon && el.hasAttribute('data-marker')) el.removeAttribute('data-marker');
     }
   });
   useEffect(() => {
@@ -239,12 +253,12 @@ export function CommentComposer({ x, y, saving, color, onColor, onAdd, onCancel 
   return (
     <div className={`pdf-composer${mode === 'marker' ? ' marking' : ''}`} style={{ left: x, top: y }} role="dialog" aria-label={mode === 'marker' ? t('Mark') : t('Comment')}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel(); } }}>
-      {mode === 'marker' && <MarkerPicker markers={markers} value={marker} onPick={setMarker} disabled={saving} />}
+      {mode === 'marker' && <MarkerPicker markers={markers} value={marker} onPick={(m) => { setMarker(m); if (m) onColor(markerColor(m)); }} disabled={saving} />}
       <textarea autoFocus={mode !== 'marker'} rows={mode === 'marker' ? 2 : 3} maxLength={4000} value={text} placeholder={mode === 'marker' ? t('Comment (optional)') : t('Your comment')}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } }} />
       <CommentColors value={color} onChange={onColor} disabled={saving} />
-      {mode !== 'marker' && markers.length > 0 && <MarkerPicker markers={markers} value={marker} onPick={setMarker} disabled={saving} />}
+      {mode !== 'marker' && markers.length > 0 && <MarkerPicker markers={markers} value={marker} onPick={(m) => { setMarker(m); if (m) onColor(markerColor(m)); }} disabled={saving} />}
       <div className="pdf-actions">
         <button type="button" className="btn btn-sm" disabled={saving || !ready} onClick={add}>{text.trim() ? t('Add the comment') : t('Mark')}</button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>{t('Cancel')}</button>

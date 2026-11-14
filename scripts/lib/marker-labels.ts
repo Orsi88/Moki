@@ -5,7 +5,10 @@
 // with the comment in every format (Markdown, Word, spreadsheets, PDF, HTML, diagrams), Word shows it as written,
 // and an AI reads it without being told where to look. The app draws the prefix as a badge. Pure: the app uses it.
 
-export interface Marker { id: string; icon: string; name: string; meaning: string }
+// color: one of the comment colors (yellow, green, blue, pink, orange, red, purple); a marked passage takes it.
+export const MARKER_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'red', 'purple'] as const;
+export type MarkerColor = typeof MARKER_COLORS[number];
+export interface Marker { id: string; icon: string; name: string; meaning: string; color?: MarkerColor }
 
 // ---- The prefix on a comment's text ----
 

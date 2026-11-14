@@ -2680,16 +2680,24 @@ span.mcp-row-main { cursor: default; }
 .settings-markers h1 { font-size: 1.6rem; margin: 0; }
 .settings-markers > p { margin: 0; }
 .marker-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.marker-row { display: grid; grid-template-columns: 52px minmax(140px, 1fr) minmax(200px, 2fr) auto; align-items: end; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.marker-row { display: grid; grid-template-columns: 52px minmax(120px, 1fr) auto minmax(180px, 2fr) auto; align-items: end; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 .marker-icon-field { width: 52px; height: 38px; padding: 0; text-align: center; font-size: 1.3rem; }
 .marker-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.76rem; font-weight: 600; color: var(--muted); }
 .marker-field input { font-weight: 400; color: var(--text); }
 .marker-row-actions { display: flex; gap: 2px; padding-bottom: 4px; }
 .marker-footer { display: flex; align-items: center; gap: 12px; }
 .marker-footer .muted { margin-left: auto; }
-@media (max-width: 720px) { .marker-row { grid-template-columns: 52px 1fr; } .marker-field.wide, .marker-row-actions { grid-column: 1 / -1; } }
+@media (max-width: 860px) { .marker-row { grid-template-columns: 52px 1fr; } .marker-field.wide, .marker-colors, .marker-row-actions { grid-column: 1 / -1; } }
+.marker-colors .pdf-colors { height: 38px; align-items: center; }
 /* A marker drawn at the start of its marked text (Markdown and Word), and a marker without a comment: a compact card. */
-[data-marker]::before { content: attr(data-marker); display: inline-block; margin-right: 3px; font-size: 0.9em; line-height: 1; vertical-align: 0.05em; text-decoration: none; }
+/* A marked passage: an area in its marker's color (Settings › Markers), a firmer rounded border, the icon in the corner. */
+[data-marker-color="yellow"] { --marker-color: #f5d90a; } [data-marker-color="green"] { --marker-color: #46c46a; } [data-marker-color="blue"] { --marker-color: #4a8ff0; }
+[data-marker-color="pink"] { --marker-color: #f06ab0; } [data-marker-color="orange"] { --marker-color: #f59b2a; } [data-marker-color="red"] { --marker-color: #e5484d; } [data-marker-color="purple"] { --marker-color: #9b6cf0; }
+.tiptap-wrap .ProseMirror span[data-marker-area], .markdown mark[data-marker-area], [data-marker-area] { position: relative; padding: 1px 3px; border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent); border-radius: 6px;
+  background: color-mix(in srgb, var(--marker-color) 18%, transparent) !important; border-bottom-width: 1.5px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+[data-marker-area][data-marker] { margin-left: 4px; }
+[data-marker]::before { content: attr(data-marker); position: absolute; left: -9px; top: -10px; display: grid; place-items: center; width: 17px; height: 17px;
+  border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent); border-radius: 50%; background: var(--bg); font-size: 10px; line-height: 1; text-decoration: none; pointer-events: none; }
 .md-card.marker-only { padding-top: 8px; padding-bottom: 6px; }
 .md-card.marker-only .pdf-comment-head { display: none; }
 .md-card.marker-only .marker-badge { margin: 0 0 2px; }

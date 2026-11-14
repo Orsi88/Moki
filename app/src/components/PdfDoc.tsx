@@ -9,7 +9,7 @@ import { lazyHeavy } from '../lazy-module';
 import { useLoaded } from './useLoaded';
 import { NoteDialog } from './NoteDialog';
 import { MarkerBadge, MarkerPicker } from './Markers';
-import { splitMarker, useMarkers, withMarker } from '../markers';
+import { markerColor, splitMarker, useMarkers, withMarker } from '../markers';
 import type { Marker } from '../api';
 import { COLORS, SWATCH as COLOR_SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
@@ -584,7 +584,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
                 <textarea autoFocus rows={3} maxLength={4000} value={composer.text} placeholder={t('Comment (optional)')}
                   onChange={(e) => setComposer({ ...composer, text: e.target.value })}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); highlightSelection(); } }} />
-                {markers.length > 0 && <MarkerPicker markers={markers} value={composer.marker ?? null} disabled={off} onPick={(next) => setComposer({ ...composer, marker: next })} />}
+                {markers.length > 0 && <MarkerPicker markers={markers} value={composer.marker ?? null} disabled={off} onPick={(next) => { setComposer({ ...composer, marker: next }); if (next) setColor(markerColor(next)); }} />}
                 <div className="pdf-actions">
                   <button type="button" className="btn btn-sm" disabled={off} onClick={highlightSelection}>{busy ? t('Saving…') : composer.text.trim() ? t('Add the comment') : t('Highlight')}</button>
                   <button type="button" className="btn btn-ghost btn-sm" disabled={!composer.quote.trim()} onClick={noteFromSelection}>{t('Create a note from here')}</button>

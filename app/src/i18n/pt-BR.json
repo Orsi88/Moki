@@ -453,6 +453,7 @@
   "Hide the file sidebar": "Recolher barra de arquivos",
   "Resize file sidebar": "Ajustar largura da barra de arquivos",
   "Resize notes": "Ajustar altura das notas",
+  "Color of {name}": "Cor de {name}",
   "Large file: shown without colors.": "Arquivo grande: mostrado sem cores.",
   "Open this file in VS Code or Cursor, at the selected line": "Abrir este arquivo no VS Code ou no Cursor, na linha selecionada",
   "Opening in {ide}…": "Abrindo no {ide}…",

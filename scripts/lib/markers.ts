@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-import type { Marker } from './marker-labels.ts';
+import { MARKER_COLORS, type Marker, type MarkerColor } from './marker-labels.ts';
 export * from './marker-labels.ts';
 
 export const MARKERS_FILE = 'markers.json';
@@ -14,11 +14,11 @@ const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 // The set a workspace starts with; the person changes it at will.
 export const DEFAULT_MARKERS: Marker[] = [
-  { id: 'important', icon: '⭐', name: 'Important', meaning: 'Matters most: read it first.' },
-  { id: 'review', icon: '🔍', name: 'To review', meaning: 'Needs to be checked before it is relied on.' },
-  { id: 'complete', icon: '➕', name: 'To complete', meaning: 'Something is missing here and has to be added.' },
-  { id: 'attention', icon: '⚠️', name: 'Attention', meaning: 'A risk, a doubt or a point that may be wrong.' },
-  { id: 'done', icon: '✅', name: 'Done', meaning: 'Checked and settled.' },
+  { id: 'important', icon: '⭐', name: 'Important', meaning: 'Matters most: read it first.', color: 'yellow' },
+  { id: 'review', icon: '🔍', name: 'To review', meaning: 'Needs to be checked before it is relied on.', color: 'blue' },
+  { id: 'complete', icon: '➕', name: 'To complete', meaning: 'Something is missing here and has to be added.', color: 'purple' },
+  { id: 'attention', icon: '⚠️', name: 'Attention', meaning: 'A risk, a doubt or a point that may be wrong.', color: 'orange' },
+  { id: 'done', icon: '✅', name: 'Done', meaning: 'Checked and settled.', color: 'green' },
 ];
 
 const clean = (value: unknown, max: number) => String(value ?? '').replace(/[\r\n\t\[\]]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -35,7 +35,8 @@ export function cleanMarkers(raw: unknown): Marker[] {
     let id = typeof o.id === 'string' && ID.test(o.id) ? o.id : '';
     if (!id || seen.has(id)) id = `m-${randomBytes(4).toString('hex')}`;
     seen.add(id);
-    out.push({ id, icon, name, meaning });
+    const color = MARKER_COLORS.find((c) => c === o.color) as MarkerColor | undefined;
+    out.push({ id, icon, name, meaning, ...(color ? { color } : {}) });
   }
   return out;
 }
