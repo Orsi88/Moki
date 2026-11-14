@@ -76,6 +76,10 @@ const AUTOSAVE_MS = 700;
 const autosaves = (t: Tab): boolean => t.content.kind === 'markdown' && t.content.editable;
 const isDirty = (t: Tab): boolean => (t.content.kind === 'markdown' || t.content.kind === 'text') && t.content.editable && t.draft !== t.content.text;
 const sidebarWidthWithinBounds = (width: number) => Math.max(180, Math.min(720, Math.round(width)));
+// The Notes section's height, dragged on its top edge: at least a few rows, and the files always keep room above it.
+const NOTES_MIN = 80;
+const FILES_MIN = 120;
+const notesHeightWithinBounds = (height: number, sidebarHeight: number) => Math.max(NOTES_MIN, Math.min(Math.max(NOTES_MIN, sidebarHeight - FILES_MIN - 160), Math.round(height)));
 
 // What linking a folder did, shown after "Choose my folder" or creating a project from a folder.
 export const linkedNotice = (r: ProjectSummary & { backup?: string }): string => (r.backup
@@ -103,6 +107,14 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   });
   const sidebar = useRef<HTMLElement>(null);
   const resizeSidebar = useRef<{ startX: number; startWidth: number; width: number } | null>(null);
+  const [notesHeight, setNotesHeight] = useState<number | null>(() => {
+    const saved = recall('qa-notes-height');
+    const height = saved === null ? NaN : Number(saved);
+    return Number.isFinite(height) ? Math.max(NOTES_MIN, Math.round(height)) : null;
+  });
+  const notesSection = useRef<HTMLElement>(null);
+  const resizeNotes = useRef<{ startY: number; startHeight: number; height: number } | null>(null);
+  const sidebarHeight = () => sidebar.current?.getBoundingClientRect().height ?? 600;
   const setSidebarOpen = (open: boolean) => { setSidebarCollapsed(!open); remember('qa-sidebar', open ? 'open' : 'closed'); };
   useEffect(() => { if (search) setSidebarOpen(true); }, [search]);
   useEffect(() => { touchRecentProject(project.id); }, [project.id]);
@@ -987,7 +999,14 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <div className="sidebar-scroll" onContextMenu={(e) => { e.preventDefault(); openItemMenu(null, { left: e.clientX, top: e.clientY }); }}>
           <FileTree {...treeProps} nodes={groups.main} />
         </div>
-        <section className={`home-block sidebar-notes${notesOpen ? '' : ' is-collapsed'}`} aria-label={t('Notes')}>
+        <section ref={notesSection} className={`home-block sidebar-notes${notesOpen ? '' : ' is-collapsed'}`} aria-label={t('Notes')}
+          style={notesOpen && notesHeight !== null ? { flex: `0 0 ${notesHeightWithinBounds(notesHeight, sidebarHeight())}px` } : undefined}>
+          {notesOpen && <div className="notes-resize" role="separator" aria-orientation="horizontal" aria-label={t('Resize notes')} aria-valuemin={NOTES_MIN} aria-valuenow={notesHeight ?? undefined} tabIndex={0}
+            onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); const height = notesSection.current?.getBoundingClientRect().height ?? 200; resizeNotes.current = { startY: e.clientY, startHeight: height, height }; e.currentTarget.setPointerCapture(e.pointerId); }}
+            onPointerMove={(e) => { const drag = resizeNotes.current; if (!drag) return; drag.height = notesHeightWithinBounds(drag.startHeight - (e.clientY - drag.startY), sidebarHeight()); setNotesHeight(drag.height); }}
+            onPointerUp={() => { const drag = resizeNotes.current; if (drag) remember('qa-notes-height', String(drag.height)); resizeNotes.current = null; }}
+            onPointerCancel={() => { resizeNotes.current = null; }}
+            onKeyDown={(e) => { if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return; e.preventDefault(); const height = notesHeightWithinBounds((notesSection.current?.getBoundingClientRect().height ?? 200) + (e.key === 'ArrowUp' ? 20 : -20), sidebarHeight()); setNotesHeight(height); remember('qa-notes-height', String(height)); }} />}
           <div className="home-list-head with-action">
             <button type="button" className="home-block-toggle tree-row" title="notes" aria-expanded={notesOpen}
               onClick={() => setNotesOpen((open) => !open)}

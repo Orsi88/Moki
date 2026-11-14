@@ -378,6 +378,11 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .sidebar-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 16px; }
 .sidebar-notes.home-block { flex: 1 1 0; min-height: 140px; margin: 0; padding: 14px 10px 8px; border-top: 1px solid var(--border); border-bottom: 0; }
 .sidebar-notes.home-block.is-collapsed { flex: 0 0 auto; min-height: 0; }
+.sidebar-notes.home-block { position: relative; }
+.notes-resize { position: absolute; z-index: 4; left: 0; right: 0; top: -4px; height: 8px; cursor: row-resize; touch-action: none; }
+.notes-resize::after { content: ''; position: absolute; top: 3px; left: 50%; width: 2px; height: 2px; border-radius: 50%; background: var(--faint); box-shadow: -5px 0 var(--faint), 5px 0 var(--faint); }
+.notes-resize:hover::after, .notes-resize:focus-visible::after { background: var(--muted); box-shadow: -5px 0 var(--muted), 5px 0 var(--muted); }
+.notes-resize:focus-visible { outline: 1px solid var(--faint); outline-offset: -3px; }
 .sidebar-notes .home-block-toggle.tree-row { height: auto; padding: 0; border-radius: 0; font-size: inherit; font-weight: inherit; letter-spacing: inherit; gap: 6px; }
 .sidebar-notes .home-block-toggle.tree-row:hover { background: transparent; }
 .sidebar-notes ul { list-style: none; margin: 0; padding: 0; }

@@ -829,14 +829,14 @@ test.describe.serial('Moki workspaces', () => {
     await searchPage.getByRole('button', { name: /Acme Library/ }).click();
     await expect(wsPage.locator('.workspace')).toBeVisible();
     await searchPage.close();
-    await wsPage.getByRole('button', { name: /Acompanhamento/ }).click();
-    await wsPage.locator('.tree-row[title="activity-log.md"]').click();
+    await wsPage.locator('.tree-row[title="context"]').click();
+    await wsPage.locator('.tree-row[title="context/glossary.md"]').click();
     const reopenedWindow = wsApp.waitForEvent('window');
     await wsPage.keyboard.press('Control+f');
     const reopenedSearch = await reopenedWindow;
     await expect(reopenedSearch.getByRole('textbox', { name: 'Buscar em projetos e arquivos' })).toBeVisible();
     await expect(reopenedSearch.getByText('Arquivos recentes')).toBeVisible();
-    await expect(reopenedSearch.getByRole('button', { name: /activity-log\.md/ })).toBeVisible();
+    await expect(reopenedSearch.getByRole('button', { name: /glossary\.md/ })).toBeVisible();
     await reopenedSearch.close();
     await wsPage.getByRole('button', { name: 'Todos os projetos' }).click();
   });
@@ -990,7 +990,7 @@ test.describe.serial('Moki project tree', () => {
     await treePage.keyboard.press('Escape');
   });
 
-  test('the sidebar is in blocks: folders, Tracking and Other files, then Project settings and MCPs; the Operations card is in the project panel', async () => {
+  test('the sidebar is in blocks: folders and Other files, then Notes and the MCPs; the Operations card is in the project panel', async () => {
     const project = join(dirs[0], 'workspace', 'projects', 'acme');
     writeFileSync(join(project, 'rascunho.md'), 'x');
     const other = treePage.locator('.tree-row[title=".other"]');
@@ -1001,9 +1001,9 @@ test.describe.serial('Moki project tree', () => {
     // A group of the sidebar is not a folder: no menu to create, reveal or copy.
     await expect(treePage.locator('.tree-line', { has: other }).getByRole('button', { name: 'Mais opções' })).toHaveCount(0);
 
-    // The files Moki keeps up to date are grouped too, with their friendly names.
-    await treePage.locator('.tree-row[title=".tracking"]').click();
-    await expect(treePage.locator('.tree-row[title="activity-log.md"]')).toContainText('Registro de atividades');
+    // The files Moki keeps up to date for the AIs (proposed updates, activity log) are not listed: nobody reads them here.
+    await expect(treePage.locator('.tree-row[title=".tracking"]')).toHaveCount(0);
+    await expect(treePage.locator('.tree-row[title="activity-log.md"]')).toHaveCount(0);
 
     // No Project settings group in the tree (the project settings edit what README.md and project.json hold); the MCP servers stay.
     await expect(treePage.locator('.tree-row[title=".settings"]')).toHaveCount(0);
@@ -1022,9 +1022,9 @@ test.describe.serial('Moki project tree', () => {
     await ops.getByRole('tab', { name: 'Operações', exact: true }).click();
     const order = await treePage.locator('.sidebar-scroll > *').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.className));
     expect(order).toEqual(['tree']); // only the files scroll
-    // The sidebar keeps only the files and, fixed below them, the settings.
+    // The sidebar keeps the files, the Notes section and, fixed below them, the settings.
     const blocks = await treePage.locator('.sidebar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]));
-    expect(blocks.slice(-2)).toEqual(['sidebar-scroll', 'sidebar-foot']);
+    expect(blocks.slice(-3)).toEqual(['sidebar-scroll', 'home-block', 'sidebar-foot']);
     await expect(treePage.locator('.sidebar .ops-side')).toHaveCount(0);
     // The MCP servers stay fixed at the bottom of the sidebar.
     await expect(treePage.locator('.sidebar-foot .tree-row[title=".mcps"]')).toBeVisible();

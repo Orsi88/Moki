@@ -62,6 +62,34 @@ test('execution phases are separate buttons, and the plus is not one of them', a
   await expect(phases.getByRole('button', { name: 'Vincular operações a este projeto' })).toHaveCount(0);
 });
 
+test('the Notes section of a project is resized on its top edge, within bounds, and keeps its height', async () => {
+  const notes = page.locator('.sidebar-notes');
+  const handle = notes.getByRole('separator', { name: 'Ajustar altura das notas' });
+  await expect(handle).toBeVisible();
+  const before = (await notes.boundingBox())!.height;
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y - 100, { steps: 5 });
+  await page.mouse.up();
+  const taller = (await notes.boundingBox())!.height;
+  expect(taller).toBeGreaterThan(before + 80);
+  expect(await page.evaluate(() => localStorage.getItem('qa-notes-height'))).toBe(String(Math.round(taller)));
+  // The keyboard works too, and the section never squeezes the files away.
+  await handle.focus();
+  await page.keyboard.press('ArrowDown');
+  expect((await notes.boundingBox())!.height).toBeLessThan(taller);
+  for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowUp');
+  expect((await page.locator('.sidebar-scroll').boundingBox())!.height).toBeGreaterThanOrEqual(110);
+  for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowDown');
+  expect((await notes.boundingBox())!.height).toBeGreaterThanOrEqual(79);
+  await page.screenshot({ path: test.info().outputPath('notes-resized.png') });
+  // Collapsed, the section shrinks to its heading and the handle goes away.
+  await notes.getByRole('button', { name: 'Notas' }).click();
+  await expect(handle).toHaveCount(0);
+  await notes.getByRole('button', { name: 'Notas' }).click();
+});
+
 test('start-screen sections keep their headings and scroll on their own', async () => {
   await page.locator('.project-switch').click();
   const projects = page.locator('.home-block').filter({ hasText: 'Projetos' });

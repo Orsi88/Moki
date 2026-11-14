@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
 import { describeRun, statusLabel, type TreeNode } from '../api';
 import { t } from '../i18n';
-import { IconChevron, IconCode, IconFolder, IconLink, IconList, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
+import { IconChevron, IconCode, IconFolder, IconLink, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
 import { FileIcon, SectionIcon, isSectionIconName } from '../icons';
 import { RenameField, tooLong } from './RenameField';
 
@@ -31,15 +31,15 @@ export const friendlyName = (name: string): string => ({
   'proposed-updates.md': t('Proposed updates'), 'activity-log.md': t('Activity log'),
 } as Record<string, string>)[name] ?? name;
 
-// The sidebar's file blocks: the folders, then groups that exist only here - Tracking (the two
-// files Moki keeps up to date: proposed updates and the activity log) and Other files (what the
-// user left loose in the project root) - and, fixed at the bottom, the MCP servers. README.md and project.json
-// are not listed: the project settings (the panel, the project folder menu) edit what they hold. Display only: nothing moves on disk. A group's path starts
-// with "." (never a real entry: the tree skips dot files).
-const TRACKING = ['proposed-updates.md', 'activity-log.md'];
+// The sidebar's file blocks: the folders, then Other files (what the user left loose in the project root, a group that
+// exists only here) and, fixed at the bottom, the MCP servers. Not listed: the two files Moki keeps up to date for the AIs
+// (proposed updates and the activity log: context for the AIs, nobody reads them here) and README.md and project.json
+// (the project settings edit what they hold). Display only: nothing moves on disk. A group's path starts with "."
+// (never a real entry: the tree skips dot files).
+const TRACKING = ['proposed-updates.md', 'activity-log.md']; // left out of the tree
 const SETTINGS = ['README.md', 'project.json']; // left out of the tree
 export const OTHER_FILES = '.other';
-const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, '.tracking': IconList, [OTHER_FILES]: IconFolder, '.mcps': IconMcp };
+const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, [OTHER_FILES]: IconFolder, '.mcps': IconMcp };
 
 export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; notes: TreeNode | null; settings: TreeNode[] } {
   const mcps = nodes.find((n) => n.path === '.mcps');
@@ -47,13 +47,11 @@ export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; notes: TreeNod
   // Notes stay in notes/ on disk, but the sidebar lists them in their own section, not as one more folder.
   const notes = files.find((n) => n.type === 'dir' && n.path === 'notes') ?? null;
   const listed = notes ? files.filter((n) => n !== notes) : files;
-  const pick = (names: string[]) => names.flatMap((name) => listed.filter((n) => n.type === 'file' && n.name === name));
   const group = (name: string, path: string, children: TreeNode[]): TreeNode[] => (children.length ? [{ name, path, type: 'dir', children }] : []);
   const other = listed.filter((n) => n.type === 'file' && !TRACKING.includes(n.name) && !SETTINGS.includes(n.name));
   return {
     main: [
       ...listed.filter((n) => n.type === 'dir'),
-      ...group(t('Tracking'), '.tracking', pick(TRACKING)),
       ...group(t('Other files'), OTHER_FILES, other),
     ],
     notes,
@@ -83,7 +81,7 @@ export const renameBlock = (path: string): string => {
   if (path === '@folder') return t('This is your own folder: rename it on your computer.');
   return '';
 };
-// Sidebar groups (".tracking"…) and the project folder itself have no Rename at all.
+// Sidebar groups (".other"…) and the project folder itself have no Rename at all.
 export const canRename = (path: string): boolean => Boolean(path) && !path.startsWith('.') && !renameBlock(path);
 const isNotePath = (path: string) => /^notes\/[^/]+\.md$/.test(path);
 const extOf = (name: string) => { const dot = name.lastIndexOf('.'); return dot > 0 ? name.slice(dot) : ''; };
