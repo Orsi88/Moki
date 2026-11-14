@@ -86,15 +86,18 @@ test('a changed item starts its AI in the background and becomes reviewable only
   assert.deepEqual(f.started, ['fake-1']);
   let detail = f.service.routine('acme', routine.id);
   assert.equal(detail.proposals[0].status, 'preparing');
-  assert.equal(f.service.notifications().length, 0, 'no approval notification before an analysis exists');
+  // One note for the check (its update report), and no approval note before an analysis exists.
+  assert.deepEqual(f.service.notifications().map((n) => [n.category, n.changes]), [['change', 1]]);
+  assert.equal(f.service.notifications()[0].navigationTarget.executionId, execution.id);
   assert.throws(() => f.service.decideProposal('acme', routine.id, detail.proposals[0].id, 'approved'), /no longer waiting/);
   detail = f.finish(execution);
   assert.equal(detail.proposals[0].status, 'pending');
   assert.equal(detail.proposals[0].findings?.[0].kind, 'analysis');
   assert.equal(detail.executions.find((e) => e.id === execution.id)?.status, 'completed');
-  assert.equal(f.service.notifications().length, 1);
+  assert.deepEqual(f.service.notifications().map((n) => n.category), ['approval', 'change']);
   const again = await f.service.runRoutine('acme', routine.id);
   assert.match(again.resultSummary, /No change/);
+  assert.deepEqual(f.service.notifications().map((n) => [n.category, n.changes, n.message]).slice(0, 1), [['info', 0, 'No updates.']], 'a check without changes says so, once');
   assert.equal(f.service.routine('acme', routine.id).proposals.length, 1);
   assert.equal(f.service.decideProposal('acme', routine.id, detail.proposals[0].id, 'approved').status, 'approved');
 });
@@ -133,7 +136,7 @@ test('a workspace switch interrupts the check without writing into the other wor
   release({ id: 123, rev: 1 });
   const execution = await pending;
   assert.equal(execution.status, 'interrupted');
-  assert.equal(existsSync(join(projectsDir(f.root), 'acme', 'routines')), false);
+  assert.equal(existsSync(join(projectsDir(f.root), 'acme', '.routines')), false);
   setWorkspaceDir(f.root, original);
   assert.equal(listExecutions(f.root, 'acme', routine.id)[0].status, 'interrupted');
   assert.equal(readLock(f.root, routine), null);
@@ -216,7 +219,7 @@ test('an interrupted file application recovers its journal without repeating wri
   const run = await f.service.runRoutine('acme', routine.id), proposal = f.finish(run).proposals[0];
   const base = join(projectsDir(f.root), 'acme');
   const file = join(base, 'inbox', 'interrupted.md'); writeFileSync(file, 'partially applied');
-  const folder = join(base, 'routines', routine.id, 'applications'); mkdirSync(folder, { recursive: true });
+  const folder = join(base, '.routines', routine.id, 'applications'); mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, proposal.id + '.json'), JSON.stringify({ status: 'applying', changes: [{ path: 'inbox/interrupted.md', before: 'original', nextText: 'partially applied' }] }));
   proposal.status = 'applying'; saveProposal(f.root, proposal);
   assert.equal(f.service.routine('acme', routine.id).proposals[0].status, 'apply-failed');
@@ -230,7 +233,7 @@ test('an MCP tool error is a failed read and never becomes a baseline', async (t
   const run = await f.service.runRoutine('acme', routine.id);
   assert.equal(run.status, 'failed');
   assert.match(run.error, /MCP tool returned an error/);
-  assert.equal(existsSync(join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json')), false);
+  assert.equal(existsSync(join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json')), false);
 });
 test('a query follows every record it returns: new, changed and gone, with the project name in its arguments', async (t) => {
   let rows = [{ id: 'A', rev: 1 }, { id: 'B', rev: 1 }];
@@ -322,7 +325,7 @@ test('a hierarchical Azure query reads unique items and detects revisions, addit
   assert.equal(first.status, 'completed');
   assert.match(first.resultSummary, /Baseline/);
   assert.deepEqual(calls[1].args.ids, [101, 102]);
-  const checkpoints = JSON.parse(readFileSync(join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json'), 'utf8'));
+  const checkpoints = JSON.parse(readFileSync(join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json'), 'utf8'));
   assert.equal(checkpoints.length, 2);
   rev = 2;
   const second = await f.service.runRoutine('acme', routine.id);
@@ -365,7 +368,7 @@ test('an incomplete or invalid item batch cannot replace the last successful bas
     const f = fixture(st, { callTool: async (_server, tool) => tool === 'wit_query' ? treeResult([1, 2]) : fail ? scenario.response : [itemRow(1), itemRow(2)] });
     const routine = f.save({ executionPolicy: 'monitor', resources: [{ kind: 'query', serverId: f.server.id, tool: 'wit_query', arguments: { action: 'get_results', id: 'synthetic', project: 'Synthetic' } }] });
     assert.equal((await f.service.runRoutine('acme', routine.id)).status, 'completed');
-    const file = join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json');
+    const file = join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json');
     const before = readFileSync(file, 'utf8');
     fail = true;
     const failed = await f.service.runRoutine('acme', routine.id);
@@ -389,7 +392,7 @@ test('a later item batch failure never records a partial baseline', async (t) =>
   assert.equal(execution.status, 'failed');
   assert.match(execution.error, /Synthetic batch failure/);
   assert.equal(batches, 2);
-  assert.equal(existsSync(join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json')), false);
+  assert.equal(existsSync(join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json')), false);
 });
 
 test('empty trees are valid while invalid references and reached query limits stop before item reads', async (t) => {
@@ -408,7 +411,7 @@ test('empty trees are valid while invalid references and reached query limits st
     const routine = f.save({ executionPolicy: 'monitor', resources: [{ kind: 'query', serverId: f.server.id, tool: 'wit_query', arguments: { action: 'get_results', id: 'synthetic', project: 'Synthetic', ...(scenario.top ? { top: scenario.top } : {}) } }] });
     const execution = await f.service.runRoutine('acme', routine.id);
     assert.equal(execution.status, scenario.success ? 'completed' : 'failed');
-    if (!scenario.success) assert.equal(existsSync(join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json')), false);
+    if (!scenario.success) assert.equal(existsSync(join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json')), false);
   });
 });
 
@@ -441,5 +444,74 @@ test('a workspace switch during item hydration interrupts before the next batch'
     assert.equal(batches, 1);
     assert.equal(existsSync(join(f.root, 'alternate', 'projects', 'acme', 'routines')), false);
   } finally { setWorkspaceDir(f.root, original); }
-  assert.equal(existsSync(join(projectsDir(f.root), 'acme', 'routines', routine.id, 'checkpoints.json')), false);
+  assert.equal(existsSync(join(projectsDir(f.root), 'acme', '.routines', routine.id, 'checkpoints.json')), false);
+});
+
+test('one check, one notification and one update report: each item before and after, field by field', async (t) => {
+  let rows: Record<string, unknown>[] = [
+    { id: 7, rev: 1, fields: { 'System.Title': 'Login', 'System.State': 'New', 'System.Description': '<p>Users sign in with <b>e-mail</b>.</p>', 'System.ChangedDate': '2026-11-01' } },
+    { id: 8, rev: 1, fields: { 'System.Title': 'Logout', 'System.State': 'Active' } },
+  ];
+  const f = fixture(t, { callTool: async () => ({ value: rows }) });
+  const routine = f.save({ executionPolicy: 'monitor', resources: [{ kind: 'query', serverId: f.server.id, tool: 'fake_query', arguments: {} }] });
+  await f.service.runRoutine('acme', routine.id);
+  assert.equal(f.service.notifications().length, 0, 'the first reading is only the baseline');
+
+  rows = [
+    { id: 7, rev: 2, fields: { 'System.Title': 'Login', 'System.State': 'Active', 'System.Description': '<p>Users sign in with <b>SSO</b>.</p>', 'System.ChangedDate': '2026-11-02' } },
+    { id: 9, rev: 1, fields: { 'System.Title': 'Reset password', 'System.State': 'New' } },
+  ];
+  const run = await f.service.runRoutine('acme', routine.id);
+  assert.equal(run.reportItems, 3);
+  const notes = f.service.notifications();
+  assert.equal(notes.length, 1, 'three changes, one notification');
+  assert.deepEqual([notes[0].category, notes[0].changes, notes[0].navigationTarget.executionId], ['change', 3, run.id]);
+
+  const report = f.service.routineReport('acme', routine.id, run.id);
+  const byId = Object.fromEntries(report.items.map((item) => [item.resourceId, item]));
+  assert.equal(byId['7'].change, 'changed');
+  assert.equal(byId['7'].title, '#7 Login');
+  // Only the fields that differ, as plain text; the tracker's bookkeeping (revision, dates) is not news.
+  assert.deepEqual(byId['7'].fields, [
+    { name: 'Description', before: 'Users sign in with e-mail.', after: 'Users sign in with SSO.' },
+    { name: 'State', before: 'New', after: 'Active' },
+  ]);
+  assert.equal(byId['9'].change, 'added');
+  assert.deepEqual(byId['9'].fields.map((x) => [x.name, x.before, x.after]), [['State', '', 'New'], ['Title', '', 'Reset password']]);
+  assert.equal(byId['8'].change, 'removed');
+  assert.deepEqual(byId['8'].fields.map((x) => [x.name, x.before, x.after]), [['State', 'Active', ''], ['Title', 'Logout', '']]);
+
+  // The report as Markdown for the update activity, in the project's scratch folder.
+  const rel = f.service.routineReportFile('acme', routine.id, run.id);
+  assert.equal(rel, `temporary/routine-update-${run.id}.md`);
+  const md = readFileSync(join(projectsDir(f.root), 'acme', ...rel.split('/')), 'utf8');
+  assert.match(md, /## #7 Login \(changed\)/);
+  assert.match(md, /### State\n\nBefore:\n\n````text\nNew\n````\n\nAfter:\n\n````text\nActive\n````/);
+  assert.throws(() => f.service.routineReport('acme', routine.id, '../x'), /Unknown report/);
+
+  // Nothing changed: one note saying so, and no report.
+  const quiet = await f.service.runRoutine('acme', routine.id);
+  assert.equal(quiet.reportItems, undefined);
+  assert.deepEqual([f.service.notifications()[0].category, f.service.notifications()[0].message], ['info', 'No updates.']);
+  assert.throws(() => f.service.routineReport('acme', routine.id, quiet.id), /no longer available/);
+});
+
+test('routines live in the hidden .routines/ folder; an older routines/ folder is moved there as it is', async (t) => {
+  const f = fixture(t);
+  const project = join(projectsDir(f.root), 'acme');
+  const routine = f.save({ executionPolicy: 'monitor' });
+  assert.ok(existsSync(join(project, '.routines', routine.id, 'routine.json')));
+  assert.equal(existsSync(join(project, 'routines')), false);
+  // As an older version left it.
+  cpSync(join(project, '.routines'), join(project, 'routines'), { recursive: true });
+  rmSync(join(project, '.routines'), { recursive: true });
+  assert.deepEqual(f.service.listRoutines().map((r: { id: string }) => r.id), [routine.id]);
+  assert.ok(existsSync(join(project, '.routines', routine.id, 'routine.json')));
+  assert.equal(existsSync(join(project, 'routines')), false);
+  // A folder of the person's own that happens to be called routines is never taken.
+  mkdirSync(join(project, 'routines', 'notes'), { recursive: true });
+  writeFileSync(join(project, 'routines', 'notes', 'mine.md'), 'mine');
+  rmSync(join(project, '.routines'), { recursive: true });
+  assert.deepEqual(f.service.listRoutines(), []);
+  assert.ok(existsSync(join(project, 'routines', 'notes', 'mine.md')));
 });

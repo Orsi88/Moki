@@ -98,6 +98,7 @@ const ACTIVITIES: Record<string, Copy> = {
   'design-solution': { label: 'Design the solution with Inventor', hint: 'Goes from the problem to a solution with alternatives and decisions.' },
   'model-data': { label: 'Model data with Cartógrafo', hint: 'Draws entities, relationships and the dictionary so they stay consistent.' },
   'prototype-interface': { label: 'Prototype an interface with Artesão', hint: 'Builds a working interface and checks it in the browser.' },
+  'routine-update': { label: 'Update files from a routine', hint: 'Reads what a routine found and proposes the updates to your files.' },
   open: { label: 'Just open the project', hint: 'Opens the project, loads the context and asks what you need.' },
   context: { label: 'Project context', hint: 'Asks the onboarding questions and updates what the project has confirmed.' },
   setup: { label: 'Prepare the project', hint: 'Adapts the context to the project description.' },

@@ -1,6 +1,7 @@
 // Scheduled project checks, reviewable proposals and workspace preferences.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, ROUTINE_FOCUS, type McpEntry, type ProjectSummary, type RoutineActivity, type RoutineInfo, type RoutineResource, type RoutineSettings, type RoutineTarget, type ToolInfo } from '../api';
+import { api, ROUTINE_FOCUS, type McpEntry, type ProjectSummary, type RoutineActivity, type RoutineInfo, type RoutineResource, type RoutineSettings, type RoutineTarget, type TerminalRef, type ToolInfo } from '../api';
+import { UpdateReport } from './UpdateReport';
 import { t } from '../i18n';
 import { confirmDialog } from '../dialogs';
 import { IconBell, IconChevron, IconPlay, IconRefresh, IconX } from './Icons';
@@ -61,7 +62,7 @@ function EmptyState({ title, children }: { title: string; children: ReactNode })
   return <div className="routine-empty"><span className="routine-empty-icon"><IconBell size={25} /></span><h2>{title}</h2><p className="muted">{children}</p></div>;
 }
 
-export function RoutinesPage({ projects, tools, registerLeave }: { projects: ProjectSummary[]; tools: ToolInfo[]; registerLeave?: (guard: (() => Promise<boolean>) | null) => void }) {
+export function RoutinesPage({ projects, tools, registerLeave, onTerminal }: { projects: ProjectSummary[]; tools: ToolInfo[]; registerLeave?: (guard: (() => Promise<boolean>) | null) => void; onTerminal?: (terminal: TerminalRef, projectId: string) => void }) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [area, setArea] = useState<Area>('routines');
   const [rows, setRows] = useState<RoutineInfo[]>([]);
@@ -77,6 +78,8 @@ export function RoutinesPage({ projects, tools, registerLeave }: { projects: Pro
   const [projectFilter, setProjectFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedProposal, setSelectedProposal] = useState('');
+  // The update report on screen (from a notification or the history), in place of the lists.
+  const [report, setReport] = useState<{ projectId: string; routineId: string; executionId: string } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -121,7 +124,8 @@ export function RoutinesPage({ projects, tools, registerLeave }: { projects: Pro
     const follow = async (target: RoutineTarget) => {
       if (!await leave()) return;
       try { sessionStorage.removeItem(ROUTINE_FOCUS); } catch { /* optional persistence */ }
-      if (target.proposalId) { setDraft(null); setSelectedProposal(target.proposalId); setArea('approvals'); await refresh(); }
+      if (target.executionId) { setDraft(null); setReport({ projectId: target.projectId, routineId: target.routineId, executionId: target.executionId }); }
+      else if (target.proposalId) { setReport(null); setDraft(null); setSelectedProposal(target.proposalId); setArea('approvals'); await refresh(); }
       else await open(target.projectId, target.routineId);
     };
     const listener = (event: Event) => { void follow((event as CustomEvent<RoutineTarget>).detail).catch((e) => setError(message(e))); };
@@ -139,7 +143,7 @@ export function RoutinesPage({ projects, tools, registerLeave }: { projects: Pro
   };
   const go = async (next: Area) => {
     if (!await leave()) return;
-    generation.current++; setDraft(null); setArea(next); setQuery(''); setStatusFilter(''); setError(''); setNotice('');
+    generation.current++; setDraft(null); setReport(null); setArea(next); setQuery(''); setStatusFilter(''); setError(''); setNotice('');
     if (next === 'preferences') { const value = await api.routineSettings(); setSettings(value); setSavedSettings(JSON.stringify(value)); }
   };
   const save = async () => {
@@ -156,6 +160,10 @@ export function RoutinesPage({ projects, tools, registerLeave }: { projects: Pro
   const pending = activity.proposals.filter((p) => ['pending', 'deferred'].includes(p.status)).length;
   const installed = tools.filter((tool) => tool.available && tool.kind === 'terminal');
   const projectPicker = <select aria-label={t('Filter by project')} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="">{t('All projects')}</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>;
+
+  if (report) return <div className="list-page routines-page">
+    <UpdateReport {...report} projects={projects} tools={tools} onTerminal={onTerminal} onBack={() => { setReport(null); setArea('history'); }} />
+  </div>;
 
   return <div className="list-page routines-page">
     {draft ? <header className="library-head"><div className="title-row"><BackArrow label={t('Routines')} onBack={() => { void go('routines'); }} /><h1>{draft.id ? draft.name || t('Edit routine') : t('New routine')}</h1></div></header> : <ListHead title={t('Routines and notifications')} intro={t('Keep an eye on your projects. Review the changes that matter.')} action={!draft && area === 'routines' ? <button type="button" className="btn" disabled={!projects.length || loading} onClick={() => { const value = empty(projects[0]?.id ?? '', zone); const readable = servers.some((s) => s.enabled && s.access === 'read' && (!s.projects.length || s.projects.includes(value.projectId))); if (!readable) value.resources = [{ ...newSource(), kind: 'folder', path: 'context' }]; if (!installed.length) value.executionPolicy = 'monitor'; setDraft(value); setSavedDraft(JSON.stringify(value)); setSourceText({}); setNotice(''); setError(''); }}>{t('New routine')}</button> : undefined} />}
@@ -229,7 +237,7 @@ export function RoutinesPage({ projects, tools, registerLeave }: { projects: Pro
           {p.proposedChanges?.length ? <div className="routine-changes"><h3>{t('Proposed file changes')}</h3>{p.proposedChanges.map((change, i) => <details key={i}><summary>{change.path}</summary>{change.note && <p>{change.note}</p>}<pre>{change.nextText}</pre></details>)}</div> : <p className="muted small">{t('This is a finding to acknowledge. It does not change any file.')}</p>}
           {['pending', 'deferred'].includes(p.status) && <div className="routine-actions"><button type="button" className="btn btn-sm" disabled={busy} onClick={() => void act(async () => { if (p.proposedChanges?.length && !await confirmDialog(t('Apply the displayed changes to {n} files?', { n: p.proposedChanges.length }))) return; const decided = await api.decideProposal(p.projectId, p.routineId, p.id, 'approved'); if (['obsolete', 'apply-failed'].includes(decided.status)) throw new Error(decided.summary); setNotice(p.proposedChanges?.length ? t('Changes applied.') : t('Finding acknowledged.')); })}>{p.proposedChanges?.length ? t('Approve and apply') : t('Acknowledge finding')}</button><button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void act(async () => { await api.decideProposal(p.projectId, p.routineId, p.id, 'rejected'); })}>{t('Reject')}</button>{p.status !== 'deferred' && <button type="button" className="link small" disabled={busy} onClick={() => void act(async () => { await api.decideProposal(p.projectId, p.routineId, p.id, 'deferred'); })}>{t('Review later')}</button>}</div>}
         </div></details>)}</div> : <EmptyState title={t('Nothing waiting for your review')}>{t('Completed analyses will appear here when a routine finds something relevant.')}</EmptyState>)}
-      {area === 'history' && (executions.length ? <ol className="routine-history">{executions.slice(0, 100).map((run) => <li key={run.id}><span className={`routine-history-dot ${run.status}`} /><div><div className="routine-history-title"><strong>{run.routineName}</strong><span className="routine-status">{statusLabel(run.status)}</span></div><span className="muted small">{run.projectName} · {when(run.startedAt)} · {run.triggerType === 'manual' ? t('Manual') : t('Scheduled')}</span>{run.resultSummary && <p>{run.resultSummary}</p>}{run.error && run.error !== run.resultSummary && <p className="warn-text">{run.error}</p>}{run.warnings.length > 0 && <ul className="small warn-text">{run.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul>}</div></li>)}</ol> : <EmptyState title={t('No checks yet')}>{t('Run a routine or let its schedule start the first check.')}</EmptyState>)}
+      {area === 'history' && (executions.length ? <ol className="routine-history">{executions.slice(0, 100).map((run) => <li key={run.id}><span className={`routine-history-dot ${run.status}`} /><div><div className="routine-history-title"><strong>{run.routineName}</strong><span className="routine-status">{statusLabel(run.status)}</span></div><span className="muted small">{run.projectName} · {when(run.startedAt)} · {run.triggerType === 'manual' ? t('Manual') : t('Scheduled')}</span>{run.resultSummary && <p>{run.resultSummary}</p>}{Boolean(run.reportItems) && <button type="button" className="link small" onClick={() => setReport({ projectId: run.projectId, routineId: run.routineId, executionId: run.id })}>{t('See the update report ({n})', { n: run.reportItems ?? 0 })}</button>}{run.error && run.error !== run.resultSummary && <p className="warn-text">{run.error}</p>}{run.warnings.length > 0 && <ul className="small warn-text">{run.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul>}</div></li>)}</ol> : <EmptyState title={t('No checks yet')}>{t('Run a routine or let its schedule start the first check.')}</EmptyState>)}
       {area === 'preferences' && settings && <form className="routine-preferences" onSubmit={(e) => { e.preventDefault(); void act(async () => { const saved = await api.saveRoutineSettings(settings); setSettings(saved); setSavedSettings(JSON.stringify(saved)); setNotice(t('Preferences saved.')); }); }}>
         <section className="routine-section"><header><h2>{t('Let Moki take care of the schedule')}</h2><p className="muted small">{t('These preferences apply to routines in this workspace.')}</p></header><Toggle label={t('Scheduled checks')} hint={t('Turn off to pause schedules. You can still run a check manually.')} checked={!settings.schedulerPaused} onChange={(value) => setSettings({ ...settings, schedulerPaused: !value })} /><Toggle label={t('Keep Moki in the background')} hint={t('Closing the window keeps scheduled checks running. Quit Moki from its tray menu.')} checked={settings.background} onChange={(value) => setSettings({ ...settings, background: value })} /><Toggle label={t('Start Moki when you sign in')} checked={settings.openAtLogin} onChange={(value) => setSettings({ ...settings, openAtLogin: value })} /></section>
         <section className="routine-section"><header><h2>{t('Analysis and history limits')}</h2><p className="muted small">{t('Control how many analyses can run and how much history to keep.')}</p></header><div className="routine-fields"><label>{t('Concurrent AI analyses')}<input type="number" aria-label={t('Concurrent AI analyses')} min={0} max={20} required value={settings.maxAiCalls} onChange={(e) => setSettings({ ...settings, maxAiCalls: e.target.valueAsNumber })} /><span className="muted small">{t('Set to 0 to pause AI analysis. Monitoring continues.')}</span></label><label>{t('Runs to keep per routine')}<input type="number" min={5} max={200} required value={settings.retention} onChange={(e) => setSettings({ ...settings, retention: e.target.valueAsNumber })} /></label></div></section>

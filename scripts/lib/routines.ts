@@ -4,7 +4,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { workspaceDir } from './repo.mjs';
 
@@ -151,6 +151,7 @@ export interface Execution {
   error: string;
   operationRunId: string;
   warnings: string[];
+  reportItems?: number; // items in this check's update report (reports/<id>.json)
 }
 
 export interface RoutineNote {
@@ -165,7 +166,8 @@ export interface RoutineNote {
   proposalId: string;
   readAt: string;
   createdAt: string;
-  navigationTarget: { tab: 'routines'; projectId: string; routineId: string; proposalId: string };
+  navigationTarget: { tab: 'routines'; projectId: string; routineId: string; proposalId: string; executionId?: string }; // executionId: open that check's update report
+  changes?: number; // updates found by the check this note sums up (0: none)
   internal?: boolean; // absent in older notifications means enabled
   system?: boolean;
 }
@@ -433,13 +435,27 @@ export function cleanSource(item: unknown): RoutineResource | null {
   return path ? { ...base, path, recursive: x.recursive !== false } : null;
 }
 
+// A project's routines live in its hidden .routines/ folder: Moki's own state, never one of the person's folders in the
+// tree. Older versions kept them in routines/: that folder is moved once, as it is, the first time it is read.
+export const ROUTINES_FOLDER = '.routines';
+export function routinesRoot(root: string, projectId: string): string {
+  const base = routineProjectDir(root, projectId);
+  const dir = confined(base, ROUTINES_FOLDER);
+  const legacy = join(base, 'routines');
+  if (!existsSync(dir) && existsSync(legacy) && statSync(legacy).isDirectory() && readdirSync(legacy).some((id) => ID.test(id) && existsSync(join(legacy, id, 'routine.json')))) {
+    try { renameSync(legacy, dir); } catch { /* in use: read from there next time */ }
+  }
+  return dir;
+}
+
 export function routineDir(root: string, projectId: string, routineId: string): string {
   if (!ID.test(routineId)) throw new RoutineError('Unknown routine.');
-  return confined(routineProjectDir(root, projectId), 'routines', routineId);
+  routinesRoot(root, projectId); // moves an older routines/ folder first
+  return confined(routineProjectDir(root, projectId), ROUTINES_FOLDER, routineId);
 }
 
 export function listRoutineFiles(root: string, projectId: string): Routine[] {
-  const dir = confined(routineProjectDir(root, projectId), 'routines');
+  const dir = routinesRoot(root, projectId);
   if (!existsSync(dir)) return [];
   return readdirSync(dir).sort().flatMap((id) => {
     try {
@@ -669,4 +685,95 @@ export function appendEvent(root: string, routine: Routine, executionId: string,
 // Steps the routine form last wrote, so a later edit on the operation board is kept until the form changes them.
 export function bodyHash(agents: string[], policy: Policy): string {
   return contentHash({ agents: agents.length ? agents : ['library:routine-analyst'], policy });
+}
+
+// ---- Update reports: what each monitored item said before and after, field by field ----
+// The routine keeps the readable content of every item it watches (contents/<source>.json), so the next check can
+// show what changed and not only that something changed. A check that finds changes writes one report
+// (reports/<execution>.json); the app shows it, and an update activity can read it.
+
+export interface ItemContent { title: string; fields: Record<string, string>; binary?: boolean }
+export interface ReportField { name: string; before: string; after: string }
+export interface ReportItem { sourceId: string; resourceId: string; title: string; change: 'changed' | 'added' | 'removed'; fields: ReportField[]; binary?: boolean; bookkeeping?: boolean }
+export interface UpdateReport { id: string; projectId: string; routineId: string; routineName: string; createdAt: string; items: ReportItem[] }
+
+const FIELD_LIMIT = 20_000;
+const FIELDS_PER_ITEM = 80;
+// Bookkeeping a tracker changes on every save: never news for a person.
+const NOISE = new Set(['rev', 'url', '_links', 'commentVersionRef', 'relations', 'System.Rev', 'System.Watermark', 'System.AuthorizedDate',
+  'System.RevisedDate', 'System.ChangedDate', 'System.AuthorizedAs', 'System.PersonId', 'System.CommentCount', 'System.Id', 'id', 'key']);
+
+// Plain text of a value: HTML of rich fields reduced to its text, people and links by their name.
+export function plainValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') {
+    const text = /<[a-z][\s\S]*>/i.test(value)
+      ? value.replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, '\n').replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+      : value;
+    return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, FIELD_LIMIT);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const o = value as Record<string, unknown>;
+    for (const key of ['displayName', 'name', 'title', 'value']) if (typeof o[key] === 'string') return plainValue(o[key]);
+  }
+  return JSON.stringify(value).slice(0, FIELD_LIMIT);
+}
+
+const fieldName = (key: string) => key.includes('.') ? key.slice(key.lastIndexOf('.') + 1) : key;
+
+// The readable content of one query result: its fields (a tracker's "fields" object, or the record itself).
+export function recordContent(record: unknown, id: string): ItemContent {
+  const row = record && typeof record === 'object' ? record as Record<string, unknown> : {};
+  const source = row.fields && typeof row.fields === 'object' && !Array.isArray(row.fields) ? row.fields as Record<string, unknown> : row;
+  const fields: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source).sort(([a], [b]) => a.localeCompare(b))) {
+    if (NOISE.has(key) || Object.keys(fields).length >= FIELDS_PER_ITEM) continue;
+    const text = plainValue(value);
+    if (text) fields[fieldName(key) in fields ? key : fieldName(key)] = text;
+  }
+  const title = plainValue(source['System.Title'] ?? row.title ?? row.name ?? row.summary ?? (row.fields as Record<string, unknown> | undefined)?.summary ?? '').split('\n')[0].slice(0, 200);
+  return { title: title ? `#${id} ${title}` : `#${id}`, fields };
+}
+
+// What changed between two readings of an item, field by field (only the fields that differ).
+export function compareContent(before: ItemContent | undefined, after: ItemContent | undefined): ReportField[] {
+  const names = [...new Set([...Object.keys(before?.fields ?? {}), ...Object.keys(after?.fields ?? {})])];
+  return names.flatMap((name) => {
+    const was = before?.fields[name] ?? '';
+    const now = after?.fields[name] ?? '';
+    return was === now ? [] : [{ name, before: was, after: now }];
+  });
+}
+
+const contentsFile = (root: string, routine: Routine, sourceId: string) => join(routineDir(root, routine.projectId, routine.id), 'contents', `${contentHash(sourceId).slice(0, 24)}.json`);
+
+export function readContents(root: string, routine: Routine, sourceId: string): Record<string, ItemContent> {
+  const file = contentsFile(root, routine, sourceId);
+  if (!existsSync(file)) return {};
+  try { return (readJson(file) as { items?: Record<string, ItemContent> }).items ?? {}; } catch { return {}; }
+}
+
+export function writeContents(root: string, routine: Routine, sourceId: string, items: Record<string, ItemContent>): void {
+  writeJson(contentsFile(root, routine, sourceId), { sourceId, items });
+}
+
+export function saveReport(root: string, report: UpdateReport): void {
+  writeJson(join(routineDir(root, report.projectId, report.routineId), 'reports', `${report.id}.json`), report);
+}
+
+export function readReport(root: string, projectId: string, routineId: string, executionId: string): UpdateReport {
+  if (!/^[a-z0-9-]{1,80}$/i.test(executionId)) throw new RoutineError('Unknown report.');
+  const file = join(routineDir(root, projectId, routineId), 'reports', `${executionId}.json`);
+  if (!existsSync(file)) throw new RoutineError('This report is no longer available.');
+  return readJson(file) as UpdateReport;
+}
+
+// Reports follow the executions they came from: an execution trimmed by the retention takes its report with it.
+export function trimReports(root: string, routine: Routine): void {
+  const dir = join(routineDir(root, routine.projectId, routine.id), 'reports');
+  if (!existsSync(dir)) return;
+  const kept = new Set(listExecutions(root, routine.projectId, routine.id).map((e) => `${e.id}.json`));
+  for (const name of readdirSync(dir)) if (!kept.has(name)) rmSync(join(dir, name), { force: true });
 }

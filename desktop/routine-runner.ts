@@ -13,6 +13,7 @@ import {
   appendEvent, appendNote, assertRoutineWorkspace, bodyHash, boundedNumber, classify, cleanRoutine, defaultSettings, dueAction, listExecutions, listNotes, listProposals,
   dismissNotes, listRoutineFiles, markNotes, newId, pidAlive, readCheckpoints, readLock, readProposal, readRoutine, readSettings, removeRoutineFiles, RoutineError,
   routineDir, routineProjectDir, routineWorkspace, RoutineInterrupted, sameProposal, saveChange, saveExecution, saveProposal, saveRoutineFile, textHash, trimExecutions, withRoutineWorkspace, writeCheckpoints, writeLock, writeSettings,
+  compareContent, readContents, saveReport, trimReports, writeContents, type ItemContent, type ReportItem,
   type ChangeKind, type Execution, type Proposal, type Routine, type RoutineNote, type RoutineSettings, type Snapshot,
 } from '../scripts/lib/routines.ts';
 import { readSource, sourcePath, type SourceResult } from './routine-sources.ts';
@@ -166,14 +167,14 @@ export function setEnabled(root: string, project: string, routineId: string, ena
   return routine;
 }
 
-function note(root: string, routine: Routine, category: RoutineNote['category'], title: string, message: string, executionId: string, proposalId = ''): void {
+function note(root: string, routine: Routine, category: RoutineNote['category'], title: string, message: string, executionId: string, proposalId = '', changes?: number): void {
   if (!routine.notifyInternal && !routine.notifySystem) return;
-  if (category === 'info' && routine.conditions.notifyWhenRelevant) return;
   appendNote(root, {
     id: newId('n'), category, severity: category, title, message, projectId: routine.projectId, routineId: routine.id,
     executionId, proposalId, readAt: '', createdAt: nowIso(),
     internal: routine.notifyInternal, system: routine.notifySystem,
-    navigationTarget: { tab: 'routines', projectId: routine.projectId, routineId: routine.id, proposalId },
+    ...(changes !== undefined ? { changes } : {}),
+    navigationTarget: { tab: 'routines', projectId: routine.projectId, routineId: routine.id, proposalId, ...(changes ? { executionId } : {}) },
   });
 }
 
@@ -226,6 +227,15 @@ async function runScoped(root: string, project: string, routineId: string, trigg
   try {
     const outcome = await pass(root, routine, execution, hooks);
     assertCurrent(root, routine, execution);
+    // One notification per check: how many updates (the report opens from it), or none. Never one per item.
+    if (outcome.report.length) {
+      execution.reportItems = outcome.report.length;
+      saveReport(root, { id: execution.id, projectId: project, routineId, routineName: routine.name, createdAt: execution.startedAt, items: outcome.report });
+      note(root, routine, 'change', routine.name, outcome.report.length === 1 ? '1 update. Open the report to see what changed.' : `${outcome.report.length} updates. Open the report to see what changed.`, execution.id, '', outcome.report.length);
+    } else if (routine.resources.length && !outcome.baselineOnly) {
+      // The first reading of a source is only its baseline: nothing to compare yet, nothing to notify.
+      note(root, routine, 'info', routine.name, 'No updates.', execution.id, '', 0);
+    }
     execution.status = outcome.operationRunId ? 'waiting' : outcome.warnings.length ? 'completed-with-warnings' : 'completed';
     execution.resultSummary = outcome.summary;
     execution.warnings = outcome.warnings;
@@ -241,14 +251,17 @@ async function runScoped(root: string, project: string, routineId: string, trigg
     saveExecution(root, project, routineId, execution);
     if (execution.status !== 'waiting' && readLock(root, routine)?.executionId === execution.id) writeLock(root, routine, null);
     trimExecutions(root, routine, readSettings(root).retention);
+    trimReports(root, routine);
     // The scheduler advances its slot before dispatch. Never overwrite edits
     // saved while this asynchronous check was reading an external resource.
   }
   return execution;
 }
 
-async function pass(root: string, routine: Routine, execution: Execution, hooks: RunHooks): Promise<{ summary: string; warnings: string[]; operationRunId: string }> {
+async function pass(root: string, routine: Routine, execution: Execution, hooks: RunHooks): Promise<{ summary: string; warnings: string[]; operationRunId: string; report: ReportItem[]; baselineOnly: boolean }> {
   const warnings: string[] = [];
+  const report: ReportItem[] = [];
+  const contentWrites: { sourceId: string; items: Record<string, ItemContent> }[] = [];
   const checkpoints = readCheckpoints(root, routine);
   const proposals = listProposals(root, routine.projectId, routine.id);
   const changes: string[] = [];
@@ -269,6 +282,20 @@ async function pass(root: string, routine: Routine, execution: Execution, hooks:
     }
     assertCurrent(root, routine, execution);
     const { sourceId, snapshots: snaps } = result;
+    const before = readContents(root, routine, sourceId);
+    const after = result.contents ?? {};
+    // What the item said before and says now, for the report: only the fields that changed.
+    const reportItem = (kind: ChangeKind, resourceId: string) => {
+      if (kind !== 'changed' && kind !== 'added' && kind !== 'removed') return;
+      const was = before[resourceId];
+      const now = kind === 'removed' ? undefined : after[resourceId];
+      const fields = compareContent(was, now);
+      const binary = Boolean(was?.binary || now?.binary);
+      // No readable field differs: only the item's bookkeeping changed (its revision, dates or comment count).
+      const bookkeeping = kind === 'changed' && !fields.length && !binary;
+      report.push({ sourceId, resourceId, title: now?.title || was?.title || resourceId, change: kind, fields, ...(binary ? { binary } : {}), ...(bookkeeping ? { bookkeeping } : {}) });
+    };
+    contentWrites.push({ sourceId, items: after });
     // A source seen before reports what joined or left it; its first reading is only the baseline.
     const known = checkpoints.some((c) => c.sourceId === sourceId);
     const record = (kind: ChangeKind, resourceId: string, previousVersion: string, currentVersion: string, summary: string, snap: Snapshot) => {
@@ -278,6 +305,7 @@ async function pass(root: string, routine: Routine, execution: Execution, hooks:
       if (kind === 'baseline') { baselines += 1; return; }
       relevant = true;
       changes.push(change.summary);
+      reportItem(kind, resourceId);
       if (routine.executionPolicy !== 'monitor' && routine.conditions.proposeWhenImpact) {
         const pending = proposals.find((p) => p.status === 'preparing' && p.sourceSnapshot.hash === snap.hash && p.sourceSnapshot.resourceId === snap.resourceId);
         if (pending) { pending.executionId = execution.id; saveProposal(root, pending); }
@@ -287,8 +315,6 @@ async function pass(root: string, routine: Routine, execution: Execution, hooks:
           proposals.push(proposal);
           appendEvent(root, routine, execution.id, 'proposal.created', proposal.id);
         }
-      } else {
-        note(root, routine, 'change', routine.name, change.summary, execution.id);
       }
     };
     for (const snap of snaps) {
@@ -322,13 +348,14 @@ async function pass(root: string, routine: Routine, execution: Execution, hooks:
     if (!operationRunId) throw new RoutineError(warnings.join(' ') || 'The analysis could not start.');
   }
   writeCheckpoints(root, routine, checkpoints);
+  for (const write of contentWrites) writeContents(root, routine, write.sourceId, write.items);
   const summary = !routine.resources.length ? 'Nothing to read.'
     : relevant ? changes.join(' ') || 'Changes recorded.'
     : baselines ? 'Baseline recorded. Nothing to approve yet.'
     : 'No change since the last successful check.';
   if (!relevant) appendEvent(root, routine, execution.id, 'routine.completed', summary);
   else appendEvent(root, routine, execution.id, 'routine.completed', summary);
-  return { summary, warnings, operationRunId };
+  return { summary, warnings, operationRunId, report, baselineOnly: !relevant && baselines > 0 };
 }
 
 function makeProposal(routine: Routine, execution: Execution, changeId: string, summary: string, snap: Snapshot): Proposal {
@@ -449,7 +476,7 @@ function recoverApplications(root: string, routine: Routine): void {
   const base = routineProjectDir(root, routine.projectId);
   for (const proposal of listProposals(root, routine.projectId, routine.id).filter((p) => p.status === 'applying')) {
     try {
-      const journal = resolveInside(base, `routines/${routine.id}/applications/${proposal.id}.json`);
+      const journal = join(routineDir(root, routine.projectId, routine.id), 'applications', `${proposal.id}.json`);
       const data = JSON.parse(readFileSync(journal, 'utf8')) as { status?: unknown; changes?: unknown };
       if (data.status === 'applied') proposal.status = 'applied';
       else {

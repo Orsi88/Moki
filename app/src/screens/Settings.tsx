@@ -107,7 +107,7 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
         {onBack && <button type="button" className="btn btn-ghost btn-sm settings-return" onClick={onBack}>{backLabel}</button>}
       </aside>
       <div className="settings-body" role="tabpanel" id={`settings-panel-${tab}`} aria-labelledby={`settings-tab-${tab}`}>
-        {tab === 'routines' ? <RoutinesPage projects={projects} tools={tools} registerLeave={registerLeave} />
+        {tab === 'routines' ? <RoutinesPage projects={projects} tools={tools} registerLeave={registerLeave} onTerminal={onTerminal} />
           : tab === 'themes' ? <ThemesPage />
           : tab === 'documents' ? <DocumentStyleForm />
           : tab === 'mcp' ? <McpManager key={target?.id ?? 'none'} project={target} projects={projects} />

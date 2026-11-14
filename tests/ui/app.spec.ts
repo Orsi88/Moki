@@ -3638,7 +3638,7 @@ test('routine settings: intuitive navigation, complete schedules and responsive 
     await view.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await view.getByRole('button', { name: 'Salvar rotina', exact: true }).click();
     await expect(view.getByRole('status')).toContainText('Rotina salva.');
-    const routineFolder = join(root, 'workspace', 'projects', 'acme', 'routines');
+    const routineFolder = join(root, 'workspace', 'projects', 'acme', '.routines');
     const id = readdirSync(routineFolder)[0];
     let saved = JSON.parse(readFileSync(join(routineFolder, id, 'routine.json'), 'utf8'));
     expect(saved.schedule.kind).toBe('weekly');
@@ -3705,6 +3705,61 @@ test('routine notifications: opening a proposal never applies it, exact changes 
     await view.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
     await expect(view.getByRole('status')).toContainText('Alterações aplicadas.');
     expect(readFileSync(targetFile, 'utf8')).toBe('Approved synthetic text.');
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('routine update report: one notification opens the items before and after, and starts the update activity', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-report-ui-profile-'));
+  const { cleanRoutine, saveRoutineFile, saveReport, saveExecution, appendNote } = await import('../../scripts/lib/routines.ts');
+  const routine = cleanRoutine({ id: 'mfs-check', name: 'MFs em validação', executionPolicy: 'monitor', schedule: { kind: 'manual' } }, 'acme');
+  saveRoutineFile(root, routine);
+  const at = new Date().toISOString();
+  saveExecution(root, 'acme', routine.id, { id: 'e-report', routineId: routine.id, projectId: 'acme', status: 'completed', scheduledAt: '', startedAt: at, finishedAt: at, triggerType: 'manual', resultSummary: '151894 changed.', error: '', operationRunId: '', warnings: [], reportItems: 2 });
+  saveReport(root, { id: 'e-report', projectId: 'acme', routineId: routine.id, routineName: routine.name, createdAt: at, items: [
+    { sourceId: 'query:x', resourceId: '151894', title: '#151894 Fluxo de aprovação do formulário', change: 'changed', fields: [
+      { name: 'State', before: 'Aguardando Validação', after: 'Validado' },
+      { name: 'AcceptanceCriteria', before: 'O gestor aprova.', after: 'O gestor aprova.\nO diretor aprova acima de R$ 10 mil.' },
+    ] },
+    { sourceId: 'query:x', resourceId: '156900', title: '#156900 Exportar relatório', change: 'added', fields: [{ name: 'State', before: '', after: 'New' }] },
+  ] });
+  appendNote(root, { id: 'n-report', category: 'change', severity: 'change', title: routine.name, message: '2 updates. Open the report to see what changed.', changes: 2, projectId: 'acme', routineId: routine.id, executionId: 'e-report', proposalId: '', readAt: '', createdAt: at, internal: true, system: false, navigationTarget: { tab: 'routines', projectId: 'acme', routineId: routine.id, proposalId: '', executionId: 'e-report' } });
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile, 'acme', { QA_FAKE_TOOLS: '1' });
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 900);
+    await view.getByRole('button', { name: 'Notificações', exact: true }).first().click();
+    const panel = view.getByRole('dialog', { name: 'Notificações', exact: true });
+    // One line for the check, in the person's language: the count, not a written account of each item.
+    await expect(panel.getByRole('button', { name: /MFs em validação/ })).toContainText('2 atualizações. Abra o relatório para ver o que mudou.');
+    await panel.getByRole('button', { name: /MFs em validação/ }).click();
+    await expect(view.getByRole('heading', { name: 'Relatório de atualizações' })).toBeVisible();
+    await expect(view.getByText('2 itens mudaram na fonte.')).toBeVisible();
+    const item = view.locator('.update-report-item', { hasText: '#151894' });
+    await expect(item.locator('.update-report-badge')).toHaveText('Alterado');
+    const state = item.locator('tr', { hasText: 'State' });
+    await expect(state.locator('.update-report-before')).toHaveText('Aguardando Validação');
+    await expect(state.locator('.update-report-after')).toHaveText('Validado');
+    await expect(item.locator('tr', { hasText: 'AcceptanceCriteria' }).locator('.update-report-after')).toContainText('O diretor aprova acima de R$ 10 mil.');
+    await expect(view.locator('.update-report-item', { hasText: '#156900' }).locator('.update-report-badge')).toHaveText('Novo');
+    await captureRoutineWindow(opened.app, info.outputPath('update-report.png'));
+    // The update activity opens an AI in the project with the report, written to its scratch folder.
+    await view.getByRole('button', { name: 'Iniciar atividade de atualização', exact: true }).click();
+    // Fake AI tools in this test answer without a terminal: the request went out, with no error.
+    await expect(view.locator('.update-report [role="status"]')).toHaveText('fake');
+    await expect(view.locator('.update-report [role="alert"]')).toHaveCount(0);
+    expect(readFileSync(join(root, 'workspace', 'projects', 'acme', 'temporary', 'routine-update-e-report.md'), 'utf8')).toContain('## #151894 Fluxo de aprovação do formulário (changed)');
+    // The history links to the same report.
+    // Back from the report lands on the History, which links to the same report.
+    await view.getByRole('button', { name: 'Voltar para Rotinas', exact: true }).click();
+    await expect(view.getByRole('tab', { name: 'Histórico', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await view.getByRole('button', { name: 'Ver o relatório de atualizações (2)', exact: true }).click();
+    await expect(view.getByRole('heading', { name: 'Relatório de atualizações' })).toBeVisible();
   } finally {
     await running?.close();
     rmSync(root, { recursive: true, force: true });

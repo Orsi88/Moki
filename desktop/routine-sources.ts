@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, isAbsolute, relative, sep } from 'node:path';
 import { OPENABLE_EXTENSIONS, resolveInside } from './fs-guard.ts';
 import { enabledServers, type McpServer } from '../scripts/lib/mcp.ts';
-import { contentHash, RoutineError, routineProjectDir, snapshotsOf, toolPayload, type RoutineResource, type Snapshot } from '../scripts/lib/routines.ts';
+import { contentHash, recordContent, RoutineError, routineProjectDir, snapshotsOf, toolPayload, type ItemContent, type RoutineResource, type Snapshot } from '../scripts/lib/routines.ts';
 
 const MAX_FILES = 5000;
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -12,9 +12,12 @@ const MAX_ITEMS = 10000;
 const MAX_PAGES = 100;
 const ITEM_BATCH_SIZE = 50;
 const INTERNAL = new Set(['runs', 'routines', 'temporary', 'backups']);
+const TEXT_FILES = new Set(['.md', '.txt', '.csv', '.json', '.xml', '.yaml', '.yml', '.html', '.htm', '.log']);
+const TEXT_LIMIT = 1024 * 1024; // the text kept of one file, for the update report
 const keyOf = (path: string) => path.replace(/\\/g, '/');
 
-export interface SourceResult { sourceId: string; snapshots: Snapshot[]; records: unknown[]; files: string[] }
+// contents: the readable content of each item, by its resourceId, so a later check can say what changed in it.
+export interface SourceResult { sourceId: string; snapshots: Snapshot[]; records: unknown[]; files: string[]; contents: Record<string, ItemContent> }
 type SourceCall = (server: McpServer, tool: string, args: Record<string, unknown>) => Promise<unknown>;
 type QueryReader = (payload: unknown, args: Record<string, unknown>, server: McpServer, call: SourceCall, assertCurrent: () => void) => Promise<unknown[] | null>;
 const QUERY_READERS: Readonly<Partial<Record<string, QueryReader>>> = { wit_query: readAzureQuery };
@@ -64,15 +67,17 @@ export async function readSource(root: string, project: { id: string; name: stri
     if (next === undefined || next === null || next === '') {
       const more = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
       if (!source.pagination?.nextCursorPath && (more.hasMore === true || more.nextCursor || more.nextPageToken || more.continuationToken || more.nextLink)) throw new RoutineError('This query has more pages. Configure its cursor fields so every result can be checked.');
+      const contents: Record<string, ItemContent> = {};
       const snapshots = records.map((record) => {
         const row = record && typeof record === 'object' ? record as Record<string, unknown> : {};
         const id = String(source.idPath ? field(record, source.idPath) ?? '' : row.id ?? row.key ?? (row.fields as Record<string, unknown> | undefined)?.['System.Id'] ?? '');
         if (!id || id.length > 512 || seen.has(`item:${id}`)) throw new RoutineError('Every query result needs a stable, unique identifier. Set its identifier field.');
         seen.add(`item:${id}`);
         const snapshot = snapshotsOf([{ ...row, id }])[0];
+        contents[id] = recordContent(record, id);
         return { ...snapshot, resourceId: id, hash: contentHash(record) };
       });
-      return { sourceId, snapshots, records, files: [] };
+      return { sourceId, snapshots, records, files: [], contents };
     }
     const token = JSON.stringify(next);
     if (seen.has(token)) throw new RoutineError('The query repeated its pagination cursor. No partial result was accepted.');
@@ -174,6 +179,7 @@ function readFiles(root: string, projectId: string, source: RoutineResource): So
     }
   }
   let bytes = 0;
+  const contents: Record<string, ItemContent> = {};
   const snapshots = [...files].sort().map((path) => {
     const file = resolveInside(base, path);
     const stat = statSync(file);
@@ -182,8 +188,10 @@ function readFiles(root: string, projectId: string, source: RoutineResource): So
     const content = readFileSync(file);
     const relativePath = keyOf(relative(base, file));
     if (relativePath === '..' || relativePath.startsWith(`..${sep}`)) throw new RoutineError('Path outside the project folder.');
+    const text = TEXT_FILES.has(extname(path).toLowerCase()) && content.length <= TEXT_LIMIT;
+    contents[path] = text ? { title: path, fields: { Content: content.toString('utf8') } } : { title: path, fields: {}, binary: true };
     return { resourceId: path, version: '', updatedAt: stat.mtime.toISOString(), hash: contentHash(content.toString('base64')) };
   });
   const sourceId = `${source.kind}:${contentHash({ paths, recursive: source.recursive !== false }).slice(0, 16)}`;
-  return { sourceId, snapshots, records: snapshots.map((snapshot) => ({ ...snapshot, kind: 'file' })), files: [...files], ...(!snapshots.length && missing.length ? { records: missing.map((path) => ({ path, missing: true })) } : {}) };
+  return { sourceId, snapshots, records: snapshots.map((snapshot) => ({ ...snapshot, kind: 'file' })), files: [...files], contents, ...(!snapshots.length && missing.length ? { records: missing.map((path) => ({ path, missing: true })) } : {}) };
 }

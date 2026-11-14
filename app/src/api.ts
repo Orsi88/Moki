@@ -348,15 +348,18 @@ export interface RoutineInfo {
   conditions: { runWhenChanges: boolean; notifyWhenRelevant: boolean; proposeWhenImpact: boolean; overlap: string; stopWhenResourceMissing: boolean };
 }
 export interface RoutineProposal { id: string; projectId: string; routineId: string; executionId: string; status: string; summary: string; justification: string; createdAt: string; findings?: { statement: string; kind: 'analysis' }[]; proposedChanges: { path: string; baseHash: string; nextText: string; note: string }[]; sourceSnapshot: { resourceId: string; version: string; hash: string } }
-export interface RoutineExecution { id: string; status: string; startedAt: string; finishedAt: string; triggerType: string; resultSummary: string; error: string; warnings: string[] }
+export interface RoutineExecution { id: string; status: string; startedAt: string; finishedAt: string; triggerType: string; resultSummary: string; error: string; warnings: string[]; reportItems?: number }
+// The update report of one check: each item that changed, field by field, before and after.
+export interface RoutineReport { id: string; projectId: string; routineId: string; routineName: string; createdAt: string; items: { sourceId: string; resourceId: string; title: string; change: 'changed' | 'added' | 'removed'; fields: { name: string; before: string; after: string }[]; binary?: boolean; bookkeeping?: boolean }[] }
 export interface RoutineNote {
   id: string; category: string; title: string; message: string; projectId: string; routineId: string; proposalId: string;
-  readAt: string; createdAt: string; navigationTarget: { projectId: string; routineId: string; proposalId: string };
+  readAt: string; createdAt: string; navigationTarget: { projectId: string; routineId: string; proposalId: string; executionId?: string };
+  executionId?: string; changes?: number; // the check it sums up, and how many updates it found (0: none)
 }
 export interface RoutineSettings { schedulerPaused: boolean; background: boolean; openAtLogin: boolean; maxAiCalls: number; retention: number }
 
 export const ROUTINE_FOCUS = 'qa-routine-focus';
-export interface RoutineTarget { projectId: string; routineId: string; proposalId?: string }
+export interface RoutineTarget { projectId: string; routineId: string; proposalId?: string; executionId?: string } // executionId: that check's update report
 export interface RoutineActivity {
   executions: (RoutineExecution & { projectId: string; routineId: string; routineName: string; projectName: string })[];
   proposals: (RoutineProposal & { routineName: string; projectName: string })[];
@@ -583,6 +586,8 @@ export const api = {
   runRoutine: (project: string, id: string) => call<RoutineExecution>('runRoutine', project, id),
   decideProposal: (project: string, routineId: string, proposalId: string, result: 'approved' | 'rejected' | 'deferred') => call<RoutineProposal>('decideProposal', project, routineId, proposalId, result),
   routineSettings: () => call<RoutineSettings>('routineSettings'),
+  routineReport: (project: string, routineId: string, executionId: string) => call<RoutineReport>('routineReport', project, routineId, executionId),
+  routineReportFile: (project: string, routineId: string, executionId: string) => call<string>('routineReportFile', project, routineId, executionId),
   saveRoutineSettings: (raw: RoutineSettings) => call<RoutineSettings>('saveRoutineSettings', raw),
   notifications: () => call<RoutineNote[]>('notifications'),
   onOpenRoutine: (callback: (target: RoutineTarget) => void) => window.qa?.onOpenRoutine?.(callback) ?? (() => {}),

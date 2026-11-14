@@ -70,6 +70,14 @@ Open **History** and expand the execution to see its result or error. The first 
 
 In analysis mode, a changed source starts the linked operation. The execution stays waiting while the AI prepares its output. **Approvals** becomes actionable only after the analysis and operation handoff are delivered. Review the findings and exact proposed file contents before approving. Opening a notification or marking it read never approves a proposal.
 
+## One notification per check, and the update report
+
+Each check sends **one** notification, however many items changed: **"3 updates"** or **"No updates."** The first reading of a source is only its reference and sends none. A check with updates also shows on your desktop; "No updates" stays in the bell.
+
+Click an update notification (or **See the update report** in **History**) to open the **Update report**: every item that is new, changed or gone in the source, and for each one the fields that differ, **before and after**, side by side, as read (rich text reduced to its words). An item whose only change is its revision, dates or comment count says so. Moki keeps the readable content of every item it watches to make this comparison; text files are compared by their text, other files only report that they changed.
+
+**Start update activity** opens your AI in the project with the report. It looks for the project's files that rely on those items, shows the plan file by file and waits for your approval before changing anything.
+
 The bell supports **Mark all as read**, closing one notification with its ×, and **Clear all**. Closing notifications does not archive the routine or approve its proposals. Its next relevant execution can create a new notification.
 
 ## Keep checks running and manage the routine

@@ -2633,3 +2633,31 @@ span.mcp-row-main { cursor: default; }
 @container (max-width: 600px) { .activity-uses, .mcp-oauth-row, .ds-zones { grid-template-columns: minmax(0, 1fr); } .settings-body .library-head .row-actions { flex-wrap: wrap; } }
 @media (max-width: 840px) { .settings { --settings-page-x: 24px; --settings-page-y: 26px; --settings-page-bottom: 32px; } }
 @media (max-width: 640px) { .settings { --settings-page-x: 16px; --settings-page-y: 22px; --settings-page-bottom: 28px; } }
+
+/* Update report of a routine check (UpdateReport): each changed item, field by field, before and after. */
+.update-report { display: flex; flex-direction: column; gap: 18px; }
+.update-report-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); }
+.update-report-head > div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.update-report-action { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 360px; text-align: right; }
+.update-report-action .btn { display: inline-flex; align-items: center; gap: 6px; }
+.update-report-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.update-report-item { padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--muted); border-radius: var(--radius); background: var(--bg); }
+.update-report-item[data-change="added"] { border-left-color: var(--ok); }
+.update-report-item[data-change="removed"] { border-left-color: var(--err); }
+.update-report-item[data-change="changed"] { border-left-color: var(--accent); }
+.update-report-item > header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.update-report-item h2 { margin: 0; font-size: 0.98rem; font-weight: 600; overflow-wrap: anywhere; }
+.update-report-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: var(--bg-3); color: var(--muted); }
+.update-report-badge.added { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.update-report-badge.removed { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
+.update-report-badge.changed { background: var(--accent-soft); color: var(--text); }
+.update-report-fields { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.84rem; }
+.update-report-fields th, .update-report-fields td { padding: 8px 10px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
+.update-report-fields thead th { border-top: 0; color: var(--muted); font-size: 0.74rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.update-report-fields thead th:first-child, .update-report-fields tbody th { width: 22%; }
+.update-report-fields tbody th { font-weight: 600; overflow-wrap: anywhere; }
+.update-report-fields td { white-space: pre-wrap; overflow-wrap: anywhere; }
+.update-report-value { max-height: 260px; overflow: auto; }
+.update-report-before { background: color-mix(in srgb, var(--err) 6%, transparent); }
+.update-report-after { background: color-mix(in srgb, var(--ok) 7%, transparent); }
+@media (max-width: 720px) { .update-report-action { align-items: flex-start; text-align: left; } }

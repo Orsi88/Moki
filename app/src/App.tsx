@@ -157,7 +157,7 @@ export function App() {
   }
   return (
     <>
-      {!WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onHome={home} onNewLooseNote={openQuickNote} noteProjects={projects.filter((p) => !hiddenIds().includes(p.id)).map(({ id, name }) => ({ id, name }))} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />}
+      {!WorkspaceLoaded ? null : <WorkspaceLoaded key={`${workspace.id}:${project.id}`} workspaceId={workspace.id} project={project} tools={tools} onOtherProjectTerminal={openTerminal} onHome={home} onNewLooseNote={openQuickNote} noteProjects={projects.filter((p) => !hiddenIds().includes(p.id)).map(({ id, name }) => ({ id, name }))} settings={settings} onSettings={setSettings} onProjectChanged={onProjectChanged} launchOnOpen={launchOnOpen} startSetup={created?.id === project.id && created.setup} startNotice={created?.id === project.id ? created.notice : ''} pendingTerminal={pendingTerm} onPendingTerminal={() => setPendingTerm(null)} pendingPath={pendingPath} onPendingPath={() => setPendingPath(null)} search={search} onSearch={toggleSearch} onFound={openFound} onToolsChanged={loadTools} />}
       {note}
     </>
   );

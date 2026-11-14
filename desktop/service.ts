@@ -59,7 +59,7 @@ import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
 import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
-import { listExecutions, listProposals, listRoutineFiles, readRoutine } from '../scripts/lib/routines.ts';
+import { listExecutions, listProposals, listRoutineFiles, readReport, readRoutine, type UpdateReport } from '../scripts/lib/routines.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
@@ -191,6 +191,20 @@ function validName(value: unknown): string {
 const posix = (p: string): string => p.split(sep).join('/');
 const isWithin = (dir: string, p: string): boolean => { const r = relative(dir, p); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
 const stamp = (): string => new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15); // YYYYMMDD-HHMMSS (UTC)
+
+// An update report as Markdown for an AI: every changed item with each field before and after, quoted as read.
+export function reportMarkdown(report: UpdateReport): string {
+  const block = (text: string) => (text ? ['````text', text, '````'] : ['(empty)']);
+  const change = { changed: 'changed', added: 'new in the source', removed: 'no longer in the source' } as const;
+  const lines = [`# Update report: ${report.routineName}`, '', `Check of ${report.createdAt}. ${report.items.length} item(s) changed in the monitored source. Values are quoted as read.`, ''];
+  for (const item of report.items) {
+    lines.push(`## ${item.title} (${change[item.change]})`, '', `Source item: \`${item.resourceId}\``, '');
+    if (item.binary) lines.push('Not a text file: its content cannot be compared here. Open the file to see it.', '');
+    if (item.bookkeeping) lines.push('Only its revision, dates or comment count changed: no readable field is different.', '');
+    for (const field of item.fields) lines.push(`### ${field.name}`, '', 'Before:', '', ...block(field.before), '', 'After:', '', ...block(field.after), '');
+  }
+  return `${lines.join('\n').trimEnd()}\n`;
+}
 
 // What a folder may hold as AI tool settings; the ones that exist are backed up when it is linked.
 const AI_CONFIG = ['.claude', '.agents', '.codex', '.gemini', '.cursor', 'CLAUDE.md', 'AGENTS.md', 'GEMINI.md'];
@@ -2917,6 +2931,21 @@ export function createService(root: string, deps: Deps) {
       return runRoutine(root, String(project), String(id ?? ''), 'manual', routineHooks());
     },
     tickRoutines: () => tick(root, routineHooks()),
+    // The update report of one check: each item that changed, field by field, before and after.
+    routineReport: (project: unknown, routineId: unknown, executionId: unknown) => {
+      projectDir(project);
+      return failing(() => readReport(root, String(project), String(routineId ?? ''), String(executionId ?? '')));
+    },
+    // The report as Markdown in the project's temporary/ (deleted with it once the AI is done), for the update activity
+    // to read. Returns its path inside the project.
+    routineReportFile: (project: unknown, routineId: unknown, executionId: unknown) => {
+      const dir = projectDir(project);
+      const report = failing(() => readReport(root, String(project), String(routineId ?? ''), String(executionId ?? '')));
+      const rel = `temporary/routine-update-${report.id}.md`;
+      mkdirSync(join(dir, 'temporary'), { recursive: true });
+      writeFileSync(join(dir, ...rel.split('/')), reportMarkdown(report), 'utf8');
+      return rel;
+    },
     decideProposal: (project: unknown, routineId: unknown, proposalId: unknown, result: unknown) => {
       projectDir(project);
       const decision = result === 'approved' || result === 'rejected' || result === 'deferred' ? result : '';

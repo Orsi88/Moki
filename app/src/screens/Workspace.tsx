@@ -49,7 +49,7 @@ import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
 import { confirmDialog } from '../dialogs';
 import { projectLink, resolveInternal, type Anchor, type LinkJump } from '../internal-links';
 
-interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void }
+interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void; onOtherProjectTerminal?: (terminal: TerminalRef, projectId: string) => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
 // A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is edited as text;
@@ -87,7 +87,7 @@ export const linkedNotice = (r: ProjectSummary & { backup?: string }): string =>
   ? t('Linked {folder}. Its AI settings were backed up to {backup}', { folder: r.repository, backup: r.backup })
   : t('Linked {folder}. It has no AI settings (.claude, AGENTS.md…) to back up.', { folder: r.repository }));
 
-export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote, noteProjects = [], settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged }: Props) {
+export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote, noteProjects = [], settings, onSettings, onProjectChanged, launchOnOpen = false, startSetup = false, startNotice = '', pendingTerminal = null, onPendingTerminal, pendingPath = null, onPendingPath, search = false, onSearch, onFound, onToolsChanged, onOtherProjectTerminal }: Props) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -975,7 +975,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
 
       {settings ? (
         <main className="main">
-          <Settings tab={settings} onTab={onSettings} onClose={() => onSettings(null)} project={project} projects={[project]} tools={tools} onTerminal={(term) => { onSettings(null); addTerminal(term); }} onToolsChanged={onToolsChanged} />
+          <Settings tab={settings} onTab={onSettings} onClose={() => onSettings(null)} project={project} projects={[project]} tools={tools} onTerminal={(term, projectId) => { onSettings(null); if (projectId && projectId !== project.id && onOtherProjectTerminal) onOtherProjectTerminal(term, projectId); else addTerminal(term); }} onToolsChanged={onToolsChanged} />
         </main>
       ) : <>
       <aside className="sidebar" ref={sidebar}>

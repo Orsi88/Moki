@@ -70,6 +70,14 @@ Abra o **Histórico** e expanda a execução para ver o resultado ou erro. A pri
 
 No modo de análise, uma mudança inicia a operação vinculada. A execução permanece aguardando enquanto a IA prepara a saída. **Aprovações** só permite agir depois que a análise e o handoff da operação forem entregues. Confira os resultados e o conteúdo exato proposto para os arquivos antes de aprovar. Abrir uma notificação ou marcá-la como lida nunca aprova uma proposta.
 
+## Uma notificação por verificação, e o relatório de atualizações
+
+Cada verificação manda **uma** notificação, não importa quantos itens mudaram: **"3 atualizações"** ou **"Sem atualizações."** A primeira leitura de uma fonte é só a referência e não manda nenhuma. Uma verificação com atualizações também aparece na área de trabalho; "Sem atualizações" fica só no sino.
+
+Clique numa notificação de atualizações (ou em **Ver o relatório de atualizações** no **Histórico**) para abrir o **Relatório de atualizações**: cada item novo, alterado ou removido na fonte e, para cada um, os campos que mudaram, **antes e depois**, lado a lado, como foram lidos (texto formatado reduzido às palavras). Um item em que só a revisão, as datas ou o número de comentários mudaram diz isso. Para comparar, o Moki guarda o conteúdo legível de cada item que acompanha; arquivos de texto são comparados pelo texto, os outros só informam que mudaram.
+
+**Iniciar atividade de atualização** abre a sua IA no projeto com o relatório. Ela procura os arquivos do projeto que dependem desses itens, mostra o plano arquivo por arquivo e espera a sua aprovação antes de mudar qualquer coisa.
+
 No sino, você pode marcar todas como lidas, fechar uma notificação pelo × ou usar **Limpar todas**. Fechar avisos não arquiva a rotina nem aprova suas propostas. Uma próxima execução relevante pode criar uma nova notificação.
 
 ## Manter as verificações e gerenciar a rotina

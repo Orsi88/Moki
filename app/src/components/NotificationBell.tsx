@@ -4,6 +4,12 @@ import { api, focusRoutine, type RoutineNote } from '../api';
 import { t } from '../i18n';
 import { IconBell, IconX } from './Icons';
 
+// A routine check sums itself up in one note: how many updates it found (the report opens from it), or none.
+const noteMessage = (note: RoutineNote): string => note.changes === undefined ? note.message
+  : note.changes > 1 ? t('{n} updates. Open the report to see what changed.', { n: note.changes })
+  : note.changes === 1 ? t('1 update. Open the report to see what changed.')
+  : t('No updates.');
+
 export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId: string) => void }) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<RoutineNote[]>([]);
@@ -57,7 +63,7 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
   };
   const openNote = (note: RoutineNote) => {
     void mark([note.id]);
-    focusRoutine({ projectId: note.projectId, routineId: note.routineId, proposalId: note.proposalId });
+    focusRoutine({ projectId: note.projectId, routineId: note.routineId, proposalId: note.proposalId, ...(note.navigationTarget.executionId ? { executionId: note.navigationTarget.executionId } : {}) });
     onOpenRoutine(note.projectId);
     setOpen(false);
   };
@@ -70,7 +76,7 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
       {error && <p className="result warn" role="alert">{error}<button type="button" className="link" onClick={load}>{t('Try again')}</button></p>}
       {loading ? <p className="notification-empty" role="status">{t('Loading…')}</p> : notes.length === 0 ? <div className="notification-empty"><IconBell size={28} /><strong>{t('No notifications yet.')}</strong><p className="muted small">{t('Changes and requests for your approval will appear here.')}</p></div> : <ul>{notes.slice(0, 50).map((note) => <li key={note.id} className={`note-row${note.readAt ? '' : ' unread'}`}>
         <button type="button" className="note-item" onClick={() => openNote(note)}>
-          <img src="./notify-cup.png" alt="" width={32} height={32} /><span className="note-item-copy"><strong>{note.title}</strong><span className="muted small">{note.message}</span><time className="muted small" dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString()}</time></span>{!note.readAt && <i className="note-unread-dot" aria-hidden="true" />}
+          <img src="./notify-cup.png" alt="" width={32} height={32} /><span className="note-item-copy"><strong>{note.title}</strong><span className="muted small">{noteMessage(note)}</span><time className="muted small" dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString()}</time></span>{!note.readAt && <i className="note-unread-dot" aria-hidden="true" />}
         </button>
         <button type="button" className="icon-btn note-dismiss" aria-label={t('Dismiss notification')} onClick={() => { void dismiss([note.id]); }}><IconX size={14} /></button>
       </li>)}</ul>}
