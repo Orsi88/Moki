@@ -792,6 +792,18 @@ test('code comments: on lines of a source file, kept apart from it; a marker is 
     assert.equal(readFileSync(file, 'utf8'), code, 'the code never changes');
     assert.equal(service.codeComments('acme', 'inbox/login.ts').length, 1);
     assert.deepEqual(service.removeCodeComment('acme', 'inbox/login.ts', c.id), []);
+    // A note of the project tied to lines; it follows the file when it is renamed, and is untied without being deleted.
+    mkdirSync(join(root, 'workspace', 'projects', 'acme', 'notes'), { recursive: true });
+    writeFileSync(join(root, 'workspace', 'projects', 'acme', 'notes', 'login-l1.md'), '# login');
+    const [n] = service.addCodeNote('acme', 'inbox/login.ts', anchor, 'notes/login-l1.md');
+    assert.equal(n.note, 'notes/login-l1.md');
+    assert.throws(() => service.addCodeNote('acme', 'inbox/login.ts', anchor, 'notes/missing.md'), /choose a note of this project/);
+    assert.equal(service.renameEntry('acme', 'inbox/login.ts', 'auth'), 'inbox/auth.ts');
+    assert.deepEqual(service.codeNotes('acme', 'inbox/auth.ts').map((x: { id: string }) => x.id), [n.id]);
+    assert.deepEqual(service.removeCodeNote('acme', 'inbox/auth.ts', n.id), []);
+    assert.ok(existsSync(join(root, 'workspace', 'projects', 'acme', 'notes', 'login-l1.md')), 'the note itself stays');
+    rmSync(join(inbox, 'auth.ts'), { force: true }); rmSync(join(root, 'workspace', 'projects', 'acme', 'notes', 'login-l1.md'), { force: true });
+    writeFileSync(file, code);
     assert.throws(() => service.addCodeComment('acme', 'inbox/login.ts', { kind: 'code', line: 3, endLine: 1, first: '' }, 'x'), /Select lines/);
     writeFileSync(join(inbox, 'notes.txt'), 'x');
     assert.throws(() => service.codeComments('acme', 'inbox/notes.txt'), /Choose a source file/);

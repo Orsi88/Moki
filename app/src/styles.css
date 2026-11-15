@@ -2743,3 +2743,9 @@ span.mcp-row-main { cursor: default; }
 .marker-block-icon { position: absolute; left: -10px; top: -10px; display: grid; place-items: center; width: 20px; height: 20px; border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent); border-radius: 50%; background: var(--bg); font-size: 11px; line-height: 1; }
 /* Inside such an area the marked text keeps only a faint underline, so the area reads as one block. */
 .marker-corner { position: absolute; z-index: 2; display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent); border-radius: 50%; background: var(--bg); font-size: 10px; line-height: 1; pointer-events: none; }
+/* A project note tied to lines of code: a pin at the right of its first line; opens the note, or is untied. */
+.code-note-pin { position: absolute; right: 10px; z-index: 2; display: inline-flex; align-items: center; height: var(--code-line); margin-top: 12px; font-family: var(--font, system-ui); font-size: 0.76rem; white-space: nowrap; }
+.code-note-open { max-width: 220px; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; border: 1px solid var(--border); border-right: 0; border-radius: 999px 0 0 999px; background: var(--bg-2); color: var(--text); font: inherit; line-height: calc(var(--code-line) - 4px); cursor: pointer; }
+.code-note-open:hover { border-color: var(--accent); }
+.code-note-unlink { display: grid; place-items: center; height: calc(var(--code-line) - 2px); padding: 0 6px; border: 1px solid var(--border); border-radius: 0 999px 999px 0; background: var(--bg-2); color: var(--faint); cursor: pointer; }
+.code-note-unlink:hover { color: var(--text); }

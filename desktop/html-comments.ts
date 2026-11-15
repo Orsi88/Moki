@@ -4,12 +4,12 @@ import { randomUUID } from 'node:crypto';
 import { resolveInside } from './fs-guard.ts';
 import { isHtmlAnchor, isHtmlColor, isHtmlCommentChange, type HtmlAnchor, type HtmlComment, type HtmlCommentChange, type HtmlReply } from '../scripts/lib/html-comments.ts';
 import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type DiagramAnchor, type DiagramComment, type DiagramCommentChange, type DiagramViewState } from '../scripts/lib/diagram-types.ts';
-import { isCodeAnchor, isCodeCommentChange, type CodeAnchor, type CodeComment, type CodeCommentChange } from '../scripts/lib/code-comment-types.ts';
+import { isCodeAnchor, isCodeCommentChange, isCodeNote, type CodeAnchor, type CodeComment, type CodeCommentChange, type CodeNote } from '../scripts/lib/code-comment-types.ts';
 
 const FILE = '.moki-html-comments.json';
 type Comment = HtmlComment | DiagramComment | CodeComment;
 // Keep the historical file name and path key so existing reviews need no migration.
-interface Entry { html: string; comments: Comment[]; view?: DiagramViewState }
+interface Entry { html: string; comments: Comment[]; view?: DiagramViewState; notes?: CodeNote[] }
 const isHtmlComment = (comment: Comment): comment is HtmlComment => isHtmlAnchor(comment.anchor);
 const isDiagramComment = (comment: Comment): comment is DiagramComment => isDiagramAnchor(comment.anchor);
 const isCodeComment = (comment: Comment): comment is CodeComment => isCodeAnchor(comment.anchor);
@@ -24,6 +24,7 @@ function read(directory: string): Entry[] {
   if (!Array.isArray(data) || data.length > 1000 || data.some((entry: Entry) => !entry || typeof entry.html !== 'string' || !Array.isArray(entry.comments) || entry.comments.length > 500 || entry.comments.some((c) => !c || typeof c.id !== 'string' || typeof c.text !== 'string' || c.text.length > 10000 || typeof c.author !== 'string' || typeof c.date !== 'string' || !isHtmlAnchor(c.anchor) && !isDiagramAnchor(c.anchor) && !isCodeAnchor(c.anchor)))) throw new Error('Invalid HTML comments.');
   for (const entry of data as Entry[]) {
     if (entry.view !== undefined && !isDiagramViewState(entry.view)) throw new Error('Invalid diagram view.');
+    if (entry.notes !== undefined && (!Array.isArray(entry.notes) || entry.notes.length > 500 || !entry.notes.every(isCodeNote))) throw new Error('Invalid code notes.');
     for (const comment of entry.comments) {
       if (comment.color !== undefined && !isHtmlColor(comment.color) || comment.replies !== undefined && (!Array.isArray(comment.replies) || comment.replies.length > 50 || !comment.replies.every(isReply))
         || (isDiagramComment(comment) || isCodeComment(comment)) && comment.resolved !== undefined && typeof comment.resolved !== 'boolean') throw new Error('Invalid HTML comments.');
@@ -72,7 +73,7 @@ function removeComment(directory: string, html: string, id: string, accepts: (co
   const entries = read(directory), entry = entries.find((entry) => entry.html === html);
   if (!entry?.comments.some((comment) => comment.id === id && accepts(comment))) throw new Error('Comment not found.');
   entry.comments = entry.comments.filter((comment) => comment.id !== id || !accepts(comment));
-  write(directory, entries.filter((entry) => entry.comments.length || entry.view)); return entry.comments;
+  write(directory, entries.filter((entry) => entry.comments.length || entry.view || entry.notes?.length)); return entry.comments;
 }
 export function removeHtmlComment(directory: string, html: string, id: string): HtmlComment[] {
   return removeComment(directory, html, id, isHtmlComment).filter(isHtmlComment);
@@ -122,6 +123,26 @@ export function changeCodeComment(directory: string, path: string, change: CodeC
 
 export function removeCodeComment(directory: string, path: string, id: string): CodeComment[] {
   return removeComment(directory, path, id, isCodeComment).filter(isCodeComment);
+}
+
+// Project notes tied to lines of a source file.
+export const codeNotes = (directory: string, path: string): CodeNote[] => read(directory).find((entry) => entry.html === path)?.notes ?? [];
+
+export function addCodeNote(directory: string, path: string, anchor: CodeAnchor, note: string): CodeNote[] {
+  const item: CodeNote = { id: randomUUID(), anchor: { kind: 'code', line: anchor.line, endLine: anchor.endLine, first: anchor.first }, note };
+  if (!isCodeNote(item)) throw new Error('Select lines and choose a note of this project.');
+  const entries = read(directory), entry = entries.find((entry) => entry.html === path) ?? { html: path, comments: [] };
+  if ((entry.notes?.length ?? 0) >= 500) throw new Error('This file already has 500 notes.');
+  if (!entries.includes(entry)) entries.push(entry);
+  entry.notes = [...entry.notes ?? [], item];
+  write(directory, entries); return entry.notes;
+}
+
+export function removeCodeNote(directory: string, path: string, id: string): CodeNote[] {
+  const entries = read(directory), entry = entries.find((entry) => entry.html === path);
+  if (!entry?.notes?.some((n) => n.id === id)) throw new Error('Note not found.');
+  entry.notes = entry.notes.filter((n) => n.id !== id);
+  write(directory, entries.filter((e) => e.comments.length || e.view || e.notes?.length)); return entry.notes;
 }
 
 export const readDiagramView = (directory: string, path: string): DiagramViewState | null => read(directory).find((entry) => entry.html === path)?.view ?? null;

@@ -49,7 +49,7 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment } from './html-comments.ts';
+import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment, codeNotes, addCodeNote, removeCodeNote } from './html-comments.ts';
 import { isCodeAnchor, isCodeCommentChange } from '../scripts/lib/code-comment-types.ts';
 import { isHtmlAnchor, isHtmlColor, isHtmlCommentChange } from '../scripts/lib/html-comments.ts';
 import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type DiagramKind } from '../scripts/lib/diagram-types.ts';
@@ -1501,6 +1501,14 @@ export function createService(root: string, deps: Deps) {
       return failing(() => changeCodeComment(projectDir(project), rel, change, userInfo().username));
     },
     removeCodeComment: (project: string, rel: string, id: string) => { codeTarget(project, rel); return failing(() => removeCodeComment(projectDir(project), rel, String(id))); },
+    // Project notes tied to lines of a source file ("Create a note from here"); the note itself is in notes/.
+    codeNotes: (project: string, rel: string) => { codeTarget(project, rel); return failing(() => codeNotes(projectDir(project), rel)); },
+    addCodeNote: (project: string, rel: string, anchor: unknown, note: unknown) => {
+      codeTarget(project, rel);
+      if (!isCodeAnchor(anchor) || typeof note !== 'string' || !existsSync(projectPath(project, note))) throw new ServiceError('Select lines and choose a note of this project.');
+      return failing(() => addCodeNote(projectDir(project), rel, anchor, note));
+    },
+    removeCodeNote: (project: string, rel: string, id: string) => { codeTarget(project, rel); return failing(() => removeCodeNote(projectDir(project), rel, String(id))); },
 
     diagramSettings: (project: string) => failing(() => readDiagramSettings(projectDir(project))),
     saveDiagramSettings: (project: string, raw: unknown) => failing(() => writeDiagramSettings(projectDir(project), raw)),

@@ -16,6 +16,15 @@ export function isCodeAnchor(value: unknown): value is CodeAnchor {
     && a.line >= 1 && a.endLine >= a.line && a.endLine <= LINE_LIMIT && typeof a.first === 'string' && a.first.length <= 500);
 }
 
+// A project note tied to lines of a source file ("Create a note from here"): the note lives in notes/, this only says
+// where it belongs.
+export interface CodeNote { id: string; anchor: CodeAnchor; note: string }
+export const isCodeNote = (value: unknown): value is CodeNote => {
+  const n = value as CodeNote | null;
+  return Boolean(n && typeof n === 'object' && typeof n.id === 'string' && n.id.length > 0 && n.id.length <= 100 && isCodeAnchor(n.anchor)
+    && typeof n.note === 'string' && /^notes\/[^/\\]+\.md$/.test(n.note));
+};
+
 export function isCodeCommentChange(value: unknown): value is CodeCommentChange {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
@@ -37,4 +46,17 @@ export function codeAnchorLine(anchor: CodeAnchor, lines: string[]): { line: num
     }
   }
   return { line: anchor.line, endLine: anchor.endLine, moved: false };
+}
+
+// The note "Create a note from here" makes of selected lines: the code as a fenced block in its language, then where it
+// comes from (the file, linked from the project, and its lines). Pure.
+export function codeSelectionNote(file: string, language: string, lines: string[], start: number, end: number): { title: string; text: string } {
+  const name = file.split('/').pop() ?? file;
+  const where = start === end ? `L${start}` : `L${start}-${end}`;
+  const body = lines.slice(start - 1, end).join('\n');
+  const fence = body.includes('```') ? '````' : '```';
+  return {
+    title: `${name} ${where}`,
+    text: `${fence}${language}\n${body}\n${fence}\n\nSource: [@${name}](${file}) · ${start === end ? `line ${start}` : `lines ${start}–${end}`}\n`,
+  };
 }

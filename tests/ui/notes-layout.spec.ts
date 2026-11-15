@@ -1,7 +1,7 @@
 // A loose note's formatted view is editable, its title sits beside the project
 // destination, and each start-screen section scrolls on its own.
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from '../../scripts/lib/repo.mjs';
@@ -158,6 +158,23 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   await expect(page.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
   expect(readFileSync(file, 'utf8')).toContain('export async function login');
   expect(readFileSync(join(root, 'workspace', 'projects', 'p1', '.moki-html-comments.json'), 'utf8')).toContain('"kind": "code"');
+  // "Create a note from here": a note of the project with these lines, tied to them as a pin; untied, it stays in Notes.
+  await code.locator('.code-gutter button').nth(2).click();
+  await code.locator('.code-gutter button').nth(3).click({ modifiers: ['Shift'] });
+  const windows = app.windows().length;
+  await code.getByRole('button', { name: 'Criar nota daqui', exact: true }).click();
+  const pin = code.locator('.code-note-pin');
+  await expect(pin).toContainText('login.ts L3-4');
+  await expect.poll(() => app.windows().length).toBeGreaterThan(windows); // the note opened in its window
+  const notesDir = join(root, 'workspace', 'projects', 'p1', 'notes');
+  const created = readdirSync(notesDir).find((f) => readFileSync(join(notesDir, f), 'utf8').includes('Source: [@login.ts]'));
+  expect(created).toBeTruthy();
+  expect(readFileSync(join(notesDir, created!), 'utf8')).toContain('```typescript\n  const tries = 3;\n  return user.length > tries;\n```');
+  const pinBox = await pin.boundingBox(), third = await code.locator('.code-gutter button').nth(2).boundingBox();
+  expect(Math.abs((pinBox?.y ?? 0) - (third?.y ?? 0))).toBeLessThan(6); // beside line 3
+  await pin.getByRole('button', { name: /Desvincular a nota/ }).click();
+  await expect(pin).toHaveCount(0);
+  expect(existsSync(join(notesDir, created!))).toBe(true);
   writeFileSync(test.info().outputPath('code-view.png'), Buffer.from(await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64')), 'base64'));
   await page.keyboard.press('Control+w');
   await page.locator('.tree-row[title="inbox"]').click();
