@@ -9,6 +9,7 @@ import { MARKER_COLORS } from '../../../scripts/lib/marker-labels.ts';
 import { SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
 import { IconX } from './Icons';
+import { EmojiPicker } from './EmojiPicker';
 
 const SUGGESTED = ['⭐', '🔍', '➕', '⚠️', '✅', '❓', '📌', '🔥', '💡', '🧪', '🐞', '📝', '🚧', '❌', '👀', '🎯'];
 
@@ -26,6 +27,7 @@ export function MarkersPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState<number | null>(null); // the row whose emoji picker is open
   useEffect(() => { setDraft(saved); }, [saved]);
   const changed = JSON.stringify(draft) !== JSON.stringify(saved);
   const edit = (i: number, patch: Partial<Marker>) => { setNotice(''); setDraft((d) => d.map((m, j) => (j === i ? { ...m, ...patch } : m))); };
@@ -50,10 +52,13 @@ export function MarkersPage() {
       <ol className="marker-rows">
         {draft.map((m, i) => (
           <li key={i} className="marker-row">
-            {/* A click opens the system's emoji picker (every emoji, with search) on this field; typing or pasting works too. */}
-            <input className="marker-icon-field" value={m.icon} aria-label={t('Icon')} title={t('Click to choose an emoji (Windows + .)')}
-              onClick={(e) => { e.currentTarget.select(); void api.emojiPanel(); }}
-              onChange={(e) => edit(i, { icon: lastEmoji(e.target.value, m.icon) })} />
+            {/* A click opens Moki's emoji picker (emojis only, with search); typing or pasting an emoji works too. */}
+            <span className="marker-icon-wrap">
+              <input className="marker-icon-field" value={m.icon} aria-label={t('Icon')} title={t('Click to choose an emoji')}
+                onClick={() => setPicking(picking === i ? null : i)}
+                onChange={(e) => edit(i, { icon: lastEmoji(e.target.value, m.icon) })} />
+              {picking === i && <EmojiPicker onPick={(emoji) => { edit(i, { icon: emoji }); setPicking(null); }} onClose={() => setPicking(null)} />}
+            </span>
             <label className="marker-field"><span>{t('Name')}</span><input value={m.name} maxLength={40} placeholder={t('For example: To review')} onChange={(e) => edit(i, { name: e.target.value })} /></label>
             <div className="marker-field marker-colors"><span>{t('Color')}</span>
               <div className="pdf-colors" role="radiogroup" aria-label={t('Color of {name}', { name: m.name || m.icon })}>

@@ -54,6 +54,18 @@ test.afterAll(async () => {
   }
 });
 
+// A click on line n of a code file's numbers (one block of text: the line is where the pointer is).
+async function clickLine(code: import('@playwright/test').Locator, n: number, shift = false): Promise<void> {
+  const gutter = code.locator('.code-gutter');
+  const { pad, line } = await gutter.evaluate((el) => ({ pad: parseFloat(getComputedStyle(el).paddingTop), line: parseFloat(getComputedStyle(el).lineHeight) }));
+  await gutter.click({ position: { x: 10, y: pad + (n - 0.5) * line }, modifiers: shift ? ['Shift'] : [] });
+}
+async function lineBox(code: import('@playwright/test').Locator, n: number): Promise<{ y: number; height: number }> {
+  const box = (await code.locator('.code-gutter').boundingBox())!;
+  const { pad, line } = await code.locator('.code-gutter').evaluate((el) => ({ pad: parseFloat(getComputedStyle(el).paddingTop), line: parseFloat(getComputedStyle(el).lineHeight) }));
+  return { y: box.y + pad + (n - 1) * line, height: line };
+}
+
 test('execution phases are separate buttons, and the plus is not one of them', async () => {
   const ops = page.getByRole('region', { name: 'Operações' });
   const phases = ops.locator('.ops-phases');
@@ -126,28 +138,28 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   await expect(code.locator('.hljs-keyword').first()).toHaveText('export');
   await expect(code.locator('.hljs-comment')).toHaveText('// Signs the person in.');
   await expect(code.locator('.hljs-string, .hljs-number').first()).toBeVisible();
-  await expect(code.locator('.code-gutter button')).toHaveCount(6);
+  await expect(code.locator('.code-gutter')).toHaveAttribute('data-lines', '6');
   await expect(code.locator('textarea')).toHaveCount(0); // read-only: changed in the IDE
-  await code.locator('.code-gutter button').nth(2).click();
+  await clickLine(code, 3);
   await expect(code.locator('.code-file-bar')).toContainText('typescript · linha 3');
   await expect(code.locator('.code-line-mark')).toBeVisible();
   await expect(code.getByRole('button', { name: /Abrir na IDE/ })).toBeVisible();
   // Shift+click extends the selection to a block; "Mark" makes it an area in the marker's color, its icon in the corner.
-  await code.locator('.code-gutter button').nth(1).click();
-  await code.locator('.code-gutter button').nth(3).click({ modifiers: ['Shift'] });
+  await clickLine(code, 2);
+  await clickLine(code, 4, true);
   await expect(code.locator('.code-file-bar')).toContainText('linhas 2–4');
   // A right-click on the selected lines: the markers; one click marks the block.
   await code.locator('.code-text').click({ button: 'right', position: { x: 60, y: 40 } });
   await page.getByRole('menu', { name: 'Marcar com' }).getByRole('menuitem', { name: /Revisar/ }).click();
   const area = code.locator('.code-area.marked');
   await expect(area).toHaveAttribute('data-marker-color', 'blue');
-  await expect(area.locator('.code-area-icon')).toHaveText('🔍');
+  await expect(code.locator('.code-area-anchor .code-area-icon')).toHaveText('🔍');
   const marked = await area.boundingBox();
-  const second = await code.locator('.code-gutter button').nth(1).boundingBox();
+  const second = await lineBox(code, 2);
   expect(Math.abs((marked?.y ?? 0) - (second?.y ?? 0))).toBeLessThan(4); // starts on line 2
   expect((marked?.height ?? 0) / (second?.height ?? 1)).toBeCloseTo(3, 0); // three lines
   // A comment on line 1, beside the code; the file itself never changes.
-  await code.locator('.code-gutter button').nth(0).click();
+  await clickLine(code, 1);
   await page.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Comentar' }).click();
   await page.getByRole('dialog', { name: 'Comentário' }).getByRole('textbox').fill('Explicar quem chama esta função.');
   await page.getByRole('dialog', { name: 'Comentário' }).getByRole('button', { name: 'Comentar' }).click();
@@ -158,8 +170,8 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   expect(readFileSync(file, 'utf8')).toContain('export async function login');
   expect(readFileSync(join(root, 'workspace', 'projects', 'p1', '.moki-html-comments.json'), 'utf8')).toContain('"kind": "code"');
   // "Create a note from here": a note of the project with these lines, tied to them as a pin; untied, it stays in Notes.
-  await code.locator('.code-gutter button').nth(2).click();
-  await code.locator('.code-gutter button').nth(3).click({ modifiers: ['Shift'] });
+  await clickLine(code, 3);
+  await clickLine(code, 4, true);
   const windows = app.windows().length;
   await code.getByRole('button', { name: 'Criar nota daqui', exact: true }).click();
   const pin = code.locator('.code-note-pin');
@@ -169,7 +181,7 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   const created = readdirSync(notesDir).find((f) => readFileSync(join(notesDir, f), 'utf8').includes('Source: [@login.ts]'));
   expect(created).toBeTruthy();
   expect(readFileSync(join(notesDir, created!), 'utf8')).toContain('```typescript\n  const tries = 3;\n  return user.length > tries;\n```');
-  const pinBox = await pin.boundingBox(), third = await code.locator('.code-gutter button').nth(2).boundingBox();
+  const pinBox = await pin.boundingBox(), third = await lineBox(code, 3);
   expect(Math.abs((pinBox?.y ?? 0) - (third?.y ?? 0))).toBeLessThan(6); // beside line 3
   await pin.getByRole('button', { name: /Desvincular a nota/ }).click();
   await expect(pin).toHaveCount(0);

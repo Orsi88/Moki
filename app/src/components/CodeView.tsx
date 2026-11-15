@@ -11,13 +11,14 @@ import { loadOnce } from '../lazy-module';
 import { useLoaded } from './useLoaded';
 import { IconChat, IconCode, IconNotePlus, IconX } from './Icons';
 import { isCommentColor, SWATCH, type CommentColor, type MdComment } from '../md-comments';
-import { codeAnchorLine, codeSelectionNote } from '../../../scripts/lib/code-comment-types.ts';
+import { codeAnchorLine, codeSelectionNote, splitHighlightedLines } from '../../../scripts/lib/code-comment-types.ts';
 import { markerColor, markerLabel, splitMarker, useMarkers } from '../markers';
 import { CommentColumn, CommentComposer, SelectionBubble, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
 import { MarkerContextMenu, MarkerMenu } from './Markers';
 
 const highlighter = loadOnce(() => import('highlight.js').then((m) => m.default));
 const COLOR_LIMIT = 400 * 1024; // characters: past this the file shows as plain text
+const CHUNK = 100; // lines per block: the browser skips laying out the blocks out of sight
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -56,11 +57,24 @@ export function CodeView({ project, path, text, language }: Props) {
   }, [project, path]);
 
   // Where each comment's lines are now (the file may have changed since it was written).
+  // The code in blocks of CHUNK lines, each laid out only while it is near the screen.
+  const chunks = useMemo(() => {
+    const all = splitHighlightedLines(html), out: { html: string; count: number }[] = [];
+    for (let i = 0; i < all.length; i += CHUNK) { const part = all.slice(i, i + CHUNK); out.push({ html: part.join('\n'), count: part.length }); }
+    return out;
+  }, [html]);
   const located = useMemo(() => new Map(comments.map((c) => [c.id, codeAnchorLine(c.anchor, lines)])), [comments, lines]);
   const cards = useMemo<MdComment[]>(() => [...comments].sort((a, b) => (located.get(a.id)?.line ?? 0) - (located.get(b.id)?.line ?? 0)).map((c) => ({
     id: c.id, author: c.author, at: c.date, text: c.text, replies: c.replies ?? [], ...(isCommentColor(c.color) ? { color: c.color } : {}), ...(c.resolved ? { resolved: true } : {}),
   })), [comments, located]);
-  const markOf = useCallback((root: HTMLElement, id: string) => root.querySelector<HTMLElement>(`.code-area[data-id="${CSS.escape(id)}"]`), []);
+  const areas = useMemo(() => comments.flatMap((c) => {
+    const at = located.get(c.id);
+    if (!at) return [];
+    const marker = splitMarker(c.text, markers).marker;
+    const tone = marker ? markerColor(markers.find((m) => m.icon === marker.icon) ?? marker) : isCommentColor(c.color) ? c.color : 'yellow';
+    return [{ id: c.id, text: c.text, line: at.line, endLine: at.endLine, marker, tone }];
+  }), [comments, located, markers]);
+  const markOf = useCallback((root: HTMLElement, id: string) => root.parentElement?.querySelector<HTMLElement>(`.code-area[data-id="${CSS.escape(id)}"]`) ?? null, []);
   const placed = useCommentPlacement(stage, body, rail, cards, markOf);
 
   const save = async (job: () => Promise<CodeComment[]>): Promise<boolean> => {
@@ -97,11 +111,26 @@ export function CodeView({ project, path, text, language }: Props) {
     setComposer(null);
     setSel({ start: at(rects[0].top + 1), end: at(rects[rects.length - 1].bottom - 1) });
   };
-  const lineTop = (n: number) => {
-    const button = gutter.current?.children[n - 1] as HTMLElement | undefined;
-    const origin = stage.current?.getBoundingClientRect();
-    return button && origin ? { top: button.getBoundingClientRect().top - origin.top + (stage.current?.scrollTop ?? 0), height: button.offsetHeight } : { top: 0, height: 20 };
+  // The numbers are one block of text (thousands of buttons made every click redraw thousands of elements): a line is
+  // found from where the pointer is, and placed from its number.
+  const lineHeight = () => parseFloat(getComputedStyle(gutter.current ?? document.body).lineHeight) || 20;
+  const gutterPad = () => parseFloat(getComputedStyle(gutter.current ?? document.body).paddingTop) || 0;
+  const lineAt = (clientY: number) => {
+    const box = gutter.current?.getBoundingClientRect();
+    return box ? Math.min(lines.length, Math.max(1, Math.floor((clientY - box.top - gutterPad()) / lineHeight()) + 1)) : 1;
   };
+  const lineTop = (n: number) => {
+    const box = gutter.current?.getBoundingClientRect(), origin = stage.current?.getBoundingClientRect();
+    return box && origin ? { top: box.top - origin.top + (stage.current?.scrollTop ?? 0) + gutterPad() + (n - 1) * lineHeight(), height: lineHeight() } : { top: 0, height: 20 };
+  };
+  const numbers = useMemo(() => lines.map((_, i) => i + 1).join('\n'), [lines]);
+  // Esc or a click in the code outside the selection lets go of the selected lines (and their Comment button).
+  useEffect(() => {
+    if (!sel) return undefined;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !composer) setSel(null); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [sel, composer]);
   const bubble: Bubble | null = project && sel && !composer ? (() => { const at = lineTop(sel.start), end = lineTop(sel.end); return { x: 64, y: at.top, below: end.top + end.height, why: '' }; })() : null;
 
   // Each tied note by its title, as the Notes section shows it.
@@ -158,38 +187,43 @@ export function CodeView({ project, path, text, language }: Props) {
           e.preventDefault();
           setMarking({ left: e.clientX, top: e.clientY });
         }}>
-          <div ref={gutter} className="code-gutter" role="group" aria-label={t('Line numbers: click to select, Shift+click for a block')}>
-            {lines.map((_, i) => { const n = i + 1; const on = Boolean(sel && n >= sel.start && n <= sel.end); return <button key={i} type="button" className={on ? 'on' : ''} aria-pressed={on} aria-label={t('line {n}', { n })} onClick={(e) => pick(n, e.shiftKey)}>{n}</button>; })}
+          <div ref={gutter} className="code-gutter" role="group" aria-label={t('Line numbers: click to select, Shift+click for a block')} data-lines={lines.length}
+            onMouseDown={(e) => e.preventDefault()} onClick={(e) => pick(lineAt(e.clientY), e.shiftKey)}>
+            {sel && <span className="code-gutter-mark" style={{ top: `calc(${sel.start - 1} * var(--code-line))`, height: `calc(${sel.end - sel.start + 1} * var(--code-line))` }} />}
+            {numbers}
           </div>
-          <pre ref={body} className="code-text" onMouseUp={fromText}>
-            {sel && <span className="code-line-mark" style={{ top: `calc(${sel.start - 1} * var(--code-line))`, height: `calc(${sel.end - sel.start + 1} * var(--code-line))` }} />}
-            {comments.map((c) => {
-              const at = located.get(c.id);
-              if (!at) return null;
-              const marker = splitMarker(c.text, markers).marker;
-              const tone = marker ? markerColor(markers.find((m) => m.icon === marker.icon) ?? marker) : isCommentColor(c.color) ? c.color : 'yellow';
-              return <span key={c.id} data-id={c.id} className={`code-area${marker ? ' marked' : ''}${active === c.id ? ' on' : ''}`} data-marker-color={tone}
-                style={{ top: `calc(${at.line - 1} * var(--code-line))`, height: `calc(${at.endLine - at.line + 1} * var(--code-line))`, ['--area-color' as string]: SWATCH[tone] }}>
-                {marker && <button type="button" className="code-area-icon" aria-label={t('Marker {name}', { name: marker.name })} title={marker.name} aria-expanded={markerMenu === c.id}
-                  onClick={() => setMarkerMenu(markerMenu === c.id ? null : c.id)}>{marker.icon}</button>}
-                {marker && markerMenu === c.id && <MarkerMenu markers={markers} text={c.text} left={22} top={-6} disabled={busy}
-                  onText={(next) => { actions.edit(c.id, next); setCommentsOn(true); }} onRemove={() => actions.remove(c.id)} onClose={() => setMarkerMenu(null)} />}
-              </span>;
-            })}
-            <code className={`hljs language-${language}`} dangerouslySetInnerHTML={{ __html: html }} />
-            {notes.map((n) => {
-              const at = codeAnchorLine(n.anchor, lines);
-              const title = noteTitles[n.note] ?? (n.note.split('/').pop() ?? n.note).replace(/\.md$/, '');
-              return <span key={n.id} className="code-note-pin" style={{ top: `calc(${at.line - 1} * var(--code-line))` }}>
-                <button type="button" className="code-note-open" onClick={() => { if (project) void api.openNoteWindow({ project, path: n.note }); }} title={t('Open the note {name}', { name: title })}>📝 {title}</button>
-                <button type="button" className="code-note-unlink" onClick={() => { void unlinkNote(n.id); }} title={t('Untie the note from these lines (the note stays in Notes)')} aria-label={t('Untie the note {name}', { name: title })}><IconX size={11} /></button>
-              </span>;
-            })}
-          </pre>
+          {/* The code alone in its <pre>: the selection, areas, icons and pins are layers beside it, so drawing them never
+              makes the browser lay out thousands of highlighted lines again. */}
+          <div className="code-text-wrap">
+            <div className="code-layer back" aria-hidden="true">
+              {sel && <span className="code-line-mark" style={{ top: `calc(${sel.start - 1} * var(--code-line))`, height: `calc(${sel.end - sel.start + 1} * var(--code-line))` }} />}
+              {areas.map((a) => <span key={a.id} data-id={a.id} className={`code-area${a.marker ? ' marked' : ''}${active === a.id ? ' on' : ''}`} data-marker-color={a.tone}
+                style={{ top: `calc(${a.line - 1} * var(--code-line))`, height: `calc(${a.endLine - a.line + 1} * var(--code-line))`, ['--area-color' as string]: SWATCH[a.tone] }} />)}
+            </div>
+            <pre ref={body} className="code-text" onMouseUp={fromText} onMouseDown={(e) => { if (e.button === 0 && !e.shiftKey && sel) setSel(null); }}>
+              <code className={`hljs language-${language}`}>{chunks.map((chunk, i) => <div key={i} className="code-chunk" style={{ containIntrinsicSize: `auto calc(${chunk.count} * var(--code-line))` }} dangerouslySetInnerHTML={{ __html: chunk.html }} />)}</code>
+            </pre>
+            <div className="code-layer front">
+              {areas.filter((a) => a.marker).map((a) => <span key={a.id} className="code-area-anchor" data-marker-color={a.tone} style={{ top: `calc(${a.line - 1} * var(--code-line))`, ['--area-color' as string]: SWATCH[a.tone] }}>
+                <button type="button" className="code-area-icon" aria-label={t('Marker {name}', { name: a.marker!.name })} title={a.marker!.name} aria-expanded={markerMenu === a.id}
+                  onClick={() => setMarkerMenu(markerMenu === a.id ? null : a.id)}>{a.marker!.icon}</button>
+                {markerMenu === a.id && <MarkerMenu markers={markers} text={a.text} left={22} top={-6} disabled={busy}
+                  onText={(next) => { actions.edit(a.id, next); setCommentsOn(true); }} onRemove={() => actions.remove(a.id)} onClose={() => setMarkerMenu(null)} />}
+              </span>)}
+              {notes.map((n) => {
+                const at = codeAnchorLine(n.anchor, lines);
+                const title = noteTitles[n.note] ?? (n.note.split('/').pop() ?? n.note).replace(/\.md$/, '');
+                return <span key={n.id} className="code-note-pin" style={{ top: `calc(${at.line - 1} * var(--code-line))` }}>
+                  <button type="button" className="code-note-open" onClick={() => { if (project) void api.openNoteWindow({ project, path: n.note }); }} title={t('Open the note {name}', { name: title })}>📝 {title}</button>
+                  <button type="button" className="code-note-unlink" onClick={() => { void unlinkNote(n.id); }} title={t('Untie the note from these lines (the note stays in Notes)')} aria-label={t('Untie the note {name}', { name: title })}><IconX size={11} /></button>
+                </span>;
+              })}
+            </div>
+          </div>
         </div>
         {project && <CommentColumn comments={cards} placed={placed} rail={rail} shown={commentsOn} hidden={!commentsOn} onShow={() => setCommentsOn(true)}
           active={active} onActive={setActive} saving={busy} actions={actions}
-          onJump={(id) => { const at = located.get(id); if (at) { setSel({ start: at.line, end: at.endLine }); gutter.current?.children[at.line - 1]?.scrollIntoView({ block: 'center' }); } }}
+          onJump={(id) => { const at = located.get(id); if (at) { setSel({ start: at.line, end: at.endLine }); requestAnimationFrame(() => stage.current?.querySelector('.code-line-mark')?.scrollIntoView({ block: 'center' })); } }}
           empty={<p className="muted small">{t('Select lines on their numbers to comment on them or mark them.')}</p>}
           describe={(id) => { const at = located.get(id); return at ? <span className="office-comment-where">{at.line === at.endLine ? t('line {n}', { n: at.line }) : t('lines {a}–{b}', { a: at.line, b: at.endLine })}</span> : null; }} />}
         {bubble && <SelectionBubble bubble={bubble} onComment={() => { if (sel) setComposer({ ...sel, x: 64, y: lineTop(sel.end).top + lineTop(sel.end).height + 6 }); }} />}

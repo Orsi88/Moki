@@ -60,3 +60,24 @@ export function codeSelectionNote(file: string, language: string, lines: string[
     text: `${fence}${language}\n${body}\n${fence}\n\nSource: [@${name}](${file}) · ${start === end ? `line ${start}` : `lines ${start}–${end}`}\n`,
   };
 }
+
+// Highlighted HTML (highlight.js) cut into lines: a span open at a line break is closed at its end and opened again at
+// the start of the next line, so any run of lines can be drawn on its own. Pure.
+export function splitHighlightedLines(html: string): string[] {
+  const lines: string[] = [];
+  const open: string[] = []; // the opening tags in effect, outermost first
+  let current = '';
+  const tag = /<span[^>]*>|<\/span>|\n/g;
+  let last = 0;
+  for (let m = tag.exec(html); m; m = tag.exec(html)) {
+    current += html.slice(last, m.index);
+    last = m.index + m[0].length;
+    if (m[0] === '\n') {
+      lines.push(current + '</span>'.repeat(open.length));
+      current = open.join('');
+    } else if (m[0] === '</span>') { open.pop(); current += m[0]; }
+    else { open.push(m[0]); current += m[0]; }
+  }
+  lines.push(current + html.slice(last));
+  return lines;
+}

@@ -3881,7 +3881,13 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await expect(view.getByRole('heading', { name: 'Marcadores' })).toBeVisible();
     await view.getByRole('button', { name: 'Adicionar marcador', exact: true }).click();
     const row = view.locator('.marker-row').last();
-    await row.getByLabel('Ícone').fill('🧪');
+    // Moki's own picker: emojis only (no GIFs), found by name in Portuguese.
+    await row.getByLabel('Ícone').click();
+    const picker = view.getByRole('dialog', { name: 'Escolher um emoji' });
+    await picker.getByRole('searchbox', { name: 'Buscar emoji' }).fill('teste');
+    await picker.getByRole('button', { name: 'test' }).click();
+    await expect(picker).toHaveCount(0);
+    await expect(row.getByLabel('Ícone')).toHaveValue('🧪');
     await row.getByRole('textbox', { name: 'Nome' }).fill('Testar');
     await row.getByRole('textbox', { name: 'O que significa' }).fill('Precisa de um teste antes de seguir.');
     await row.getByRole('radiogroup', { name: 'Cor de Testar' }).getByRole('radio', { name: 'Vermelho' }).click();
