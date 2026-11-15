@@ -21,9 +21,9 @@ Um `.md` abre num editor formatado ([TipTap](https://tiptap.dev)): títulos, lis
 
 ### Comentários
 
-Selecione um trecho dentro de um parágrafo e um botão **Comentário** aparece ao lado. Os comentários ficam ao lado do texto, ligados às palavras, com cor, respostas, edição e exclusão. Eles moram dentro do próprio arquivo, invisíveis para outros leitores de Markdown, então viajam junto com ele.
+Selecione um trecho — num parágrafo ou atravessando vários — e um botão **Comentário** aparece ao lado. Os comentários ficam ao lado do texto, ligados às palavras, com cor, respostas, edição e exclusão. Eles moram dentro do próprio arquivo, invisíveis para outros leitores de Markdown, então viajam junto com ele.
 
-**Marcadores.** A bandeirinha de um comentário coloca um marcador nele — ⭐ Importante, 🔍 Revisar, ➕ Completar ou um seu (**Configurações › Marcadores**). Ele aparece como um selo no cartão e fica escrito no começo do texto do comentário, `[🔍 Revisar] …`, então viaja com o comentário em todo formato que aceita comentário (Markdown, Word, Excel, PDF, HTML e diagramas), o Word mostra do jeito que está escrito e as IAs leem: peça "revise o que marquei com 🔍" e elas acham. Editar o texto mantém o marcador. **Marcar**, ao lado de **Comentar**, marca um trecho sem comentar: o trecho vira uma área na cor do marcador, com borda arredondada e o ícone no canto; dá para adicionar um comentário depois.
+**Marcadores.** A bandeirinha de um comentário coloca um marcador nele — ⭐ Importante, 🔍 Revisar, ➕ Completar ou um seu (**Configurações › Marcadores**). Ele aparece como um selo no cartão e fica escrito no começo do texto do comentário, `[🔍 Revisar] …`, então viaja com o comentário em todo formato que aceita comentário (Markdown, Word, Excel, PDF, HTML e diagramas), o Word mostra do jeito que está escrito e as IAs leem: peça "revise o que marquei com 🔍" e elas acham. Editar o texto mantém o marcador. **Marcar**, ao lado de **Comentar**, marca um trecho sem comentar: o trecho vira uma área na cor do marcador, com borda arredondada e o ícone no canto; dá para adicionar um comentário depois. Um marcador sobre vários parágrafos vira uma área só em volta deles.
 
 ### Diagramas e desenhos
 

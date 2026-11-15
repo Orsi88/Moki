@@ -565,9 +565,9 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
       const start = current.view.coordsAtPos(from);
       const end = current.view.coordsAtPos(to);
       const rect = { left: Math.min(start.left, end.left), top: start.top, bottom: end.bottom };
-      // One paragraph, list item or cell at a time, as in the reading view; code keeps no marks.
-      if ($from.parent !== $to.parent || !$from.parent.isTextblock) return { from, to, rect, why: t('Select text inside one paragraph to comment on it.') };
-      if ($from.parent.type.spec.code) return { from, to, rect, why: t('Code cannot be commented.') };
+      // From text to text: one paragraph or several (the mark goes on each of them, one comment); code keeps no marks.
+      if (!$from.parent.isTextblock || !$to.parent.isTextblock) return { from, to, rect, why: t('Select text to comment on it.') };
+      if ($from.parent === $to.parent && $from.parent.type.spec.code) return { from, to, rect, why: t('Code cannot be commented.') };
       return { from, to, rect, why: '' };
     },
     markComment: (from, to, id) => {

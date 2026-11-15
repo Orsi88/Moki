@@ -15,7 +15,12 @@ import type { Marker } from '../api';
 import { CommentColors } from './CommentColors';
 import { confirmDialog } from '../dialogs';
 
-export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number; anchored?: boolean }[]; rail: number; railTop: number; height: number; railScroll?: number }
+// areas: a marker over several paragraphs, drawn as one block around them (stage coordinates).
+export interface MarkedArea { id: string; left: number; top: number; width: number; height: number; icon: string; color: string }
+// corners: the icon of a marker at the start of its marked text. styles: CSS for the marked text, by comment id.
+// Nothing is written into the text's own nodes: an editor (ProseMirror) redraws them and drops what it did not set.
+export interface MarkedCorner { id: string; left: number; top: number; icon: string; color: string }
+export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number; anchored?: boolean }[]; rail: number; railTop: number; height: number; railScroll?: number; areas?: MarkedArea[]; corners?: MarkedCorner[]; styles?: string }
 export interface CommentActions {
   reply: (id: string, text: string) => void;
   edit: (id: string, text: string) => void;
@@ -26,6 +31,12 @@ export interface CommentActions {
 // The floating Comment button: where the selection is (relative to the stage) and, when it cannot be commented, why.
 export interface Bubble { x: number; y: number; below: number; why: string }
 
+// The pieces of a comment's marks in the text (Markdown and Word mark their text with the id), and the paragraphs,
+// items, headings or cells they sit in.
+const BLOCKS = 'p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre';
+const piecesOf = (text: HTMLElement, id: string) => [...text.querySelectorAll<HTMLElement>(`[data-md-comment="${CSS.escape(id)}"], [data-comment-id="${CSS.escape(id)}"]`)];
+const blocksOf = (pieces: HTMLElement[]) => [...new Set(pieces.map((el) => el.closest<HTMLElement>(BLOCKS) ?? el))];
+
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 
 // Each card beside the first mark of its comment, pushed down under the card above when they would overlap.
@@ -33,6 +44,7 @@ const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.g
 export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: RefObject<HTMLElement | null>, rail: RefObject<HTMLElement | null>,
   comments: MdComment[], markOf: (body: HTMLElement, id: string) => Pick<Range, 'getBoundingClientRect'> | null): Placed {
   const [placed, setPlaced] = useState<Placed>({ items: [], rail: 0, railTop: 0, height: 0 });
+  const markers = useMarkers();
   const measure = useCallback(() => {
     const box = stage.current;
     const column = rail.current; // null while the column is hidden: only the marks on the text's edge
@@ -53,36 +65,41 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     const railBox = column?.getBoundingClientRect() ?? origin;
     const railTop = railBox.top - origin.top + scrollY;
     const bottom = Math.max(0, ...wanted.map((w) => tops[w.id] + (heights.get(w.id) ?? 90)));
-    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0 };
-    setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
-  }, [comments, stage, body, rail, markOf]);
-  useLayoutEffect(() => { measure(); });
-  // The marker of each comment, drawn at the start of its marked text (Markdown and Word mark their text with the id).
-  const markers = useMarkers();
-  useLayoutEffect(() => {
-    const text = body.current;
-    if (!text) return;
-    // A marked passage is an area in its marker's color, its icon in the corner of the first piece. Only what changed
-    // is touched: the editor watches its DOM, and rewriting the same attributes on every render would loop with it.
-    const wanted = new Map<HTMLElement, { color: string; icon: string }>();
+    // A marker over one paragraph: its text is the area (a CSS rule by id), its icon in a corner drawn over it.
+    // Over several paragraphs: one area around them, the text inside without boxes of its own.
+    const areas: MarkedArea[] = [], corners: MarkedCorner[] = [], rules: string[] = [];
     for (const c of comments) {
       const marker = splitMarker(c.text, markers).marker;
       if (!marker) continue;
-      const color = markerColor(markers.find((m) => m.icon === marker.icon) ?? marker);
-      text.querySelectorAll<HTMLElement>(`[data-md-comment="${CSS.escape(c.id)}"], [data-comment-id="${CSS.escape(c.id)}"]`)
-        .forEach((el, i) => wanted.set(el, { color, icon: i === 0 ? marker.icon : '' }));
+      const pieces = piecesOf(text, c.id);
+      const blocks = blocksOf(pieces);
+      const tone = markerColor(markers.find((m) => m.icon === marker.icon) ?? marker);
+      const select = `[data-md-comment="${c.id.replace(/"/g, '')}"],[data-comment-id="${c.id.replace(/"/g, '')}"]`;
+      if (blocks.length < 2) {
+        rules.push(`:is(${select}){--marker-color:${SWATCH[tone]}}`, `.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}),:is(${select}).marker-area-host{padding:1px 3px;border:1.5px solid color-mix(in srgb,var(--marker-color) 75%,transparent);border-radius:6px;background:color-mix(in srgb,var(--marker-color) 18%,transparent)!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}`);
+        const first = pieces[0]?.getBoundingClientRect();
+        if (first) corners.push({ id: c.id, left: first.left - origin.left + scrollX - 9, top: first.top - origin.top + scrollY - 10, icon: marker.icon, color: tone });
+        continue;
+      }
+      rules.push(`.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}){background:transparent!important;border-bottom-color:transparent!important}`);
+      const rects = blocks.map((el) => el.getBoundingClientRect());
+      const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right));
+      const top = Math.min(...rects.map((r) => r.top)), lowest = Math.max(...rects.map((r) => r.bottom));
+      areas.push({ id: c.id, left: left - origin.left + scrollX - 8, top: top - origin.top + scrollY - 6, width: right - left + 16, height: lowest - top + 12,
+        icon: marker.icon, color: tone });
     }
-    for (const el of text.querySelectorAll<HTMLElement>('[data-marker-area]')) {
-      if (wanted.has(el)) continue;
-      el.removeAttribute('data-marker-area'); el.removeAttribute('data-marker'); el.removeAttribute('data-marker-color');
-    }
-    for (const [el, want] of wanted) {
-      if (!el.hasAttribute('data-marker-area')) el.setAttribute('data-marker-area', '');
-      if (el.getAttribute('data-marker-color') !== want.color) el.setAttribute('data-marker-color', want.color);
-      if (want.icon && el.getAttribute('data-marker') !== want.icon) el.setAttribute('data-marker', want.icon);
-      if (!want.icon && el.hasAttribute('data-marker')) el.removeAttribute('data-marker');
-    }
-  });
+    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0, areas, corners, styles: rules.join('') };
+    setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
+  }, [comments, stage, body, rail, markOf, markers]);
+  useLayoutEffect(() => { measure(); });
+  // The editor redraws its nodes when the text changes: the corners and areas follow (a measure writes nothing to them).
+  useEffect(() => {
+    const text = body.current;
+    if (!text) return undefined;
+    const redrawn = new MutationObserver(() => measure());
+    redrawn.observe(text, { childList: true, subtree: true, characterData: true });
+    return () => redrawn.disconnect();
+  }, [body, body.current, measure]);
   useEffect(() => {
     const box = stage.current;
     if (!box) return undefined;
@@ -135,6 +152,13 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
   };
   return (
     <>
+      {placed.styles ? <style>{placed.styles}</style> : null}
+      {placed.corners?.map((c) => <span key={`corner-${c.id}`} className="marker-corner" data-marker-color={c.color} style={{ left: c.left, top: c.top }} aria-hidden="true">{c.icon}</span>)}
+      {placed.areas?.map((a) => (
+        <div key={`area-${a.id}`} className={`marker-block${active === a.id ? ' on' : ''}`} data-marker-color={a.color} style={{ left: a.left, top: a.top, width: a.width, height: a.height }} aria-hidden="true">
+          <span className="marker-block-icon">{a.icon}</span>
+        </div>
+      ))}
       {shown && (
         <>
           <svg className="md-links" width="100%" height={placed.height} aria-hidden="true">

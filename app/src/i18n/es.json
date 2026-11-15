@@ -453,6 +453,7 @@
   "Hide the file sidebar": "Ocultar barra de archivos",
   "Resize file sidebar": "Ajustar ancho de la barra de archivos",
   "Resize notes": "Ajustar altura de las notas",
+  "Select text to comment on it.": "Selecciona un texto para comentarlo.",
   "Line numbers: click to select, Shift+click for a block": "Números de línea: clic para seleccionar, Mayús+clic para un bloque",
   "Select lines on their numbers to comment on them or mark them.": "Selecciona líneas por sus números para comentarlas o marcarlas.",
   "lines {a}–{b}": "líneas {a}–{b}",

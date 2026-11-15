@@ -2843,11 +2843,12 @@ test.describe.serial('Moki comments in the editor', () => {
     await expect(ep.locator('.commented-editor .md-links path')).toHaveCount(2);
   });
 
-  test('a selection over two paragraphs, or in code, cannot be commented: the reason is in the button', async () => {
+  test('a selection over two paragraphs can be commented or marked: one comment, its marks in each paragraph', async () => {
     await dragOver('Segundo parágrafo', 10, 60, 'Terceiro parágrafo');
     const bubble = ep.getByRole('toolbar', { name: 'Seleção' });
-    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeDisabled();
-    await expect(bubble).toContainText('Selecione um trecho dentro de um mesmo parágrafo para comentar.');
+    await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeEnabled();
+    await expect(bubble.getByRole('button', { name: 'Marcar', exact: true })).toBeEnabled();
+    await expect(bubble).not.toContainText('parágrafo para comentar');
     await ep.keyboard.press('Escape');
     await expect(bubble).toBeHidden();
   });
@@ -3811,10 +3812,16 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/O limite diário é de <!--c:[a-z0-9]+-->cinco tentativas<!--\/c:[a-z0-9]+-->\./);
     expect(readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar]"');
     // Shown as a marker, not as a comment: the icon at the start of the marked text and a compact card.
-    await expect(editor.locator('[data-marker="➕"]')).toHaveText('cinco tentativas');
     // An area in the marker's color (➕ To complete is purple), with a firmer rounded border; the icon in its corner.
-    await expect(editor.locator('[data-marker="➕"]')).toHaveAttribute('data-marker-color', 'purple');
-    await expect(editor.locator('[data-marker="➕"]')).toHaveCSS('border-top-left-radius', '6px');
+    const marked = editor.locator('span[data-md-comment]', { hasText: 'cinco tentativas' });
+    await expect(marked).toHaveCSS('border-top-left-radius', '6px');
+    await expect(marked).toHaveCSS('--marker-color', '#9b6cf0');
+    const corner = view.locator('.marker-corner');
+    await expect(corner).toHaveText('➕');
+    await expect(corner).toHaveAttribute('data-marker-color', 'purple');
+    const cornerBox = await corner.boundingBox(), markedBox = await marked.boundingBox();
+    expect(Math.abs((cornerBox!.x + 9) - markedBox!.x)).toBeLessThan(4); // on the top-left corner of the marked text
+    expect(Math.abs((cornerBox!.y + 10) - markedBox!.y)).toBeLessThan(4);
     const mark = view.locator('.md-card.marker-only');
     await expect(mark.locator('.marker-badge')).toHaveText('➕Completar');
     await expect(mark.locator('.pdf-comment-text')).toHaveCount(0);
@@ -3840,6 +3847,64 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await expect(view.getByRole('status')).toContainText('Marcadores salvos.');
     const saved = JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8'));
     expect(saved.at(-1)).toMatchObject({ icon: '🧪', name: 'Testar', meaning: 'Precisa de um teste antes de seguir.', color: 'red' });
+  } finally {
+    await running?.close();
+    rmSync(root, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('markers over several paragraphs: one selection marks them all, and one area surrounds them with the icon in its corner', async ({}, info) => {
+  const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-multi-ui-'));
+  const file = join(root, 'workspace', 'projects', 'acme', 'context', 'fluxo.md');
+  writeFileSync(file, '# Fluxo\n\nO usuário informa o e-mail.\n\nO sistema envia o código.\n\nO usuário confirma o código.\n');
+  let running: ElectronApplication | undefined;
+  try {
+    const opened = await openApp(root, profile);
+    running = opened.app;
+    const view = opened.page;
+    await sizeRoutineWindow(opened.app, view, 1320, 860);
+    await view.locator('.tree-row[title="context"]').click();
+    await view.locator('.tree-row[title="context/fluxo.md"]').click();
+    const editor = view.locator('.commented-editor .tiptap-body');
+    await expect(editor).toContainText('O usuário confirma o código.');
+    // From "informa" in the first paragraph to "envia" in the second.
+    await editor.evaluate((el) => {
+      const ps = [...el.querySelectorAll('p')];
+      const textOf = (p: Element) => p.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(textOf(ps[0]), ps[0].textContent!.indexOf('informa'));
+      range.setEnd(textOf(ps[1]), ps[1].textContent!.indexOf('envia') + 'envia'.length);
+      const sel = window.getSelection()!; sel.removeAllRanges(); sel.addRange(range);
+    });
+    await view.waitForTimeout(100); // the editor reads the selection
+    await editor.dispatchEvent('mouseup');
+    const bubble = view.getByRole('toolbar', { name: 'Seleção' });
+    await expect(bubble.getByRole('button', { name: 'Marcar', exact: true })).toBeEnabled();
+    await bubble.getByRole('button', { name: 'Marcar', exact: true }).click();
+    const box = view.getByRole('dialog', { name: 'Marcar' });
+    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Importante' }).click();
+    await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+    // One comment, its marks in each paragraph with the same id.
+    await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/O usuário <!--c:([a-z0-9]+)-->informa o e-mail\.<!--\/c:\1-->\n\n<!--c:\1-->O sistema envia<!--\/c:\1--> o código\./);
+    expect((readFileSync(file, 'utf8').match(/"text":"\[⭐ Importante\]"/g) ?? []).length).toBe(1);
+    // One area around both paragraphs, the icon in its corner; the text inside keeps no box of its own.
+    const area = view.locator('.marker-block');
+    await expect(area).toHaveCount(1);
+    await expect(area).toHaveAttribute('data-marker-color', 'yellow');
+    await expect(area.locator('.marker-block-icon')).toHaveText('⭐');
+    const first = await editor.locator('p').nth(0).boundingBox(), second = await editor.locator('p').nth(1).boundingBox(), around = await area.boundingBox();
+    expect(around!.y).toBeLessThanOrEqual(first!.y);
+    expect(around!.y + around!.height).toBeGreaterThanOrEqual(second!.y + second!.height);
+    // Inside it, the marked text keeps no box of its own, and there is no corner icon of its own either.
+    await expect(editor.locator('span[data-md-comment]').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(editor.locator('span[data-md-comment]').first()).not.toHaveCSS('border-top-left-radius', '6px');
+    await expect(view.locator('.marker-corner')).toHaveCount(0);
+    await expect(view.locator('.md-card.marker-only')).toHaveCount(1);
+    // Reopened, the same area comes back from the file.
+    await view.locator('.tree-row[title="context/overview.md"]').click();
+    await view.locator('.tree-row[title="context/fluxo.md"]').click();
+    await expect(view.locator('.marker-block')).toHaveCount(1);
   } finally {
     await running?.close();
     rmSync(root, { recursive: true, force: true });
