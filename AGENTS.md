@@ -121,6 +121,7 @@ When the request says you are a step of a Moki operation, use the operation's ru
 
 ```text
 workspace/tags.json                                                # tag catalog (tags share context between projects)
+workspace/suspended/<project-id>/                                  # suspended projects (desktop app): invisible to every listing until resumed
 workspace/projects/<project-id>/
 ├── project.json, context/, proposed-updates.md, activity-log.md   # project knowledge (confirmed only in context/)
 ├── tags.json                                                      # tags of the project's files

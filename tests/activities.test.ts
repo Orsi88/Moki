@@ -60,6 +60,11 @@ test('a file is checked: what it uses, its files rule, its id and its name', () 
   assert.match(errors({ label: 'X', uses: 'skill:test-design', files: 'always' }), /files must be/);
   assert.match(errors({ label: 'X', uses: 'skill:test-design' }, 'Bad Id'), /id/);
   assert.match(errors({ uses: 'skill:test-design' }), /label is required/);
+  assert.match(errors({ label: 'X', uses: 'skill:test-design', effort: 'huge' }), /effort must be/);
+  assert.equal(parseActivity(text({ label: 'X', uses: 'skill:test-design', effort: 'high' }), 'ok', 'library').activity?.effort, 'high');
+  const base = { label: 'L', description: '', category: 'C', target: { kind: 'prompt' as const }, files: 'none' as const, note: '', tags: [], template: 'Do it.' };
+  assert.doesNotMatch(activityMarkdown(base), /effort/, 'no effort: the file stays as before');
+  assert.equal(parseActivity(activityMarkdown({ ...base, effort: 'low' }), 'ok', 'library').activity?.effort, 'low');
 });
 
 test('your own activities: saved in the library, reach projects by tags, never take an id of Moki; favorites', () => {

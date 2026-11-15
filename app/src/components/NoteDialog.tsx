@@ -9,19 +9,19 @@
 // the button; stored inside the note), / for the same tools by typing (like Notion),
 // @ to mention a file of the project, and the quick assistants (NoteAssist) to improve it with the AI.
 
-import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type ReactNode, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { api, type Tag, type TreeNode } from '../api';
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type ReactNode, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { api, type Tag } from '../api';
 import { t } from '../i18n';
 import { isFavorite, looseNotes, noteTitle, removeLooseNote, saveLooseNote, setFavorite, touchNote, type NoteRef } from '../side-menu';
 import { LazyTipTap } from './LazyTipTap';
 import { AssistButtons, AssistPanel, useNoteAssist } from './NoteAssist';
 import type { TipTapCommand, TipTapHandle } from './TipTapEditor';
 import { DiagramSourceEditor } from './DiagramSourceEditor';
-import { FileIcon } from '../icons';
 import { IconChevron, IconCode, IconExternal, IconFile, IconEye, IconLink, IconNotes, IconRefresh, IconStar, IconTerminal, IconX } from './Icons';
 import { TagPicker } from './TagPicker';
 import { flushEdits } from '../debounce';
 import { TABLE_ICON, useMarkdownEditing } from './useMarkdownEditing';
+import { flattenTree, useFileMention } from './useFileMention';
 import { confirmDialog } from '../dialogs';
 import { isTopModal, useModalLayer } from '../modal-layer';
 import { anchorFragment, hrefTo, resolveInternal } from '../internal-links';
@@ -49,8 +49,6 @@ const words = (text: string) => (text.replace(/!\[[^\]]*\]\(data:[^)]*\)/g, ' ')
 const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 const IMAGE_ICON = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-9 8.5" /></svg>;
 
-// Every file of the project tree, for @ mentions.
-const flatten = (nodes: TreeNode[]): string[] => nodes.flatMap((n) => (n.type === 'dir' ? flatten(n.children ?? []) : [n.path]));
 
 // Images go into the note itself (a data: URL, which the reading view shows), scaled down first.
 function imageToDataUrl(file: File): Promise<string> {
@@ -99,7 +97,6 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   const [curLoose, setCurLoose] = useState(looseId);
   const looseSavedTitle = useRef('');
   const [files, setFiles] = useState<string[]>([]); // project files, for @
-  const [mention, setMention] = useState<{ start: number; query: string; index: number } | null>(null);
   const [renaming, setRenaming] = useState(false); // the title, edited in place in the header (double-click or right-click)
   const [tagCatalog, setTagCatalog] = useState<Tag[]>([]);
   const [tags, setTags] = useState<string[]>([]); // a saved project note's tags (shared context)
@@ -246,7 +243,7 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
 
   useEffect(() => {
     if (!target) { setFiles([]); return; }
-    api.tree(target).then((nodes) => setFiles(flatten(nodes))).catch(() => setFiles([]));
+    api.tree(target).then((nodes) => setFiles(flattenTree(nodes))).catch(() => setFiles([]));
   }, [target]);
 
   // Closing saves first; if saving fails, the note stays open with the error.
@@ -353,34 +350,18 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
   };
 
   // ---------- @ mentions ----------
-  const matches = useMemo(() => {
-    if (!mention) return [];
-    const q = mention.query.toLowerCase();
-    return files.filter((f) => f.toLowerCase().includes(q)).slice(0, 8);
-  }, [mention, files]);
-  const findMention = (value: string, caret: number) => {
-    const before = value.slice(0, caret);
-    const m = before.match(/(^|[\s(])@([^\s@()[\]]*)$/);
-    setMention(m ? { start: caret - m[2].length - 1, query: m[2], index: 0 } : null);
-  };
-  const pickMention = (file: string) => {
+  const mention = useFileMention(files, (file, start) => {
     const el = editor.current;
-    if (!el || !mention) return;
+    if (!el) return;
     const name = file.split('/').pop() ?? file;
     const value = `[@${name.replace(/[\[\]]/g, '')}](${hrefTo(curPath ?? 'notes/note.md', file)})`;
-    replace(mention.start, el.selectionStart, value, mention.start + value.length, mention.start + value.length);
-    setMention(null);
-  };
+    replace(start, el.selectionStart, value, start + value.length, start + value.length);
+  });
 
   // Enter continues a list; Enter on an empty item ends it. Arrows / Enter / Tab drive the @ and / lists.
   const onEditorKey = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (md.slashKey(e)) return;
-    if (mention && matches.length) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, index: (mention.index + 1) % matches.length }); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setMention({ ...mention, index: (mention.index - 1 + matches.length) % matches.length }); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(matches[mention.index]); return; }
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null); return; }
-    }
+    if (mention.key(e)) return;
     md.listKey(e);
   };
 
@@ -552,25 +533,14 @@ export function NoteDialog({ project, path, looseId = null, projects = [], float
               <DiagramSourceEditor editorRef={editor} className="note-editor" value={text}
                 autoFocus={!inline && Boolean(path) && !loose}
                 onChange={setText}
-                onEdit={(segment, caret) => { findMention(segment, caret); findSlash(segment, caret); }}
+                onEdit={(segment, caret) => { mention.find(segment, caret); findSlash(segment, caret); }}
                 onKeyDown={onEditorKey}
-                onClick={(e) => { findMention(e.currentTarget.value, e.currentTarget.selectionStart); findSlash(e.currentTarget.value, e.currentTarget.selectionStart); }}
-                onBlur={() => setTimeout(() => { setMention(null); setSlash(null); }, 150)}
+                onClick={(e) => { mention.find(e.currentTarget.value, e.currentTarget.selectionStart); findSlash(e.currentTarget.value, e.currentTarget.selectionStart); }}
+                onBlur={() => setTimeout(() => { mention.close(); setSlash(null); }, 150)}
                 onPaste={onPaste} onDrop={onDrop}
                 placeholder={t('Write your note (Markdown). Type / for commands and @ to mention a project file; paste or drop images.')} />
               {md.slashList}
-              {mention && (
-                <div className="note-mention" role="listbox" aria-label={t('Project files')}>
-                  {!target ? <p className="muted small">{t('Send the note to a project to mention its files.')}</p>
-                    : !matches.length ? <p className="muted small">{t('No file matches "{q}".', { q: mention.query })}</p>
-                      : matches.map((f, i) => (
-                        <button key={f} type="button" role="option" aria-selected={i === mention.index} className={i === mention.index ? 'on' : ''}
-                          onMouseDown={(e) => { e.preventDefault(); pickMention(f); }}>
-                          <FileIcon name={f} size={16} /><span className="note-mention-name">{f.split('/').pop()}</span><span className="note-mention-path">{f}</span>
-                        </button>
-                      ))}
-                </div>
-              )}
+              {mention.list(!target && t('Send the note to a project to mention its files.'))}
             </div>
           )
             : (

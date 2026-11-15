@@ -32,11 +32,16 @@ export const TARGET_KINDS: TargetKind[] = ['prompt', 'skill', 'skills', 'agent',
 export type FilesRule = 'required' | 'optional' | 'none';
 export const FILES_RULES: FilesRule[] = ['required', 'optional', 'none'];
 export type ActivitySource = 'moki' | 'builtin' | 'library';
+// How hard the AI should think on this activity; each tool maps it to its own flag (TOOLS[].effort in core.ts), '' = the tool's default.
+export const EFFORTS = ['low', 'medium', 'high', 'max'] as const;
+export type Effort = (typeof EFFORTS)[number];
+export const isEffort = (v: unknown): v is Effort => (EFFORTS as readonly unknown[]).includes(v);
 
 export interface ActivityDef {
   id: string; label: string; description: string; category: string;
   target: ActivityTarget; // moki: the skill its request uses
   files: FilesRule; note: string; tags: string[]; template: string;
+  effort: Effort | '';
   source: ActivitySource; path?: string; // the file, for builtin and library ones
 }
 
@@ -54,7 +59,7 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
   { id: 'talk', label: 'Talk with an agent', description: 'a conversation about an idea, no activity', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
   // "Use a skill" in the project panel: the skill and the AI, not an activity in the activity list.
   { id: 'skill', label: 'Use a skill', description: 'follow one skill', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
-].map((a) => ({ ...a, category: 'Moki', note: '', tags: [], template: '', source: 'moki' as const })) as ActivityDef[];
+].map((a) => ({ ...a, category: 'Moki', note: '', tags: [], template: '', effort: '', source: 'moki' as const })) as ActivityDef[];
 export const isMokiActivity = (id: string): boolean => MOKI_ACTIVITIES.some((a) => a.id === id);
 // Activities offered where one is picked (the app, the IDE, the terminal menu). "talk" and "skill" start only from the project panel.
 export const isPickable = (a: { id: string }): boolean => a.id !== 'talk' && a.id !== 'skill';
@@ -93,6 +98,8 @@ export function parseActivity(text: string, id: string, source: 'builtin' | 'lib
   if (target?.kind === 'prompt' && !body.trim()) problems.push('a text-only activity needs a request');
   const files = (str(data.files) || 'optional') as FilesRule;
   if (!FILES_RULES.includes(files)) problems.push('files must be required, optional or none');
+  const effort = str(data.effort);
+  if (effort && !isEffort(effort)) problems.push('effort must be low, medium, high or max');
   if (!ID.test(id)) problems.push('the id (file name) must be lowercase letters, digits and hyphens');
   const label = str(data.label);
   if (!label) problems.push('label is required');
@@ -102,7 +109,7 @@ export function parseActivity(text: string, id: string, source: 'builtin' | 'lib
     target: target ?? { kind: 'prompt' },
     files, note: str(data.note).slice(0, LIMIT.note),
     tags: cleanTags(str(data.tags).split(',').map((t) => t.trim()).filter(Boolean)),
-    template: body.trim().slice(0, LIMIT.template), source, path,
+    template: body.trim().slice(0, LIMIT.template), effort: isEffort(effort) ? effort : '', source, path,
   };
   return { activity: problems.length ? null : activity, errors: problems };
 }
@@ -149,12 +156,12 @@ function defaultTemplate(a: ActivityDef): string {
 }
 
 // The file of a library activity, from what the person typed (validated as a builtin file would be).
-export function activityMarkdown(a: Pick<ActivityDef, 'label' | 'description' | 'category' | 'target' | 'files' | 'note' | 'tags' | 'template'>): string {
+export function activityMarkdown(a: Pick<ActivityDef, 'label' | 'description' | 'category' | 'target' | 'files' | 'note' | 'tags' | 'template'> & { effort?: Effort | '' }): string {
   const q = (s: string) => JSON.stringify(s);
   const uses = a.target.kind === 'prompt' ? [] : [a.target.kind === 'skills'
     ? `uses: ${a.target.names.map((name) => `skill:${name}`).join(', ')}` : `uses: ${a.target.kind}:${a.target.name}`];
   return ['---', `label: ${q(a.label)}`, `description: ${q(a.description)}`, `category: ${q(a.category)}`, ...uses,
-    `files: ${a.files}`, `note: ${q(a.note)}`, `tags: ${q(a.tags.join(', '))}`, '---', '', a.template.trim(), ''].join('\n');
+    `files: ${a.files}`, ...(a.effort ? [`effort: ${a.effort}`] : []), `note: ${q(a.note)}`, `tags: ${q(a.tags.join(', '))}`, '---', '', a.template.trim(), ''].join('\n');
 }
 
 export function saveLibraryActivity(id: string, text: string, root = ROOT): ActivityDef {

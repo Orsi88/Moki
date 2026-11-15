@@ -25,6 +25,8 @@ Um projeto é um conjunto de trabalho. O id é curto e em minúsculas (`portal-d
 
 Na tela inicial, **fixe** um projeto para mantê-lo no topo, ou **oculte** um (os arquivos continuam; ele vai para *Ocultos*). **Apagar um projeto de vez** pede que você digite uma palavra, e não usa a lixeira.
 
+**Suspenda** um projeto que você não está usando (clique com o botão direito nele) para economizar recursos da máquina: a pasta dele vai para `workspace/suspended/`, então as rotinas, a busca, as IAs e a extensão do IDE deixam de lê-lo, e nada nele muda. Um projeto com terminal ou rotina ainda em execução não é suspenso. Ele aparece em *Suspensos*; um clique o retoma como estava.
+
 ### Dentro da pasta de um projeto
 
 ```text
