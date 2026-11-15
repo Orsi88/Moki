@@ -16,7 +16,7 @@ export interface PdfComment { id: string; page: number; type: string; author: st
 export interface PdfMark { page: number; quads: number[][] } // quads: 8 numbers each, points from the page's top-left
 export type PdfChange =
   | { op: 'highlight'; page: number; find: string; all: boolean; contents?: string; color: string }
-  | { op: 'highlight'; marks: PdfMark[]; contents?: string; color: string }
+  | { op: 'highlight'; marks: PdfMark[]; contents?: string; color: string; area?: boolean } // area: a dragged rectangle, drawn light with a border
   | { op: 'reply'; id: string; text: string }
   | { op: 'edit'; id: string; contents: string }
   | { op: 'delete'; id: string }
@@ -37,7 +37,7 @@ export function pdfScript(file: string, change: PdfChange | null, author: string
   const doc = 1;
   const steps: PdfStep[] = [{ tool: 'doc_open', args: { path: file } }];
   if (change?.op === 'highlight') {
-    const base = { doc, type: 'highlight', color: change.color, author, ...(change.contents ? { contents: change.contents } : {}) };
+    const base = { doc, type: 'highlight', color: change.color, author, ...(change.contents ? { contents: change.contents } : {}), ...('marks' in change && change.area ? { area: true } : {}) };
     if ('marks' in change) for (const m of change.marks) steps.push({ tool: 'comment_add', args: { ...base, page: m.page, quads: m.quads } });
     else steps.push({ tool: 'comment_add', args: { ...base, page: change.page, find: change.find, all: change.all } });
   } else if (change?.op === 'reply') steps.push({ tool: 'comment_reply', args: { doc, id: change.id, text: change.text, author } });
@@ -87,7 +87,7 @@ export function parsePdfChange(raw: unknown): PdfChange {
           || !quads.every((q) => Array.isArray(q) && q.length === 8 && q.every((n) => typeof n === 'number' && Number.isFinite(n)))) throw new Error('Invalid selection.');
         return { page: page(p), quads: quads as number[][] };
       });
-      return { op: 'highlight', marks, contents, color };
+      return { op: 'highlight', marks, contents, color, ...(r.area === true ? { area: true } : {}) };
     }
     case 'reply': return { op: 'reply', id: text(r.id, 'comment id', 1, 200), text: text(r.text, 'reply', 1, 4000) };
     case 'edit': return { op: 'edit', id: text(r.id, 'comment id', 1, 200), contents: text(r.contents, 'comment', 0, 4000) };

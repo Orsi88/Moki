@@ -158,7 +158,10 @@ async function highlight(o: Open, a: Record<string, unknown>, id: string): Promi
   const ctx = o.doc.context;
   const path = quads.map((q) => `${q[4] - rect[0]} ${q[5] - rect[1]} m ${q[6] - rect[0]} ${q[7] - rect[1]} l ${q[2] - rect[0]} ${q[3] - rect[1]} l ${q[0] - rect[0]} ${q[1] - rect[1]} l h`).join(' ');
   const gs = ctx.obj({ Type: 'ExtGState', BM: 'Multiply', ca: 1 });
-  const ap = ctx.stream(`/GS0 gs ${rgb.join(' ')} rg ${path} f`, {
+  // An area (a rectangle dragged on the page) is drawn light, with a border in the full colour, so what is under it reads.
+  const light = rgb.map((c) => round(1 - (1 - c) * 0.22));
+  const draw = a.area === true ? `/GS0 gs ${light.join(' ')} rg ${path} f ${rgb.join(' ')} RG 1.2 w ${path} S` : `/GS0 gs ${rgb.join(' ')} rg ${path} f`;
+  const ap = ctx.stream(draw, {
     Type: 'XObject', Subtype: 'Form', BBox: [0, 0, rect[2] - rect[0], rect[3] - rect[1]], Resources: { ExtGState: { GS0: gs } },
   });
   const annot = ctx.obj({

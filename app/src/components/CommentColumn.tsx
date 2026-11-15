@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode, type
 import { t } from '../i18n';
 import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
-import { IconChat, IconFlag } from './Icons';
+import { IconChat } from './Icons';
 import { MarkerMenu, MarkerPicker } from './Markers';
 import { markerColor, markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
 import type { Marker } from '../api';
@@ -69,6 +69,10 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     // A marker over one paragraph: its text is the area (a CSS rule by id), its icon in a corner drawn over it.
     // Over several paragraphs: one area around them, the text inside without boxes of its own.
     const areas: MarkedArea[] = [], margins: MarkedCorner[] = [], rules: string[] = [];
+    // The icons stand outside the whole text column (not just their paragraph), clear of bullets and numbers.
+    const textBox = text.getBoundingClientRect();
+    const indent = parseFloat(getComputedStyle(text).paddingLeft) || 0;
+    const margin = Math.max(2, textBox.left - origin.left + scrollX + indent - 44);
     for (const c of comments) {
       const marker = splitMarker(c.text, markers).marker;
       if (!marker) continue;
@@ -79,7 +83,7 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
       if (blocks.length < 2) {
         rules.push(`:is(${select}){--marker-color:${SWATCH[tone]}}`, `.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}),:is(${select}).marker-area-host{padding:1px 3px;border:1.5px solid color-mix(in srgb,var(--marker-color) 75%,transparent);border-radius:6px;background:color-mix(in srgb,var(--marker-color) 18%,transparent)!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}`);
         const first = pieces[0]?.getBoundingClientRect(), block = blocks[0]?.getBoundingClientRect();
-        if (first && block) margins.push({ id: c.id, left: Math.max(2, block.left - origin.left + scrollX - 30), top: first.top - origin.top + scrollY + first.height / 2 - 11, icon: marker.icon, color: tone });
+        if (first && block) margins.push({ id: c.id, left: margin, top: first.top - origin.top + scrollY + first.height / 2 - 11, icon: marker.icon, color: tone });
         continue;
       }
       rules.push(`.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}){background:transparent!important;border-bottom-color:transparent!important}`);
@@ -88,7 +92,7 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
       const top = Math.min(...rects.map((r) => r.top)), lowest = Math.max(...rects.map((r) => r.bottom));
       areas.push({ id: c.id, left: left - origin.left + scrollX - 8, top: top - origin.top + scrollY - 6, width: right - left + 16, height: lowest - top + 12,
         icon: marker.icon, color: tone });
-      margins.push({ id: c.id, left: Math.max(2, left - origin.left + scrollX - 38), top: top - origin.top + scrollY - 4, icon: marker.icon, color: tone });
+      margins.push({ id: c.id, left: margin, top: top - origin.top + scrollY - 4, icon: marker.icon, color: tone });
     }
     const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0, areas, margins, styles: rules.join('') };
     setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
@@ -136,7 +140,6 @@ interface ColumnProps {
 export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, active, onActive, saving, actions, readOnly = false, describe, onJump, empty }: ColumnProps) {
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [colorPicker, setColorPicker] = useState<string | null>(null);
-  const [markerPicker, setMarkerPicker] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string } | null>(null); // the menu of a margin icon
   const markers = useMarkers();
   const carded = comments.filter((c) => !markerOnly(c.text, markers));
@@ -187,7 +190,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
           </svg>
           <div className="md-rail" ref={rail} style={{ height: Math.max(0, placed.height - placed.railTop) }} aria-label={t('Comments')}>
             {carded.length === 0 && (empty ?? <p className="muted small pdf-rail-empty">{t('No comments yet.')}</p>)}
-            {carded.map((c) => { const { marker, body } = splitMarker(c.text, markers); return (
+            {carded.map((c) => { const { body } = splitMarker(c.text, markers); return (
               <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}${c.resolved ? ' resolved' : ''}${markerOnly(c.text, markers) ? ' marker-only' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
                 tabIndex={onJump ? 0 : undefined} onClick={(e) => { if (!(e.target as HTMLElement).closest('button, textarea, a, input')) onJump?.(c.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget && onJump) { e.preventDefault(); onJump(c.id); } }}
@@ -219,14 +222,12 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
                   <div className="pdf-actions">
                     <button type="button" className="icon-btn md-color-toggle" title={t('Change comment color')} aria-label={t('Change comment color')} aria-expanded={colorPicker === c.id} disabled={saving || readOnly} onClick={() => setColorPicker(colorPicker === c.id ? null : c.id)}><span style={{ background: c.color ? SWATCH[c.color] : 'var(--accent)' }} /></button>
                     {body.trim() ? <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'reply', text: '' })}>{t('Reply')}</button> : null}
-                    <button type="button" className={`icon-btn marker-toggle${marker ? ' on' : ''}`} title={t('Marker')} aria-label={t('Marker')} aria-expanded={markerPicker === c.id} disabled={saving || readOnly} onClick={() => setMarkerPicker(markerPicker === c.id ? null : c.id)}>{marker ? <span aria-hidden="true">{marker.icon}</span> : <IconFlag size={14} />}</button>
                     <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => setEditing({ id: c.id, mode: 'edit', text: body })}>{body.trim() ? t('Edit') : t('Add a comment')}</button>
                     {actions.resolve && <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => actions.resolve?.(c.id, !c.resolved)}>{c.resolved ? t('Reopen comment') : t('Resolve comment')}</button>}
                     <button type="button" className="link-btn" disabled={saving || readOnly} onClick={() => remove(c.id)}>{t('Delete')}</button>
                   </div>
                 )}
                 {colorPicker === c.id && <CommentColors value={c.color} disabled={saving || readOnly} onChange={(next) => { actions.color(c.id, next); setColorPicker(null); }} />}
-                {markerPicker === c.id && <MarkerPicker markers={markers} value={marker} disabled={saving || readOnly} onPick={(next) => { actions.edit(c.id, withMarker(c.text, next, markers)); setMarkerPicker(null); }} />}
               </div>
             ); })}
           </div>
@@ -271,9 +272,7 @@ export function SelectionBubble({ bubble, onComment }: { bubble: Bubble; onComme
       <button type="button" disabled={Boolean(bubble.why)} aria-describedby={bubble.why ? 'md-select-why' : undefined} onClick={onComment}>
         <IconChat size={15} /> {t('Comment on it')}
       </button>
-      <button type="button" disabled={Boolean(bubble.why)} onClick={() => { nextMode = 'marker'; onComment(); }}>
-        <IconFlag size={15} /> {t('Mark')}
-      </button>
+
       {bubble.why && <span id="md-select-why" className="md-select-why">{bubble.why}</span>}
     </div>
   );
@@ -297,7 +296,6 @@ export function CommentComposer({ x, y, saving, color, onColor, onAdd, onCancel 
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } }} />
       <CommentColors value={color} onChange={onColor} disabled={saving} />
-      {mode !== 'marker' && markers.length > 0 && <MarkerPicker markers={markers} value={marker} onPick={(m) => { setMarker(m); if (m) onColor(markerColor(m)); }} disabled={saving} />}
       <div className="pdf-actions">
         <button type="button" className="btn btn-sm" disabled={saving || !ready} onClick={add}>{text.trim() ? t('Add the comment') : t('Mark')}</button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>{t('Cancel')}</button>

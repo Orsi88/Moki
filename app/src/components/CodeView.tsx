@@ -12,9 +12,9 @@ import { useLoaded } from './useLoaded';
 import { IconChat, IconCode, IconNotePlus, IconX } from './Icons';
 import { isCommentColor, SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { codeAnchorLine, codeSelectionNote } from '../../../scripts/lib/code-comment-types.ts';
-import { markerColor, splitMarker, useMarkers } from '../markers';
+import { markerColor, markerLabel, splitMarker, useMarkers } from '../markers';
 import { CommentColumn, CommentComposer, SelectionBubble, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
-import { MarkerMenu } from './Markers';
+import { MarkerContextMenu, MarkerMenu } from './Markers';
 
 const highlighter = loadOnce(() => import('highlight.js').then((m) => m.default));
 const COLOR_LIMIT = 400 * 1024; // characters: past this the file shows as plain text
@@ -38,6 +38,7 @@ export function CodeView({ project, path, text, language }: Props) {
   const [color, setColor] = useState<CommentColor>('yellow');
   const [composer, setComposer] = useState<(Range & { x: number; y: number }) | null>(null);
   const [markerMenu, setMarkerMenu] = useState<string | null>(null); // the menu of a marked block's icon
+  const [marking, setMarking] = useState<{ left: number; top: number } | null>(null); // right-click on selected lines
   const stage = useRef<HTMLDivElement>(null), body = useRef<HTMLPreElement>(null), rail = useRef<HTMLDivElement>(null), gutter = useRef<HTMLDivElement>(null);
   const markers = useMarkers();
   const lines = useMemo(() => text.split(/\r?\n/), [text]);
@@ -71,7 +72,6 @@ export function CodeView({ project, path, text, language }: Props) {
     reply: (id, value) => { if (project) void save(() => api.changeCodeComment(project, path, { op: 'reply', id, text: value })); },
     edit: (id, value) => { if (project) void save(() => api.changeCodeComment(project, path, { op: 'edit', id, text: value })); },
     color: (id, value) => { if (project) void save(() => api.changeCodeComment(project, path, { op: 'color', id, color: value })); },
-    resolve: (id, resolved) => { if (project) void save(() => api.changeCodeComment(project, path, { op: 'resolve', id, resolved })); },
     remove: (id) => { if (project) void save(() => api.removeCodeComment(project, path, id)); },
   };
   const add = async (value: string) => {
@@ -85,6 +85,17 @@ export function CodeView({ project, path, text, language }: Props) {
     setComposer(null);
     if (extend && sel) setSel({ start: Math.min(sel.start, n), end: Math.max(sel.end, n) });
     else setSel(sel && sel.start === n && sel.end === n ? null : { start: n, end: n });
+  };
+  // Text selected with the mouse in the code selects its lines too, as in a document: Comment and Mark appear.
+  const fromText = () => {
+    const picked = window.getSelection(), pre = body.current;
+    if (!picked || picked.isCollapsed || !picked.rangeCount || !pre || !pre.contains(picked.getRangeAt(0).commonAncestorContainer)) return;
+    const rects = [...picked.getRangeAt(0).getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    const line = parseFloat(getComputedStyle(pre).lineHeight) || 20, top = pre.getBoundingClientRect().top + (parseFloat(getComputedStyle(pre).paddingTop) || 0);
+    if (!rects.length) return;
+    const at = (y: number) => Math.min(lines.length, Math.max(1, Math.floor((y - top) / line) + 1));
+    setComposer(null);
+    setSel({ start: at(rects[0].top + 1), end: at(rects[rects.length - 1].bottom - 1) });
   };
   const lineTop = (n: number) => {
     const button = gutter.current?.children[n - 1] as HTMLElement | undefined;
@@ -140,11 +151,17 @@ export function CodeView({ project, path, text, language }: Props) {
       {error && <p className="result warn" role="alert">{error}</p>}
       {notice && <p className="result" role="status">{notice}</p>}
       <div ref={stage} className={`code-file-stage office-commented${commentsOn && project ? ' with-rail' : ''}`}>
-        <div className="code-file-body">
+        <div className="code-file-body" onContextMenu={(e) => {
+          if (!project) return;
+          fromText();
+          if (!sel && !(window.getSelection()?.toString())) return;
+          e.preventDefault();
+          setMarking({ left: e.clientX, top: e.clientY });
+        }}>
           <div ref={gutter} className="code-gutter" role="group" aria-label={t('Line numbers: click to select, Shift+click for a block')}>
             {lines.map((_, i) => { const n = i + 1; const on = Boolean(sel && n >= sel.start && n <= sel.end); return <button key={i} type="button" className={on ? 'on' : ''} aria-pressed={on} aria-label={t('line {n}', { n })} onClick={(e) => pick(n, e.shiftKey)}>{n}</button>; })}
           </div>
-          <pre ref={body} className="code-text">
+          <pre ref={body} className="code-text" onMouseUp={fromText}>
             {sel && <span className="code-line-mark" style={{ top: `calc(${sel.start - 1} * var(--code-line))`, height: `calc(${sel.end - sel.start + 1} * var(--code-line))` }} />}
             {comments.map((c) => {
               const at = located.get(c.id);
@@ -176,6 +193,12 @@ export function CodeView({ project, path, text, language }: Props) {
           empty={<p className="muted small">{t('Select lines on their numbers to comment on them or mark them.')}</p>}
           describe={(id) => { const at = located.get(id); return at ? <span className="office-comment-where">{at.line === at.endLine ? t('line {n}', { n: at.line }) : t('lines {a}–{b}', { a: at.line, b: at.endLine })}</span> : null; }} />}
         {bubble && <SelectionBubble bubble={bubble} onComment={() => { if (sel) setComposer({ ...sel, x: 64, y: lineTop(sel.end).top + lineTop(sel.end).height + 6 }); }} />}
+        {marking && <MarkerContextMenu markers={markers} left={marking.left} top={marking.top} onClose={() => setMarking(null)} onPick={(m) => {
+          const range = sel;
+          if (!project || !range) return;
+          const anchor = { kind: 'code' as const, line: range.start, endLine: range.end, first: (lines[range.start - 1] ?? '').slice(0, 500) };
+          void save(() => api.addCodeComment(project, path, anchor, markerLabel(m), markerColor(m))).then((ok) => { if (ok) setSel(null); });
+        }} />}
         {composer && <CommentComposer x={composer.x} y={composer.y} saving={busy} color={color} onColor={setColor} onAdd={(value) => { void add(value); }} onCancel={() => setComposer(null)} />}
       </div>
     </div>

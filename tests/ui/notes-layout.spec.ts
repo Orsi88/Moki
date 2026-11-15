@@ -136,10 +136,9 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   await code.locator('.code-gutter button').nth(1).click();
   await code.locator('.code-gutter button').nth(3).click({ modifiers: ['Shift'] });
   await expect(code.locator('.code-file-bar')).toContainText('linhas 2–4');
-  await page.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Marcar', exact: true }).click();
-  const box = page.getByRole('dialog', { name: 'Marcar' });
-  await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
-  await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+  // A right-click on the selected lines: the markers; one click marks the block.
+  await code.locator('.code-text').click({ button: 'right', position: { x: 60, y: 40 } });
+  await page.getByRole('menu', { name: 'Marcar com' }).getByRole('menuitem', { name: /Revisar/ }).click();
   const area = code.locator('.code-area.marked');
   await expect(area).toHaveAttribute('data-marker-color', 'blue');
   await expect(area.locator('.code-area-icon')).toHaveText('🔍');

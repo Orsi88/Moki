@@ -78,3 +78,23 @@ test('without PdfCraft, Moki highlights, comments, replies, edits and deletes in
     assert.equal((await PDFDocument.load(readFileSync(join(dir, 'doc-edited.pdf')))).getPageCount(), 2);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('an area (a dragged rectangle) is drawn light with a border, so the text under it still reads', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'moki-pdf-area-'));
+  try {
+    writeFileSync(join(dir, 'doc.pdf'), smallPdf(['Requisito de login']));
+    const run = async (change: PdfChange) => toComments((await runPdfLocal(pdfScript('doc.pdf', change, 'ana'), dir)).at(-1));
+    await run({ op: 'highlight', marks: [{ page: 1, quads: [[60, 60, 300, 60, 60, 200, 300, 200]] }], contents: '[🔍 To review]', color: 'yellow', area: true });
+    await run({ op: 'highlight', marks: [{ page: 1, quads: [[72, 76, 230, 76, 72, 96, 230, 96]] }], color: 'yellow' });
+    const doc = await PDFDocument.load(readFileSync(join(dir, 'doc.pdf')));
+    const annots = doc.getPages()[0].node.Annots()!;
+    const appearance = (i: number) => {
+      const annot = doc.context.lookup(annots.get(i), PDFDict);
+      const stream = doc.context.lookup((annot.lookup(PDFName.of('AP'), PDFDict)).get(PDFName.of('N'))) as unknown as { getContents(): Uint8Array };
+      return Buffer.from(stream.getContents()).toString('latin1');
+    };
+    assert.match(appearance(0), / rg .* f .* RG 1\.2 w .* S$/); // a light fill, then the border
+    assert.doesNotMatch(appearance(0), /^\/GS0 gs 1 0\.85 0\.04 rg/); // not the full colour
+    assert.doesNotMatch(appearance(1), / S$/); // a text highlight stays as it was
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

@@ -2467,7 +2467,7 @@ span.mcp-row-main { cursor: default; }
 .html-preview-content .html-preview-stage { min-width: 0; min-height: 0; overflow: hidden; }
 .html-preview-content .html-preview-stage iframe { min-height: 0; height: 100%; }
 .html-preview-content > .md-rail { max-height: 100%; overflow: auto; margin-right: 12px; }
-.html-preview-bar .pdf-rail-toggle { height: 30px; }
+.html-preview-bar .pdf-rail-toggle, .html-preview-bar .pdf-area-toggle { box-sizing: border-box; height: 30px; }
 @media (max-width: 850px) {
   .office-commented .md-rail { width: 230px; margin-left: 24px; }
   .office-word-scroll { padding: 12px; }
@@ -2702,7 +2702,7 @@ span.mcp-row-main { cursor: default; }
 .code-file { --code-line: 1.55em; display: flex; flex-direction: column; min-height: 100%; font-size: 0.86rem; }
 .code-file-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 6px 14px; border-bottom: 1px solid var(--border); background: var(--bg-2); }
 .code-file-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.code-file-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.code-file-actions .btn { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: 30px; }
 .code-file > .result { margin: 8px 14px 0; }
 .code-file-stage { flex: 1; min-width: 0; }
 .code-file-stage.with-rail { gap: 0; }
@@ -2767,3 +2767,10 @@ span.mcp-row-main { cursor: default; }
 .pdf-area-draft { position: absolute; z-index: 4; border: 1.5px dashed var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
 .pdf-area-toggle { display: inline-flex; align-items: center; gap: 6px; }
 .pdf-area-toggle.on { background: var(--accent-soft); }
+/* The right-click menu of markers on a selection. */
+.marker-context { min-width: 200px; z-index: 40; }
+.marker-context-title { padding: 6px 10px 4px; font-size: 0.74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.marker-context button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font: inherit; font-size: 0.86rem; text-align: left; cursor: pointer; }
+.marker-context button:hover, .marker-context button:focus-visible { background: var(--bg-3); outline: none; }
+.marker-context-icon { width: 18px; text-align: center; }
+.marker-context-backdrop { z-index: 39; }

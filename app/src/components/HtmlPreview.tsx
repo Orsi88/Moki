@@ -2,11 +2,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
-import { isHtmlAnchor, type HtmlAnchor, type HtmlComment } from '../../../scripts/lib/html-comments';
+import { isHtmlAnchor, isHtmlAreaAnchor, type HtmlAnchor, type HtmlComment } from '../../../scripts/lib/html-comments';
 import { isCommentColor, type CommentColor, type MdComment } from '../md-comments';
 import { t } from '../i18n';
-import { IconChat, IconExternal, IconRefresh } from './Icons';
+import { IconChat, IconExternal, IconFitScreen, IconRefresh } from './Icons';
 import { CommentColumn, CommentComposer, SelectionBubble, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
+import { MarkerContextMenu, MarkerMenu } from './Markers';
+import type { Marker } from '../api';
+import { markerColor, markerLabel, splitMarker, useMarkers } from '../markers';
 
 interface FrameRect { left: number; top: number; width: number; height: number }
 interface FrameAnchor { id: string; rect: FrameRect; visible: boolean }
@@ -25,6 +28,14 @@ export function HtmlPreview({ url, text, title, project, toolbar, onExternal }: 
   const [anchors, setAnchors] = useState<FrameAnchor[]>([]), [color, setColor] = useState<CommentColor>('yellow');
   const [bubble, setBubble] = useState<(Bubble & { anchor: HtmlAnchor }) | null>(null), [composer, setComposer] = useState<typeof bubble>(null);
   const activeRef = useRef(''), working = useRef(false);
+  const markers = useMarkers();
+  const [markerMenu, setMarkerMenu] = useState<string | null>(null);
+  // The markers menu: on a right-click over selected text, or when an area has been dragged (then with "Comment…").
+  const [marking, setMarking] = useState<{ anchor: HtmlAnchor; left: number; top: number; place: Bubble } | null>(null);
+  // "Mark an area": the page takes a dragged rectangle (the frame draws it and sends it back) instead of a selection.
+  const [areaMode, setAreaMode] = useState(false);
+  const areaRef = useRef(false);
+  const setArea = (on: boolean) => { areaRef.current = on; setAreaMode(on); frame.current?.contentWindow?.postMessage({ type: 'moki:area-mode', on }, '*'); };
   const send = (id = activeRef.current, focus = false) => {
     activeRef.current = id;
     frame.current?.contentWindow?.postMessage({ type: 'moki:comments', comments: comments.map(({ id, anchor, color }) => ({ id, anchor, color })), active: id, focus }, '*');
@@ -48,7 +59,22 @@ export function HtmlPreview({ url, text, title, project, toolbar, onExternal }: 
         const left = rect.left + data.rect.left - origin.left, top = rect.top + data.rect.top - origin.top;
         setBubble({ x: Math.max(8, Math.min(left, stage.current.clientWidth - 300)), y: top, below: top + data.rect.height, why: '', anchor: data.anchor });
       }
-      if (data.type === 'moki:preview-ready') latestSend.current();
+      if (data.type === 'moki:area') {
+        if (!isHtmlAreaAnchor(data.anchor) || !isRect(data.rect) || !stage.current || !frame.current) return;
+        const origin = stage.current.getBoundingClientRect(), rect = frame.current.getBoundingClientRect();
+        const left = rect.left + data.rect.left - origin.left, top = rect.top + data.rect.top - origin.top;
+        areaRef.current = false; setAreaMode(false); frame.current.contentWindow?.postMessage({ type: 'moki:area-mode', on: false }, '*');
+        setBubble(null);
+        const place = { x: Math.max(8, Math.min(left, stage.current.clientWidth - 300)), y: top, below: top + data.rect.height, why: '' };
+        setMarking({ anchor: data.anchor, left: rect.left + data.rect.left + data.rect.width, top: rect.top + data.rect.top + data.rect.height, place });
+      }
+      if (data.type === 'moki:context') {
+        if (!isHtmlAnchor(data.anchor) || !data.point || typeof data.point.x !== 'number' || typeof data.point.y !== 'number' || !frame.current || !stage.current) return;
+        const rect = frame.current.getBoundingClientRect(), origin = stage.current.getBoundingClientRect();
+        setBubble(null);
+        setMarking({ anchor: data.anchor, left: rect.left + data.point.x, top: rect.top + data.point.y, place: { x: rect.left + data.point.x - origin.left, y: rect.top + data.point.y - origin.top, below: rect.top + data.point.y - origin.top + 16, why: '' } });
+      }
+      if (data.type === 'moki:preview-ready') { latestSend.current(); frame.current?.contentWindow?.postMessage({ type: 'moki:area-mode', on: areaRef.current }, '*'); }
       if (data.type === 'moki:comment-anchors' && Array.isArray(data.missing) && Array.isArray(data.anchors)) {
         const missing = data.missing.filter((id: unknown): id is string => typeof id === 'string').slice(0, 500);
         const anchors = data.anchors.filter((value: unknown): value is FrameAnchor => Boolean(value && typeof value === 'object'
@@ -76,6 +102,15 @@ export function HtmlPreview({ url, text, title, project, toolbar, onExternal }: 
     return { getBoundingClientRect: () => { const rect = box.getBoundingClientRect(); return DOMRect.fromRect({ x: rect.left + anchor.rect.left, y: rect.top + anchor.rect.top, width: anchor.rect.width, height: anchor.rect.height }); } };
   }, [anchors]);
   const placed = useCommentPlacement(stage, body, rail, cards, markOf);
+  // The page runs in its frame: each marked passage's icon goes in the left margin from where the frame says it is.
+  const margins = comments.flatMap((c) => {
+    const marker = splitMarker(c.text, markers).marker, anchor = anchors.find((a) => a.id === c.id && a.visible);
+    const box = frame.current?.getBoundingClientRect(), origin = stage.current?.getBoundingClientRect();
+    if (!marker || !anchor || !box || !origin) return [];
+    const scrollTop = stage.current?.scrollTop ?? 0, scrollLeft = stage.current?.scrollLeft ?? 0;
+    return [{ id: c.id, text: c.text, icon: marker.icon, name: marker.name, color: markerColor(markers.find((m) => m.icon === marker.icon) ?? marker),
+      left: Math.max(2, box.left - origin.left + scrollLeft + anchor.rect.left - 30), top: box.top - origin.top + scrollTop + anchor.rect.top + anchor.rect.height / 2 - 11 }];
+  });
   const save = async (job: () => Promise<HtmlComment[]>): Promise<boolean> => {
     if (!project || working.current) return false;
     working.current = true; setBusy(true); setError('');
@@ -109,6 +144,8 @@ export function HtmlPreview({ url, text, title, project, toolbar, onExternal }: 
       <option value="100%">{t('Fit to the panel')}</option><option value="768px">{t('Tablet')} · 768px</option><option value="390px">{t('Phone')} · 390px</option>
     </select>
     <span className="statusbar-spacer" />
+    {enabled && <button type="button" className={'btn btn-ghost btn-sm pdf-area-toggle' + (areaMode ? ' on' : '')} aria-pressed={areaMode} title={t('Drag a rectangle on the page to mark or comment on that area')}
+      onClick={() => { setArea(!areaMode); setComposer(null); setBubble(null); }}><IconFitScreen size={14} /> {t('Mark an area')}</button>}
     {enabled && <button type="button" className={'btn btn-ghost btn-sm pdf-rail-toggle' + (commentsOn ? ' on' : '')} title={t('Comments')} aria-label={t('Comments') + ' (' + comments.length + ')'} aria-pressed={commentsOn} onClick={() => setCommentsOn((value) => !value)}><IconChat size={16} />{comments.length > 0 && <span className="pdf-rail-count">{comments.length}</span>}</button>}
     <button type="button" className="icon-btn" title={t('Reload preview')} aria-label={t('Reload preview')} onClick={() => setRevision((n) => n + 1)}><IconRefresh size={16} /></button>
     <button type="button" className="icon-btn" title={t('Open in browser')} aria-label={t('Open in browser')} onClick={onExternal}><IconExternal size={16} /></button>
@@ -121,8 +158,20 @@ export function HtmlPreview({ url, text, title, project, toolbar, onExternal }: 
       {enabled && <CommentColumn comments={cards} placed={placed} rail={rail} shown={commentsOn} hidden={!commentsOn} onShow={() => setCommentsOn(true)}
         active={active} onActive={(id) => { setActive(id); send(id); }} saving={busy} actions={actions} onJump={choose}
         empty={comments.length > 0 ? <p className="muted small">{t('Select a passage in the preview to comment on it.')}</p> : undefined}
-        describe={(id) => <><button type="button" className="office-comment-where" disabled={missing.includes(id)} onClick={() => choose(id)}>{comments.find((c) => c.id === id)?.anchor.quote}</button>
+        describe={(id) => <><button type="button" className="office-comment-where" disabled={missing.includes(id)} onClick={() => choose(id)}>{(() => { const anchor = comments.find((c) => c.id === id)?.anchor; return anchor && 'quote' in anchor ? anchor.quote : t('Area of the page'); })()}</button>
           {missing.includes(id) && <p className="muted small">{t('This passage was not found. The page may have changed.')}</p>}</>} />}
+      {enabled && margins.map((m) => <button key={`margin-${m.id}`} type="button" className={`marker-margin${markerMenu === m.id ? ' on' : ''}`} data-marker-color={m.color} style={{ left: m.left, top: m.top }}
+        title={m.name} aria-label={t('Marker {name}', { name: m.name })} aria-expanded={markerMenu === m.id} disabled={busy}
+        onMouseEnter={() => { setActive(m.id); send(m.id); }} onClick={() => setMarkerMenu(markerMenu === m.id ? null : m.id)}>{m.icon}</button>)}
+      {enabled && markerMenu && (() => {
+        const m = margins.find((x) => x.id === markerMenu);
+        if (!m) return null;
+        return <MarkerMenu markers={markers} text={m.text} left={m.left + 28} top={m.top - 4} disabled={busy}
+          onText={(next) => { actions.edit(m.id, next); setCommentsOn(true); }} onRemove={() => actions.remove(m.id)} onClose={() => setMarkerMenu(null)} />;
+      })()}
+      {enabled && marking && <MarkerContextMenu markers={markers} left={marking.left} top={marking.top} onClose={() => setMarking(null)}
+        onComment={'kind' in marking.anchor ? () => setComposer({ ...marking.place, anchor: marking.anchor }) : undefined}
+        onPick={(m: Marker) => { if (project) void save(() => api.addHtmlComment(project, title, marking.anchor, markerLabel(m), markerColor(m))).then((ok) => { if (ok) frame.current?.contentWindow?.postMessage({ type: 'moki:clear-selection' }, '*'); }); }} />}
       {enabled && bubble && <SelectionBubble bubble={bubble} onComment={() => { setComposer(bubble); setBubble(null); }} />}
       {enabled && composer && <CommentComposer x={composer.x} y={Math.max(8, Math.min(composer.below + 8, (stage.current?.clientHeight ?? 400) - 220))} saving={busy} color={color} onColor={setColor} onAdd={(text) => { void add(text); }} onCancel={() => setComposer(null)} />}
     </div>

@@ -85,7 +85,7 @@ export interface PdfMark { page: number; quads: number[][] }
 export interface PdfNote { id: string; after: number; note: { path: string } | { loose: string }; height?: number; color?: string }
 export type PdfChange =
   | { op: 'highlight'; page: number; find: string; all: boolean; contents?: string; color: string }
-  | { op: 'highlight'; marks: PdfMark[]; contents?: string; color: string }
+  | { op: 'highlight'; marks: PdfMark[]; contents?: string; color: string; area?: boolean }
   | { op: 'reply'; id: string; text: string }
   | { op: 'edit'; id: string; contents: string }
   | { op: 'delete'; id: string }

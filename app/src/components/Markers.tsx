@@ -45,3 +45,17 @@ export function MarkerMenu({ markers, text, left, top, disabled = false, onText,
     </div>}
   </div>;
 }
+
+// The right-click menu on a selection: one line per marker; a click marks the selection with it, no box to fill.
+export function MarkerContextMenu({ markers, left, top, onPick, onClose, onComment }: { markers: Marker[]; left: number; top: number; onPick: (marker: Marker) => void; onClose: () => void; onComment?: () => void }) {
+  return <div className="menu-backdrop marker-context-backdrop" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}>
+    <ul className="term-menu marker-context" role="menu" aria-label={t('Mark with')} style={{ left, top }} onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+      {onComment && <li><button type="button" role="menuitem" autoFocus onClick={() => { onClose(); onComment(); }}><span className="marker-context-icon" aria-hidden="true">💬</span>{t('Comment…')}</button></li>}
+      <li className="marker-context-title" role="presentation">{t('Mark with')}</li>
+      {markers.map((m, i) => <li key={m.id}><button type="button" role="menuitem" autoFocus={!onComment && i === 0} onClick={() => { onPick(m); onClose(); }} title={m.meaning}>
+        <span className="marker-context-icon" aria-hidden="true">{m.icon}</span>{m.name}</button></li>)}
+      {!markers.length && <li className="muted small marker-context-title">{t('No markers yet: add them in Settings › Markers.')}</li>}
+    </ul>
+  </div>;
+}

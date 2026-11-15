@@ -1646,6 +1646,12 @@ function smallPdf(lines: string[]): Buffer {
 }
 
 // Drags the mouse over `words` inside `block` (the reading view or the editor), as a person selects them.
+// A right-click on the current text selection (its last box), as a person does to open the markers.
+async function rightClickSelection(page: Page): Promise<void> {
+  const at = await page.evaluate(() => { const r = window.getSelection()!.getRangeAt(0).getClientRects(); const last = r[r.length - 1]; return { x: last.left + last.width / 2, y: last.top + last.height / 2 }; });
+  await page.mouse.click(at.x, at.y, { button: 'right' });
+}
+
 async function selectWords(page: Page, block: Locator, words: string): Promise<void> {
   const box = await block.evaluate((el, w) => {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -1717,11 +1723,9 @@ test.describe.serial('Moki PDF comments', () => {
     await pdfPage.mouse.down();
     await pdfPage.mouse.move(at.x + 260, at.y + 240, { steps: 6 });
     await pdfPage.mouse.up();
-    const box = pdfPage.getByRole('dialog', { name: 'Destacar e comentar' });
-    await expect(box).toBeVisible();
-    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
-    await box.getByRole('button', { name: 'Destacar' }).click();
-    await expect(box).toHaveCount(0);
+    // Letting go of the area shows the markers (and "Comment…"): one click marks it.
+    await pdfPage.getByRole('menu', { name: 'Marcar com' }).getByRole('menuitem', { name: /Revisar/ }).click();
+    await expect(pdfPage.getByRole('dialog', { name: 'Destacar e comentar' })).toHaveCount(0);
     // A marker without a comment: no card; its icon in the left margin of the page, at the area's top.
     const icon = pdfPage.locator('.marker-margin', { hasText: '🔍' });
     await expect(icon).toBeVisible();
@@ -3809,7 +3813,7 @@ test('routine update report: one notification opens the items before and after, 
 test('markers: set in Settings in the person language, put on a comment as the prefix of its text, kept when it is edited', async ({}, info) => {
   const root = fixture(), profile = mkdtempSync(join(tmpdir(), 'moki-markers-ui-'));
   const file = join(root, 'workspace', 'projects', 'acme', 'context', 'regras.md');
-  writeFileSync(file, 'A senha <!--c:k1-->expira hoje<!--/c:k1-->.\n\nO limite diário é de cinco tentativas.\n\n<!-- moki-comments\n[{"id":"k1","author":"ana","at":"2026-11-01T10:00:00.000Z","text":"Confere o prazo?","replies":[]}]\n-->\n');
+  writeFileSync(file, 'A senha <!--c:k1-->expira hoje<!--/c:k1-->.\n\nO limite diário é de cinco tentativas.\n\n<!-- moki-comments\n[{"id":"k1","author":"ana","at":"2026-11-01T10:00:00.000Z","text":"[🔍 Revisar] Confere o prazo?","replies":[]}]\n-->\n');
   let running: ElectronApplication | undefined;
   try {
     const opened = await openApp(root, profile);
@@ -3823,9 +3827,8 @@ test('markers: set in Settings in the person language, put on a comment as the p
     // The starting set is written in the person's language the first time it is read.
     await expect.poll(() => existsSync(join(root, 'workspace', 'markers.json'))).toBe(true);
     expect(JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8')).map((m: { name: string }) => m.name)).toEqual(['Importante', 'Revisar', 'Completar', 'Atenção', 'Pronto']);
-    await card.getByRole('button', { name: 'Marcador', exact: true }).click();
-    await card.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
-    // The card keeps only the comment; the marker's icon is in the left margin, beside the marked text.
+    // A comment carrying a marker: the card keeps only the comment; the marker's icon is in the left margin.
+    await expect(card.getByRole('button', { name: 'Marcador', exact: true })).toHaveCount(0); // markers are apart from comments
     await expect(card.locator('.marker-badge')).toHaveCount(0);
     await expect(card.locator('.pdf-comment-text')).toHaveText('Confere o prazo?');
     await expect(view.locator('.marker-margin')).toHaveText('🔍');
@@ -3836,19 +3839,17 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await card.locator('textarea').fill('Confere o prazo de 30 dias?');
     await card.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[🔍 Revisar] Confere o prazo de 30 dias?"');
-    await card.getByRole('button', { name: 'Marcador', exact: true }).click();
-    await card.getByRole('button', { name: 'Sem marcador', exact: true }).click();
+    await view.locator('.marker-margin').click();
+    await view.getByRole('dialog', { name: 'Marcador' }).getByRole('button', { name: 'Sem marcador', exact: true }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"Confere o prazo de 30 dias?"');
     await expect(view.locator('.marker-margin')).toHaveCount(0);
 
-    // Marking a passage without commenting on it: "Mark" beside "Comment on it", a marker, no text.
+    // Marking a passage without commenting on it: a right-click on the selection, a marker, done.
     const editor = view.locator('.commented-editor .tiptap-body');
     await selectWords(view, editor.locator('p', { hasText: 'O limite diário' }), 'cinco tentativas');
-    await view.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Marcar', exact: true }).click();
-    const box = view.getByRole('dialog', { name: 'Marcar' });
-    await expect(box.getByRole('button', { name: 'Marcar', exact: true })).toBeDisabled();
-    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Completar' }).click();
-    await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+    await expect(view.getByRole('toolbar', { name: 'Seleção' }).getByRole('button', { name: 'Marcar', exact: true })).toHaveCount(0); // not beside Comment
+    await rightClickSelection(view);
+    await view.getByRole('menu', { name: 'Marcar com' }).getByRole('menuitem', { name: /Completar/ }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/O limite diário é de <!--c:[a-z0-9]+-->cinco tentativas<!--\/c:[a-z0-9]+-->\./);
     expect(readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar]"');
     // Shown as a marker, not as a comment: the icon at the start of the marked text and a compact card.
@@ -3920,13 +3921,8 @@ test('markers over several paragraphs: one selection marks them all, and one are
       const sel = window.getSelection()!; sel.removeAllRanges(); sel.addRange(range);
     });
     await view.waitForTimeout(100); // the editor reads the selection
-    await editor.dispatchEvent('mouseup');
-    const bubble = view.getByRole('toolbar', { name: 'Seleção' });
-    await expect(bubble.getByRole('button', { name: 'Marcar', exact: true })).toBeEnabled();
-    await bubble.getByRole('button', { name: 'Marcar', exact: true }).click();
-    const box = view.getByRole('dialog', { name: 'Marcar' });
-    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Importante' }).click();
-    await box.getByRole('button', { name: 'Marcar', exact: true }).click();
+    await rightClickSelection(view);
+    await view.getByRole('menu', { name: 'Marcar com' }).getByRole('menuitem', { name: /Importante/ }).click();
     // One comment, its marks in each paragraph with the same id.
     await expect.poll(() => readFileSync(file, 'utf8')).toMatch(/O usuário <!--c:([a-z0-9]+)-->informa o e-mail\.<!--\/c:\1-->\n\n<!--c:\1-->O sistema envia<!--\/c:\1--> o código\./);
     expect((readFileSync(file, 'utf8').match(/"text":"\[⭐ Importante\]"/g) ?? []).length).toBe(1);

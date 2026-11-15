@@ -193,7 +193,7 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await expect(reload).toHaveText('');
     await expect(view.getByRole('button', { name: 'Open in browser' })).toHaveText('');
     const heights = await view.locator('.html-preview-bar select, .html-preview-bar button').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().height));
-    expect(heights).toEqual([30, 30, 30, 30]);
+    expect(heights).toEqual([30, 30, 30, 30, 30]);
     await view.getByLabel('Preview width').selectOption('390px');
     await expect(view.locator('iframe[title="inbox/index.html"]')).toHaveCSS('width', '390px');
     await view.getByRole('button', { name: 'Reload preview' }).click(); await expect(frame.locator('#counter')).toHaveText('Count 0');
@@ -243,6 +243,34 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await scrolledCard.getByRole('button', { name: 'Delete', exact: true }).click();
     await view.getByRole('alertdialog').getByRole('button', { name: 'Continue', exact: true }).click();
     await expect.poll(() => htmlComments(project, 'inbox/index.html').length).toBe(1);
+    // "Mark an area": a rectangle dragged on the page, marked without a comment: no card, its icon in the left margin.
+    await view.getByRole('button', { name: 'Mark an area', exact: true }).click();
+    const frameBox = (await view.locator('iframe[title="inbox/index.html"]').boundingBox())!;
+    await view.mouse.move(frameBox.x + 40, frameBox.y + 30);
+    await view.mouse.down();
+    await view.mouse.move(frameBox.x + 220, frameBox.y + 110, { steps: 6 });
+    await view.mouse.up();
+    await view.getByRole('menu', { name: 'Mark with' }).getByRole('menuitem', { name: /To review/ }).click();
+    await expect.poll(() => htmlComments(project, 'inbox/index.html').length).toBe(2);
+    const area = htmlComments(project, 'inbox/index.html')[1];
+    expect(area.anchor).toMatchObject({ kind: 'area', width: 180, height: 80 });
+    expect(area.text).toBe('[🔍 To review]');
+    const icon = view.locator('.html-preview-content .marker-margin');
+    await expect(icon).toHaveText('🔍');
+    expect((await icon.boundingBox())!.x + 22).toBeLessThanOrEqual(frameBox.x + 40 + 2);
+    await expect(view.locator('.html-preview-content .md-card', { hasText: 'To review' })).toHaveCount(0);
+    await expect(frame.locator('[data-moki-areas] > div')).toHaveCount(1);
+    // The area holds on to the element at its top-left: a wider preview moves the page, and the area goes with it.
+    expect(area.anchor).toHaveProperty('path');
+    const offsetFromElement = () => frame.locator('body').evaluate((body, a: { path: number[]; dx: number; dy: number }) => {
+      let el: Element | null = body; for (const i of a.path) el = el?.children[i] ?? null;
+      const box = document.querySelector('[data-moki-areas] > div')!.getBoundingClientRect(), r = el!.getBoundingClientRect();
+      return [Math.round(box.left - r.left), Math.round(box.top - r.top)];
+    }, area.anchor as unknown as { path: number[]; dx: number; dy: number });
+    const areaOffset = await offsetFromElement();
+    await view.getByLabel('Preview width').selectOption('100%');
+    await expect(view.locator('iframe[title="inbox/index.html"]')).not.toHaveCSS('width', '390px');
+    await expect.poll(offsetFromElement).toEqual(areaOffset);
     expect(readFileSync(join(inbox, 'index.html'), 'utf8')).toBe(sourceBeforeComment);
     expect(errors).toEqual([]);
   } finally { await app?.close(); rmSync(root, { recursive: true, force: true }); rmSync(profile, { recursive: true, force: true }); }

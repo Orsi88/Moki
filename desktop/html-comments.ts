@@ -47,7 +47,9 @@ export function addHtmlComment(directory: string, html: string, anchor: HtmlAnch
   const entries = read(directory), entry = entries.find((entry) => entry.html === html) ?? { html, comments: [] };
   if (entry.comments.length >= 500) throw new Error('This page already has 500 comments.');
   if (!entries.includes(entry)) entries.push(entry);
-  entry.comments.push({ id: randomUUID(), author, date: new Date().toISOString(), text: text.trim(), anchor: { quote: anchor.quote, prefix: anchor.prefix, suffix: anchor.suffix }, ...(color ? { color } : {}) });
+  const kept: HtmlAnchor = 'kind' in anchor ? { kind: 'area', x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height, ...(anchor.path ? { path: anchor.path, dx: anchor.dx ?? 0, dy: anchor.dy ?? 0 } : {}) }
+    : { quote: anchor.quote, prefix: anchor.prefix, suffix: anchor.suffix };
+  entry.comments.push({ id: randomUUID(), author, date: new Date().toISOString(), text: text.trim(), anchor: kept, ...(color ? { color } : {}) });
   write(directory, entries); return entry.comments.filter(isHtmlComment);
 }
 function changeComment(directory: string, html: string, change: DiagramCommentChange | CodeCommentChange, author: string, accepts: (comment: Comment) => boolean): Comment[] {

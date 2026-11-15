@@ -8,6 +8,9 @@ import { api } from '../api';
 import { colorComment, editComment, newId, readComments, replyComment, restoreComments, SWATCH, type CommentColor } from '../md-comments';
 import { CommentColumn, CommentComposer, SelectionBubble, useBubbleLife, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
 import { LazyTipTap } from './LazyTipTap';
+import { MarkerContextMenu } from './Markers';
+import { markerColor, markerLabel, useMarkers } from '../markers';
+import type { Marker } from '../api';
 import type { TipTapHandle } from './TipTapEditor';
 
 interface Props {
@@ -37,6 +40,9 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
   const [color, setColor] = useState<CommentColor>('yellow');
   const [bubble, setBubble] = useState<(Bubble & { from: number; to: number }) | null>(null);
   const [composer, setComposer] = useState<{ from: number; to: number; x: number; y: number } | null>(null);
+  const markers = useMarkers();
+  // Right-click on selected text: the markers, one click marks it (no comment box).
+  const [marking, setMarking] = useState<{ from: number; to: number; left: number; top: number } | null>(null);
   useEffect(() => { api.userName().then(setMe).catch(() => setMe('')); }, []);
 
   // A selection made with the mouse or with Shift and the arrows.
@@ -75,6 +81,17 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
     });
     setComposer(null);
   };
+  const markWith = (marker: Marker) => {
+    const handle = editor.current;
+    if (!handle || !marking) return;
+    const id = newId(comments);
+    handle.markComment(marking.from, marking.to, id);
+    listChange((file) => {
+      const read = readComments(file);
+      return restoreComments(read.body, [...read.comments, { id, author: me, at: now(), text: markerLabel(marker), replies: [], color: markerColor(marker) }]);
+    });
+    setMarking(null); setBubble(null);
+  };
   const actions: CommentActions = {
     reply: (id, value) => listChange((file) => replyComment(file, id, { author: me, at: now(), text: value })),
     edit: (id, value) => listChange((file) => editComment(file, id, value)),
@@ -97,12 +114,21 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
   return (
     <div className={`md-commented commented-editor${shown ? ' with-rail' : ''}`} ref={stage}
       onMouseUp={(e) => { if (inText(e.target)) selected(); }}
-      onKeyUp={(e) => { if (e.shiftKey && inText(e.target)) selected(); }}>
+      onKeyUp={(e) => { if (e.shiftKey && inText(e.target)) selected(); }}
+      onContextMenu={(e) => {
+        if (!inText(e.target)) return;
+        const found = editor.current?.selection();
+        if (!found || found.why) return;
+        e.preventDefault();
+        setBubble(null);
+        setMarking({ from: found.from, to: found.to, left: e.clientX, top: e.clientY });
+      }}>
       <style>{colors}</style>
       <LazyTipTap ref={editor} text={text} path={path} onChange={onChange} onLink={onLink} />
       <CommentColumn comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
         active={active} onActive={setActive} saving={saving} actions={actions} />
       {bubble && <SelectionBubble bubble={bubble} onComment={openComposer} />}
+      {marking && <MarkerContextMenu markers={markers} left={marking.left} top={marking.top} onPick={markWith} onClose={() => setMarking(null)} />}
       {composer && <CommentComposer x={composer.x} y={composer.y} saving={saving} color={color} onColor={setColor} onAdd={add} onCancel={() => setComposer(null)} />}
     </div>
   );
