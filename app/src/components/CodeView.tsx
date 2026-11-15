@@ -14,6 +14,7 @@ import { isCommentColor, SWATCH, type CommentColor, type MdComment } from '../md
 import { codeAnchorLine, codeSelectionNote } from '../../../scripts/lib/code-comment-types.ts';
 import { markerColor, splitMarker, useMarkers } from '../markers';
 import { CommentColumn, CommentComposer, SelectionBubble, useCommentPlacement, type Bubble, type CommentActions } from './CommentColumn';
+import { MarkerMenu } from './Markers';
 
 const highlighter = loadOnce(() => import('highlight.js').then((m) => m.default));
 const COLOR_LIMIT = 400 * 1024; // characters: past this the file shows as plain text
@@ -36,6 +37,7 @@ export function CodeView({ project, path, text, language }: Props) {
   const [busy, setBusy] = useState(false);
   const [color, setColor] = useState<CommentColor>('yellow');
   const [composer, setComposer] = useState<(Range & { x: number; y: number }) | null>(null);
+  const [markerMenu, setMarkerMenu] = useState<string | null>(null); // the menu of a marked block's icon
   const stage = useRef<HTMLDivElement>(null), body = useRef<HTMLPreElement>(null), rail = useRef<HTMLDivElement>(null), gutter = useRef<HTMLDivElement>(null);
   const markers = useMarkers();
   const lines = useMemo(() => text.split(/\r?\n/), [text]);
@@ -151,7 +153,10 @@ export function CodeView({ project, path, text, language }: Props) {
               const tone = marker ? markerColor(markers.find((m) => m.icon === marker.icon) ?? marker) : isCommentColor(c.color) ? c.color : 'yellow';
               return <span key={c.id} data-id={c.id} className={`code-area${marker ? ' marked' : ''}${active === c.id ? ' on' : ''}`} data-marker-color={tone}
                 style={{ top: `calc(${at.line - 1} * var(--code-line))`, height: `calc(${at.endLine - at.line + 1} * var(--code-line))`, ['--area-color' as string]: SWATCH[tone] }}>
-                {marker && <span className="code-area-icon" aria-hidden="true">{marker.icon}</span>}
+                {marker && <button type="button" className="code-area-icon" aria-label={t('Marker {name}', { name: marker.name })} title={marker.name} aria-expanded={markerMenu === c.id}
+                  onClick={() => setMarkerMenu(markerMenu === c.id ? null : c.id)}>{marker.icon}</button>}
+                {marker && markerMenu === c.id && <MarkerMenu markers={markers} text={c.text} left={22} top={-6} disabled={busy}
+                  onText={(next) => { actions.edit(c.id, next); setCommentsOn(true); }} onRemove={() => actions.remove(c.id)} onClose={() => setMarkerMenu(null)} />}
               </span>;
             })}
             <code className={`hljs language-${language}`} dangerouslySetInnerHTML={{ __html: html }} />

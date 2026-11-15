@@ -510,6 +510,13 @@ if (!app.requestSingleInstanceLock()) {
       if (trusted(event) && typeof id === 'string') assists.get(id)?.();
     });
 
+    // The system's emoji picker (Windows + . / macOS Ctrl+Cmd+Space) for the field that has the focus: every emoji, with search.
+    ipcMain.handle('qa:emoji-panel', (event) => {
+      if (!trusted(event) || !app.isEmojiPanelSupported()) return false;
+      app.showEmojiPanel();
+      return true;
+    });
+
     // From the main window, or from the loose notebook when a note is sent to a project.
     ipcMain.handle('qa:note-window', (event, raw: unknown) => {
       if (!trusted(event)) return false;

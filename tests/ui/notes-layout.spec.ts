@@ -153,7 +153,7 @@ test('a code file opens read-only with IDE colors and line numbers; a line is se
   await page.getByRole('dialog', { name: 'Comentário' }).getByRole('textbox').fill('Explicar quem chama esta função.');
   await page.getByRole('dialog', { name: 'Comentário' }).getByRole('button', { name: 'Comentar' }).click();
   await expect(code.locator('.md-card', { hasText: 'Explicar quem chama' })).toContainText('linha 1');
-  await expect(code.locator('.md-card.marker-only')).toContainText('linhas 2–4');
+  await expect(code.locator('.md-card', { hasText: 'linhas 2–4' })).toHaveCount(0); // a marker without a comment has no card
   await expect(code.getByRole('button', { name: 'Comentários (2)' })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Comentário' })).toHaveCount(0);
   expect(readFileSync(file, 'utf8')).toContain('export async function login');

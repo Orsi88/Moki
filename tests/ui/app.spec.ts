@@ -1705,6 +1705,44 @@ test.describe.serial('Moki PDF comments', () => {
     await bar.getByRole('button', { name: 'Destacar e comentar' }).click();
   });
 
+  test('an area dragged on a page is marked without a comment: no card, its icon in the left margin of the page', async () => {
+    if (!await pdfPage.locator('.tree-row[title="relatorio.pdf"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
+    await pdfPage.locator('.tree-row[title="relatorio.pdf"]').click();
+    const page = pdfPage.locator('.pdf-page').first();
+    await expect(page).toBeVisible();
+    const cards = await pdfPage.locator('.pdf-card').count();
+    await pdfPage.getByRole('toolbar', { name: 'Ferramentas do PDF' }).getByRole('button', { name: 'Marcar área' }).click();
+    const at = (await page.boundingBox())!;
+    await pdfPage.mouse.move(at.x + 60, at.y + 120);
+    await pdfPage.mouse.down();
+    await pdfPage.mouse.move(at.x + 260, at.y + 240, { steps: 6 });
+    await pdfPage.mouse.up();
+    const box = pdfPage.getByRole('dialog', { name: 'Destacar e comentar' });
+    await expect(box).toBeVisible();
+    await box.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
+    await box.getByRole('button', { name: 'Destacar' }).click();
+    await expect(box).toHaveCount(0);
+    // A marker without a comment: no card; its icon in the left margin of the page, at the area's top.
+    const icon = pdfPage.locator('.marker-margin', { hasText: '🔍' });
+    await expect(icon).toBeVisible();
+    const iconBox = (await icon.boundingBox())!;
+    expect(iconBox.x + iconBox.width).toBeLessThanOrEqual(at.x + 2);
+    expect(Math.abs(iconBox.y - (at.y + 120))).toBeLessThan(12);
+    await expect(pdfPage.locator('.pdf-card')).toHaveCount(cards);
+    // Its menu: a comment can be added; then it has a card too.
+    await icon.click();
+    const menu = pdfPage.getByRole('dialog', { name: 'Marcador' });
+    await menu.getByRole('button', { name: 'Adicionar um comentário', exact: true }).click();
+    await menu.locator('textarea').fill('Conferir esta tabela.');
+    await menu.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(pdfPage.locator('.pdf-card', { hasText: 'Conferir esta tabela.' })).toBeVisible();
+    await expect(pdfPage.locator('.pdf-card', { hasText: 'Conferir esta tabela.' }).locator('.marker-badge')).toHaveCount(0);
+    // Leaves the PDF as it found it, for the tests that follow.
+    await pdfPage.locator('.pdf-card', { hasText: 'Conferir esta tabela.' }).getByRole('button', { name: 'Excluir' }).click();
+    await pdfPage.getByRole('alertdialog').getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect(pdfPage.locator('.marker-margin')).toHaveCount(0);
+  });
+
   test('a selection is commented right on the page; the comment stays beside it, joined by a line', async () => {
     // Files loose in the project root are grouped in the sidebar; the group may already be open from the first test.
     if (!await pdfPage.locator('.tree-row[title="relatorio.pdf"]').isVisible()) await pdfPage.locator('.tree-row[title=".other"]').click();
@@ -3787,8 +3825,10 @@ test('markers: set in Settings in the person language, put on a comment as the p
     expect(JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8')).map((m: { name: string }) => m.name)).toEqual(['Importante', 'Revisar', 'Completar', 'Atenção', 'Pronto']);
     await card.getByRole('button', { name: 'Marcador', exact: true }).click();
     await card.getByRole('radiogroup', { name: 'Marcador' }).getByRole('radio', { name: 'Revisar' }).click();
-    await expect(card.locator('.marker-badge')).toHaveText('🔍Revisar');
+    // The card keeps only the comment; the marker's icon is in the left margin, beside the marked text.
+    await expect(card.locator('.marker-badge')).toHaveCount(0);
     await expect(card.locator('.pdf-comment-text')).toHaveText('Confere o prazo?');
+    await expect(view.locator('.marker-margin')).toHaveText('🔍');
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[🔍 Revisar] Confere o prazo?"');
     await captureRoutineWindow(opened.app, info.outputPath('marker-on-comment.png'));
     // Editing the text keeps the marker; changing the marker keeps the text.
@@ -3799,7 +3839,7 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await card.getByRole('button', { name: 'Marcador', exact: true }).click();
     await card.getByRole('button', { name: 'Sem marcador', exact: true }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"Confere o prazo de 30 dias?"');
-    await expect(card.locator('.marker-badge')).toHaveCount(0);
+    await expect(view.locator('.marker-margin')).toHaveCount(0);
 
     // Marking a passage without commenting on it: "Mark" beside "Comment on it", a marker, no text.
     const editor = view.locator('.commented-editor .tiptap-body');
@@ -3816,20 +3856,22 @@ test('markers: set in Settings in the person language, put on a comment as the p
     const marked = editor.locator('span[data-md-comment]', { hasText: 'cinco tentativas' });
     await expect(marked).toHaveCSS('border-top-left-radius', '6px');
     await expect(marked).toHaveCSS('--marker-color', '#9b6cf0');
-    const corner = view.locator('.marker-corner');
-    await expect(corner).toHaveText('➕');
-    await expect(corner).toHaveAttribute('data-marker-color', 'purple');
-    const cornerBox = await corner.boundingBox(), markedBox = await marked.boundingBox();
-    expect(Math.abs((cornerBox!.x + 9) - markedBox!.x)).toBeLessThan(4); // on the top-left corner of the marked text
-    expect(Math.abs((cornerBox!.y + 10) - markedBox!.y)).toBeLessThan(4);
-    const mark = view.locator('.md-card.marker-only');
-    await expect(mark.locator('.marker-badge')).toHaveText('➕Completar');
-    await expect(mark.locator('.pdf-comment-text')).toHaveCount(0);
+    // Its icon in the left margin, on the line of the marked text; no card in the comment column.
+    const icon = view.locator('.marker-margin');
+    await expect(icon).toHaveText('➕');
+    await expect(icon).toHaveAttribute('data-marker-color', 'purple');
+    const iconBox = await icon.boundingBox(), markedBox = await marked.boundingBox(), para = await editor.locator('p', { hasText: 'O limite diário' }).boundingBox();
+    expect(iconBox!.x + iconBox!.width).toBeLessThanOrEqual(para!.x); // left of the paragraph
+    expect(Math.abs((iconBox!.y + iconBox!.height / 2) - (markedBox!.y + markedBox!.height / 2))).toBeLessThan(6); // on its line
+    await expect(view.locator('.md-card', { hasText: 'Completar' })).toHaveCount(0);
+    await expect(view.locator('.md-card')).toHaveCount(1); // only the comment with words
     await captureRoutineWindow(opened.app, info.outputPath('marker-in-text.png'));
-    // A comment can be added to it later; the marker stays.
-    await mark.getByRole('button', { name: 'Adicionar um comentário', exact: true }).click();
-    await mark.locator('textarea').fill('Falta o bloqueio depois disso.');
-    await mark.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // The icon's menu: a comment can be added to it later; the marker stays.
+    await icon.click();
+    const menu = view.getByRole('dialog', { name: 'Marcador' });
+    await menu.getByRole('button', { name: 'Adicionar um comentário', exact: true }).click();
+    await menu.locator('textarea').fill('Falta o bloqueio depois disso.');
+    await menu.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('"text":"[➕ Completar] Falta o bloqueio depois disso."');
 
     // Settings › Markers: add one, give it a meaning, save; the comment picker offers it.
@@ -3892,15 +3934,15 @@ test('markers over several paragraphs: one selection marks them all, and one are
     const area = view.locator('.marker-block');
     await expect(area).toHaveCount(1);
     await expect(area).toHaveAttribute('data-marker-color', 'yellow');
-    await expect(area.locator('.marker-block-icon')).toHaveText('⭐');
+    await expect(view.locator('.marker-margin')).toHaveText('⭐'); // its icon in the left margin, at the top of the area
     const first = await editor.locator('p').nth(0).boundingBox(), second = await editor.locator('p').nth(1).boundingBox(), around = await area.boundingBox();
     expect(around!.y).toBeLessThanOrEqual(first!.y);
     expect(around!.y + around!.height).toBeGreaterThanOrEqual(second!.y + second!.height);
     // Inside it, the marked text keeps no box of its own, and there is no corner icon of its own either.
     await expect(editor.locator('span[data-md-comment]').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     await expect(editor.locator('span[data-md-comment]').first()).not.toHaveCSS('border-top-left-radius', '6px');
-    await expect(view.locator('.marker-corner')).toHaveCount(0);
-    await expect(view.locator('.md-card.marker-only')).toHaveCount(1);
+    await expect(view.locator('.marker-margin')).toHaveCount(1); // one icon, in the margin at the top of the area
+    await expect(view.locator('.md-card')).toHaveCount(0); // a marker without a comment has no card
     // Reopened, the same area comes back from the file.
     await view.locator('.tree-row[title="context/overview.md"]').click();
     await view.locator('.tree-row[title="context/fluxo.md"]').click();

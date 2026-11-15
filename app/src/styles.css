@@ -1891,7 +1891,7 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
 .pdf-bar .view-toggle { display: flex; border: 0; box-shadow: inset 0 0 0 1px var(--border); }
 .pdf-bar .view-toggle button { width: auto; height: var(--pdf-control-height); padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .pdf-bar .view-toggle button:has(svg) { width: 30px; padding: 0; }
-.pdf-bar .icon-btn, .pdf-bar .pdf-rail-toggle, .pdf-drop > summary { height: var(--pdf-control-height); }
+.pdf-bar .icon-btn, .pdf-bar .pdf-rail-toggle, .pdf-bar .pdf-area-toggle, .pdf-drop > summary { box-sizing: border-box; height: var(--pdf-control-height); }
 .pdf-bar-sep { width: 1px; height: 20px; background: var(--border); }
 .pdf-bar > :not(.pdf-find) { flex-shrink: 0; }
 .pdf-bar .pdf-colors { flex-wrap: nowrap; }
@@ -2717,24 +2717,29 @@ span.mcp-row-main { cursor: default; }
 .code-text code { position: relative; z-index: 1; }
 /* A comment's lines: a light band in its color; a marked block: an area in its marker's color, rounded, its icon in the corner. */
 .code-area { position: absolute; left: 4px; right: 4px; margin-top: 12px; z-index: 0; border-left: 3px solid var(--area-color); border-radius: 4px; background: color-mix(in srgb, var(--area-color) 10%, transparent); pointer-events: none; }
+.code-area.marked { z-index: 2; }
+.code-area .marker-menu { pointer-events: auto; font-family: var(--font, system-ui); white-space: normal; }
 .code-area.on { background: color-mix(in srgb, var(--area-color) 20%, transparent); }
 .code-area.marked { border: 1.5px solid color-mix(in srgb, var(--area-color) 75%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--area-color) 16%, transparent); }
-.code-area-icon { position: absolute; left: -9px; top: -9px; display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid color-mix(in srgb, var(--area-color) 75%, transparent); border-radius: 50%; background: var(--bg); font-size: 10px; line-height: 1; }
-/* Token colors: light documents. */
-.code-file { --hl-keyword: #a626a4; --hl-string: #50a14f; --hl-number: #986801; --hl-comment: #a0a1a7; --hl-title: #4078f2; --hl-type: #c18401; --hl-attr: #986801; --hl-tag: #e45649; --hl-meta: #4078f2; --hl-builtin: #0184bc; --hl-variable: #e45649; }
-/* Dark documents. */
-:root[data-doc-theme="dark"] .code-file { --hl-keyword: #c678dd; --hl-string: #98c379; --hl-number: #d19a66; --hl-comment: #7f848e; --hl-title: #61afef; --hl-type: #e5c07b; --hl-attr: #d19a66; --hl-tag: #e06c75; --hl-meta: #61afef; --hl-builtin: #56b6c2; --hl-variable: #e06c75; }
-.code-text .hljs-keyword, .code-text .hljs-selector-tag, .code-text .hljs-doctag { color: var(--hl-keyword); }
-.code-text .hljs-string, .code-text .hljs-regexp, .code-text .hljs-addition { color: var(--hl-string); }
-.code-text .hljs-number, .code-text .hljs-literal { color: var(--hl-number); }
-.code-text .hljs-comment, .code-text .hljs-quote { color: var(--hl-comment); font-style: italic; }
-.code-text .hljs-title, .code-text .hljs-title.function_, .code-text .hljs-section { color: var(--hl-title); }
-.code-text .hljs-type, .code-text .hljs-title.class_, .code-text .hljs-class .hljs-title { color: var(--hl-type); }
-.code-text .hljs-attr, .code-text .hljs-attribute, .code-text .hljs-property { color: var(--hl-attr); }
-.code-text .hljs-tag, .code-text .hljs-name, .code-text .hljs-selector-id, .code-text .hljs-selector-class, .code-text .hljs-deletion { color: var(--hl-tag); }
-.code-text .hljs-meta, .code-text .hljs-symbol, .code-text .hljs-link { color: var(--hl-meta); }
-.code-text .hljs-built_in, .code-text .hljs-params { color: var(--hl-builtin); }
-.code-text .hljs-variable, .code-text .hljs-template-variable { color: var(--hl-variable); }
+.code-area-icon { position: absolute; left: -9px; top: -9px; z-index: 3; padding: 0; cursor: pointer; pointer-events: auto; display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid color-mix(in srgb, var(--area-color) 75%, transparent); border-radius: 50%; background: var(--bg); font-size: 10px; line-height: 1; }
+/* Token colors: the VS Code default themes, Light+ for light documents and Dark+ for dark ones. */
+.code-file { --hl-keyword: #0000ff; --hl-control: #af00db; --hl-string: #a31515; --hl-number: #098658; --hl-comment: #008000; --hl-function: #795e26; --hl-type: #267f99; --hl-property: #0451a5; --hl-variable: #001080; --hl-tag: #800000; --hl-attr-name: #e50000; --hl-regexp: #811f3f; --hl-meta: #0000ff; }
+:root[data-doc-theme="dark"] .code-file { --hl-keyword: #569cd6; --hl-control: #c586c0; --hl-string: #ce9178; --hl-number: #b5cea8; --hl-comment: #6a9955; --hl-function: #dcdcaa; --hl-type: #4ec9b0; --hl-property: #9cdcfe; --hl-variable: #9cdcfe; --hl-tag: #569cd6; --hl-attr-name: #9cdcfe; --hl-regexp: #d16969; --hl-meta: #569cd6; }
+.code-text .hljs-keyword, .code-text .hljs-literal, .code-text .hljs-doctag { color: var(--hl-keyword); }
+.code-text .hljs-string, .code-text .hljs-template-string { color: var(--hl-string); }
+.code-text .hljs-regexp { color: var(--hl-regexp); }
+.code-text .hljs-number { color: var(--hl-number); }
+.code-text .hljs-comment, .code-text .hljs-quote { color: var(--hl-comment); }
+.code-text .hljs-title.function_, .code-text .hljs-title, .code-text .hljs-section { color: var(--hl-function); }
+.code-text .hljs-type, .code-text .hljs-title.class_, .code-text .hljs-title.class_.inherited__, .code-text .hljs-built_in, .code-text .hljs-class .hljs-title { color: var(--hl-type); }
+.code-text .hljs-attr, .code-text .hljs-property, .code-text .hljs-attribute { color: var(--hl-property); }
+.code-text .hljs-variable, .code-text .hljs-params, .code-text .hljs-template-variable, .code-text .hljs-variable.language_ { color: var(--hl-variable); }
+.code-text .hljs-variable.language_ { color: var(--hl-keyword); }
+.code-text .hljs-tag, .code-text .hljs-name, .code-text .hljs-selector-tag { color: var(--hl-tag); }
+.code-text .hljs-selector-id, .code-text .hljs-selector-class, .code-text .hljs-selector-attr, .code-text .hljs-selector-pseudo { color: var(--hl-function); }
+.code-text .hljs-meta, .code-text .hljs-meta .hljs-keyword, .code-text .hljs-symbol, .code-text .hljs-link { color: var(--hl-meta); }
+.code-text .hljs-meta .hljs-string { color: var(--hl-string); }
+.code-text .hljs-addition { color: var(--hl-string); } .code-text .hljs-deletion { color: var(--hl-tag); }
 
 /* A marker over several paragraphs: one area around them (CommentColumn's placed.areas), its icon in the corner. */
 .marker-block { position: absolute; z-index: 0; border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent); border-radius: 10px;
@@ -2749,3 +2754,16 @@ span.mcp-row-main { cursor: default; }
 .code-note-open:hover { border-color: var(--accent); }
 .code-note-unlink { display: grid; place-items: center; height: calc(var(--code-line) - 2px); padding: 0 6px; border: 1px solid var(--border); border-radius: 0 999px 999px 0; background: var(--bg-2); color: var(--faint); cursor: pointer; }
 .code-note-unlink:hover { color: var(--text); }
+/* A marker's icon in the left margin, beside its marked text; a click opens its menu (change, comment, remove). */
+.marker-margin { position: absolute; z-index: 3; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1.5px solid color-mix(in srgb, var(--marker-color) 75%, transparent);
+  border-radius: 50%; background: var(--bg); font-size: 12px; line-height: 1; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.marker-margin:hover, .marker-margin.on { background: color-mix(in srgb, var(--marker-color) 22%, var(--bg)); }
+.marker-menu { position: absolute; z-index: 30; display: flex; flex-direction: column; gap: 6px; min-width: 220px; max-width: 300px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); }
+.marker-menu .marker-picker { margin-top: 0; }
+.marker-menu .link-btn { align-self: flex-start; }
+/* PDF "Mark an area": the pages take a drag instead of a text selection; the rectangle shows while it is drawn. */
+.pdf-stage.marking-area .pdf-page { cursor: crosshair; }
+.pdf-stage.marking-area .pdf-page .textLayer { pointer-events: none; }
+.pdf-area-draft { position: absolute; z-index: 4; border: 1.5px dashed var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.pdf-area-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.pdf-area-toggle.on { background: var(--accent-soft); }

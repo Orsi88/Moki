@@ -129,7 +129,7 @@ test('readFile renders each kind of file', async () => {
   const md = service.readFile('acme', `runs/${RUN}/outputs/report.md`) as Extract<FileContent, { kind: 'markdown' }>;
   assert.equal(md.kind, 'markdown');
   assert.match(md.html, /<h1 id="report">Report<\/h1>/);
-  assert.equal((await service.readFile('acme', 'project.json')).kind, 'json');
+  assert.equal((await service.readFile('acme', 'project.json')).kind, 'code'); // JSON shows as code, as written
   const docx = service.readFile('acme', 'inbox/us-2.docx') as Extract<FileContent, { kind: 'docx' }>;
   assert.match(docx.html, /US-1 Renovação/);
   const xlsx = service.readFile('acme', 'inbox/cases.xlsx') as Extract<FileContent, { kind: 'xlsx' }>;

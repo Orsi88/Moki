@@ -304,6 +304,7 @@ export interface Bridge {
   configPlan?(request: { id: string; project: string | null; request: string; prefer: string; language: string }): Promise<ConfigPlanAnswer>;
   usage?(refresh: boolean): Promise<Usage | null>;
   openNoteWindow(target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }): Promise<boolean>;
+  emojiPanel?: () => Promise<boolean>; // the system's emoji picker for the focused field (false where there is none)
   openSearchWindow?(): Promise<boolean>;
   closeSearchWindow?(): void;
   searchOpen?(project: string, path: string): void;
@@ -608,6 +609,7 @@ export const api = {
   onOpenRoutine: (callback: (target: RoutineTarget) => void) => window.qa?.onOpenRoutine?.(callback) ?? (() => {}),
   readNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('readNotifications', ids),
   dismissNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('dismissNotifications', ids),
+  emojiPanel: (): Promise<boolean> => window.qa?.emojiPanel?.() ?? Promise.resolve(false),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null }) => window.qa?.openNoteWindow({ ...target, theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }) ?? Promise.resolve(false),
   onNotesChanged: (cb: () => void) => window.qa?.onNotesChanged(cb) ?? (() => {}),
   // Embedded terminals (desktop/terminals.ts); only available inside the app.

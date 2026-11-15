@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('qa', {
   hudsonPlan: (request: { id: string; project: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:hudson-plan', request),
   configPlan: (request: { id: string; project: string | null; request: string; prefer: string; language: string }) => ipcRenderer.invoke('qa:config-plan', request),
   usage: (refresh: boolean) => ipcRenderer.invoke('qa:usage', refresh),
+  emojiPanel: () => ipcRenderer.invoke('qa:emoji-panel'),
   openNoteWindow: (target: { project?: string | null; path?: string | null; loose?: string | null; theme?: string }) => ipcRenderer.invoke('qa:note-window', target),
   openSearchWindow: () => ipcRenderer.invoke('qa:search-window'),
   closeSearchWindow: () => ipcRenderer.send('qa:search-close'),

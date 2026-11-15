@@ -12,6 +12,14 @@ import { IconX } from './Icons';
 
 const SUGGESTED = ['⭐', '🔍', '➕', '⚠️', '✅', '❓', '📌', '🔥', '💡', '🧪', '🐞', '📝', '🚧', '❌', '👀', '🎯'];
 
+// The field keeps one icon: the emoji just chosen or typed (the last one in the field), never two side by side.
+function lastEmoji(value: string, previous: string): string {
+  const parts = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value.trim())].map((p) => p.segment);
+  if (!parts.length) return '';
+  const fresh = parts.filter((p) => p !== previous);
+  return (fresh.length ? fresh[fresh.length - 1] : parts[parts.length - 1]).slice(0, 16);
+}
+
 export function MarkersPage() {
   const saved = useMarkers();
   const [draft, setDraft] = useState<Marker[]>(saved);
@@ -42,7 +50,10 @@ export function MarkersPage() {
       <ol className="marker-rows">
         {draft.map((m, i) => (
           <li key={i} className="marker-row">
-            <input className="marker-icon-field" value={m.icon} maxLength={16} aria-label={t('Icon')} list="marker-icons" onChange={(e) => edit(i, { icon: e.target.value.trim() })} />
+            {/* A click opens the system's emoji picker (every emoji, with search) on this field; typing or pasting works too. */}
+            <input className="marker-icon-field" value={m.icon} aria-label={t('Icon')} title={t('Click to choose an emoji (Windows + .)')}
+              onClick={(e) => { e.currentTarget.select(); void api.emojiPanel(); }}
+              onChange={(e) => edit(i, { icon: lastEmoji(e.target.value, m.icon) })} />
             <label className="marker-field"><span>{t('Name')}</span><input value={m.name} maxLength={40} placeholder={t('For example: To review')} onChange={(e) => edit(i, { name: e.target.value })} /></label>
             <div className="marker-field marker-colors"><span>{t('Color')}</span>
               <div className="pdf-colors" role="radiogroup" aria-label={t('Color of {name}', { name: m.name || m.icon })}>
@@ -58,7 +69,6 @@ export function MarkersPage() {
           </li>
         ))}
       </ol>
-      <datalist id="marker-icons">{SUGGESTED.map((s) => <option key={s} value={s} />)}</datalist>
       <div className="marker-footer">
         <button type="button" className="btn btn-ghost" disabled={draft.length >= 30} onClick={add}>{t('Add a marker')}</button>
         <span className="muted small">{changed ? t('Unsaved changes') : t('All changes saved')}</span>

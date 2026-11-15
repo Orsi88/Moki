@@ -175,7 +175,7 @@ export const CODE_LANGUAGES: Readonly<Record<string, string>> = {
   '.c': 'c', '.h': 'c', '.cpp': 'cpp', '.cc': 'cpp', '.hpp': 'cpp', '.m': 'objectivec', '.lua': 'lua', '.pl': 'perl', '.r': 'r',
   '.css': 'css', '.scss': 'scss', '.less': 'less', '.vue': 'xml', '.svelte': 'xml', '.sql': 'sql', '.graphql': 'graphql', '.gql': 'graphql',
   '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash', '.ps1': 'powershell', '.psm1': 'powershell', '.bat': 'dos', '.cmd': 'dos',
-  '.toml': 'ini', '.ini': 'ini', '.properties': 'properties', '.dockerfile': 'dockerfile', '.tf': 'plaintext', '.proto': 'protobuf',
+  '.json': 'json', '.jsonc': 'json', '.toml': 'ini', '.ini': 'ini', '.properties': 'properties', '.dockerfile': 'dockerfile', '.tf': 'plaintext', '.proto': 'protobuf',
 };
 const codeLanguage = (name: string): string | undefined => CODE_LANGUAGES[extname(name).toLowerCase()] ?? (/^(dockerfile|containerfile)$/i.test(name) ? 'dockerfile' : /^makefile$/i.test(name) ? 'makefile' : undefined);
 const PROPOSALS = 'skill-proposals'; // skills drafted by the AI tool from "Create skill", waiting for review
@@ -947,9 +947,8 @@ export function createService(root: string, deps: Deps) {
     if (ext === '.md') return { kind: 'markdown', path, text, html: markdownToHtml(text, { image: imageResolver(project, path), comments: true }), editable: true };
     if (ext === '.html' || ext === '.htm') return served({ kind: 'html', path, text }, file);
     if (language) return { kind: 'code', path, text, language };
-    if (ext === '.json') {
-      try { return { kind: 'json', path, text: JSON.stringify(JSON.parse(text), null, 2) }; } catch { return { kind: 'json', path, text }; }
-    }
+    // JSON shows as code, with its colors and as written (comments included, as in tsconfig).
+    if (ext === '.json') return { kind: 'code', path, text, language: 'json' };
     return { kind: 'text', path, text, editable: isEditable(file) };
   }
 

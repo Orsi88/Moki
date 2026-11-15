@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import { SWATCH, type CommentColor, type MdComment } from '../md-comments';
 import { stackCards } from '../pdf-quads';
 import { IconChat, IconFlag } from './Icons';
-import { MarkerBadge, MarkerPicker } from './Markers';
+import { MarkerMenu, MarkerPicker } from './Markers';
 import { markerColor, markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
 import type { Marker } from '../api';
 import { CommentColors } from './CommentColors';
@@ -17,10 +17,11 @@ import { confirmDialog } from '../dialogs';
 
 // areas: a marker over several paragraphs, drawn as one block around them (stage coordinates).
 export interface MarkedArea { id: string; left: number; top: number; width: number; height: number; icon: string; color: string }
-// corners: the icon of a marker at the start of its marked text. styles: CSS for the marked text, by comment id.
-// Nothing is written into the text's own nodes: an editor (ProseMirror) redraws them and drops what it did not set.
+// margins: the icon of each marker in the left margin, beside its marked text. styles: CSS for the marked text, by
+// comment id. Nothing is written into the text's own nodes: an editor (ProseMirror) redraws them and drops what it did
+// not set. A marker without a comment has no card: only its icon and its area.
 export interface MarkedCorner { id: string; left: number; top: number; icon: string; color: string }
-export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number; anchored?: boolean }[]; rail: number; railTop: number; height: number; railScroll?: number; areas?: MarkedArea[]; corners?: MarkedCorner[]; styles?: string }
+export interface Placed { items: { id: string; ax: number; ay: number; edge: number; top: number; anchored?: boolean }[]; rail: number; railTop: number; height: number; railScroll?: number; areas?: MarkedArea[]; margins?: MarkedCorner[]; styles?: string }
 export interface CommentActions {
   reply: (id: string, text: string) => void;
   edit: (id: string, text: string) => void;
@@ -55,7 +56,7 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     const scrollX = box.scrollLeft, scrollY = box.scrollTop;
     const edge = text.getBoundingClientRect().right - origin.left + scrollX;
     const heights = new Map([...(column?.querySelectorAll<HTMLElement>('[data-card]') ?? [])].map((el) => [el.dataset.card ?? '', el.offsetHeight]));
-    const wanted = comments.map((c) => {
+    const wanted = comments.filter((c) => !markerOnly(c.text, markers)).map((c) => {
       const mark = markOf(text, c.id);
       if (!mark) return { id: c.id, ax: edge, ay: 18 + scrollY, edge, anchored: false };
       const r = mark.getBoundingClientRect();
@@ -67,7 +68,7 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
     const bottom = Math.max(0, ...wanted.map((w) => tops[w.id] + (heights.get(w.id) ?? 90)));
     // A marker over one paragraph: its text is the area (a CSS rule by id), its icon in a corner drawn over it.
     // Over several paragraphs: one area around them, the text inside without boxes of its own.
-    const areas: MarkedArea[] = [], corners: MarkedCorner[] = [], rules: string[] = [];
+    const areas: MarkedArea[] = [], margins: MarkedCorner[] = [], rules: string[] = [];
     for (const c of comments) {
       const marker = splitMarker(c.text, markers).marker;
       if (!marker) continue;
@@ -77,8 +78,8 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
       const select = `[data-md-comment="${c.id.replace(/"/g, '')}"],[data-comment-id="${c.id.replace(/"/g, '')}"]`;
       if (blocks.length < 2) {
         rules.push(`:is(${select}){--marker-color:${SWATCH[tone]}}`, `.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}),:is(${select}).marker-area-host{padding:1px 3px;border:1.5px solid color-mix(in srgb,var(--marker-color) 75%,transparent);border-radius:6px;background:color-mix(in srgb,var(--marker-color) 18%,transparent)!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}`);
-        const first = pieces[0]?.getBoundingClientRect();
-        if (first) corners.push({ id: c.id, left: first.left - origin.left + scrollX - 9, top: first.top - origin.top + scrollY - 10, icon: marker.icon, color: tone });
+        const first = pieces[0]?.getBoundingClientRect(), block = blocks[0]?.getBoundingClientRect();
+        if (first && block) margins.push({ id: c.id, left: Math.max(2, block.left - origin.left + scrollX - 30), top: first.top - origin.top + scrollY + first.height / 2 - 11, icon: marker.icon, color: tone });
         continue;
       }
       rules.push(`.tiptap-wrap .ProseMirror span:is(${select}),.markdown mark:is(${select}){background:transparent!important;border-bottom-color:transparent!important}`);
@@ -87,8 +88,9 @@ export function useCommentPlacement(stage: RefObject<HTMLElement | null>, body: 
       const top = Math.min(...rects.map((r) => r.top)), lowest = Math.max(...rects.map((r) => r.bottom));
       areas.push({ id: c.id, left: left - origin.left + scrollX - 8, top: top - origin.top + scrollY - 6, width: right - left + 16, height: lowest - top + 12,
         icon: marker.icon, color: tone });
+      margins.push({ id: c.id, left: Math.max(2, left - origin.left + scrollX - 38), top: top - origin.top + scrollY - 4, icon: marker.icon, color: tone });
     }
-    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0, areas, corners, styles: rules.join('') };
+    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left + scrollX, railTop, height: Math.max(text.getBoundingClientRect().height, bottom), railScroll: column?.scrollTop ?? 0, areas, margins, styles: rules.join('') };
     setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
   }, [comments, stage, body, rail, markOf, markers]);
   useLayoutEffect(() => { measure(); });
@@ -135,7 +137,9 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
   const [editing, setEditing] = useState<{ id: string; mode: 'reply' | 'edit'; text: string } | null>(null);
   const [colorPicker, setColorPicker] = useState<string | null>(null);
   const [markerPicker, setMarkerPicker] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string } | null>(null); // the menu of a margin icon
   const markers = useMarkers();
+  const carded = comments.filter((c) => !markerOnly(c.text, markers));
   const where = new Map(placed.items.map((p) => [p.id, p]));
   // A comment's marker is the prefix of its text: shown as a badge, kept when the text is edited.
   const markerOf = (id: string) => splitMarker(comments.find((c) => c.id === id)?.text ?? '', markers).marker;
@@ -153,16 +157,28 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
   return (
     <>
       {placed.styles ? <style>{placed.styles}</style> : null}
-      {placed.corners?.map((c) => <span key={`corner-${c.id}`} className="marker-corner" data-marker-color={c.color} style={{ left: c.left, top: c.top }} aria-hidden="true">{c.icon}</span>)}
       {placed.areas?.map((a) => (
-        <div key={`area-${a.id}`} className={`marker-block${active === a.id ? ' on' : ''}`} data-marker-color={a.color} style={{ left: a.left, top: a.top, width: a.width, height: a.height }} aria-hidden="true">
-          <span className="marker-block-icon">{a.icon}</span>
-        </div>
+        <div key={`area-${a.id}`} className={`marker-block${active === a.id ? ' on' : ''}`} data-marker-color={a.color} style={{ left: a.left, top: a.top, width: a.width, height: a.height }} aria-hidden="true" />
       ))}
+      {placed.margins?.map((m) => {
+        const c = comments.find((x) => x.id === m.id);
+        const marker = c ? splitMarker(c.text, markers).marker : null;
+        return <button key={`margin-${m.id}`} type="button" className={`marker-margin${menu?.id === m.id ? ' on' : ''}`} data-marker-color={m.color} style={{ left: m.left, top: m.top }}
+          title={marker ? (markers.find((x) => x.icon === marker.icon)?.meaning ? `${marker.name}: ${markers.find((x) => x.icon === marker.icon)?.meaning}` : marker.name) : ''}
+          aria-label={t('Marker {name}', { name: marker?.name ?? '' })} aria-expanded={menu?.id === m.id} disabled={readOnly}
+          onMouseEnter={() => onActive(m.id)} onMouseLeave={() => onActive('')}
+          onClick={() => setMenu(menu?.id === m.id ? null : { id: m.id })}>{m.icon}</button>;
+      })}
+      {menu && (() => {
+        const m = placed.margins?.find((x) => x.id === menu.id), c = comments.find((x) => x.id === menu.id);
+        if (!m || !c) return null;
+        return <MarkerMenu markers={markers} text={c.text} left={m.left + 28} top={m.top - 4} disabled={saving || readOnly}
+          onText={(next) => { actions.edit(c.id, next); if (!markerOnly(next, markers)) onShow?.(); }} onRemove={() => actions.remove(c.id)} onClose={() => setMenu(null)} />;
+      })()}
       {shown && (
         <>
           <svg className="md-links" width="100%" height={placed.height} aria-hidden="true">
-            {placed.items.filter((p) => p.anchored !== false).map((p) => {
+            {placed.items.filter((p) => p.anchored !== false && carded.some((c) => c.id === p.id)).map((p) => {
               const cy = placed.railTop + p.top + 18 - (placed.railScroll ?? 0);
               const mid = (p.ax + placed.rail) / 2;
               const value = comments.find((c) => c.id === p.id)?.color;
@@ -170,15 +186,14 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
             })}
           </svg>
           <div className="md-rail" ref={rail} style={{ height: Math.max(0, placed.height - placed.railTop) }} aria-label={t('Comments')}>
-            {comments.length === 0 && (empty ?? <p className="muted small pdf-rail-empty">{t('No comments yet.')}</p>)}
-            {comments.map((c) => { const { marker, body } = splitMarker(c.text, markers); return (
+            {carded.length === 0 && (empty ?? <p className="muted small pdf-rail-empty">{t('No comments yet.')}</p>)}
+            {carded.map((c) => { const { marker, body } = splitMarker(c.text, markers); return (
               <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card md-card${active === c.id ? ' on' : ''}${c.resolved ? ' resolved' : ''}${markerOnly(c.text, markers) ? ' marker-only' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: c.color ? SWATCH[c.color] : undefined }}
                 tabIndex={onJump ? 0 : undefined} onClick={(e) => { if (!(e.target as HTMLElement).closest('button, textarea, a, input')) onJump?.(c.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget && onJump) { e.preventDefault(); onJump(c.id); } }}
                 onMouseEnter={() => onActive(c.id)} onMouseLeave={() => onActive('')} onFocus={() => onActive(c.id)}>
                 {describe?.(c.id)}
                 <div className="pdf-comment-head"><strong>{c.author || t('Unknown author')}</strong><span className="muted small">{when(c.at)}</span></div>
-                {marker && <MarkerBadge marker={marker} />}
                 {editing?.id === c.id && editing.mode === 'edit' ? null : body.trim() ? <p className="pdf-comment-text">{body}</p> : null}
                 {c.replies.length > 0 && (
                   <div className="pdf-replies">
@@ -217,7 +232,7 @@ export function CommentColumn({ comments, placed, rail, shown, hidden, onShow, a
           </div>
         </>
       )}
-      {hidden && placed.items.filter((p) => p.anchored !== false).map((p) => {
+      {hidden && placed.items.filter((p) => p.anchored !== false && carded.some((c) => c.id === p.id)).map((p) => {
         const c = comments.find((x) => x.id === p.id);
         return (
           <button key={p.id} type="button" className="pdf-marker md-marker" style={{ left: p.edge + 6, top: p.ay - 9, background: c?.color ? SWATCH[c.color] : undefined }}

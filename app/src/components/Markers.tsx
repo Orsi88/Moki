@@ -1,6 +1,8 @@
 // A marker on a comment: its badge (icon and name, the meaning on hover) and the picker of the workspace's markers.
+import { useState } from 'react';
 import type { Marker } from '../api';
 import { t } from '../i18n';
+import { splitMarker, withMarker } from '../markers';
 
 type Shown = Pick<Marker, 'icon' | 'name'> & Partial<Marker>;
 
@@ -15,5 +17,31 @@ export function MarkerPicker({ markers, value, onPick, disabled = false }: { mar
       title={m.meaning ? `${m.name}: ${m.meaning}` : m.name} aria-label={m.name} disabled={disabled} onClick={() => onPick(m)}>{m.icon}</button>)}
     {value && <button type="button" className="link-btn marker-none" disabled={disabled} onClick={() => onPick(null)}>{t('No marker')}</button>}
     {!markers.length && <span className="muted small">{t('No markers yet: add them in Settings › Markers.')}</span>}
+  </div>;
+}
+
+// The menu of a marker's icon in the margin: another marker, a comment for a marker without one, or no marker (a marker
+// without a comment then goes away). `text` is the comment's whole text; onText saves a new one.
+export function MarkerMenu({ markers, text, left, top, disabled = false, onText, onRemove, onClose }: {
+  markers: Marker[]; text: string; left: number; top: number; disabled?: boolean;
+  onText: (text: string) => void; onRemove: () => void; onClose: () => void;
+}) {
+  const [writing, setWriting] = useState<string | null>(null);
+  const { marker, body } = splitMarker(text, markers);
+  const only = !body.trim();
+  return <div className="marker-menu" role="dialog" aria-label={t('Marker')} style={{ left, top }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+    <MarkerPicker markers={markers} value={marker} disabled={disabled} onPick={(next) => {
+      if (!next) { if (only) onRemove(); else onText(body); }
+      else onText(withMarker(text, next, markers));
+      onClose();
+    }} />
+    {only && writing === null && <button type="button" className="link-btn" disabled={disabled} onClick={() => setWriting('')}>{t('Add a comment')}</button>}
+    {only && writing !== null && <div className="pdf-edit">
+      <textarea autoFocus rows={3} value={writing} placeholder={t('Your comment')} onChange={(e) => setWriting(e.target.value)} />
+      <div className="pdf-actions">
+        <button type="button" className="btn btn-sm" disabled={disabled || !writing.trim()} onClick={() => { onText(withMarker(writing.trim(), marker, markers)); onClose(); }}>{t('Save')}</button>
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>{t('Cancel')}</button>
+      </div>
+    </div>}
   </div>;
 }

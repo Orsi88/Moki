@@ -3,13 +3,13 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { api, type PdfChange, type PdfComment, type PdfMark, type PdfNote } from '../api';
 import { t } from '../i18n';
 import { selectionNote, stackCards } from '../pdf-quads';
-import { IconChat, IconEdit, IconFlag, IconHighlight, IconNativeViewer, IconNotePlus, IconPages, IconPlus, IconSearch, IconTrash, IconX } from './Icons';
+import { IconChat, IconEdit, IconFitScreen, IconFlag, IconHighlight, IconNativeViewer, IconNotePlus, IconPages, IconPlus, IconSearch, IconTrash, IconX } from './Icons';
 import { recall, remember } from '../prefs';
 import { lazyHeavy } from '../lazy-module';
 import { useLoaded } from './useLoaded';
 import { NoteDialog } from './NoteDialog';
-import { MarkerBadge, MarkerPicker } from './Markers';
-import { markerColor, splitMarker, useMarkers, withMarker } from '../markers';
+import { MarkerMenu, MarkerPicker } from './Markers';
+import { markerColor, markerOnly, splitMarker, useMarkers, withMarker } from '../markers';
 import type { Marker } from '../api';
 import { COLORS, SWATCH as COLOR_SWATCH } from '../md-comments';
 import { colorName } from './CommentColors';
@@ -132,7 +132,12 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
   const [props, setProps] = useState({ title: '', author: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [placed, setPlaced] = useState<{ items: Placed[]; rail: number; railTop: number; height: number }>({ items: [], rail: 0, railTop: 0, height: 0 });
+  // margins: the icon of each marked highlight in the left margin of its page (a marker without a comment has no card).
+  const [placed, setPlaced] = useState<{ items: Placed[]; rail: number; railTop: number; height: number; margins?: { id: string; left: number; top: number; icon: string; color: string }[] }>({ items: [], rail: 0, railTop: 0, height: 0 });
+  const [markerMenu, setMarkerMenu] = useState<string | null>(null);
+  // "Mark an area": a rectangle dragged on a page becomes a highlight of that size (PdfCraft highlights take any quad).
+  const [areaMode, setAreaMode] = useState(false);
+  const [areaDrag, setAreaDrag] = useState<{ page: HTMLElement; x0: number; y0: number; x1: number; y1: number } | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const properties = useRef<HTMLDetailsElement>(null);
@@ -176,7 +181,14 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
     const px = zoom * CSS_UNITS;
     const pages = new Map([...box.querySelectorAll<HTMLElement>('.pdf-page')].map((el) => [Number(el.dataset.page), el.getBoundingClientRect()]));
     const heights = new Map([...(column?.querySelectorAll<HTMLElement>('[data-card]') ?? [])].map((el) => [el.dataset.card ?? '', el.offsetHeight]));
-    const wanted = comments.flatMap((c) => {
+    const margins: { id: string; left: number; top: number; icon: string; color: string }[] = [];
+    for (const c of comments) {
+      const page = pages.get(c.page), marker = splitMarker(c.contents ?? '', markers).marker;
+      if (!page || !marker) continue;
+      const r = c.rect ?? [0, 0, page.width / px, 0];
+      margins.push({ id: c.id, left: Math.max(2, page.left - origin.left - 30), top: page.top - origin.top + r[1] * px - 2, icon: marker.icon, color: markerColor(markers.find((m) => m.icon === marker.icon) ?? marker) });
+    }
+    const wanted = comments.filter((c) => !markerOnly(c.contents ?? '', markers)).flatMap((c) => {
       const page = pages.get(c.page);
       if (!page) return [];
       const r = c.rect ?? [0, 0, page.width / px, 0];
@@ -189,9 +201,9 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
     // The cards sit in the column, which starts below the stage's top (its margin): their tops are in its coordinates.
     const railBox = column?.getBoundingClientRect() ?? origin;
     const railTop = railBox.top - origin.top;
-    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left, railTop, height: Math.max(pagesHeight, bottom + 16) };
+    const next = { items: wanted.map((w) => ({ ...w, top: Math.max(0, tops[w.id] - railTop) })), rail: railBox.left - origin.left, railTop, height: Math.max(pagesHeight, bottom + 16), margins };
     setPlaced((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
-  }, [comments, zoom]);
+  }, [comments, zoom, markers]);
   useLayoutEffect(() => { measure(); });
   // The comments take the place of the project panel on the right (Workspace listens): one open at a time.
   const sideOn = Boolean(available) && tab === 'comment' && !railOff && view === 'pages';
@@ -258,6 +270,30 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
       left: item.left - origin.left, top: item.top - origin.top, width: item.width, height: item.height,
     }));
     setComposer({ marks, x: Math.max(8, r.left - origin.left), y: r.bottom - origin.top + 8, text: '', quote: sel.toString(), rects });
+  };
+  const areaDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!areaMode || e.button !== 0) return;
+    const page = (e.target as HTMLElement).closest<HTMLElement>('.pdf-page');
+    if (!page) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setComposer(null);
+    setAreaDrag({ page, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY });
+  };
+  const areaMove = (e: React.PointerEvent<HTMLDivElement>) => { if (areaDrag) setAreaDrag({ ...areaDrag, x1: e.clientX, y1: e.clientY }); };
+  const areaUp = () => {
+    const drag = areaDrag, box = stage.current;
+    setAreaDrag(null);
+    if (!drag || !box) return;
+    const page = drag.page.getBoundingClientRect(), origin = box.getBoundingClientRect(), px = zoom * CSS_UNITS;
+    const left = Math.max(page.left, Math.min(drag.x0, drag.x1)), right = Math.min(page.right, Math.max(drag.x0, drag.x1));
+    const top = Math.max(page.top, Math.min(drag.y0, drag.y1)), bottom = Math.min(page.bottom, Math.max(drag.y0, drag.y1));
+    if (right - left < 6 || bottom - top < 6) return; // a click, not an area
+    const pt = (v: number) => Math.round((v / px) * 100) / 100;
+    const x0 = pt(left - page.left), x1 = pt(right - page.left), y0 = pt(top - page.top), y1 = pt(bottom - page.top);
+    setAreaMode(false);
+    setComposer({ marks: [{ page: Number(drag.page.dataset.page), quads: [[x0, y0, x1, y0, x0, y1, x1, y1]] }], x: Math.max(8, left - origin.left), y: bottom - origin.top + 8, text: '', quote: '',
+      rects: [{ left: left - origin.left, top: top - origin.top, width: right - left, height: bottom - top }] });
   };
   const highlightSelection = () => {
     if (!composer) return;
@@ -443,7 +479,6 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
       ) : (
         <>
           {(() => { const { marker, body } = splitMarker(c.contents ?? '', markers); return <>
-          {marker && <MarkerBadge marker={marker} />}
           {body ? <p className="pdf-comment-text">{body}</p> : !reply && !marker && <p className="muted small">{t('Highlight without a comment.')}</p>}
           <div className="pdf-actions">
             {!reply && <button type="button" className={`icon-btn marker-toggle${marker ? ' on' : ''}`} title={t('Marker')} aria-label={t('Marker')} aria-expanded={markerPicker === c.id} disabled={off} onClick={() => setMarkerPicker(markerPicker === c.id ? null : c.id)}>{marker ? <span aria-hidden="true">{marker.icon}</span> : <IconFlag size={14} />}</button>}
@@ -510,6 +545,12 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
               </div>
             )}
             {view === 'pages' && (
+              <button type="button" className={`btn btn-ghost btn-sm pdf-area-toggle${areaMode ? ' on' : ''}`} aria-pressed={areaMode} disabled={off}
+                title={t('Drag a rectangle on a page to mark or comment on that area')} onClick={() => { setAreaMode(!areaMode); setComposer(null); }}>
+                <IconFitScreen size={14} /> {t('Mark an area')}
+              </button>
+            )}
+            {view === 'pages' && (
               <button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle${railOff ? '' : ' on'}`} aria-pressed={!railOff}
                 title={railOff ? t('Show the comments beside the pages') : t('Hide the comments: the pages get the room')} aria-label={`${t('Comments')} (${comments.length})`} onClick={() => setRailOff(!railOff)}>
                 <IconChat size={14} /><span className="pdf-rail-count">{comments.length}</span>
@@ -542,7 +583,9 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
 
       {view === 'pages' ? (
         <div className="pdf-scroll" ref={scroller}>
-          <div className={`pdf-stage${showRail ? ' with-rail' : ''}`} ref={stage}>
+          <div className={`pdf-stage${showRail ? ' with-rail' : ''}${areaMode ? ' marking-area' : ''}`} ref={stage} onPointerDown={areaDown} onPointerMove={areaMove} onPointerUp={areaUp} onPointerCancel={() => setAreaDrag(null)}>
+            {areaDrag && stage.current && (() => { const o = stage.current.getBoundingClientRect(); return <span className="pdf-area-draft" aria-hidden="true"
+              style={{ left: Math.min(areaDrag.x0, areaDrag.x1) - o.left, top: Math.min(areaDrag.y0, areaDrag.y1) - o.top, width: Math.abs(areaDrag.x1 - areaDrag.x0), height: Math.abs(areaDrag.y1 - areaDrag.y0) }} />; })()}
             {Pages ? <Pages url={url} renew={renew} zoom={zoom} onSelection={tab === 'comment' && available ? onSelection : () => {}} onError={toNative} onLoad={onLoad} onDoc={onDoc}
               pageTools={tab === 'edit' ? pageTools : undefined} afterPage={afterPage} /> : <div className="pdf-pages" />}
             {showRail && (
@@ -555,7 +598,7 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
                   })}
                 </svg>
                 <div className="pdf-rail" ref={rail} style={{ height: Math.max(0, placed.height - 32) }} aria-label={t('Comments')}>
-                  {comments.map((c) => (
+                  {comments.filter((c) => !markerOnly(c.contents ?? '', markers)).map((c) => (
                     <div key={c.id} data-card={c.id} data-positioned={where.has(c.id)} className={`pdf-card${active === c.id ? ' on' : ''}`} style={{ top: where.get(c.id)?.top ?? 0, borderLeftColor: where.get(c.id)?.color }}
                       onMouseEnter={() => setActive(c.id)} onMouseLeave={() => setActive((a) => (a === c.id ? '' : a))}>
                       {item(c)}
@@ -573,6 +616,21 @@ export function PdfDoc({ project, path, url, renew, native, onSaved, jump, onMis
                   onClick={() => { setRailOff(false); setActive(p.id); }} />
               );
             })}
+            {available && tab === 'comment' && placed.margins?.map((m) => {
+              const c = comments.find((x) => x.id === m.id);
+              const marker = c ? splitMarker(c.contents ?? '', markers).marker : null;
+              return <button key={`margin-${m.id}`} type="button" className={`marker-margin${markerMenu === m.id ? ' on' : ''}`} data-marker-color={m.color} style={{ left: m.left, top: m.top }}
+                title={marker?.name} aria-label={t('Marker {name}', { name: marker?.name ?? '' })} aria-expanded={markerMenu === m.id} disabled={off}
+                onMouseEnter={() => setActive(m.id)} onMouseLeave={() => setActive((a) => (a === m.id ? '' : a))}
+                onClick={() => setMarkerMenu(markerMenu === m.id ? null : m.id)}>{m.icon}</button>;
+            })}
+            {markerMenu && (() => {
+              const m = placed.margins?.find((x) => x.id === markerMenu), c = comments.find((x) => x.id === markerMenu);
+              if (!m || !c) return null;
+              return <MarkerMenu markers={markers} text={c.contents ?? ''} left={m.left + 28} top={m.top - 4} disabled={off}
+                onText={(next) => { edit({ op: 'edit', id: c.id, contents: next }); if (!markerOnly(next, markers)) setRailOff(false); }}
+                onRemove={() => edit({ op: 'delete', id: c.id })} onClose={() => setMarkerMenu(null)} />;
+            })()}
             {composer?.rects.map((box, i) => <span key={i} className="pdf-kept-selection" aria-hidden="true" style={{ left: box.left, top: box.top, width: box.width, height: box.height }} />)}
             {composer && available && tab === 'comment' && (
               <div className="pdf-composer" style={{ left: composer.x, top: composer.y }} role="dialog" aria-label={t('Highlight and comment')}
