@@ -16,6 +16,25 @@ export function noteTitles(dir: string): NoteTitle[] {
 export function setNoteTitle(dir: string, path: string, title: string): void {
   const entries = noteTitles(dir).filter((item) => item.path !== path);
   if (title) entries.push({ path, title });
+  write(dir, entries);
+}
+
+// Another project merged into this one: its titles come along under the notes' paths here (pathOf; null drops one).
+// A note that had to take another file name keeps showing the title it had (its old file name, when it had none).
+export function importNoteTitles(from: string, dir: string, pathOf: (path: string) => string | null, renamed: Map<string, string>): void {
+  const incoming = noteTitles(from);
+  const titled = new Set(incoming.map((item) => item.path));
+  const added = [
+    ...incoming.flatMap((item) => { const path = pathOf(item.path); return path ? [{ path, title: item.title }] : []; }),
+    ...[...renamed].filter(([old]) => /^notes\/[^/]+\.md$/.test(old) && !titled.has(old))
+      .map(([old, path]) => ({ path, title: old.slice('notes/'.length, -'.md'.length).replace(/-/g, ' ') })),
+  ];
+  const current = noteTitles(dir), kept = new Set(current.map((item) => item.path)); // a note both had keeps this project's title
+  const fresh = added.filter((item) => !kept.has(item.path));
+  if (fresh.length) write(dir, [...current, ...fresh]);
+}
+
+function write(dir: string, entries: NoteTitle[]): void {
   const file = resolveInside(dir, FILE);
   const temp = join(dir, `${FILE}.${randomUUID()}.tmp`);
   try {

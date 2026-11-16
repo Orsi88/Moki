@@ -84,6 +84,11 @@ export interface OpenWithApps { dialog: boolean; apps: { id: string; name: strin
 // PDF comments and page edits, written by PdfCraft (desktop/pdfcraft.ts). Quads: 8 numbers, points from the page's top-left.
 export interface PdfComment { id: string; page: number; type: string; author: string | null; contents: string | null; color: string | null; rect: number[] | null; replies: PdfComment[] }
 export interface PdfMark { page: number; quads: number[][] }
+// What merging a project into another changes (desktop/project-merge.ts).
+export interface MergePlan {
+  files: number; runs: number; identical: number; dropped: number; appended: string[];
+  renamed: { from: string; to: string }[]; context: { from: string; to: string }[];
+}
 export interface PdfNote { id: string; after: number; note: { path: string } | { loose: string }; height?: number; color?: string }
 export type PdfChange =
   | { op: 'highlight'; page: number; find: string; all: boolean; contents?: string; color: string }
@@ -399,6 +404,8 @@ export const api = {
   setProjectDescription: (project: string, description: string) => call<ProjectSummary>('setProjectDescription', project, description),
   deleteProject: (project: string, confirm: string) => call<boolean>('deleteProject', project, confirm),
   suspendProject: (project: string) => call<boolean>('suspendProject', project),
+  mergePlan: (source: string, target: string) => call<MergePlan>('mergePlan', source, target),
+  mergeProject: (source: string, target: string, confirm: string) => call<MergePlan & { suspended: boolean }>('mergeProject', source, target, confirm),
   resumeProject: (id: string) => call<ProjectSummary>('resumeProject', id),
   suspendedProjects: () => call<{ id: string; name: string }[]>('suspendedProjects'),
   deleteNote: (project: string, path: string) => call<boolean>('deleteNote', project, path),

@@ -8,7 +8,8 @@ import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
 import { SearchPanel } from '../components/SearchPanel';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
-import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconOpenProject, IconPause, IconPin, IconPlay, IconStar, IconTrash, IconX } from '../components/Icons';
+import { MergeProjectDialog } from '../components/MergeProjectDialog';
+import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconMerge, IconOpenProject, IconPause, IconPin, IconPlay, IconStar, IconTrash, IconX } from '../components/Icons';
 import { NoteDialog } from '../components/NoteDialog';
 import { RenameField } from '../components/RenameField';
 import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, retitleNote, setFavorite, showProject, togglePin } from '../side-menu';
@@ -70,6 +71,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
   const [pins, setPins] = useState<string[]>(pinnedIds);
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
+  const [merging, setMerging] = useState<ProjectSummary | null>(null);
   // Suspended projects: their folder is out of the workspace's project list until resumed (saves machine resources).
   const [suspended, setSuspended] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => { api.suspendedProjects().then(setSuspended).catch(() => setSuspended([])); }, [projects]);
@@ -188,6 +190,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
       { label: pinnedRow ? t('Unpin') : t('Pin'), icon: <IconPin size={15} />, run: () => setPins(togglePin(p.id)) },
       { label: t('Hide from Moki'), icon: <IconEyeOff size={15} />, run: () => hide(p) },
       { label: t('Suspend'), icon: <IconPause size={15} />, run: () => { void suspend(p); } },
+      ...(projects.length > 1 ? [{ label: t('Merge into another project…'), icon: <IconMerge size={15} />, run: () => setMerging(p) }] : []),
       { label: t('Delete for good'), icon: <IconTrash size={15} />, danger: true, run: () => setDeleting(p) },
     ])}>
       {renaming === `project:${p.id}` ? nameCell(`project:${p.id}`, p.name, (name) => renameProject(p, name), projectMeta(p)) : (
@@ -430,6 +433,8 @@ ${workspace.path}`}>
           </div>
         )}
       </aside>}
+      {merging && <MergeProjectDialog project={merging} projects={projects} onClose={() => setMerging(null)}
+        onMerged={(target) => { setMerging(null); setPins(pinnedIds()); setHidden(hiddenIds()); setNoteTick((n) => n + 1); onDeleted?.(); onOpen(target); }} />}
       {deleting && <DeleteProjectDialog project={deleting} onClose={() => setDeleting(null)} onDeleted={() => deleted(deleting.id)} />}
 
       {settings ? (

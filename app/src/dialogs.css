@@ -118,3 +118,10 @@
   .modal.catalog { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .modal, .modal-backdrop { animation: none; transition: none; } }
+
+/* Merging a project into another: the preview of what changes. */
+.merge-plan { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.merge-plan p { margin: 0; }
+.merge-plan summary { cursor: pointer; }
+.merge-moves { margin: 6px 0 0; padding: 8px 10px; list-style: none; max-height: 160px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); font-size: 12px; }
+.merge-moves li { padding: 2px 0; overflow-wrap: anywhere; }

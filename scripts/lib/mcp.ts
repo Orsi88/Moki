@@ -156,6 +156,15 @@ export function saveServer(raw: unknown, root: string): McpServer {
   return server;
 }
 
+// A project merged into another: the servers that listed it also apply to the project that received its files.
+// It keeps them too (it is suspended, and may be resumed).
+export function shareServers(from: string, to: string, root: string): void {
+  const list = listServers(root);
+  const widen = (s: McpServer) => s.projects.includes(from) && !s.projects.includes(to);
+  if (!list.some(widen)) return;
+  writeJson(catalogFile(root), { servers: list.map((s) => (widen(s) ? { ...s, projects: [...s.projects, to] } : s)) });
+}
+
 export function removeServer(id: string, root: string): void {
   const list = listServers(root);
   if (!list.some((s) => s.id === id)) throw new McpError('Unknown MCP server.');

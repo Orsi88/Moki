@@ -56,8 +56,9 @@ import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type Diagr
 import { DIAGRAM_SOURCE_LIMIT, diagramHash, diagramKind, readDiagramSettings, renderDiagramSource, verifyPngExport, verifySvgExport, writeDiagramSettings } from './diagrams.ts';
 import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
+import { mergeProjects, planMerge, type MergePlan, type MergeSide } from './project-merge.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
-import { MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
+import { MCP_FILE, MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, shareServers, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
 import { archiveRoutine, decideProposal, deleteRoutine, dismissVisibleNotes, duplicateRoutine, notesOf, readNotes, runRoutine, runningRoutines, saveRoutine as saveRoutineOf, saveSettings as saveRoutineSettings, setEnabled, settingsOf, syncExecutions, systemNotesOf, tick, type RunHooks } from './routine-runner.ts';
 import { listExecutions, listProposals, listRoutineFiles, readReport, readRoutine, type UpdateReport } from '../scripts/lib/routines.ts';
@@ -259,6 +260,15 @@ export function createService(root: string, deps: Deps) {
     return toolsCached() ?? toolsStore(await detectToolsAsync());
   };
 
+  // The two projects of a merge, as the merge module sees them.
+  const mergeSides = (source: unknown, target: unknown): [MergeSide, MergeSide] => {
+    const sides = [source, target].map((id): MergeSide => {
+      const dir = projectDir(id);
+      return { id: id as string, name: projectSummary(id as string, root).name, dir, linked: projectRepository(id as string, root) ?? '' };
+    });
+    if (sides[0].id === sides[1].id) throw new ServiceError('Choose another project to receive the files.');
+    return [sides[0], sides[1]];
+  };
   const projectDir = (id: unknown): string => {
     if (!isProject(id, root)) throw new ServiceError('Unknown project.');
     return join(projectsDir(root), id);
@@ -1283,6 +1293,40 @@ export function createService(root: string, deps: Deps) {
       failing(() => renameSync(from, join(suspendedDir(root), id))); // same parent: all or nothing
       projectsScan = null;
       return true;
+    },
+    // Merging a project into another: what would change (the dialog's preview), then the merge itself, confirmed by
+    // typing the receiving project's name. The source is suspended afterwards; it keeps its own copy of everything.
+    mergePlan: (source: unknown, target: unknown): MergePlan => {
+      const [from, to] = mergeSides(source, target);
+      return failing(() => planMerge(from, to, join(root, 'templates', 'project-context')));
+    },
+    mergeProject: (source: unknown, target: unknown, confirm: unknown): MergePlan & { suspended: boolean } => {
+      const [from, to] = mergeSides(source, target);
+      if (typeof confirm !== 'string' || confirm.trim() !== to.name) throw new ServiceError('Type the name of the project that receives the files to confirm.');
+      const busy = [from.id, to.id].flatMap((id) => [
+        deps.runningTerminals?.(id) ? `a terminal of ${projectSummary(id, root).name}` : '',
+        runningRoutines(root, id) ? `a routine of ${projectSummary(id, root).name}` : '',
+      ]).filter(Boolean);
+      if (busy.length) throw new ServiceError(`Close what is still running first (${busy.join(', ')}).`);
+      if (existsSync(join(suspendedDir(root), from.id))) throw new ServiceError(`A suspended project "${from.id}" already exists. Resume or delete it before merging this one.`);
+      projectsScan = null;
+      const plan = failing(() => mergeProjects(from, to, join(root, 'templates', 'project-context'), new Date().toISOString().slice(0, 10), (keep, merged) => {
+        keep(join(to.dir, 'tags.json'));
+        keep(join(to.dir, 'project.json'));
+        keep(join(workspaceDir(root), MCP_FILE));
+        const renamed = new Map([...merged.renamed, ...merged.context].map((m) => [m.from, m.to]));
+        const mine = fileTags(to.id, root);
+        for (const [path, ids] of Object.entries(fileTags(from.id, root))) {
+          const run = /^(runs\/[^/]+)(\/.*)$/.exec(path);
+          const here = run && renamed.has(run[1]) ? renamed.get(run[1]) + run[2] : renamed.get(path) ?? path;
+          if (existsSync(join(to.dir, here))) setFileTags(to.id, here, [...new Set([...(mine[here] ?? []), ...ids])], root);
+        }
+        setProjectTags(to.id, [...new Set([...projectSummary(to.id, root).tags, ...projectSummary(from.id, root).tags])], root);
+        shareServers(from.id, to.id, root);
+      }));
+      let suspended = true;
+      try { mkdirSync(suspendedDir(root), { recursive: true }); renameSync(from.dir, join(suspendedDir(root), from.id)); } catch { suspended = false; } // merged: suspending is a convenience
+      return { ...plan, suspended };
     },
     resumeProject: (id: unknown) => {
       if (typeof id !== 'string' || !listSuspended(root).includes(id)) throw new ServiceError('Unknown suspended project.');

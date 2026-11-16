@@ -27,6 +27,8 @@ On the start screen, **pin** a project to keep it on top, or **hide** one (its f
 
 **Suspend** a project you are not using (right click on it) to save machine resources: its folder moves to `workspace/suspended/`, so routines, search, the AI tools and the IDE extension stop reading it, and nothing in it changes. A project with a terminal or a routine still running is not suspended. It shows under *Suspended*; a click resumes it as it was.
 
+**Merge** a project into another (right click › *Merge into another project…*) when two projects turn out to be one. Everything is copied into the project you choose, and nothing there is overwritten: a note or file whose name is taken gets a number (`ideias-2.md`) and keeps its title, and the PDF notes, comments, code notes, tags and links between notes follow the new names. A confirmed context file both projects have stays beside the other one (`glossary-<project>.md`) with an entry in `proposed-updates.md` to consolidate it; the activity log and proposed updates are added to the other project's. The preview shows all of this before you type the receiving project's name to confirm. The merged project is then suspended, with its own copy of everything, so you can resume it if something is not right. If anything fails midway, the receiving project is left as it was.
+
 ### Inside a project folder
 
 ```text

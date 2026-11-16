@@ -79,6 +79,23 @@ export const forgetProject = (id: string): void => {
   remember(FAVORITES_KEY(), JSON.stringify(favoriteNotes().filter((n) => n.project !== id)));
 };
 
+// A project merged into another: its recent files and notes and its favorite notes now point at the project that
+// received them, at the paths they took there (`moved`: only the ones that changed). Its pin and hidden mark go.
+export const mergeProjectInto = (from: string, to: string, moved: { from: string; to: string }[]): void => {
+  const pathOf = (path: string) => {
+    const m = moved.find((x) => path === x.from || path.startsWith(`${x.from}/`));
+    return m ? m.to + path.slice(m.from.length) : path;
+  };
+  const move = <T extends { project: string; path: string }>(list: T[]): T[] => list
+    .map((item) => (item.project === from ? { ...item, project: to, path: pathOf(item.path) } : item))
+    .filter((item, i, all) => all.findIndex((x) => x.project === item.project && x.path === item.path) === i);
+  remember(RECENT_FILES + scope, JSON.stringify(move(recentFiles())));
+  remember(NOTES_KEY(), JSON.stringify(move(recentNotes())));
+  remember(FAVORITES_KEY(), JSON.stringify(move(favoriteNotes())));
+  remember(PINS_KEY(), JSON.stringify(pinnedIds().filter((x) => x !== from)));
+  remember(HIDDEN_KEY(), JSON.stringify(hiddenIds().filter((x) => x !== from)));
+};
+
 export const noteTitle =(path: string): string => (path.split('/').pop() ?? path).replace(/\.md$/, '').replace(/-/g, ' ');
 
 export const looseNotes = (): LooseNote[] => readList(LOOSE).flatMap((item) => {

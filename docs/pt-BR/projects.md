@@ -27,6 +27,8 @@ Na tela inicial, **fixe** um projeto para mantê-lo no topo, ou **oculte** um (o
 
 **Suspenda** um projeto que você não está usando (clique com o botão direito nele) para economizar recursos da máquina: a pasta dele vai para `workspace/suspended/`, então as rotinas, a busca, as IAs e a extensão do IDE deixam de lê-lo, e nada nele muda. Um projeto com terminal ou rotina ainda em execução não é suspenso. Ele aparece em *Suspensos*; um clique o retoma como estava.
 
+**Mescle** um projeto em outro (botão direito › *Mesclar em outro projeto…*) quando dois projetos são na verdade um só. Tudo é copiado para o projeto escolhido, e nada de lá é sobrescrito: uma nota ou arquivo cujo nome já existe recebe um número (`ideias-2.md`) e mantém o título, e as notas de PDF, comentários, notas de código, tags e links entre notas acompanham os novos nomes. Um arquivo de contexto confirmado que os dois projetos têm fica ao lado do outro (`glossary-<projeto>.md`), com uma entrada em `proposed-updates.md` para consolidá-lo; o registro de atividades e as atualizações propostas são somados aos do outro projeto. A prévia mostra tudo isso antes de você digitar o nome do projeto que recebe, para confirmar. Depois, o projeto mesclado é suspenso, com a própria cópia de tudo, então dá para retomá-lo se algo não estiver certo. Se algo falhar no meio, o projeto que recebe fica como estava.
+
 ### Dentro da pasta de um projeto
 
 ```text

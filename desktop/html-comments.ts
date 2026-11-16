@@ -163,3 +163,27 @@ export function moveHtmlComments(directory: string, from: string, to: string): v
   for (const entry of moved) entry.html = to + entry.html.slice(from.length);
   write(directory, entries);
 }
+
+// Another project merged into this one: its comments, diagram views and code notes come along under the paths the
+// files have here (pathOf; null drops an entry, as for the files of a linked folder that is not this project's).
+// Entries for the same file join without repeating ids. Returns how many entries were dropped.
+export function importHtmlComments(from: string, directory: string, pathOf: (path: string) => string | null): number {
+  const incoming = read(from);
+  if (!incoming.length) return 0;
+  const entries = read(directory);
+  let dropped = 0;
+  for (const source of incoming) {
+    const html = pathOf(source.html);
+    if (html === null) { dropped++; continue; }
+    const notes = (source.notes ?? []).flatMap((n) => { const note = pathOf(n.note); return note ? [{ ...n, note }] : []; });
+    const entry = entries.find((e) => e.html === html);
+    if (!entry) { entries.push({ ...source, html, ...(source.notes ? { notes } : {}) }); continue; }
+    const ids = new Set(entry.comments.map((c) => c.id)), noteIds = new Set((entry.notes ?? []).map((n) => n.id));
+    entry.comments.push(...source.comments.filter((c) => !ids.has(c.id)));
+    if (notes.length) entry.notes = [...entry.notes ?? [], ...notes.filter((n) => !noteIds.has(n.id))];
+    entry.view ??= source.view;
+    if (entry.comments.length > 500 || (entry.notes?.length ?? 0) > 500) throw new Error(`${html} would have too many comments or notes after the merge.`);
+  }
+  write(directory, entries);
+  return dropped;
+}

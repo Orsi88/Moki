@@ -54,6 +54,28 @@ export function movePdfNotes(dir: string, from: string, to: string): void {
   write(dir, entries.map((e) => ({ ...e, pdf: moved(e.pdf) ?? e.pdf })));
 }
 
+// Another project merged into this one: its associations come along under the paths the PDFs and notes have here
+// (pathOf; null drops one). Notes already tied to the same PDF are kept; ids are not repeated.
+export function importPdfNotes(from: string, dir: string, pathOf: (path: string) => string | null): void {
+  const incoming = read(from);
+  if (!incoming.length) return;
+  const entries = read(dir);
+  for (const source of incoming) {
+    const pdf = pathOf(source.pdf);
+    if (!pdf) continue;
+    const notes = source.notes.flatMap((n) => {
+      if (!('path' in n.note)) return [n];
+      const path = pathOf(n.note.path);
+      return path ? [{ ...n, note: { path } }] : [];
+    });
+    const entry = entries.find((e) => e.pdf === pdf);
+    if (!entry) { if (notes.length) entries.push({ pdf, notes }); continue; }
+    const ids = new Set(entry.notes.map((n) => n.id));
+    entry.notes.push(...notes.filter((n) => !ids.has(n.id)));
+  }
+  write(dir, entries);
+}
+
 // Associations follow their page through edits made in Moki. If its page is
 // deleted, keep the note after the previous surviving page (0 = before page 1).
 export function remapPdfNotes(notes: PdfNote[], change: PdfChange): PdfNote[] {
