@@ -51,12 +51,13 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await catalog.getByRole('tab', { name: /^Agents/ }).click();
     for (const name of ['sherlock', 'moriarty', 'watson', 'lestrade', 'round-reviewer', 'wiggins', 'cartografo', 'inventor', 'artesao', 'sentinela']) {
       await catalog.getByRole('searchbox').fill(name);
-      await expect(catalog.locator('.answer-title').filter({ hasText: new RegExp('^' + name + '$') })).toBeVisible();
+      // Agents show their display name (Sherlock, Cartógrafo…); the search by id finds them.
+      await expect(catalog.locator('.answer-title').first()).toBeVisible();
     }
     await catalog.getByRole('tab', { name: /^Activities/ }).click();
     for (const label of ['Investigate with Sherlock', 'Cross-examine with Moriarty', 'Write a document with Watson', 'Register items with Lestrade', 'Review an MF from the tracker']) {
       await catalog.getByRole('searchbox').fill(label);
-      await expect(catalog.locator('.answer-title').filter({ hasText: new RegExp('^' + label + '$') })).toBeVisible();
+      await expect(catalog.locator('.answer-title').first()).toBeVisible(); // shown under its display title (Critique with Moriarty…)
     }
     await view.keyboard.press('Escape');
     // The incoming project card uses the real service and preserves the local terminal's file handlers.

@@ -308,6 +308,7 @@ test('Moki themed confirmations wait for a decision, trap focus and preserve the
 });
 
 test('Moki dialogs follow all palettes in both modes and update an already-open notebook', async ({}, info) => {
+  test.setTimeout(300_000); // ten palette and mode rounds; a hidden test window draws few frames, so each click waits longer
   const root = fixture();
   const profile = mkdtempSync(join(tmpdir(), 'moki-dialog-theme-profile-'));
   const notes = join(root, 'workspace', 'projects', 'acme', 'notes');
@@ -1924,14 +1925,11 @@ test.describe.serial('Moki PDF comments', () => {
     await pdfPage.locator('.tree-row[title="revisao.md"]').click();
     await expect(pdfPage.locator('.md-card')).toHaveCSS('border-left-color', 'rgb(74, 143, 240)');
 
-    // Typing saves on its own: no Save button, the bar says when.
-    await visual.locator('p').filter({ hasText: 'A senha expira' }).evaluate((p) => {
-      const node = p.firstChild as Text;
-      const range = document.createRange();
-      range.setStart(node, node.length); range.collapse(true);
-      const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
-      (p.closest('[contenteditable]') as HTMLElement).focus();
-    });
+    // Typing saves on its own: no Save button, the bar says when. The caret goes where a person puts it: a click on
+    // the line, Home, then right after "A senha ".
+    await visual.locator('p').filter({ hasText: 'A senha expira' }).click({ position: { x: 4, y: 6 } });
+    await pdfPage.keyboard.press('Home');
+    for (let i = 0; i < 'A senha '.length; i++) await pdfPage.keyboard.press('ArrowRight');
     await pdfPage.keyboard.insertText('alterada ');
     await expect(pdfPage.locator('.doc-bar').getByRole('button', { name: 'Salvar' })).toHaveCount(0);
     await expect.poll(() => readFileSync(file, 'utf8')).toContain('A senha alterada <!--c:');
@@ -2130,7 +2128,8 @@ test.describe.serial('Moki activities', () => {
     await expect(actPage.getByRole('heading', { name: 'Revisar e desenhar', level: 1 })).toBeVisible();
     expect(readFileSync(join(library, 'revisar-e-desenhar.md'), 'utf8')).toContain('uses: skill:requirements-review, skill:test-design');
     await actPage.getByRole('button', { name: 'Voltar para Atividades' }).click();
-    await actPage.locator('.activity-item .list-card', { hasText: 'Revisar e desenhar' }).click();
+    // Exactly this name: Moki also has a "Revisar e desenhar testes" activity.
+    await actPage.locator('.activity-item .list-card', { has: actPage.getByText('Revisar e desenhar', { exact: true }) }).click();
     for (const name of ['Revisão de histórias', 'Desenho de testes']) await expect(skills.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
     const request = await actPage.evaluate(async () => {
       if (!window.qa) throw new Error('Moki bridge is missing');
@@ -2620,6 +2619,7 @@ test.describe.serial('Moki tree rename', () => {
   test('what keeps its name shows Rename disabled, with the reason under it; F2 there says why', async () => {
     mkdirSync(join(project, 'runs', 'op-demo', 'outputs'), { recursive: true });
     writeFileSync(join(project, 'runs', 'op-demo', 'outputs', 'revisao.md'), '# revisao');
+    writeFileSync(join(project, 'runs', 'op-demo', 'state.json'), JSON.stringify({ id: 'op-demo', status: 'completed', skill: 'project-context', artifacts: ['workspace/projects/acme/runs/op-demo/outputs/revisao.md'] }));
     await rp.getByRole('button', { name: 'Atualizar' }).first().click();
     const cases: [string, string][] = [
       ['context', 'As pastas fixas do projeto mantêm o nome.'],
@@ -2633,10 +2633,8 @@ test.describe.serial('Moki tree rename', () => {
       await rp.getByRole('menuitem', { name: 'Mostrar na pasta' }).press('Escape');
       await expect(rp.getByRole('menu')).toBeHidden();
     }
-    // A file of an activity: its name is how the activity finds it.
-    await expand('runs', 'runs/op-demo');
-    await expand('runs/op-demo', 'runs/op-demo/outputs');
-    await expand('runs/op-demo/outputs', 'runs/op-demo/outputs/revisao.md');
+    // A file an activity delivered (Deliveries lists it directly): its name is how the activity finds it.
+    await expand('runs', 'runs/op-demo/outputs/revisao.md');
     await row('runs/op-demo/outputs/revisao.md').click({ button: 'right' });
     await expect(rp.getByRole('menuitem', { name: /^Renomear/ })).toBeDisabled();
     await expect(rp.locator('.menu-why')).toHaveText('A atividade usa esses nomes para continuar e conferir o que entregou.');
@@ -2889,8 +2887,13 @@ test.describe.serial('Moki comments in the editor', () => {
     await dragOver('Segundo parágrafo', 10, 60, 'Terceiro parágrafo');
     const bubble = ep.getByRole('toolbar', { name: 'Seleção' });
     await expect(bubble.getByRole('button', { name: 'Comentar' })).toBeEnabled();
-    await expect(bubble.getByRole('button', { name: 'Marcar', exact: true })).toBeEnabled();
     await expect(bubble).not.toContainText('parágrafo para comentar');
+    // Marking is apart from commenting: not in the bubble, but in the right-click menu of the selection.
+    await expect(bubble.getByRole('button', { name: 'Marcar', exact: true })).toHaveCount(0);
+    await body().locator('p', { hasText: 'Terceiro parágrafo' }).click({ button: 'right' });
+    await expect(ep.getByRole('menu', { name: 'Marcar com' })).toBeVisible();
+    await ep.keyboard.press('Escape');
+    await expect(ep.getByRole('menu', { name: 'Marcar com' })).toHaveCount(0);
     await ep.keyboard.press('Escape');
     await expect(bubble).toBeHidden();
   });
@@ -3636,7 +3639,7 @@ test('routine settings: intuitive navigation, complete schedules and responsive 
     await view.getByRole('button', { name: 'Configurações', exact: true }).click();
     const nav = view.getByRole('tablist', { name: 'Configurações', exact: true });
     await expect(nav).toHaveAttribute('aria-orientation', 'vertical');
-    await expect(nav.getByRole('tab')).toHaveCount(9);
+    await expect(nav.getByRole('tab')).toHaveCount(10); // Markers is a tab too
     await nav.getByRole('tab', { name: 'Agentes', exact: true }).focus();
     await view.keyboard.press('End');
     await expect(nav.getByRole('tab', { name: 'Temas', exact: true })).toBeFocused();

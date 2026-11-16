@@ -186,7 +186,9 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     const frame = view.frameLocator('iframe[title="inbox/index.html"]');
     await expect(frame.locator('#module')).toHaveText('Modules and fetch work');
     await expect(frame.locator('h1')).toHaveCSS('color', 'rgb(12, 34, 56)');
-    await frame.getByRole('button', { name: 'Count 0' }).click(); await expect(frame.locator('#counter')).toHaveText('Count 1');
+    // The page's own script answers a click. Dispatched in the page: the preview is a separate process, and a window that is
+    // never shown (the tests) has no hit-test data to route the mouse into it (on screen the click works).
+    await frame.getByRole('button', { name: 'Count 0' }).dispatchEvent('click'); await expect(frame.locator('#counter')).toHaveText('Count 1');
     const child = view.frames().find(frame => frame.url().startsWith('moki-preview:'))!;
     expect(await child.evaluate(() => ({ bridge: typeof (window as unknown as { qa?: unknown }).qa, node: typeof (globalThis as unknown as { require?: unknown }).require, parent: (() => { try { return Boolean(parent.document); } catch { return false; } })() }))).toEqual({ bridge: 'undefined', node: 'undefined', parent: false });
     const reload = view.getByRole('button', { name: 'Reload preview' });
