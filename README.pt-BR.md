@@ -6,99 +6,113 @@
 
 <p align="center">
   <a href="https://github.com/Orsi88/moki/releases/latest"><b>⬇️ Baixar o Moki para Windows</b></a>
-  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe">Moki.Setup.0.5.7.exe</a>
+  &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
 
-O Moki é um app local para a ferramenta de IA que você já usa. Ele guarda um projeto no seu computador — arquivos, conhecimento confirmado, skills e o registro de cada atividade — e abre o Claude Code, o Cursor, o Codex, o Gemini ou um chat com o pedido pronto.
+O Moki é um espaço de trabalho local para trabalhar com IA. Ele transforma uma pasta em um projeto vivo, com contexto, arquivos, notas, atividades reutilizáveis, skills, agentes, ferramentas externas e o registro do que foi entregue.
 
-Quem faz o trabalho é a sua ferramenta de IA. O Moki prepara o pedido e guarda os arquivos. Não há conta nem servidor.
+Você escolhe o trabalho e a ferramenta de IA. O Moki prepara o pedido, mantém o projeto organizado e permite continuar depois — até em outra ferramenta. Não há conta do Moki, servidor do Moki nem dependência de uma plataforma.
 
-Começou como trabalho de qualidade de software: revisar uma história, projetar testes, olhar uma falha, montar evidências. Isso continua no app. Um projeto também pode ser uma pasta que você já tem, um projeto em branco que a IA planeja com você, ou skills e agentes que você mesmo adiciona.
+Ele trabalha com a IA que você já usa: Claude Code, Codex, Gemini, Cursor, Antigravity, Copilot Chat ou um chat da web.
 
----
+## O que o Moki oferece
 
-## Instalar
+### Projetos e contexto
 
-1. Baixe o [Moki.Setup.0.5.7.exe](https://github.com/Orsi88/moki/releases/download/v0.5.7/Moki.Setup.0.5.7.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/moki/releases)).
-2. Se o Windows disser que protegeu o computador, escolha **Mais informações → Executar assim mesmo**. O instalador ainda não tem assinatura digital.
-3. Instale também uma ferramenta de IA (Claude Code, Cursor, Codex, Gemini, ou um chat que você já usa).
+- Organize vários projetos dentro de workspaces independentes.
+- Mantenha juntos o contexto confirmado, os arquivos da entrada, as notas, os temporários e os resultados entregues.
+- Vincule uma pasta existente sem copiá-la.
+- Use tags para compartilhar contexto selecionado entre projetos, mantendo o isolamento.
+- Retome o trabalho a partir dos arquivos e do estado registrados em cada execução.
 
-Para o VS Code, baixe o [moki-0.5.7.vsix](https://github.com/Orsi88/moki/releases/download/v0.5.7/moki-0.5.7.vsix) e rode `code --install-extension moki-0.5.7.vsix`: [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE).
+### Notas e assistentes rápidos
 
-Os seus projetos ficam em **Documentos\Moki**, e um instalador mais novo nunca mexe neles. macOS, Linux e rodar a partir do código: [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
+As notas são um lugar próprio para pensar, planejar e reunir material antes que ele vire uma entrega.
 
-## Primeiros passos
+- Crie notas avulsas ou notas dentro de um projeto; elas salvam sozinhas.
+- Escreva Markdown formatado, use comandos `/`, cite arquivos do projeto com `@` e cole imagens.
+- Abra notas numa janela própria de bloco de notas, marque favoritas e compartilhe notas de projeto por tags.
+- Envie uma nota para um terminal de IA como contexto, exporte como PDF, Markdown ou texto, ou crie uma nota a partir de um trecho selecionado num PDF.
+- Use assistentes de um clique para melhorar a escrita, resumir, pesquisar ou revisar criticamente uma nota.
+- Revise a sugestão antes de aceitá-la: nada muda até você aprovar.
 
-1. Abra o Moki e escolha um **workspace** (uma pasta de projetos, como um cofre do Obsidian).
-2. Crie um **projeto** (só com o nome, ou personalizado com tags e configuração) ou abra como projeto uma pasta que você já tem.
-3. Solte as histórias, os logs ou os documentos sobre a janela: eles vão para a entrada (inbox) do projeto.
-4. Aperte o **play**, escolha a atividade e a sua ferramenta de IA. O pedido abre lá, pronto.
-5. Converse com a IA como de costume. Cada atividade registra onde parou, então dá para voltar depois, na mesma ferramenta ou em outra.
+Veja [Notas e assistentes rápidos](https://github.com/Orsi88/moki/wiki/Notas-e-assistentes-rápidos).
 
-## O que ele faz
+### Trabalho com IA, atividades e operações
 
-| Atividade | O que você recebe |
-|---|---|
-| [Revisar histórias](skills/requirements-review/SKILL.md) | Ambiguidades, lacunas, uma pergunta por vez, uma matriz de revisão (Excel) e um relatório final de definições (PDF) |
-| [Projetar testes](skills/test-design/SKILL.md) | Mapa de cenários e, depois do seu OK, casos de teste manuais em Excel |
-| [Pré-análise de falha](skills/failure-analysis/SKILL.md) | Uma nota curta para o time de desenvolvimento, a partir da sua descrição e do log |
-| [Montar evidências](skills/qa-orchestrator/references/workflows/test-evidence.md) | O item de trabalho e as gravações do Jam, depois uma planilha e um documento Word com os prints |
-| [Contexto do projeto](skills/project-context/SKILL.md) | Onboarding, atualizações e o plano de um projeto em branco |
-| [Especialistas de engenharia](docs/pt-BR/engineering-specialists.md) | Cartógrafo para dados, Inventor para soluções, Artesão para protótipos funcionais de interface e Sentinela para avaliação/validação de APIs |
+O Moki transforma instruções reutilizáveis em trabalhos que você pode iniciar pelo app, por um terminal ou pela IDE:
 
-Os agentes encadeiam essas atividades em **operações multiagente**, os servidores MCP dão à IA as suas ferramentas (Playwright, Azure DevOps, Jira…) e a **extensão do VS Code** leva o contexto do projeto para a IA do seu editor.
+- **Atividades** são pedidos prontos com seus arquivos, contexto e instruções.
+- **Skills** são procedimentos com regras, entregas e pontos de aprovação.
+- **Agentes** são papéis que combinam instruções e skills.
+- **Operações** encadeiam vários agentes, cada um no próprio terminal, passando o trabalho para a próxima etapa.
+- **Execuções** registram o que aconteceu, onde o trabalho parou e quais arquivos foram entregues.
+- Etapas importantes esperam sua aprovação em vez de alterar o projeto ou publicar algo silenciosamente.
 
-## Novo na 0.5.7
+Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias atividades, skills e agentes.
 
-- **Rotinas do Azure DevOps.** Queries hierárquicas salvas agora têm o envelope MCP interpretado, acompanham cada item sem repetições e comparam campos e revisão. A primeira leitura bem-sucedida cria a referência inicial. Lotes incompletos e consultas que atingem o limite param sem substituir essa referência.
-- **Controles das notificações.** Feche um aviso ou limpe o sino. O painel cabe acima da barra de status e permite rolagem; abrir ou fechar uma notificação nunca aprova uma proposta.
-- **Configuração direta e guias.** Configure o workspace nas Configurações; a configuração em linguagem natural continua pelo agente `configurador` num terminal. Veja os novos [passos para conectar MCP](docs/pt-BR/mcp-servers.md#conectar-um-servidor-passo-a-passo) e o [guia de rotinas](docs/pt-BR/routines.md), também disponíveis em inglês.
+### Documentos, PDFs e diagramas
 
-## Novo na 0.5.6
+O Moki também é um espaço para ler, editar e revisar o material com que a IA trabalha:
 
-- **Desenhos e diagramas.** Um arquivo `.excalidraw` abre para ver; o lápis na barra do arquivo mostra as ferramentas, e o fundo acompanha o tema do documento. Um diagrama ou desenho dentro de uma nota pode ser redimensionado, e o lápis abre o editor. Segure Ctrl e role para dar zoom. A faixa de comentários que você minimiza continua minimizada quando você volta naquele arquivo.
-- **Notas no projeto.** As notas do projeto têm uma seção própria no fim da barra lateral, na mesma lista das notas avulsas do workspace.
-- **A IDE vê todas as pastas.** O contexto vem primeiro, depois notas, entrada, execuções, temporários e o resto. Uma descrição que já está no card não se repete num balão. O menu de workspaces usa a mesma borda dourada suave do painel de notificações.
+- Abra e edite Markdown e texto, visualize HTML e trabalhe com Word, Excel, PDF e imagens.
+- Leia PDFs, selecione trechos, crie notas, faça comentários e edições de página com o PdfCraft.
+- Comente Markdown, HTML, Word, Excel, PDFs e diagramas, com comentários presos ao trecho ou à região relevante.
+- Abra, examine, amplie, mova, exporte e comente diagramas Mermaid, PlantUML, D2 e Graphviz.
+- Crie e edite desenhos e diagramas Excalidraw dentro de documentos e notas.
+- Leia arquivos de código com as cores do seu editor, comente linhas, prenda notas a elas e abra o arquivo na sua IDE com um clique.
+- Marque trechos, blocos ou áreas com os seus próprios marcadores (um ícone, um nome e o que ele significa) pelo botão direito — em Markdown, código, PDFs e páginas HTML. A IA lê o que cada marcador significa.
 
-## Novo na 0.5.5
+### Rotinas, notificações e integrações
 
-- **O Codex lê o projeto.** A sessão abre por conta própria, então os servidores MCP do projeto chegam, inclusive o do Moki. O Moki devolve o texto de um PDF. `context/` fica na frente quando discorda de outra pasta; as outras pastas do projeto continuam disponíveis.
+- Agende verificações somente de leitura em arquivos, pastas ou fontes MCP.
+- Veja o que é novo, mudou ou sumiu, com uma referência que só é substituída por uma verificação completa bem-sucedida.
+- Receba o resultado como notificação, compare a versão antiga e a nova num relatório e inicie dali a atividade de atualização quando estiver pronto.
+- Conecte ferramentas do projeto por MCP, incluindo navegadores, trackers e outros serviços externos.
+- Use o mesmo contexto, agentes, skills e servidores MCP no VS Code ou no Cursor pelo Moki na IDE.
 
-## Novo na 0.5.4
+### Fluxos para vários tipos de trabalho
 
-- **Rotinas e notificações.** Agende uma verificação no projeto: uma consulta só de leitura num MCP, arquivos do projeto ou uma pasta. O Moki avisa o que é novo, o que mudou ou o que sumiu e deixa uma proposta esperando a sua aprovação. O sino mostra isso.
-- **Revisão de diagramas.** Abra `.mmd`, `.puml`, `.d2` e `.dot` com zoom, arrastar, ajuste, exportação e comentários numa região. O Mermaid desenha sem internet. PlantUML, D2 e Graphviz usam um servidor Kroki só quando você configura um.
-- **Os mesmos comentários no Word, no Excel e no HTML.** Eles usam a coluna de comentários que o PDF e o Markdown já usam. Clique no comentário para ir ao trecho.
-- **Codex, Gemini e Antigravity recebem o projeto.** A sessão leva os servidores MCP, as skills e os agentes do projeto, como o Claude já levava. Blocos de código ganham cor pela linguagem, e uma nota enviada a um projeto sai das notas avulsas.
-- **Modelos e Configurador.** Envie um arquivo-base (`.docx`, `.xlsx`, `.md`, `.pdf`) para a IA seguir a estrutura. O Configurador prepara o Moki a partir do que você escreve e aplica só o plano que você aprova.
+O Moki inclui fluxos prontos para qualidade de software, requisitos, pesquisa, documentação, engenharia, APIs, dados, interfaces e evidências. QA é uma parte da biblioteca — o modelo de projetos, as notas, a orquestração de IA, o espaço de documentos e as integrações servem para muito mais.
+
+## Como funciona
+
+1. Escolha ou crie um **workspace**.
+2. Crie um **projeto** ou abra uma pasta existente como projeto.
+3. Adicione arquivos, notas e contexto confirmado.
+4. Escolha **Chamar…**, uma atividade, agente, skill ou operação, e depois a ferramenta de IA.
+5. Revise o resultado, aprove as etapas importantes e continue quando quiser.
+
+## Instalação
+
+1. Baixe o instalador do Windows na [release mais recente](https://github.com/Orsi88/moki/releases/latest).
+2. Instale pelo menos uma ferramenta de IA que você queira usar.
+3. Para o VS Code, baixe o arquivo `.vsix` na [release mais recente](https://github.com/Orsi88/moki/releases/latest) e instale com `code --install-extension <arquivo-baixado>.vsix`.
+
+Por padrão, seus projetos ficam em **Documentos\Moki**. Um instalador mais novo atualiza o app sem mexer nos seus workspaces. Para macOS, Linux e execução a partir do código, veja [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
 ## Documentação
 
 A documentação completa está na [wiki](https://github.com/Orsi88/moki/wiki):
 
-| Guia | O que tem |
+| Guia | O que cobre |
 |---|---|
-| [O que é o Moki](https://github.com/Orsi88/moki/wiki/O-que-é-o-Moki) | A ideia, as palavras que você vai ver, como o Moki se comporta |
-| [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos) | Instalação, workspaces, projetos, rodar a partir do código |
-| [Tour pela tela](https://github.com/Orsi88/moki/wiki/Tour-pela-tela) | Cada parte da janela, explicada |
-| [Projetos e workspaces](https://github.com/Orsi88/moki/wiki/Projetos-e-workspaces) | Contexto, tags, compartilhamento, voltar depois, onde fica cada coisa |
-| [Notas e assistentes rápidos](https://github.com/Orsi88/moki/wiki/Notas-e-assistentes-rápidos) | As notas, e como melhorá-las com a IA num clique |
-| [Chamar atividades, agentes e skills](https://github.com/Orsi88/moki/wiki/Chamar-atividades,-agentes-e-skills) | Tudo o que o **Chamar…** faz, e as atividades que vêm com o Moki |
-| [Execuções e entregas](https://github.com/Orsi88/moki/wiki/Execuções-e-entregas) | O que a IA entrega, e o Hudson, que organiza |
-| [Skills de QA e agentes](https://github.com/Orsi88/moki/wiki/Skills-de-QA-e-agentes) | As atividades, o estado de cada uma, as suas próprias skills |
-| [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE) | A extensão do VS Code: instalar, configurar, todos os caminhos de uso |
-| [Problemas comuns](https://github.com/Orsi88/moki/wiki/Problemas-comuns) | Problemas comuns e o que fazer |
-| [Créditos e licenças](https://github.com/Orsi88/moki/wiki/Créditos-e-licenças) | Os projetos de código aberto com que o Moki é feito — obrigado |
-| [Agents and operations](https://github.com/Orsi88/moki/wiki/Agents-and-operations) (em inglês) | Agentes, contratos e operações multiagente |
-| [Servidores MCP](https://github.com/Orsi88/moki/wiki/Servidores-MCP) | Conectar, testar, escolher os projetos e disponibilizar ferramentas à IA |
-| [Rotinas e notificações](https://github.com/Orsi88/moki/wiki/Rotinas-e-notificações) | Conectar a fonte, agendar a verificação, entender a referência inicial e revisar mudanças |
-
-A wiki é publicada a partir de [docs/](docs/), onde a documentação é editada.
+| [O que é o Moki](https://github.com/Orsi88/moki/wiki/O-que-é-o-Moki) | O modelo, o vocabulário e o comportamento do Moki |
+| [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos) | Instalação, workspaces e primeiro projeto |
+| [Projetos e workspaces](https://github.com/Orsi88/moki/wiki/Projetos-e-workspaces) | Contexto, tags, pastas vinculadas e isolamento |
+| [Notas e assistentes rápidos](https://github.com/Orsi88/moki/wiki/Notas-e-assistentes-rápidos) | Notas, bloco de notas, exportações e assistentes de IA |
+| [Arquivos e editor](https://github.com/Orsi88/moki/wiki/Arquivos-e-editor) | Documentos, prévias, comentários, PDFs e diagramas |
+| [Chamar atividades, agentes e skills](https://github.com/Orsi88/moki/wiki/Chamar-atividades,-agentes-e-skills) | Pedidos reutilizáveis e como iniciá-los |
+| [Execuções e entregas](https://github.com/Orsi88/moki/wiki/Execuções-e-entregas) | Estado, resultados e continuidade |
+| [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE) | VS Code, Cursor e IA com contexto do projeto |
+| [Servidores MCP](https://github.com/Orsi88/moki/wiki/Servidores-MCP) | Ferramentas externas disponíveis para cada projeto |
+| [Rotinas e notificações](https://github.com/Orsi88/moki/wiki/Rotinas-e-notificações) | Verificações agendadas, referências e propostas |
+| [Fluxos especializados](https://github.com/Orsi88/moki/wiki/Skills-de-QA-e-agentes) | Fluxos prontos de QA, pesquisa, documentação e engenharia |
 
 ## Privacidade
 
-Os projetos ficam no seu computador e nunca fazem parte deste repositório. A IA lê o projeto ativo e, de outros projetos, só os arquivos compartilhados que o pedido lista por causa das tags que você definiu. Senhas e tokens não entram em arquivo nenhum: cite o nome de uma variável de ambiente. Detalhes: [Privacy and isolation](https://github.com/Orsi88/moki/wiki/Privacy-and-isolation) (em inglês).
+Os projetos ficam no seu computador e nunca fazem parte deste repositório. A IA lê o projeto ativo e somente os arquivos compartilhados que você libera por tags. O Moki não guarda seu projeto num serviço de nuvem.
 
 ## Contribuir
 
@@ -109,7 +123,7 @@ npm run setup
 npm run qa
 ```
 
-Antes de um commit: `npm run build`, `npm run typecheck`, `npm run check` e `npm test`. Mudanças na documentação vão em `docs/` (a wiki é gerada a partir dela); mantenha `README.md` e `README.pt-BR.md` juntos. Mais: [Contributing](https://github.com/Orsi88/moki/wiki/Contributing) (em inglês).
+Antes de um commit: `npm run build`, `npm run typecheck`, `npm run check` e `npm test`. As mudanças de documentação vão em [docs/](docs/), que é a fonte da wiki. Mantenha [README.md](README.md) e [README.pt-BR.md](README.pt-BR.md) juntos. Mais: [Contribuir](https://github.com/Orsi88/moki/wiki/Contributing).
 
 ## Licença
 

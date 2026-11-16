@@ -18,7 +18,7 @@
       { "file": "routines.md", "page": "Routines and notifications", "pt": { "file": "pt-BR/routines.md", "page": "Rotinas e notificações" } },
       { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } }
     ] },
-    { "title": "QA work", "titlePt": "Trabalho de QA", "pages": [
+    { "title": "Capabilities and workflows", "titlePt": "Capacidades e fluxos", "pages": [
       { "file": "qa-skills.md", "page": "QA skills and agents", "pt": { "file": "pt-BR/qa-skills.md", "page": "Skills de QA e agentes" } },
       { "file": "activities.md", "page": "Activities", "pt": { "file": "pt-BR/activities.md", "page": "Atividades" } },
       { "file": "agents.md", "page": "Agents and operations" },
