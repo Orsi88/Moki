@@ -6,7 +6,7 @@ From nothing to your first request to the AI, in about five minutes.
 
 ### Windows
 
-1. Download the Windows installer from the [latest release](https://github.com/Orsi88/moki/releases/latest).
+1. Download [Moki.Setup.0.6.0.exe](https://github.com/Orsi88/Moki/releases/download/v0.6.0/Moki.Setup.0.6.0.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
 2. If Windows says it protected your PC, choose **More info → Run anyway**. The installer is not digitally signed yet.
 3. Finish. A **Moki** shortcut appears on the desktop and in the Start menu.
 
