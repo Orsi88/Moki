@@ -137,6 +137,17 @@ export function relink(markdown: string, from: string, to: string, pathOf: (rel:
   });
 }
 
+// The project files a Markdown file at `from` points at with relative links (decoded, without the #fragment).
+export function linkedFiles(markdown: string, from: string): string[] {
+  return [...markdown.matchAll(/\]\(<?([^)\s>]+)/g)].flatMap(([, href]) => {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('#') || href.startsWith('/')) return [];
+    try {
+      const path = posix.normalize(posix.join(posix.dirname(from), decodeURIComponent(href.split('#')[0])));
+      return path.startsWith('..') ? [] : [path];
+    } catch { return []; }
+  });
+}
+
 // A run's state names its project and paths under it: they now name the target.
 function restate(file: string, source: MergeSide, target: MergeSide, from: string, to: string, pathOf: (rel: string) => string | null): void {
   let data: unknown;

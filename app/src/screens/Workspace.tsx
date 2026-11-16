@@ -27,7 +27,8 @@ import { TerminalView } from '../components/TerminalView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconBroom, IconChevron, IconCode, IconCopy, IconDownload, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconChevron, IconCode, IconCopy, IconDownload, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconMoveTo, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { MoveNoteDialog } from '../components/MoveNoteDialog';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
 import { AddButton } from '../components/AddButton';
@@ -202,6 +203,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const [craftOpen, setCraftOpen] = useState(false); // download of the ArtCraft apps
   // The tree item menu (right click or ⋯); path '' is the project folder. canCreate: a folder outside runs/.
   const [itemMenu, setItemMenu] = useState<{ path: string; canCreate: boolean; left: number; top: number } | null>(null);
+  const [movingNote, setMovingNote] = useState<string | null>(null); // a note being moved to another project (MoveNoteDialog)
   const [hudson, setHudson] = useState(false); // Hudson organizing the files the runs left (HudsonDialog)
   const [renaming, setRenaming] = useState<string | null>(null); // the tree item whose name is being typed over
   const [focusPath, setFocusPath] = useState<string | null>(null); // a renamed item: its row takes the focus when the tree shows it
@@ -1177,6 +1179,17 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <TabMenu at={tabMenu} groups={board.groups} current={board.tabs[tabMenu.key].group} onClose={() => setTabMenu(null)}
           onMove={(group) => apply((b) => moveToGroup(b, tabMenu.key, group))} onNewGroup={() => newGroupFor(tabMenu.key, tabMenu)} />
       )}
+      {movingNote && <MoveNoteDialog project={project.id} path={movingNote} title={noteTitles[movingNote] ?? friendlyName(movingNote.split('/').pop() ?? movingNote)} projects={noteProjects ?? []}
+        onClose={() => setMovingNote(null)}
+        onMoved={(target) => {
+          const path = movingNote;
+          setMovingNote(null);
+          loadTree();
+          setTabs((all) => all.filter((tab) => tab.path !== path));
+          setNote((n) => (n?.path === path ? null : n));
+          apply((b) => b.order.filter((k) => k === fileKey(path)).reduce(boardClose, b));
+          flash(t('Note moved to {name}.', { name: noteProjects?.find((p) => p.id === target)?.name ?? target }));
+        }} />}
       {hudson && <HudsonDialog project={project.id} onClose={() => setHudson(false)} onDone={() => { void loadTree(); }} onMyAis={() => { setHudson(false); onSettings('ai'); }} />}
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
@@ -1201,6 +1214,9 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
               <li><button type="button" role="menuitem" onClick={() => toggleFavorite(itemMenu.path)}>
                 <span className={`star-mark${favorites.has(itemMenu.path) ? '' : ' off'}`}><IconStar size={15} /></span> {favorites.has(itemMenu.path) ? t('Remove from favorites') : t('Add to favorites')}
               </button></li>
+              {(noteProjects ?? []).some((p) => p.id !== project.id) && <li><button type="button" role="menuitem" onClick={() => { const path = itemMenu.path; setItemMenu(null); setMovingNote(path); }}>
+                <IconMoveTo size={15} /> {t('Move to another project…')}
+              </button></li>}
               <li className="ws-menu-sep" />
             </>}
             {usableAsContext(itemMenu.path) && findFile(tree, itemMenu.path)?.type === 'file' && <>

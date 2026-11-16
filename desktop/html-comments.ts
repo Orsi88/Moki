@@ -187,3 +187,14 @@ export function importHtmlComments(from: string, directory: string, pathOf: (pat
   write(directory, entries);
   return dropped;
 }
+
+// A note leaving the project: the lines of code it was tied to let it go. Returns how many ties it had;
+// `apply` false only counts them.
+export function forgetCodeNote(directory: string, note: string, apply = true): number {
+  const entries = read(directory);
+  const count = entries.reduce((sum, e) => sum + (e.notes ?? []).filter((n) => n.note === note).length, 0);
+  if (!apply || !count) return count;
+  for (const entry of entries) if (entry.notes) entry.notes = entry.notes.filter((n) => n.note !== note);
+  write(directory, entries.filter((e) => e.comments.length || e.view || e.notes?.length));
+  return count;
+}

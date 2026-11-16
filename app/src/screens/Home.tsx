@@ -9,7 +9,8 @@ import { AddButton } from '../components/AddButton';
 import { SearchPanel } from '../components/SearchPanel';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
 import { MergeProjectDialog } from '../components/MergeProjectDialog';
-import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconMerge, IconOpenProject, IconPause, IconPin, IconPlay, IconStar, IconTrash, IconX } from '../components/Icons';
+import { MoveNoteDialog } from '../components/MoveNoteDialog';
+import { IconCheck, IconChevron, IconEdit, IconExternal, IconEye, IconEyeOff, IconFolder, IconMerge, IconMoveTo, IconOpenProject, IconPause, IconPin, IconPlay, IconStar, IconTrash, IconX } from '../components/Icons';
 import { NoteDialog } from '../components/NoteDialog';
 import { RenameField } from '../components/RenameField';
 import { favoriteLooseIds, favoriteNotes, forgetNote, forgetProject, hiddenIds, hideProject, looseNotes, type NoteRef, noteTitle, pinnedIds, recentNotes, removeLooseNote, retitleNote, setFavorite, showProject, togglePin } from '../side-menu';
@@ -72,6 +73,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
   const [hidden, setHidden] = useState<string[]>(hiddenIds);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   const [merging, setMerging] = useState<ProjectSummary | null>(null);
+  const [movingNote, setMovingNote] = useState<{ project: string; path: string; title: string } | null>(null);
   // Suspended projects: their folder is out of the workspace's project list until resumed (saves machine resources).
   const [suspended, setSuspended] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => { api.suspendedProjects().then(setSuspended).catch(() => setSuspended([])); }, [projects]);
@@ -364,6 +366,7 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
               notebookItem(refOf(f)),
               renameItem(`fav:${noteKey(refOf(f))}`),
               { label: t('Remove from favorites'), icon: <IconStar size={15} />, run: () => unstar(f) },
+              ...(f.kind === 'project' && projects.length > 1 ? [{ label: t('Move to another project…'), icon: <IconMoveTo size={15} />, run: () => setMovingNote({ project: f.project, path: f.path, title: f.title }) }] : []),
             ])}>
               {renaming === `fav:${noteKey(refOf(f))}` ? nameCell(`fav:${noteKey(refOf(f))}`, f.title, (title) => renameNote(refOf(f), title), noteMeta(f)) : (
                 <button type="button" className="home-project" data-rename-key={`fav:${noteKey(refOf(f))}`} onClick={() => setOpenNote(refOf(f))} onKeyDown={onF2(`fav:${noteKey(refOf(f))}`)}>
@@ -433,6 +436,7 @@ ${workspace.path}`}>
           </div>
         )}
       </aside>}
+      {movingNote && <MoveNoteDialog {...movingNote} projects={projects} onClose={() => setMovingNote(null)} onMoved={() => { setMovingNote(null); setNoteTick((n) => n + 1); }} />}
       {merging && <MergeProjectDialog project={merging} projects={projects} onClose={() => setMerging(null)}
         onMerged={(target) => { setMerging(null); setPins(pinnedIds()); setHidden(hiddenIds()); setNoteTick((n) => n + 1); onDeleted?.(); onOpen(target); }} />}
       {deleting && <DeleteProjectDialog project={deleting} onClose={() => setDeleting(null)} onDeleted={() => deleted(deleting.id)} />}

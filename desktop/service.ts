@@ -49,14 +49,14 @@ import { cleanPrompt, type LaunchResult } from './launcher.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
-import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment, codeNotes, addCodeNote, removeCodeNote } from './html-comments.ts';
+import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment, codeNotes, addCodeNote, removeCodeNote, forgetCodeNote } from './html-comments.ts';
 import { isCodeAnchor, isCodeCommentChange } from '../scripts/lib/code-comment-types.ts';
 import { isHtmlAnchor, isHtmlColor, isHtmlCommentChange } from '../scripts/lib/html-comments.ts';
 import { isDiagramAnchor, isDiagramCommentChange, isDiagramViewState, type DiagramKind } from '../scripts/lib/diagram-types.ts';
 import { DIAGRAM_SOURCE_LIMIT, diagramHash, diagramKind, readDiagramSettings, renderDiagramSource, verifyPngExport, verifySvgExport, writeDiagramSettings } from './diagrams.ts';
-import { movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
+import { forgetPdfNote, movePdfNotes, pdfNotes, remapPdfNotes, setPdfNotes, validPdfNote } from './pdf-notes.ts';
 import { noteTitles, setNoteTitle } from './note-titles.ts';
-import { mergeProjects, planMerge, type MergePlan, type MergeSide } from './project-merge.ts';
+import { linkedFiles, mergeProjects, planMerge, type MergePlan, type MergeSide } from './project-merge.ts';
 import { runOrigin, type RunOrigin } from './run-origin.ts';
 import { MCP_FILE, MOKI_SERVER, McpError, appliesTo, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mokiServer, removeServer, saveServer, serversForAgent, shareServers, syncCursorFolder, toolConfig, writeMerged, type GeneratedEntry, type McpServer } from '../scripts/lib/mcp.ts';
 import { probeServer, callTool, type ProbeResult } from './mcp-probe.ts';
@@ -268,6 +268,17 @@ export function createService(root: string, deps: Deps) {
     });
     if (sides[0].id === sides[1].id) throw new ServiceError('Choose another project to receive the files.');
     return [sides[0], sides[1]];
+  };
+  // A project note about to move to another project, checked.
+  const noteMove = (project: string, path: unknown, target: unknown) => {
+    const rel = String(path ?? '');
+    if (!/^notes\/[^/\\]+\.md$/.test(rel)) throw new ServiceError('Only notes can be moved to another project.');
+    const dir = projectDir(project), to = projectDir(target);
+    if (target === project) throw new ServiceError('Choose another project.');
+    const file = inside(dir, rel);
+    if (!existsSync(file) || !statSync(file).isFile()) throw new ServiceError('This note no longer exists.');
+    const links = new Set(linkedFiles(readFileSync(file, 'utf8'), rel).filter((p) => p !== rel && existsSync(join(dir, p)))).size;
+    return { rel, dir, to, file, links, target: target as string };
   };
   const projectDir = (id: unknown): string => {
     if (!isProject(id, root)) throw new ServiceError('Unknown project.');
@@ -1835,6 +1846,40 @@ export function createService(root: string, deps: Deps) {
       return out;
     },
 
+    // A project note moved to another project (its menu): the file goes to that project's notes/, numbered when the
+    // name is taken there, with its title and tags. Its ties to PDF pages and lines of code stay behind and are let go,
+    // and its links to this project's files no longer open: the plan counts both for the confirmation.
+    moveNotePlan: (project: string, path: unknown, target: unknown) => {
+      const m = noteMove(project, path, target);
+      return { pdf: failing(() => forgetPdfNote(m.dir, m.rel, false)), code: failing(() => forgetCodeNote(m.dir, m.rel, false)), links: m.links };
+    },
+    moveNote: async (project: string, path: unknown, target: unknown): Promise<string> => {
+      const m = noteMove(project, path, target);
+      const stem = m.rel.slice('notes/'.length, -'.md'.length);
+      let dest = m.rel;
+      for (let i = 2; existsSync(join(m.to, dest)); i++) dest = `notes/${stem}-${i}.md`;
+      const destFile = inside(m.to, dest);
+      const title = failing(() => noteTitles(m.dir)).find((item) => item.path === m.rel)?.title || (dest === m.rel ? '' : stem.replace(/-/g, ' '));
+      const tags = fileTags(project, root)[m.rel] ?? [];
+      mkdirSync(join(m.to, 'notes'), { recursive: true });
+      writeFileSync(destFile, readFileSync(m.file), { flag: 'wx' });
+      try {
+        if (title) setNoteTitle(m.to, dest, title);
+        if (tags.length) setFileTags(m.target, dest, tags, root);
+        await trash(m.file);
+      } catch (e) {
+        rmSync(destFile, { force: true });
+        try { setNoteTitle(m.to, dest, ''); setFileTags(m.target, dest, [], root); } catch { /* best effort: the copy is gone */ }
+        throw new ServiceError(e instanceof Error ? e.message : String(e));
+      }
+      failing(() => {
+        setNoteTitle(m.dir, m.rel, '');
+        if (tags.length) setFileTags(project, m.rel, [], root);
+        forgetPdfNote(m.dir, m.rel);
+        forgetCodeNote(m.dir, m.rel);
+      });
+      return dest;
+    },
     // A project note, deleted from the start screen: only files under notes/, moved to the trash.
     deleteNote: async (project: string, path: unknown) => {
       const rel = String(path ?? '');

@@ -94,6 +94,9 @@ export const IconPause = ({ size }: IconProps) => (
 export const IconMerge = ({ size }: IconProps) => (
   <svg {...base(size)}><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="12" r="2" /><path d="M6 7v10M6 9c0 3 3 3 6 3h4" /></svg>
 );
+export const IconMoveTo = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M4 12h12M12 7l5 5-5 5M20 5v14" /></svg>
+);
 export const IconStop = ({ size }: IconProps) => (
   <svg {...base(size)}><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
 );

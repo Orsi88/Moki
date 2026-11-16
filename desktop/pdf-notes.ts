@@ -76,6 +76,16 @@ export function importPdfNotes(from: string, dir: string, pathOf: (path: string)
   write(dir, entries);
 }
 
+// A note leaving the project: the PDF pages it was tied to let it go. Returns how many associations it had;
+// `apply` false only counts them (the confirmation that comes first).
+export function forgetPdfNote(dir: string, note: string, apply = true): number {
+  const entries = read(dir);
+  const ties = (n: PdfNote) => 'path' in n.note && n.note.path === note;
+  const count = entries.reduce((sum, e) => sum + e.notes.filter(ties).length, 0);
+  if (apply && count) write(dir, entries.map((e) => ({ ...e, notes: e.notes.filter((n) => !ties(n)) })).filter((e) => e.notes.length));
+  return count;
+}
+
 // Associations follow their page through edits made in Moki. If its page is
 // deleted, keep the note after the previous surviving page (0 = before page 1).
 export function remapPdfNotes(notes: PdfNote[], change: PdfChange): PdfNote[] {

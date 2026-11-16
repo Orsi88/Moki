@@ -2438,5 +2438,18 @@
   "1 takes another name, because {name} already uses it": "1 recibe otro nombre, porque {name} ya lo usa",
   "1 context file stays beside the one of {name}, to consolidate later (listed in proposed-updates.md)": "1 archivo de contexto queda junto al de {name}, para consolidar después (listado en proposed-updates.md)",
   "1 file is already there as it is and is not copied.": "1 archivo ya está allí igual y no se copia.",
-  "1 comment on a file of the linked folder stays behind: {name} does not use the same folder.": "1 comentario en un archivo de la carpeta vinculada no se lleva: {name} no usa la misma carpeta."
+  "1 comment on a file of the linked folder stays behind: {name} does not use the same folder.": "1 comentario en un archivo de la carpeta vinculada no se lleva: {name} no usa la misma carpeta.",
+  "Move \"{title}\" to another project": "Mover \"{title}\" a otro proyecto",
+  "The note goes with its title, tags and star, and leaves this project.": "La nota se lleva su título, etiquetas y estrella, y sale de este proyecto.",
+  "Stays behind: {what}.": "Se queda: {what}.",
+  "its place in 1 PDF page": "su lugar en 1 página de PDF",
+  "its place in {n} PDF pages": "su lugar en {n} páginas de PDF",
+  "its tie to 1 passage of code": "su vínculo con 1 fragmento de código",
+  "its ties to {n} passages of code": "sus vínculos con {n} fragmentos de código",
+  "1 link to a file of this project will no longer open.": "1 enlace a un archivo de este proyecto dejará de abrirse.",
+  "{n} links to files of this project will no longer open.": "{n} enlaces a archivos de este proyecto dejarán de abrirse.",
+  "Moving…": "Moviendo…",
+  "Move": "Mover",
+  "Move to another project…": "Mover a otro proyecto…",
+  "Note moved to {name}.": "Nota movida a {name}."
 }

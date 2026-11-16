@@ -16,6 +16,7 @@ A note opens in the main area. The ↗ button opens it in the **notebook**, a wi
 
 - **The title** is in the header. **Double-click it** (or right-click) to rename the note; Enter keeps the new name.
 - **Send to a project** — a loose note has, at the right of its header, the project to send it to. Once sent, it leaves Loose notes and lives in that project's `notes/` folder.
+- **Move to another project** — right-click a project note (in the tree, or in Favorites on the start screen) › *Move to another project…*. It goes with its title, tags and star; if the other project already has a note with that file name, it gets a number. Its places in PDF pages and its ties to lines of code stay behind, and links to files of the project it left no longer open: the dialog says how many before you move it.
 - **Type `/`** for the commands menu, **`@`** to mention a file of the project, and **paste or drop images** right into the note.
 - **Ctrl+E** shows the Markdown source; the eye button brings back the formatted note.
 - The ☆ makes it a favorite; tags (in a project note) share it with other projects.

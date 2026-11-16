@@ -96,6 +96,16 @@ export const mergeProjectInto = (from: string, to: string, moved: { from: string
   remember(HIDDEN_KEY(), JSON.stringify(hiddenIds().filter((x) => x !== from)));
 };
 
+// A note moved to another project: where the app remembers it (recent notes and files, the star), it is there now.
+export const moveNoteRef = (from: string, path: string, to: string, next: string): void => {
+  const move = <T extends { project: string; path: string }>(list: T[]): T[] => list
+    .map((item) => (item.project === from && item.path === path ? { ...item, project: to, path: next } : item))
+    .filter((item, i, all) => all.findIndex((x) => x.project === item.project && x.path === item.path) === i);
+  remember(RECENT_FILES + scope, JSON.stringify(move(recentFiles())));
+  remember(NOTES_KEY(), JSON.stringify(move(recentNotes())));
+  remember(FAVORITES_KEY(), JSON.stringify(move(favoriteNotes())));
+};
+
 export const noteTitle =(path: string): string => (path.split('/').pop() ?? path).replace(/\.md$/, '').replace(/-/g, ' ');
 
 export const looseNotes = (): LooseNote[] => readList(LOOSE).flatMap((item) => {
