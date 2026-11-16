@@ -264,11 +264,23 @@ export function useBubbleLife(bubble: Bubble | null, close: () => void, inside: 
 // Above the selection (below it at the very top); mousedown would clear the selection before the click.
 // "Mark" opens the same box in marker mode (a marker, the comment optional): every editor's box, with no change to it.
 let nextMode: 'comment' | 'marker' = 'comment';
-export function SelectionBubble({ bubble, onComment }: { bubble: Bubble; onComment: () => void }) {
+export type SelectionFormat = 'bold' | 'italic' | 'strike' | 'code' | 'link';
+const FORMATS: { name: SelectionFormat; label: string; face: ReactNode }[] = [
+  { name: 'bold', label: 'Bold', face: <b>B</b> },
+  { name: 'italic', label: 'Italic', face: <i>I</i> },
+  { name: 'strike', label: 'Strikethrough', face: <s>S</s> },
+  { name: 'code', label: 'Inline code', face: <code>{'</>'}</code> },
+  { name: 'link', label: 'Link', face: <span aria-hidden="true">🔗</span> },
+];
+// format: where the selection is in an editor (a .md file), the bubble also formats it, before the comment.
+export function SelectionBubble({ bubble, onComment, format }: { bubble: Bubble; onComment: () => void; format?: { run: (name: SelectionFormat) => void; on: (name: SelectionFormat) => boolean } }) {
   const below = bubble.y < 44;
   return (
     <div className={`md-select-bubble${below ? ' below' : ''}`} role="toolbar" aria-label={t('Selection')}
       style={{ left: bubble.x, top: below ? bubble.below + 6 : bubble.y - 6 }} onMouseDown={(e) => e.preventDefault()}>
+      {format && <div className="md-select-format" role="group" aria-label={t('Format')}>
+        {FORMATS.map(({ name, label, face }) => { const on = format.on(name); return <button key={name} type="button" className={on ? 'on' : ''} aria-pressed={on} title={t(label)} aria-label={t(label)} onClick={() => format.run(name)}>{face}</button>; })}
+      </div>}
       <button type="button" disabled={Boolean(bubble.why)} aria-describedby={bubble.why ? 'md-select-why' : undefined} onClick={onComment}>
         <IconChat size={15} /> {t('Comment on it')}
       </button>

@@ -48,6 +48,7 @@ export interface EditorSelection { from: number; to: number; rect: { left: numbe
 
 export interface TipTapHandle {
   addImages: (files: File[]) => void; codeBlock: () => void; command: (name: TipTapCommand) => void;
+  isActive: (name: 'bold' | 'italic' | 'strike' | 'code' | 'link') => boolean; // the selection already has this format
   // Comments (CommentedEditor). The comment list is the file's, not the document's: a change to it is a new
   // file text the editor adopts as it is (adopt); a mark set or removed goes through the document.
   fileText: () => string; // the file's text now, typing included
@@ -550,6 +551,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
     addImages: (files) => { if (editorRef.current) void insertImages(editorRef.current, files.filter((f) => f.type.startsWith('image/'))); },
     codeBlock: () => { editorRef.current?.chain().focus().toggleCodeBlock().run(); },
     command: (name) => { if (editorRef.current) applyCommand(editorRef.current, name); },
+    isActive: (name) => editorRef.current?.isActive(name) ?? false,
     fileText: () => { typing.cancel(); sendRef.current(); return seen.current; },
     adopt: (next) => {
       const read = readComments(next);

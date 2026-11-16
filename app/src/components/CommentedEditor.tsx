@@ -127,7 +127,8 @@ export function CommentedEditor({ text, path, onChange, onCommit, hidden = false
       <LazyTipTap ref={editor} text={text} path={path} onChange={onChange} onLink={onLink} />
       <CommentColumn comments={comments} placed={placed} rail={rail} shown={shown} hidden={hidden} onShow={onShow}
         active={active} onActive={setActive} saving={saving} actions={actions} />
-      {bubble && <SelectionBubble bubble={bubble} onComment={openComposer} />}
+      {bubble && <SelectionBubble bubble={bubble} onComment={openComposer}
+        format={{ run: (name) => { editor.current?.command(name); requestAnimationFrame(selected); }, on: (name) => editor.current?.isActive(name) ?? false }} />}
       {marking && <MarkerContextMenu markers={markers} left={marking.left} top={marking.top} onPick={markWith} onClose={() => setMarking(null)} />}
       {composer && <CommentComposer x={composer.x} y={composer.y} saving={saving} color={color} onColor={setColor} onAdd={add} onCancel={() => setComposer(null)} />}
     </div>

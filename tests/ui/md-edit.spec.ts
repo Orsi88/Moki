@@ -38,6 +38,7 @@ test.beforeAll(async () => {
   const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
   writeFileSync(file, `${JSON.stringify({ ...data, project: 'acme', name: 'Acme Library' }, null, 2)}\n`);
   writeFileSync(join(project, 'inbox', 'report.md'), REPORT);
+  writeFileSync(join(project, 'inbox', 'format.md'), ['# Formato', '', 'Uma frase simples aqui.', '', 'Outra linha comum.', ''].join('\n'));
   writeFileSync(join(project, 'inbox', 'large.md'), `# Grande\n\n${'Linha de log com bastante texto para ocupar espaço.\n'.repeat(22_000)}`);
 
   app = await launchMoki({ QA_ROOT: root, QA_USER_DATA: userData, QA_OPEN_PROJECT: 'acme' });
@@ -141,4 +142,39 @@ test('a file changed outside Moki while it was being edited shows the conflict n
   await shots('md-conflict');
   await notice.getByRole('button', { name: 'Ver a versão nova' }).click();
   await expect(source).toHaveValue('Escrito pela IA.\n');
+});
+
+// A mouse selection of these words in the open editor.
+async function dragOver(words: string) {
+  const at = await page.evaluate((text) => {
+    const walker = document.createTreeWalker(document.querySelector('.tiptap-body')!, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const i = node.textContent!.indexOf(text);
+      if (i < 0) continue;
+      const range = document.createRange(); range.setStart(node, i); range.setEnd(node, i + text.length);
+      const box = range.getBoundingClientRect();
+      return { x: box.left, y: box.top + box.height / 2, width: box.width };
+    }
+    return null;
+  }, words);
+  if (!at) throw new Error(`"${words}" is not on screen`);
+  await page.mouse.move(at.x + 1, at.y); await page.mouse.down();
+  await page.mouse.move(at.x + at.width - 1, at.y, { steps: 6 }); await page.mouse.up();
+}
+
+test('selected text is formatted from the selection bubble, next to Comment', async () => {
+  await page.locator('.tree-row[title="inbox/format.md"]').click();
+  await expect(page.locator('.tiptap-body')).toContainText('Uma frase simples aqui.');
+  await dragOver('frase simples');
+  const bubble = page.getByRole('toolbar', { name: 'Seleção' });
+  const formats = bubble.getByRole('group', { name: 'Formatação' });
+  await expect(formats.getByRole('button')).toHaveCount(5);
+  await expect(bubble.getByRole('button', { name: /Comentar/ })).toBeVisible();
+  await shots('md-selection-format');
+  await formats.getByRole('button', { name: 'Negrito' }).click();
+  await expect.poll(() => onDisk('format.md'), { timeout: 10_000 }).toContain('Uma **frase simples** aqui.');
+  await expect(formats.getByRole('button', { name: 'Negrito' })).toHaveAttribute('aria-pressed', 'true');
+  await dragOver('linha comum');
+  await formats.getByRole('button', { name: 'Itálico' }).click();
+  await expect.poll(() => onDisk('format.md'), { timeout: 10_000 }).toContain('Outra *linha comum*.');
 });
