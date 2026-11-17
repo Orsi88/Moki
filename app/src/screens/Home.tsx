@@ -79,7 +79,13 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
   useEffect(() => { api.suspendedProjects().then(setSuspended).catch(() => setSuspended([])); }, [projects]);
   // A saved note opened here, inside the app. New loose notes are created from the fixed icon rail.
   const [openNote, setOpenNote] = useState<NoteRef | { loose: null } | null>(null); // { loose: null }: a new loose note
-  useEffect(() => { if (newNote) setOpenNote({ loose: null }); }, [newNote]);
+  // Only a press made while this screen is open: the count it finds when it opens (back from a project) is an old one.
+  const notePresses = useRef(newNote);
+  useEffect(() => {
+    if (newNote === notePresses.current) return;
+    notePresses.current = newNote;
+    setOpenNote({ loose: null });
+  }, [newNote]);
   // The actions of a row (pin, hide, open in the notebook, delete…) show only on a right click.
   const [sections, setSections] = useState<HomeSectionLayout>(homeSectionLayout);
   const sectionsRef = useRef(sections);
