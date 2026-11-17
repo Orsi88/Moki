@@ -118,6 +118,10 @@ test('configurations for Claude Code and Cursor; merging keeps the person\'s ent
   assert.deepEqual(toolConfig(entries, 'cursor').mcpServers['moki-gh'], { url: 'https://x.dev/${env:PATH_PART}', headers: { Authorization: 'Bearer ${env:GH}' } });
   assert.equal((toolConfig(entries, 'claude').mcpServers['moki-gh'] as { type: string }).type, 'http');
   assert.deepEqual(toolConfig(entries, 'gemini').mcpServers['moki-gh'], { httpUrl: 'https://x.dev/${PATH_PART}', headers: { Authorization: 'Bearer ${GH}' } });
+  // Antigravity: serverUrl (httpUrl is refused); a variable passed by its own name is inherited, not written.
+  assert.deepEqual(toolConfig(entries, 'antigravity').mcpServers['moki-gh'], { serverUrl: 'https://x.dev/${PATH_PART}', headers: { Authorization: 'Bearer ${GH}' } });
+  const own = clean({ id: 'ado', name: 'ADO', command: 'npx', args: ['ado'], env: { ADO_PAT: '${ADO_PAT}', ORG: 'acme' } });
+  assert.deepEqual(toolConfig([{ key: 'moki-ado', server: own }], 'antigravity').mcpServers['moki-ado'], { command: 'npx', args: ['ado'], env: { ORG: 'acme' } });
   const merged = mergeManaged({ other: 1, mcpServers: { mine: { command: 'x' }, 'moki-old': { command: 'y' }, moki: { command: 'z' } } }, entries, 'cursor');
   assert.deepEqual(Object.keys(merged.mcpServers as object).sort(), ['mine', 'moki-gh', 'moki-jira']);
   assert.equal(merged.other, 1);
@@ -193,7 +197,7 @@ test('Codex gets server names it accepts: -c splits the key on dots and keeps qu
   for (const name of names) assert.match(String(name), CODEX_SERVER_NAME);
 });
 
-test('Gemini and Antigravity started by Moki get this project\'s servers in <root>/.gemini/settings.json', () => {
+test('Gemini started by Moki gets this project\'s servers in <root>/.gemini/settings.json; Antigravity in <root>/.agents/mcp_config.json', () => {
   mkdirSync(join(root, '.gemini'), { recursive: true });
   writeFileSync(join(root, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { mine: { command: 'mine' } }, theme: 'dark' }));
   service.launch({ project: 'beta', activity: 'open', tool: 'gemini', files: [], note: '', language: 'English' } as never);
@@ -202,11 +206,16 @@ test('Gemini and Antigravity started by Moki get this project\'s servers in <roo
   assert.equal(data.mcpServers.mine.command, 'mine');
   assert.deepEqual(data.mcpServers.moki.args?.slice(-2), ['--project', 'beta']);
   assert.equal(Object.hasOwn(data.mcpServers, 'moki-azure-devops'), false);
+  // Antigravity CLI reads only mcp_config.json: its servers go there, and .gemini/settings.json stays as Gemini left it.
+  mkdirSync(join(root, '.agents'), { recursive: true });
+  writeFileSync(join(root, '.agents', 'mcp_config.json'), JSON.stringify({ mcpServers: { mine: { command: 'mine' } } }));
   service.launch({ project: 'acme', activity: 'open', tool: 'antigravity', files: [], note: '', language: 'English' } as never);
-  const again = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { mcpServers: Record<string, { command?: string; args?: string[] }> };
-  assert.equal(again.mcpServers.mine.command, 'mine');
-  assert.deepEqual(again.mcpServers['moki-azure-devops']?.args, ['azure-devops-mcp']);
-  assert.deepEqual(again.mcpServers.moki.args?.slice(-2), ['--project', 'acme']);
+  const ag = JSON.parse(readFileSync(join(root, '.agents', 'mcp_config.json'), 'utf8')) as { mcpServers: Record<string, { command?: string; args?: string[] }> };
+  assert.equal(ag.mcpServers.mine.command, 'mine');
+  assert.deepEqual(ag.mcpServers['moki-azure-devops']?.args, ['azure-devops-mcp']);
+  assert.deepEqual(ag.mcpServers.moki.args?.slice(-2), ['--project', 'acme']);
+  const gemini = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { mcpServers: Record<string, { args?: string[] }> };
+  assert.deepEqual(gemini.mcpServers.moki.args?.slice(-2), ['--project', 'beta']);
 });
 
 test('Gemini started by Moki gets this project\'s agents in <root>/.gemini/agents and keeps a file the person wrote', () => {

@@ -1268,7 +1268,7 @@ test('operations in a project: linked, started with the initial form, run step b
   assert.deepEqual(svc.projectOperations('acme').map((o) => o.id), [op.id]);
   const plan = svc.operationPlan('acme', op.id);
   assert.deepEqual(plan.steps.map((s) => s.agent), ['requirements-analyst', 'test-designer']);
-  assert.ok('claude' in plan.mcpsByTool && plan.mcpsByTool.antigravity === null);
+  assert.ok('claude' in plan.mcpsByTool && Array.isArray(plan.mcpsByTool.antigravity));
 
   assert.throws(() => svc.startOperation('acme', op.id, { tools: { s1: 'claude' } }), /Choose an AI tool for every step/);
   assert.throws(() => svc.startOperation('acme', op.id, { tools: { s1: 'claude', s2: 'gemini' } }), /not installed/);

@@ -237,20 +237,25 @@ export interface GeneratedEntry { key: string; server: McpServer }
 export const entryKey = (id: string): string => `moki-${id}`;
 const isManaged = (key: string): boolean => key === MOKI_SERVER || key.startsWith('moki-');
 
-export type JsonMcpTool = 'claude' | 'cursor' | 'gemini';
+export type JsonMcpTool = 'claude' | 'cursor' | 'gemini' | 'antigravity';
 
-// One server as Claude Code (".mcp.json", --mcp-config), Cursor (".cursor/mcp.json") and Gemini CLI
-// (".gemini/settings.json") read it. Claude and Gemini expand ${VAR}; Cursor reads ${env:VAR}.
-// Gemini's HTTP transport is httpUrl. The oauth block is Claude Code's only.
+// One server as Claude Code (".mcp.json", --mcp-config), Cursor (".cursor/mcp.json"), Gemini CLI
+// (".gemini/settings.json") and Antigravity CLI (".agents/mcp_config.json", antigravity.google/docs/mcp)
+// read it. Claude and Gemini expand ${VAR}; Cursor reads ${env:VAR}. Gemini's HTTP transport is httpUrl,
+// Antigravity's serverUrl (httpUrl is refused there). Antigravity's docs say nothing of ${VAR}: a variable
+// passed by its own name (KEY=${KEY}) is left out so the server inherits it instead of getting the text.
+// The oauth block is Claude Code's only.
 function entry(s: McpServer, tool: JsonMcpTool): Record<string, unknown> {
   const ref = (v: string) => (tool === 'cursor' ? v.replace(REF, '${env:$1}') : v);
   const map = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ref(v)]));
   if (s.transport === 'http') {
     const oauth = tool === 'claude' && s.oauth ? { oauth: { clientId: s.oauth.clientId, ...(s.oauth.callbackPort ? { callbackPort: s.oauth.callbackPort } : {}) } } : {};
     const url = ref(s.url);
-    return { ...(tool === 'claude' ? { type: 'http', url } : tool === 'gemini' ? { httpUrl: url } : { url }), ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}), ...oauth };
+    const at = tool === 'claude' ? { type: 'http', url } : tool === 'gemini' ? { httpUrl: url } : tool === 'antigravity' ? { serverUrl: url } : { url };
+    return { ...at, ...(Object.keys(s.headers).length ? { headers: map(s.headers) } : {}), ...oauth };
   }
-  return { command: ref(s.command), args: s.args.map(ref), ...(Object.keys(s.env).length ? { env: map(s.env) } : {}) };
+  const env = tool === 'antigravity' ? Object.fromEntries(Object.entries(s.env).filter(([k, v]) => v !== `\${${k}}`)) : s.env;
+  return { command: ref(s.command), args: s.args.map(ref), ...(Object.keys(env).length ? { env: map(env) } : {}) };
 }
 
 export const toolConfig = (entries: GeneratedEntry[], tool: JsonMcpTool): { mcpServers: Record<string, unknown> } =>

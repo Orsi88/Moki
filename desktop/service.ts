@@ -829,15 +829,14 @@ export function createService(root: string, deps: Deps) {
   // MCP servers each AI tool sees for this project (null: Moki cannot tell for that tool).
   const mcpsByTool = (project: string): Record<string, string[] | null> => {
     const by: Record<string, string[] | null> = Object.fromEntries(AGENT_AIS.map((t) => [t, [] as string[]]));
-    by.antigravity = null;
     const owner: Record<string, string> = {
       '.mcp.json': 'claude', 'Claude Code (local)': 'claude', 'Claude Code (user)': 'claude',
       '.codex/config.toml': 'codex', '.cursor/mcp.json': 'cursor-agent', '.gemini/settings.json': 'gemini',
     };
     for (const n of mcpServers(project)) { const tool = owner[n.mcp ?? '']; if (tool && by[tool]) by[tool]?.push(n.name); }
-    // The servers on in Moki: Claude Code and Cursor get them when Moki starts them.
+    // The servers on in Moki: Claude Code, Cursor and Antigravity get them when Moki starts them.
     const managed = enabledServers(project, root).map((s) => s.id);
-    for (const tool of ['claude', 'cursor-agent']) if (by[tool]) by[tool] = [...new Set([...(by[tool] ?? []), ...managed])];
+    for (const tool of ['claude', 'cursor-agent', 'antigravity']) if (by[tool]) by[tool] = [...new Set([...(by[tool] ?? []), ...managed])];
     return by;
   };
 
@@ -941,8 +940,12 @@ export function createService(root: string, deps: Deps) {
     if (tool === 'cursor' || tool === 'cursor-agent') {
       try { writeMerged(join(root, '.cursor', 'mcp.json'), entries, 'cursor'); } catch (e) { mcpLog({ action: 'cursor', project, error: e instanceof Error ? e.message : String(e) }); }
     }
+    // Antigravity CLI reads MCP servers only from mcp_config.json (global, or <workspace>/.agents/), never from .gemini/settings.json.
+    if (tool === 'antigravity') {
+      try { writeMerged(join(root, '.agents', 'mcp_config.json'), entries, 'antigravity'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
+    }
     if (tool === 'gemini' || tool === 'antigravity') {
-      try { writeMerged(join(root, '.gemini', 'settings.json'), entries, 'gemini'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
+      if (tool === 'gemini') try { writeMerged(join(root, '.gemini', 'settings.json'), entries, 'gemini'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
       try { publishGeminiAgents(project); } catch (e) { mcpLog({ action: 'agents', project, error: e instanceof Error ? e.message : String(e) }); }
     }
     return [];
