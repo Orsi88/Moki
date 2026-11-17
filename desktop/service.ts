@@ -324,6 +324,33 @@ export function createService(root: string, deps: Deps) {
     for (let i = 1; existsSync(join(folder, name)); i++) name = `${stem}-${i}${ext}`;
     return dest ? `${dest}/${name}` : name;
   };
+  // A file or folder moved to another folder of the project (dragged in the tree). What points at it here follows:
+  // tags, PDF notes, comments (a folder's, for everything inside it). Moki's own folders stay where they are; a folder
+  // never goes inside itself, and notes/ holds notes only.
+  const moveOne = (project: string, from: unknown, toDir: unknown): string => {
+    const source = String(from ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+    const dest = String(toDir ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!source || source === 'project.json' || source === 'tags.json') throw new ServiceError('This file stays where it is.');
+    if (runsFolder(source) || runsFolder(dest)) throw new ServiceError('Activities keep their own structure. Create it in another folder.');
+    if (sealedFolder(source) || sealedFolder(dest)) throw new ServiceError('This file stays where it is.');
+    const fromPath = projectPath(project, source);
+    if (!existsSync(fromPath)) throw new ServiceError('File not found.');
+    if (statSync(fromPath).isDirectory()) {
+      if (FIXED_FOLDERS.has(source)) throw new ServiceError('The project’s fixed folders stay where they are.');
+      if (dest === source || dest.startsWith(`${source}/`)) throw new ServiceError('A folder cannot go inside itself.');
+      if (dest === 'notes' || dest.startsWith('notes/')) throw new ServiceError('Notes holds notes only.');
+    }
+    const parent = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : '';
+    if (parent === dest) return source;
+    const folder = projectPath(project, dest);
+    if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
+    const destRel = uniqueName(folder, dest, basename(source));
+    renameSync(fromPath, projectPath(project, destRel));
+    moveFileTags(project, source, destRel, root);
+    failing(() => movePdfNotes(projectDir(project), source, destRel));
+    failing(() => moveHtmlComments(projectDir(project), source, destRel));
+    return destRel;
+  };
   const copyInto = (project: string, source: string, dest: string) => {
     const rel = uniqueName(projectPath(project, dest), dest, basename(source));
     copyFileSync(source, projectPath(project, rel));
@@ -2278,24 +2305,20 @@ export function createService(root: string, deps: Deps) {
     },
 
     // A file dragged from one project folder onto another. Execution files, project.json and the linked folder stay put.
-    moveEntry: (project: string, from: unknown, toDir: unknown) => {
-      const source = String(from ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
-      const dest = String(toDir ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
-      if (!source || source === 'project.json' || source === 'tags.json') throw new ServiceError('This file stays where it is.');
-      if (runsFolder(source) || runsFolder(dest)) throw new ServiceError('Activities keep their own structure. Create it in another folder.');
-      if (sealedFolder(source) || sealedFolder(dest)) throw new ServiceError('This file stays where it is.');
-      const fromPath = projectPath(project, source);
-      if (!existsSync(fromPath) || !statSync(fromPath).isFile()) throw new ServiceError('File not found.');
-      const parent = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : '';
-      if (parent === dest) return source;
-      const folder = projectPath(project, dest);
-      if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
-      const destRel = uniqueName(folder, dest, basename(source));
-      renameSync(fromPath, projectPath(project, destRel));
-      moveFileTags(project, source, destRel, root);
-      failing(() => movePdfNotes(projectDir(project), source, destRel));
-      failing(() => moveHtmlComments(projectDir(project), source, destRel));
-      return destRel;
+    moveEntry: (project: string, from: unknown, toDir: unknown) => moveOne(project, from, toDir),
+    // Several files and folders dragged together (Ctrl+click in the tree). An item inside a folder that also goes is
+    // carried by that folder. Moves stop at the first refusal: what moved is returned with the reason for the rest.
+    moveEntries: (project: string, from: unknown, toDir: unknown): { moved: { from: string; to: string }[]; error: string } => {
+      if (!Array.isArray(from) || !from.length || from.length > 500 || from.some((p) => typeof p !== 'string')) throw new ServiceError('Choose the files to move.');
+      const paths = [...new Set((from as string[]).map((p) => p.replace(/\\/g, '/').replace(/\/+$/, '')))];
+      const carried = paths.filter((p) => !paths.some((other) => other !== p && p.startsWith(`${other}/`)));
+      const moved: { from: string; to: string }[] = [];
+      for (const path of carried) {
+        try { moved.push({ from: path, to: moveOne(project, path, toDir) }); } catch (e) {
+          return { moved, error: `${path.split('/').pop()}: ${e instanceof Error ? e.message : String(e)}` };
+        }
+      }
+      return { moved, error: '' };
     },
 
     // A file or folder renamed where it is (the tree's Rename). A file keeps its extension: the name

@@ -626,31 +626,57 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const notesDir: TreeNode = groups.notes ?? { name: 'notes', path: 'notes', type: 'dir', children: [] };
   const [notesOpen, setNotesOpen] = useState(true);
   const folderLabel = (path: string) => friendlyName((path.split('/').pop() || path) || t('the project folder'));
+  // What points at a moved file or folder here follows it: tabs, scroll, open folders, recent files, the open note, the star.
+  const followMove = (from: string, to: string) => {
+    if (to === from) return;
+    const moved = (p: string) => (p === from ? to : p.startsWith(`${from}/`) ? to + p.slice(from.length) : p);
+    moveScroll(from, to);
+    setTabs((all) => all.map((tab) => { const p = moved(tab.path); return p === tab.path ? tab : { ...tab, path: p, content: { ...tab.content, path: p } }; }));
+    apply((b) => b.order.filter((k) => k.startsWith('file:')).reduce((acc, k) => boardRename(acc, k, fileKey(moved(k.slice(5)))), b));
+    setExpanded((all) => new Set([...all].map(moved)));
+    renameRecentFile(project.id, from, to);
+    if (note?.path === from && !isNote(to)) openPath(to);
+    setNote((cur) => (cur?.path === from ? (isNote(to) ? { path: to } : null) : cur));
+    if (isFavorite({ project: project.id, path: from })) {
+      setFavorite({ project: project.id, path: from }, false);
+      if (isNote(to)) setFavorite({ project: project.id, path: to }, true);
+      setFavTick((n) => n + 1);
+      window.qa?.notesChanged();
+    }
+  };
+  // Files and folders dragged to a folder ('' = the project root): one, or the Ctrl+click selection.
+  const moveItems = (paths: string[], folder: string) => {
+    if (!paths.length || paths.every((p) => p === folder)) return;
+    flushEdits(); // the tabs are renamed below: their pending text must reach them under the old paths
+    for (const path of paths) holdSaves(path);
+    const done = (moved: { from: string; to: string }[], error: string) => {
+      for (const m of moved) followMove(m.from, m.to);
+      loadTree();
+      if (folder) setExpanded((s) => new Set(s).add(folder));
+      setSelection(new Set());
+      const changed = moved.filter((m) => m.from !== m.to);
+      if (changed.length === 1) setNotice(t('Moved {name} to {folder}.', { name: changed[0].to.split('/').pop() ?? changed[0].to, folder: folderLabel(folder) }));
+      else if (changed.length > 1) setNotice(t('Moved {n} items to {folder}.', { n: changed.length, folder: folderLabel(folder) }));
+      if (error) setError(error);
+    };
+    if (paths.length === 1) api.moveEntry(project.id, paths[0], folder).then((to) => done([{ from: paths[0], to }], '')).catch((err: Error) => setError(err.message));
+    else api.moveEntries(project.id, paths, folder).then((r) => done(r.moved, r.error)).catch((err: Error) => setError(err.message));
+  };
+  // Ctrl+click picks files and folders to move together; a plain click or Esc ends the selection.
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selection.size) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelection(new Set()); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selection]);
+  const [rootDrop, setRootDrop] = useState(false); // an item dragged over the empty part of the tree: it goes to the project root
+  const internalDrag = (e: DragEvent) => Array.from(e.dataTransfer.types).includes('application/x-moki-move') && !(e.target as HTMLElement).closest('.tree-row');
   const dropOnFolder = (folder: string, e: DragEvent) => {
     dragDepth.current = 0;
     setDropping(false);
     const from = e.dataTransfer.getData('application/x-moki-move');
-    if (from) {
-      flushEdits(); // the tab is renamed below: its pending text must reach it under the old path
-      holdSaves(from);
-      api.moveEntry(project.id, from, folder).then((path) => {
-        moveScroll(from, path);
-        loadTree();
-        setExpanded((s) => new Set(s).add(folder));
-        setTabs((all) => all.map((tab) => (tab.path === from ? { ...tab, path, content: { ...tab.content, path } } : tab)));
-        apply((b) => boardRename(b, fileKey(from), fileKey(path)));
-        if (note?.path === from && !/^notes\/[^/]+\.md$/.test(path)) openPath(path);
-        setNote((cur) => (cur?.path === from ? (/^notes\/[^/]+\.md$/.test(path) ? { path } : null) : cur));
-        if (isFavorite({ project: project.id, path: from })) {
-          setFavorite({ project: project.id, path: from }, false);
-          if (/^notes\/[^/]+\.md$/.test(path)) setFavorite({ project: project.id, path }, true);
-          setFavTick((n) => n + 1);
-          window.qa?.notesChanged();
-        }
-        setNotice(t('Moved {name} to {folder}.', { name: path.split('/').pop() ?? path, folder: folderLabel(folder) }));
-      }).catch((err: Error) => setError(err.message));
-      return;
-    }
+    if (from) { moveItems(from.split('\n').filter(Boolean), folder); return; }
     const paths = Array.from(e.dataTransfer.files).map((f) => window.qa?.filePath(f) ?? '').filter(Boolean);
     if (!paths.length) { setError(t('Drop files from your computer.')); return; }
     api.importFiles(project.id, paths, folder).then((r) => {
@@ -668,6 +694,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openPath, expanded,
     onNewNote: () => setNote({ path: null }), onMenu: openItemMenu, favorites, onIde: openIde, noteTitles, onReceive: dropOnFolder,
     renaming, onRenameStart: startRename, onRename: renameItem, onRenameEnd: () => setRenaming(null), focusPath, onFocused: () => setFocusPath(null),
+    selected: selection, onClearSelection: () => setSelection(new Set()),
+    onSelect: (p: string) => setSelection((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
     onToggle: (p: string) => setExpanded((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
   };
   // Where New › File may save: the project's own folders (not the activities), then its root.
@@ -711,6 +739,20 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       setTabs((all) => all.filter((tab) => tab.path !== path && !tab.path.startsWith(`${path}/`)));
       apply((b) => b.order.filter((k) => k === fileKey(path) || k.startsWith(`${fileKey(path)}/`)).reduce(boardClose, b));
     }).catch((e: Error) => setError(e.message));
+  };
+  // The Ctrl+click selection, to the trash after one confirmation. An item inside a selected folder goes with it.
+  const removeItems = async (paths: string[]) => {
+    setItemMenu(null);
+    if (!await confirmDialog(t('Delete {n} items? They go to the trash.', { n: paths.length }), { danger: true })) return;
+    const top = paths.filter((p) => !paths.some((other) => other !== p && p.startsWith(`${other}/`)));
+    const gone: string[] = [];
+    try { for (const path of top) { await api.deleteEntry(project.id, path); gone.push(path); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    const removed = (p: string) => gone.some((g) => p === g || p.startsWith(`${g}/`));
+    for (const file of scrollPositions.current.keys()) if (removed(file)) scrollPositions.current.delete(file);
+    setTabs((all) => all.filter((tab) => !removed(tab.path)));
+    apply((b) => b.order.filter((k) => k.startsWith('file:') && removed(k.slice(5))).reduce(boardClose, b));
+    setSelection(new Set());
+    loadTree();
   };
   // The new file opens to be written; a new folder shows open in the tree.
   const created = (path: string, kind: 'file' | 'folder') => {
@@ -1002,7 +1044,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         <div className="sidebar-tags" title={t('Projects and files with the same tag share their context with this project')}>
           <TagPicker catalog={catalog} value={project.tags} onChange={tagProject} onCatalog={setCatalog} compact />
         </div>
-        <div className="sidebar-scroll" onContextMenu={(e) => { e.preventDefault(); openItemMenu(null, { left: e.clientX, top: e.clientY }); }}>
+        <div className={`sidebar-scroll${rootDrop ? ' drop-root' : ''}`} onContextMenu={(e) => { e.preventDefault(); openItemMenu(null, { left: e.clientX, top: e.clientY }); }}
+          onDragOver={(e) => { if (!internalDrag(e)) { setRootDrop(false); return; } e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setRootDrop(true); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRootDrop(false); }}
+          onDrop={(e) => { if (!internalDrag(e)) return; e.preventDefault(); setRootDrop(false); moveItems(e.dataTransfer.getData('application/x-moki-move').split('\n').filter(Boolean), ''); }}>
           <FileTree {...treeProps} nodes={groups.main} splitAt={groups.splitAt} />
         </div>
         <section ref={notesSection} className={`home-block sidebar-notes${notesOpen ? '' : ' is-collapsed'}`} aria-label={t('Notes')}
@@ -1194,6 +1239,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {itemMenu && (
         <div className="menu-backdrop" onMouseDown={() => setItemMenu(null)} onContextMenu={(e) => { e.preventDefault(); setItemMenu(null); }}>
           <ul className="term-menu item-menu" role="menu" style={{ left: itemMenu.left, top: itemMenu.top }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setItemMenu(null); }}>
+            {selection.size > 1 && selection.has(itemMenu.path) && <>
+              <li><button type="button" role="menuitem" className="danger" autoFocus onClick={() => { void removeItems([...selection]); }}><IconTrash size={15} /> {t('Delete the {n} selected', { n: selection.size })}</button></li>
+              <li className="ws-menu-sep" />
+            </>}
             {itemMenu.path === '' && <>
               <li><button type="button" role="menuitem" onClick={() => { setItemMenu(null); setShowSetup(true); }}><IconSliders size={15} /> {t('Project settings')}</button></li>
               <li className="ws-menu-sep" />

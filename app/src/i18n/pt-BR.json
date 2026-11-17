@@ -2451,5 +2451,8 @@
   "Moving…": "Movendo…",
   "Move": "Mover",
   "Move to another project…": "Mover para outro projeto…",
-  "Note moved to {name}.": "Nota movida para {name}."
+  "Note moved to {name}.": "Nota movida para {name}.",
+  "Moved {n} items to {folder}.": "{n} itens movidos para {folder}.",
+  "Delete the {n} selected": "Excluir os {n} selecionados",
+  "Delete {n} items? They go to the trash.": "Excluir {n} itens? Eles vão para a lixeira."
 }

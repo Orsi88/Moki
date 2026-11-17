@@ -32,7 +32,7 @@ The project's name with its tags, then its folders:
 - **Tracking** — the files Moki keeps up to date: proposed updates and the activity log.
 - **MCPs** (bottom) — the tools the AI gets in this project.
 
-A **linked folder** comes first, under its own name. Right-click any item for its menu: new file or folder, rename (F2), show in the folder, copy its path or link, delete to the trash. Drag a file onto a folder to move it.
+A **linked folder** comes first, under its own name. Right-click any item for its menu: new file or folder, rename (F2), show in the folder, copy its path or link, delete to the trash. Drag a file or folder onto a folder to move it; Ctrl+click picks several to move together.
 
 ## 3. Tabs and the editor (center)
 

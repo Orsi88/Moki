@@ -3,7 +3,7 @@
 ## Acrescentar e organizar arquivos
 
 - **Solte arquivos na janela** e eles são copiados para a **Entrada** — até 40 arquivos, 200 MB cada (pastas são ignoradas).
-- **Solte um arquivo numa pasta** da árvore para copiá-lo para lá; **arraste um arquivo** da árvore para outra pasta para movê-lo.
+- **Solte um arquivo numa pasta** da árvore para copiá-lo para lá; **arraste um arquivo ou pasta** da árvore para outra pasta para movê-lo, ou para a parte vazia da árvore para levá-lo à raiz do projeto. **Ctrl+clique** seleciona vários arquivos e pastas: arrastar um deles move todos, e o menu do botão direito oferece excluir todos (Esc ou um clique normal desfaz a seleção). As pastas do Moki (Contexto, Entrada, Entregas, Notas, Temporários) ficam onde estão; uma linha fina na árvore separa essas pastas das que você criou, e os arquivos deixados na raiz do projeto aparecem na raiz.
 - **Botão direito** (ou o menu ⋯) para: novo arquivo ou pasta, **renomear** (F2), mostrar na pasta, copiar o caminho ou um link, **exportar uma cópia** (só arquivos: salva onde você escolher, sem mudanças), **usar no terminal** (arquivos do Contexto e de Notas: a IA lê como contexto para o que você pedir em seguida), e **apagar** — para a lixeira.
 - **Levar um Markdown comentado para outro Moki:** exporte uma cópia e envie; a outra pessoa solta o arquivo na janela ou numa pasta. Os comentários, com autores e datas, vão dentro do `.md`. Comentários de HTML e de diagramas ficam guardados com o projeto e não vão com a cópia.
 - As pastas fixas (Contexto, Entrada, Notas, Temporários, Entregas) são esvaziadas, nunca removidas. Os arquivos que a IA salva aparecem na árvore assim que chegam.

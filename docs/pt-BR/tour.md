@@ -32,7 +32,7 @@ O nome do projeto com as tags dele, e depois as pastas:
 - **Acompanhamento** — os arquivos que o Moki mantém em dia: atualizações propostas e o registro de atividades.
 - **MCPs** (embaixo) — as ferramentas que a IA recebe neste projeto.
 
-Uma **pasta vinculada** vem primeiro, com o próprio nome. O botão direito em qualquer item abre o menu dele: novo arquivo ou pasta, renomear (F2), mostrar na pasta, copiar o caminho ou o link, apagar para a lixeira. Arraste um arquivo para uma pasta para movê-lo.
+Uma **pasta vinculada** vem primeiro, com o próprio nome. O botão direito em qualquer item abre o menu dele: novo arquivo ou pasta, renomear (F2), mostrar na pasta, copiar o caminho ou o link, apagar para a lixeira. Arraste um arquivo ou pasta para uma pasta para movê-lo; Ctrl+clique seleciona vários para mover juntos.
 
 ## 3. Abas e editor (centro)
 

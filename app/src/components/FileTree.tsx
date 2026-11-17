@@ -25,6 +25,9 @@ interface Props {
   focusPath?: string | null; // a row to take the focus once it is shown (a file just renamed comes back under its new path)
   onFocused?: () => void;
   splitAt?: number; // a thin line before this top-level item: Moki's own folders above it, the user's below
+  selected?: Set<string>; // items picked with Ctrl+click: dragging one of them moves them all
+  onSelect?: (path: string) => void; // Ctrl+click: in or out of the selection
+  onClearSelection?: () => void; // a plain click ends the selection
 }
 
 export const friendlyName = (name: string): string => ({
@@ -98,7 +101,7 @@ const fileNameProblem = (value: string): string => tooLong(value)
 const canReceive = (path: string) => !path.startsWith('.') && path !== 'runs' && !path.startsWith('runs/') && path !== '@folder' && !path.startsWith('@folder/');
 
 function Node(props: Props & { node: TreeNode; depth: number }) {
-  const { node, depth, activePath, onOpen, expanded, onToggle, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive, renaming, onRenameStart, onRename, onRenameEnd, focusPath, onFocused } = props;
+  const { node, depth, activePath, onOpen, expanded, onToggle, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive, renaming, onRenameStart, onRename, onRenameEnd, focusPath, onFocused, selected, onSelect, onClearSelection } = props;
   const [hover, setHover] = useState(false);
   const [dropOn, setDropOn] = useState(false);
   const editing = renaming === node.path && Boolean(onRename);
@@ -127,7 +130,8 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
   const label = run ? node.run?.title || node.run?.scenario || runName : isNotePath(node.path) ? noteTitles?.[node.path] ?? node.name.replace(/\.md$/, '') : depth === 0 || !node.path.includes('/') ? friendlyName(node.name) : node.name;
   const menu = node.path.startsWith('.') ? undefined : onMenu; // a group of the sidebar, not a folder: nothing to create, reveal or copy
   const noteDrag = !isDir && /^notes\/[^/]+\.md$/.test(node.path);
-  const movable = !isDir && canMove(node.path);
+  const movable = canMove(node.path) && !(isDir && FIXED_FOLDERS.has(node.path)); // Moki's own folders stay where they are
+  const picked = Boolean(selected?.has(node.path));
   const receive = isDir && canReceive(node.path) && Boolean(onReceive);
   const accepts = (e: ReactDragEvent) => {
     const types = Array.from(e.dataTransfer.types);
@@ -153,18 +157,24 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
       <button
         ref={row}
         type="button"
-        className={`tree-row${activePath === node.path ? ' active' : ''}${depth === 0 && isDir ? ' top' : ''}${dropOn ? ' drop-on' : ''}`}
+        className={`tree-row${activePath === node.path ? ' active' : ''}${depth === 0 && isDir ? ' top' : ''}${dropOn ? ' drop-on' : ''}${picked ? ' selected' : ''}`}
+        aria-selected={selected?.size ? picked : undefined}
         style={{ paddingLeft: 8 + depth * INDENT }}
         draggable={noteDrag || movable}
         onDragStart={(e) => {
           if (noteDrag) e.dataTransfer.setData('application/x-moki-note', JSON.stringify({ path: node.path }));
-          if (movable) e.dataTransfer.setData('application/x-moki-move', node.path);
+          // One path per line: the whole selection when this row is part of it.
+          if (movable) e.dataTransfer.setData('application/x-moki-move', (picked && selected!.size > 1 ? [...selected!] : [node.path]).join('\n'));
           e.dataTransfer.effectAllowed = noteDrag && movable ? 'copyMove' : noteDrag ? 'copy' : 'move';
         }}
         onDragOver={receive ? (e) => { if (!accepts(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = Array.from(e.dataTransfer.types).includes('Files') ? 'copy' : 'move'; setDropOn(true); } : undefined}
         onDragLeave={receive ? () => setDropOn(false) : undefined}
         onDrop={receive ? (e) => { if (!accepts(e)) return; e.preventDefault(); e.stopPropagation(); setDropOn(false); onReceive?.(node.path, e); } : undefined}
-        onClick={() => (isDir ? onToggle(node.path) : onOpen(node.path))}
+        onClick={(e) => {
+          if ((e.ctrlKey || e.metaKey) && onSelect) { if (movable) onSelect(node.path); return; }
+          if (selected?.size) onClearSelection?.();
+          if (isDir) onToggle(node.path); else onOpen(node.path);
+        }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onKeyDown={onRenameStart && menu ? (e) => { if (e.key === 'F2') { e.preventDefault(); onRenameStart(node.path); } } : undefined}

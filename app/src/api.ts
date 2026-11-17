@@ -500,6 +500,7 @@ export const api = {
   inbox: (project: string) => call<InboxFile[]>('inbox', project),
   importFiles: (project: string, paths: string[], into?: string) => call<{ saved: string[]; skipped: string[] }>('importFiles', project, paths, into),
   moveEntry: (project: string, from: string, toDir: string) => call<string>('moveEntry', project, from, toDir),
+  moveEntries: (project: string, from: string[], toDir: string) => call<{ moved: { from: string; to: string }[]; error: string }>('moveEntries', project, from, toDir),
   renameEntry: (project: string, path: string, name: string) => call<string>('renameEntry', project, path, name),
   openRuns: (project: string) => call<OpenRun[]>('openRuns', project),
   activityRuns: (project: string) => call<ActivityRun[]>('activityRuns', project),
