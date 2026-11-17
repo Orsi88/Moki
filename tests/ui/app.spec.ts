@@ -1000,7 +1000,9 @@ test.describe.serial('Moki project tree', () => {
     await expect(treePage.locator('.tree-row[title="rascunho.md"]')).toBeVisible();
     // One thin line between Moki's folders and the user's own.
     const top = await treePage.locator('.sidebar-scroll > .tree > *').evaluateAll((els) => els.map((e) => (e.classList.contains('tree-split') ? '|' : e.querySelector('.tree-row')?.getAttribute('title') ?? '')));
-    expect(top.slice(top.indexOf('temporary'))).toEqual(['temporary', '|', 'Bugs', 'rascunho.md']);
+    const below = top.slice(top.indexOf('temporary'));
+    expect(below.slice(0, 3)).toEqual(['temporary', '|', 'Bugs']); // folders made here (an earlier test may add more) …
+    expect(below.at(-1)).toBe('rascunho.md'); // … then the loose files
     if (process.env.QA_SHOTS) {
       const side = await treePage.locator('.sidebar').boundingBox();
       for (const mode of ['light', 'dark'] as const) {
@@ -1222,6 +1224,11 @@ test.describe.serial('Moki project tree', () => {
     // + writes a new note of the project; saved, it stays open as its own tab.
     await book.getByRole('button', { name: 'Nova nota' }).click();
     const page = book.locator('.notebook-page:not([hidden])');
+    // The header moves the window, but not its title: in the drag region the system would take the double-click and the
+    // right-click, and the note could not be renamed (this test's clicks reach the page either way, so it checks the CSS).
+    const region = (selector: string) => page.locator(selector).first().evaluate((el) => { const s = getComputedStyle(el); return s.getPropertyValue('app-region') || s.getPropertyValue('-webkit-app-region'); });
+    expect(await region('.modal-head')).toBe('drag');
+    expect(await region('.note-head-title h2')).toBe('no-drag');
     await page.locator('.note-head-title h2').dblclick(); // the title is renamed in place, in the header
     await page.getByPlaceholder('ex.: Ideias de teste').fill('terceira');
     await page.getByPlaceholder('ex.: Ideias de teste').press('Enter');
