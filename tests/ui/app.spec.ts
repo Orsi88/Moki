@@ -991,16 +991,27 @@ test.describe.serial('Moki project tree', () => {
     await treePage.keyboard.press('Escape');
   });
 
-  test('the sidebar is in blocks: folders and Other files, then Notes and the MCPs; the Operations card is in the project panel', async () => {
+  test('the sidebar is in blocks: Moki folders, a line, then the folders made here and loose files, then Notes and the MCPs; the Operations card is in the project panel', async () => {
     const project = join(dirs[0], 'workspace', 'projects', 'acme');
     writeFileSync(join(project, 'rascunho.md'), 'x');
-    const other = treePage.locator('.tree-row[title=".other"]');
-    await expect(other).toContainText('Outros arquivos');
-    await expect(treePage.locator('.tree-row[title="rascunho.md"]')).toHaveCount(0);
-    await other.click();
+    mkdirSync(join(project, 'Bugs'), { recursive: true });
+    // Loose files of the project root are listed at the root, after the folders: no "Other files" group.
+    await expect(treePage.locator('.tree-row[title=".other"]')).toHaveCount(0);
     await expect(treePage.locator('.tree-row[title="rascunho.md"]')).toBeVisible();
-    // A group of the sidebar is not a folder: no menu to create, reveal or copy.
-    await expect(treePage.locator('.tree-line', { has: other }).getByRole('button', { name: 'Mais opções' })).toHaveCount(0);
+    // One thin line between Moki's folders and the user's own.
+    const top = await treePage.locator('.sidebar-scroll > .tree > *').evaluateAll((els) => els.map((e) => (e.classList.contains('tree-split') ? '|' : e.querySelector('.tree-row')?.getAttribute('title') ?? '')));
+    expect(top.slice(top.indexOf('temporary'))).toEqual(['temporary', '|', 'Bugs', 'rascunho.md']);
+    if (process.env.QA_SHOTS) {
+      const side = await treePage.locator('.sidebar').boundingBox();
+      for (const mode of ['light', 'dark'] as const) {
+        await treePage.evaluate((m) => { document.documentElement.setAttribute('data-theme', m); }, mode);
+        await treePage.waitForTimeout(150);
+        // Through Electron, twice: Playwright's capture stalls on a project window off screen, and the first capture can be the frame before.
+        const png = await treeApp.evaluate(async ({ BrowserWindow }, rect) => { const web = BrowserWindow.getAllWindows()[0].webContents; await web.capturePage(rect); return (await web.capturePage(rect)).toPNG().toString('base64'); },
+          { x: Math.floor(side!.x), y: Math.floor(side!.y), width: Math.ceil(side!.width), height: Math.min(520, Math.ceil(side!.height)) });
+        writeFileSync(join(process.env.QA_SHOTS, `tree-split-${mode}.png`), Buffer.from(png, 'base64'));
+      }
+    }
 
     // The files Moki keeps up to date for the AIs (proposed updates, activity log) are not listed: nobody reads them here.
     await expect(treePage.locator('.tree-row[title=".tracking"]')).toHaveCount(0);

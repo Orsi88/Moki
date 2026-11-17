@@ -501,6 +501,8 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .notebook-page[hidden] { display: none; }
 .notebook-page .note-dialog { flex: 1; }
 .note-float button, .note-float input, .note-float textarea, .note-float select, .note-float .note-tools { -webkit-app-region: no-drag; }
+/* Between Moki's own folders and the ones the user made: thin, and only when there is something below. */
+.tree-split { height: 1px; margin: 6px 10px; background: var(--border); opacity: 0.7; list-style: none; }
 .tree-empty { font-size: 0.8rem; color: var(--faint); height: 24px; display: flex; align-items: center; }
 
 .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }

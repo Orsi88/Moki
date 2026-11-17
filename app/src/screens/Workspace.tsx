@@ -9,7 +9,7 @@ import { api, CHANGED_OUTSIDE, type FileContent, type InvokeTarget, type LaunchP
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, preferredTool, recall, remember } from '../prefs';
 import { DocView, type DocMode } from '../components/DocView';
-import { FileTree, OTHER_FILES, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
+import { FileTree, canRename, friendlyName, groupTree, renameBlock } from '../components/FileTree';
 import { RenameField, tooLong } from '../components/RenameField';
 import { NewMenu } from '../components/NewMenu';
 import { IdeDialog } from '../components/IdeDialog';
@@ -716,7 +716,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const created = (path: string, kind: 'file' | 'folder') => {
     setCreating(null);
     loadTree();
-    setExpanded((s) => { const n = new Set(s); if (kind === 'file' && !path.includes('/')) n.add(OTHER_FILES); path.split('/').slice(0, kind === 'folder' ? undefined : -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
+    setExpanded((s) => { const n = new Set(s); path.split('/').slice(0, kind === 'folder' ? undefined : -1).reduce((acc, seg) => { const p = acc ? `${acc}/${seg}` : seg; n.add(p); return p; }, ''); return n; });
     if (kind === 'file') openPath(path, /\.(md|txt)$/i.test(path) ? 'edit' : 'preview'); // a new spreadsheet or Word file is shown, not edited here
   };
   // Rename in place. A note gets a new title (its file, and the links to it, stay); a file or folder
@@ -1003,7 +1003,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
           <TagPicker catalog={catalog} value={project.tags} onChange={tagProject} onCatalog={setCatalog} compact />
         </div>
         <div className="sidebar-scroll" onContextMenu={(e) => { e.preventDefault(); openItemMenu(null, { left: e.clientX, top: e.clientY }); }}>
-          <FileTree {...treeProps} nodes={groups.main} />
+          <FileTree {...treeProps} nodes={groups.main} splitAt={groups.splitAt} />
         </div>
         <section ref={notesSection} className={`home-block sidebar-notes${notesOpen ? '' : ' is-collapsed'}`} aria-label={t('Notes')}
           style={notesOpen && notesHeight !== null ? { flex: `0 0 ${notesHeightWithinBounds(notesHeight, sidebarHeight())}px` } : undefined}>

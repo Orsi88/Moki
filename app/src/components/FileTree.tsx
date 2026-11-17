@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
 import { describeRun, statusLabel, type TreeNode } from '../api';
 import { t } from '../i18n';
-import { IconChevron, IconCode, IconFolder, IconLink, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
+import { IconChevron, IconCode, IconLink, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
 import { FileIcon, SectionIcon, isSectionIconName } from '../icons';
 import { RenameField, tooLong } from './RenameField';
 
@@ -24,6 +24,7 @@ interface Props {
   onRenameEnd?: () => void;
   focusPath?: string | null; // a row to take the focus once it is shown (a file just renamed comes back under its new path)
   onFocused?: () => void;
+  splitAt?: number; // a thin line before this top-level item: Moki's own folders above it, the user's below
 }
 
 export const friendlyName = (name: string): string => ({
@@ -31,31 +32,31 @@ export const friendlyName = (name: string): string => ({
   'proposed-updates.md': t('Proposed updates'), 'activity-log.md': t('Activity log'),
 } as Record<string, string>)[name] ?? name;
 
-// The sidebar's file blocks: the folders, then Other files (what the user left loose in the project root, a group that
-// exists only here) and, fixed at the bottom, the MCP servers. Not listed: the two files Moki keeps up to date for the AIs
-// (proposed updates and the activity log: context for the AIs, nobody reads them here) and README.md and project.json
-// (the project settings edit what they hold). Display only: nothing moves on disk. A group's path starts with "."
-// (never a real entry: the tree skips dot files).
+// The sidebar's file blocks: Moki's own folders, then the user's folders and the files left loose in the project root,
+// and, fixed at the bottom, the MCP servers. Not listed: the two files Moki keeps up to date for the AIs (proposed
+// updates and the activity log: context for the AIs, nobody reads them here) and README.md and project.json (the
+// project settings edit what they hold). Display only: nothing moves on disk. A group's path starts with "." (never a
+// real entry: the tree skips dot files).
 const TRACKING = ['proposed-updates.md', 'activity-log.md']; // left out of the tree
 const SETTINGS = ['README.md', 'project.json']; // left out of the tree
-export const OTHER_FILES = '.other';
-const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, [OTHER_FILES]: IconFolder, '.mcps': IconMcp };
+const GROUP_ICONS: Record<string, (p: { size?: number }) => ReactElement> = { '@folder': IconLink, '.mcps': IconMcp };
+// The folders Moki gives every project (the linked folder among them): the line in the tree goes after them.
+const MOKI_FOLDERS = new Set(['@folder', 'context', 'inbox', 'runs', 'notes', 'skill-proposals', 'temporary']);
 
-export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; notes: TreeNode | null; settings: TreeNode[] } {
+export function groupTree(nodes: TreeNode[]): { main: TreeNode[]; notes: TreeNode | null; settings: TreeNode[]; splitAt: number } {
   const mcps = nodes.find((n) => n.path === '.mcps');
   const files = nodes.filter((n) => n !== mcps);
   // Notes stay in notes/ on disk, but the sidebar lists them in their own section, not as one more folder.
   const notes = files.find((n) => n.type === 'dir' && n.path === 'notes') ?? null;
   const listed = notes ? files.filter((n) => n !== notes) : files;
-  const group = (name: string, path: string, children: TreeNode[]): TreeNode[] => (children.length ? [{ name, path, type: 'dir', children }] : []);
-  const other = listed.filter((n) => n.type === 'file' && !TRACKING.includes(n.name) && !SETTINGS.includes(n.name));
+  const dirs = listed.filter((n) => n.type === 'dir');
+  const own = dirs.filter((n) => MOKI_FOLDERS.has(n.path));
+  const loose = listed.filter((n) => n.type === 'file' && !TRACKING.includes(n.name) && !SETTINGS.includes(n.name));
   return {
-    main: [
-      ...listed.filter((n) => n.type === 'dir'),
-      ...group(t('Other files'), OTHER_FILES, other),
-    ],
+    main: [...own, ...dirs.filter((n) => !own.includes(n)), ...loose],
     notes,
     settings: mcps ? [mcps] : [],
+    splitAt: own.length,
   };
 }
 
@@ -66,7 +67,11 @@ const INDENT = 20;
 const statusClass = (s: string): string => (s === 'completed' ? 'dot-ok' : s === 'cancelled' ? 'dot-muted' : s === 'blocked' ? 'dot-err' : 'dot-warn');
 
 export function FileTree(props: Props) {
-  return <ul className="tree" role="tree">{props.nodes.map((n) => <Node key={n.path} node={n} depth={0} {...props} />)}</ul>;
+  const { nodes, splitAt = 0 } = props;
+  return <ul className="tree" role="tree">{nodes.map((n, i) => [
+    i === splitAt && i > 0 && <li key="split" className="tree-split" role="separator" aria-hidden="true" />,
+    <Node key={n.path} node={n} depth={0} {...props} />,
+  ])}</ul>;
 }
 
 const canMove = (path: string) => !path.startsWith('.') && path !== 'project.json' && path !== 'tags.json' && !path.startsWith('runs/') && !path.startsWith('@folder');
