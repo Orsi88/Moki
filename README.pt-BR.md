@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.6.0/Moki.Setup.0.6.0.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.6.1/Moki.Setup.0.6.1.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
@@ -25,6 +25,8 @@ Ele trabalha com a IA que você já usa: Claude Code, Codex, Gemini, Cursor, Ant
 - Vincule uma pasta existente sem copiá-la.
 - Use tags para compartilhar contexto selecionado entre projetos, mantendo o isolamento.
 - Retome o trabalho a partir dos arquivos e do estado registrados em cada execução.
+- Mescle um projeto em outro quando os dois forem um só: nada é sobrescrito, e títulos de notas, links, comentários e tags acompanham.
+- Mova arquivos e pastas na árvore arrastando, ou use Ctrl+clique para mover ou excluir vários de uma vez.
 
 ### Notas e assistentes rápidos
 
@@ -33,6 +35,7 @@ As notas são um lugar próprio para pensar, planejar e reunir material antes qu
 - Crie notas avulsas ou notas dentro de um projeto; elas salvam sozinhas.
 - Escreva Markdown formatado, use comandos `/`, cite arquivos do projeto com `@` e cole imagens.
 - Abra notas numa janela própria de bloco de notas, marque favoritas e compartilhe notas de projeto por tags.
+- Mova uma nota de projeto para outro projeto, com título, tags e estrela.
 - Envie uma nota para um terminal de IA como contexto, exporte como PDF, Markdown ou texto, ou crie uma nota a partir de um trecho selecionado num PDF.
 - Use assistentes de um clique para melhorar a escrita, resumir, pesquisar ou revisar criticamente uma nota.
 - Revise a sugestão antes de aceitá-la: nada muda até você aprovar.
@@ -86,9 +89,9 @@ O Moki inclui fluxos prontos para qualidade de software, requisitos, pesquisa, d
 
 ## Instalação
 
-1. Baixe o [Moki.Setup.0.6.0.exe](https://github.com/Orsi88/Moki/releases/download/v0.6.0/Moki.Setup.0.6.0.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Baixe o [Moki.Setup.0.6.1.exe](https://github.com/Orsi88/Moki/releases/download/v0.6.1/Moki.Setup.0.6.1.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Instale pelo menos uma ferramenta de IA que você queira usar.
-3. Para o VS Code, baixe o [moki-0.6.0.vsix](https://github.com/Orsi88/Moki/releases/download/v0.6.0/moki-0.6.0.vsix) e instale com `code --install-extension moki-0.6.0.vsix`.
+3. Para o VS Code, baixe o [moki-0.6.1.vsix](https://github.com/Orsi88/Moki/releases/download/v0.6.1/moki-0.6.1.vsix) e instale com `code --install-extension moki-0.6.1.vsix`.
 
 Por padrão, seus projetos ficam em **Documentos\Moki**. Um instalador mais novo atualiza o app sem mexer nos seus workspaces. Para macOS, Linux e execução a partir do código, veja [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 

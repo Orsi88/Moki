@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.6.0/Moki.Setup.0.6.0.exe"><b>⬇️ Download Moki for Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.6.1/Moki.Setup.0.6.1.exe"><b>⬇️ Download Moki for Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
@@ -25,6 +25,8 @@ Moki works with the AI you already use: Claude Code, Codex, Gemini, Cursor, Anti
 - Link an existing folder without copying it.
 - Use tags to share selected context between projects while keeping projects isolated.
 - Resume work from the files and state recorded by each run.
+- Merge a project into another when two turn out to be one: nothing is overwritten, and note titles, links, comments and tags follow.
+- Move files and folders in the tree by dragging them, or Ctrl+click several to move or delete them together.
 
 ### Notes and quick assistants
 
@@ -33,6 +35,7 @@ Notes are a first-class place to think, plan and collect material before it beco
 - Create loose notes or notes inside a project; they save automatically.
 - Write formatted Markdown, use `/` commands, mention project files with `@` and paste images.
 - Open notes in their own notebook window, mark them as favorites and share project notes through tags.
+- Move a project note to another project with its title, tags and star.
 - Send a note to an AI terminal as context, export it as PDF, Markdown or text, or create a note from a selected passage in a PDF.
 - Use one-click assistants to improve writing, summarize, research or review a note critically.
 - Review the proposed changes before accepting them: nothing changes until you approve it.
@@ -86,9 +89,9 @@ Moki includes ready-made workflows for software quality, requirements, research,
 
 ## Install
 
-1. Download [Moki.Setup.0.6.0.exe](https://github.com/Orsi88/Moki/releases/download/v0.6.0/Moki.Setup.0.6.0.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Download [Moki.Setup.0.6.1.exe](https://github.com/Orsi88/Moki/releases/download/v0.6.1/Moki.Setup.0.6.1.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Install at least one AI tool you want to use.
-3. For VS Code, download [moki-0.6.0.vsix](https://github.com/Orsi88/Moki/releases/download/v0.6.0/moki-0.6.0.vsix) and install it with `code --install-extension moki-0.6.0.vsix`.
+3. For VS Code, download [moki-0.6.1.vsix](https://github.com/Orsi88/Moki/releases/download/v0.6.1/moki-0.6.1.vsix) and install it with `code --install-extension moki-0.6.1.vsix`.
 
 Your projects live in **Documents\Moki** by default. A newer installer refreshes the app without touching your workspaces. For macOS, Linux and running from source, see [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
