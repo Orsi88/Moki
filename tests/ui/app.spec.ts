@@ -706,7 +706,7 @@ test.describe.serial('Moki tags', () => {
     await expect(suggested).toHaveCount(0); // closes once chosen: nothing left to suggest
 
     await tagsPage.getByRole('button', { name: 'Abrir na sua ferramenta de IA' }).click();
-    await tagsPage.getByRole('button', { name: /Só abrir o projeto/ }).click();
+    await tagsPage.getByRole('button', { name: /Contexto do projeto/ }).click();
     await tagsPage.getByRole('button', { name: 'Continuar sem arquivos' }).click();
     await expect(tagsPage.getByRole('heading', { name: 'Qual contexto a IA deve considerar?' })).toBeVisible();
     const docs = tagsPage.locator('.context-source', { hasText: 'Docs' });
@@ -3210,8 +3210,8 @@ test.describe.serial('Moki requests', () => {
     const wizard = qp.getByRole('dialog');
     await wizard.getByRole('tab', { name: /^Atividades/ }).click();
     const row = wizard.locator('.invoke-item', { hasText: 'Pré-analisar uma falha' });
-    // Opening the project is not an activity kept at hand: it has no pin.
-    await expect(wizard.locator('.invoke-item', { hasText: 'Só abrir o projeto' }).locator('.pin-btn')).toHaveCount(0);
+    // Opening the project is not an activity at all: it is not offered.
+    await expect(wizard.locator('.invoke-item', { hasText: 'Só abrir o projeto' })).toHaveCount(0);
     await row.hover();
     await row.getByRole('button', { name: /^Fixar .* neste projeto$/ }).click();
     await expect(row.locator('.pin-btn')).toHaveAttribute('aria-pressed', 'true');

@@ -2,7 +2,7 @@
 // Obsidian's vault switcher.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { api, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from '../api';
+import { api, type FolderOffer, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from '../api';
 import { t } from '../i18n';
 import { StartPrefs } from '../components/PrefsCorner';
 import { AddButton } from '../components/AddButton';
@@ -21,6 +21,8 @@ import { confirmDialog } from '../dialogs';
 import { Modal } from '../components/Modal';
 
 interface Props {
+  offer?: FolderOffer | { error: string } | null; // a folder the system asked to open ("Open in Moki"): the quick-project dialog, filled in
+  onOffer?: () => void; // the offer was taken
   newNote?: number; // the rail's New note was pressed (a counter): a new loose note opens in the main area
   projects: ProjectSummary[];
   tools: ToolInfo[];
@@ -49,7 +51,7 @@ const onboarding = (status: string): string => ({
 
 interface MenuItem { label: string; icon: ReactNode; run: () => void; danger?: boolean; shortcut?: string }
 
-export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
+export function Home({ offer, onOffer, newNote = 0, projects, tools, version, onOpen, onCreate, settings, onSettings, onBack, backLabel, project, onTerminal, workspace, onWorkspace, search = false, onSearch, onFound, onDeleted, onRenamed, onToolsChanged }: Props) {
   const [switching, setSwitching] = useState<WorkspaceInfo[] | null>(null); // the workspace menu, open
   const switcherRef = useRef<HTMLDivElement>(null);
   const [switcherBox, setSwitcherBox] = useState<{ left: number; width: number; bottom: number } | null>(null);
@@ -226,6 +228,11 @@ export function Home({ newNote = 0, projects, tools, version, onOpen, onCreate, 
       setFolder(r.folder); setName(r.name); setQuick(true);
     }).catch((err: Error) => setError(err.message));
   };
+  useEffect(() => {
+    if (!offer) return;
+    if ('error' in offer) setError(offer.error); else { setFolder(offer.folder); setName(offer.name); setQuick(true); }
+    onOffer?.();
+  }, [offer, onOffer]);
   const closeQuick = () => { setQuick(false); setName(''); setFolder(''); setError(''); };
   const collapsed = (id: HomeSectionId) => sections.collapsed.includes(id);
   const toggleSection = (id: HomeSectionId) => {

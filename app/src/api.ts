@@ -42,6 +42,7 @@ export interface ProjectSummary {
 export interface Tag { id: string; name: string; color: string; description: string }
 export interface SharedSource { project: string; name: string; whole: boolean; paths: string[] }
 export interface FileHit { project: string; projectName: string; path: string; snippet: string; line: number; tags: string[] }
+export type FolderOffer = { folder: string; name: string; project?: ProjectSummary };
 export interface SearchResult { projects: ProjectSummary[]; files: FileHit[]; truncated: boolean }
 export interface ContextChoice { own: string[]; shared: { tag: Tag; sources: SharedSource[] }[] }
 // A workspace, like an Obsidian vault: a folder with its own projects, tags and settings.
@@ -324,6 +325,7 @@ export interface Bridge {
   onShowTerminal?(callback: (project: string, terminal: TerminalRef) => void): () => void;
   onOpenInMain?(callback: (project: string, path: string) => void): () => void;
   onOpenRoutine?(callback: (target: RoutineTarget) => void): () => void;
+  onOpenFolder?(callback: () => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
     // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
     create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
@@ -422,7 +424,8 @@ export const api = {
   searchExpanded: (query: string, tags: string[], project?: string) => call<SearchResult>('searchExpanded', query, tags, project),
   contextChoice: (project: string) => call<ContextChoice>('contextChoice', project),
   // Open a project from a folder: the project already linked to it, or the folder and a suggested name (null: cancelled).
-  pickFolder: () => call<{ folder: string; name: string; project?: ProjectSummary } | null>('pickFolder'),
+  pickFolder: () => call<FolderOffer | null>('pickFolder'),
+  openedFolder: () => call<FolderOffer | null>('openedFolder'),
   openInEditor: (project: string, tool: string) => call<boolean>('openInEditor', project, tool),
   openFileInIde: (project: string, path: string, line: number, tool?: string) => call<string>('openFileInIde', project, path, line, tool),
   skills: () => call<SkillInfo[]>('skills'),
@@ -440,7 +443,8 @@ export const api = {
   markers: (defaults?: Marker[]) => call<Marker[]>('markers', defaults),
   saveMarkers: (markers: Marker[]) => call<Marker[]>('saveMarkers', markers),
   setActivityPin: (project: string, id: string, on: boolean) => call<string[]>('setActivityPin', project, id, on),
-  integrations: () => call<ToolInfo[]>('integrations'),
+  integrations: (fresh = false) => call<ToolInfo[]>('integrations', fresh),
+  toolDiagnostic: () => call<string>('toolDiagnostic'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
   openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string }>('openMokiInEditor', tool, project),
   installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
@@ -623,6 +627,7 @@ export const api = {
   saveRoutineSettings: (raw: RoutineSettings) => call<RoutineSettings>('saveRoutineSettings', raw),
   notifications: () => call<RoutineNote[]>('notifications'),
   onOpenRoutine: (callback: (target: RoutineTarget) => void) => window.qa?.onOpenRoutine?.(callback) ?? (() => {}),
+  onOpenFolder: (callback: () => void) => window.qa?.onOpenFolder?.(callback) ?? (() => {}),
   readNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('readNotifications', ids),
   dismissNotifications: (ids: string[] | 'all') => call<RoutineNote[]>('dismissNotifications', ids),
   emojiPanel: (): Promise<boolean> => window.qa?.emojiPanel?.() ?? Promise.resolve(false),

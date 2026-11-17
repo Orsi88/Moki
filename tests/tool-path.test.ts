@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fixToolPath, mergePath, pathPending, pathReady, shellPath, shellPathAsync, toolDirs } from '../desktop/tool-path.ts';
+import { fixToolPath, joinRegistry, mergePath, npmPrefixBin, pathPending, pathReady, pathReport, registryValues, shellPath, shellPathAsync, toolDirs } from '../desktop/tool-path.ts';
 import { detectTools, detectToolsAsync, which, whichAsync } from '../scripts/lib/core.ts';
 
 const posix = process.platform !== 'win32';
@@ -106,4 +106,69 @@ test('PATH: the shell is read asynchronously and the same way as the blocking re
     if (saved.shell === undefined) delete process.env.SHELL; else process.env.SHELL = saved.shell;
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// What `reg query HKCU\\Environment` prints: a header, values with REG_* types, a name with a space, an empty value.
+const USER_OUT = [
+  '', 'HKEY_CURRENT_USER\\Environment',
+  '    Path    REG_EXPAND_SZ    %NVM_SYMLINK%;%PNPM_HOME%;C:\\Users\\a\\bin',
+  '    NVM_SYMLINK    REG_SZ    C:\\nvm4w\\nodejs',
+  '    PNPM_HOME    REG_EXPAND_SZ    %LOCALAPPDATA%\\pnpm',
+  '    My Var    REG_SZ    with space',
+  '    EMPTY    REG_SZ    ', '',
+].join('\r\n');
+const MACHINE_OUT = 'HKEY_LOCAL_MACHINE\\SYSTEM\\X\r\n    Path    REG_EXPAND_SZ    %SystemRoot%\\system32\r\n';
+
+test('PATH: every value of a registry key is read, by upper-case name', () => {
+  const v = registryValues(USER_OUT);
+  assert.equal(v.PATH, '%NVM_SYMLINK%;%PNPM_HOME%;C:\\Users\\a\\bin');
+  assert.equal(v.NVM_SYMLINK, 'C:\\nvm4w\\nodejs');
+  assert.equal(v['MY VAR'], 'with space');
+  assert.equal(v.EMPTY, '');
+  assert.ok(!Object.keys(v).some((k) => k.startsWith('HKEY')), 'the header is not a value');
+  assert.deepEqual(registryValues(''), {});
+});
+
+test('PATH: the registry PATH resolves the variables it names, from the process or from the registry', () => {
+  // Not in the process (created after the app started): the registry's own value; nested one too.
+  assert.equal(joinRegistry([MACHINE_OUT, USER_OUT], { SystemRoot: 'C:\\Windows', LOCALAPPDATA: 'C:\\L' }),
+    'C:\\Windows\\system32;C:\\nvm4w\\nodejs;C:\\L\\pnpm;C:\\Users\\a\\bin');
+  // The process wins when it has the variable (any case); machine before user.
+  assert.equal(joinRegistry([MACHINE_OUT, USER_OUT], { SYSTEMROOT: 'D:\\W', nvm_symlink: 'D:\\node', LOCALAPPDATA: 'C:\\L' }),
+    'D:\\W\\system32;D:\\node;C:\\L\\pnpm;C:\\Users\\a\\bin');
+  assert.equal(joinRegistry(['', ''], {}), '', 'a failed read gives nothing');
+  assert.equal(joinRegistry([MACHINE_OUT, ''], {}), '%SystemRoot%\\system32', 'an unknown variable stays as it is');
+});
+
+test('PATH: npm\'s moved global folder comes from NPM_CONFIG_PREFIX or ~/.npmrc', () => {
+  const rc = (text: string) => () => text;
+  const none = () => { throw new Error('ENOENT'); };
+  assert.equal(npmPrefixBin('linux', '/h', { NPM_CONFIG_PREFIX: '/opt/npm' }, none), '/opt/npm/bin');
+  assert.equal(npmPrefixBin('win32', 'C:\\h', { NPM_CONFIG_PREFIX: 'D:\\npm' }, none), 'D:\\npm', 'Windows: the commands are in the prefix itself');
+  assert.equal(npmPrefixBin('darwin', '/Users/a', {}, rc('registry=x\nprefix = ~/.npm-g\n')), '/Users/a/.npm-g/bin', '~ is the home');
+  assert.equal(npmPrefixBin('linux', '/h', {}, rc('prefix="/q"\r\n')), '/q/bin', 'quotes and CRLF');
+  assert.equal(npmPrefixBin('linux', '/h', {}, rc('registry=x\n')), '');
+  assert.equal(npmPrefixBin('linux', '/h', {}, none), '', 'no .npmrc');
+});
+
+test('PATH: pnpm, fnm, mise and the moved npm folder are among the usual ones', () => {
+  const sl = (l: string[]) => l.map((d) => d.replace(/\\/g, '/'));
+  const win = sl(toolDirs('win32', 'C:/Users/a', { APPDATA: 'C:/A', LOCALAPPDATA: 'C:/L', NPM_CONFIG_PREFIX: 'D:/npm' }));
+  for (const d of ['C:/L/pnpm', 'C:/A/fnm/aliases/default', 'D:/npm']) assert.ok(win.includes(d), d);
+  assert.ok(!sl(toolDirs('win32', 'C:/Users/a', { APPDATA: 'C:/A', LOCALAPPDATA: 'C:/L' })).includes(''), 'no empty folder');
+  const mac = toolDirs('darwin', '/Users/a', { NPM_CONFIG_PREFIX: '/opt/npm' });
+  for (const d of ['/Users/a/.local/share/mise/shims', '/Users/a/.asdf/shims', '/Users/a/Library/pnpm', '/opt/npm/bin']) assert.ok(mac.includes(d), d);
+});
+
+test('PATH: the diagnostic lists the folders in order, the missing ones and each command', () => {
+  const exists = (d: string) => d !== '/gone';
+  const at = '2026-01-01T00:00:00.000Z';
+  const text = pathReport('linux', { PATH: '/usr/bin:/gone::/bin' }, { source: '/bin/zsh', folders: 3, at }, [['claude', '/usr/bin/claude'], ['codex', null]], exists);
+  assert.equal(text, ['System: linux', `PATH read from: /bin/zsh \u2014 3 folders (${at})`, 'Commands:', '  claude: /usr/bin/claude', '  codex: not found',
+    'Folders searched, in order:', '  /usr/bin', '  [missing] /gone', '  /bin'].join('\n'));
+  assert.match(pathReport('linux', {}, { source: '/bin/zsh', folders: 0, at }, [], exists), /failed or empty/);
+  assert.match(pathReport('linux', {}, { source: '', folders: 0, at: '' }, [], exists), /not read \(development run\)/);
+  const win = pathReport('win32', { Path: 'C:\\a;C:\\b', PATHEXT: '.EXE' }, { source: 'Windows registry', folders: 2, at }, [], exists);
+  assert.match(win, /PATHEXT: \.EXE/);
+  assert.match(win, /  C:\\a\n  C:\\b$/);
 });

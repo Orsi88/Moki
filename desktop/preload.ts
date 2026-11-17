@@ -55,6 +55,11 @@ contextBridge.exposeInMainWorld('qa', {
     ipcRenderer.on('qa:open-routine', listener);
     return () => { ipcRenderer.removeListener('qa:open-routine', listener); };
   },
+  onOpenFolder: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('qa:open-folder', listener);
+    return () => { ipcRenderer.removeListener('qa:open-folder', listener); };
+  },
   term: {
     create: (tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: unknown }) => ipcRenderer.invoke('qa:term-new', tool, project ?? '', options ?? {}),
     start: (id: string, cols: number, rows: number, project: string) => ipcRenderer.invoke('qa:term-start', id, cols, rows, project),

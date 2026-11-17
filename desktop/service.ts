@@ -20,7 +20,7 @@ import {
 } from '../scripts/lib/core.ts';
 import { CATEGORIES, MAX_PAGE, installSkill, searchSkills } from './skill-registry.ts';
 import { checksum, chooseAsset, chooseAssets, download, latestRelease, systemFamily } from './craft-download.ts';
-import { pathReady } from './tool-path.ts';
+import { pathReady, pathRead, pathReport } from './tool-path.ts';
 import { safeName, type OrganizeCandidate } from './hudson.ts';
 import { readConfigPlan, type ConfigSnapshot } from './configurator.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
@@ -81,6 +81,7 @@ export interface Deps {
   appChooser?: AppChooser; // "Open with" for Excel, Word and PDF files (desktop/open-with.ts); tests pass a fake
   pdfcraft?: { available: () => boolean; run: PdfRunner }; // PDF comments (desktop/pdfcraft.ts); tests pass a fake
   pickFolder?: () => Promise<string | null>; // native folder dialog; the UI never sends paths
+  openedFolder?: () => string | null; // the folder the system asked to open ("Open in Moki"), taken once; the UI never sends it
   saveFile?: (name: string, extension: string, title?: string) => Promise<string | null>; // native save dialog (exporting a note, downloading an app); the UI never sends paths
   craftSystem?: { platform: string; arch: string; family?: string }; // which release files fit this computer; family = 'rpm' | 'deb' | '' (tests fake it)
   pickFile?: () => Promise<string | null>; // native dialog for a .zip or a .md (an upload); the UI never sends paths
@@ -420,6 +421,16 @@ export function createService(root: string, deps: Deps) {
   };
   // Only a folder the user chose in the native dialog can be linked when creating a project.
   let picked: string | null = null;
+  type FolderOffer = { folder: string; name: string; project?: ProjectSummary };
+  // A folder the user chose (dialog or the system's "Open in Moki"): a folder linked to a project of the active workspace
+  // returns it (it just opens); otherwise the folder and a suggested name, and only that folder may be linked by createProject.
+  const offerFolder = (chosen: string): FolderOffer => {
+    const folder = checkFolder(chosen);
+    const known = listProjects(root).map((id) => projectSummary(id, root)).find((p) => p.repository && resolve(p.repository) === folder);
+    if (known) return { folder, name: known.name, project: known };
+    picked = folder;
+    return { folder, name: basename(folder) };
+  };
 
   // Hides a path from Git in .git/info/exclude (local only, no versioned file changes).
   // ponytail: only a .git folder; a worktree or submodule (.git file) is left alone, resolve its gitdir if that matters.
@@ -1379,15 +1390,15 @@ export function createService(root: string, deps: Deps) {
 
     // "Open a project" (start screen): the folder chosen in the native dialog. A folder already linked to a project
     // returns that project (it just opens); otherwise the folder and a suggested name, for createProject to link it.
-    pickFolder: async (): Promise<{ folder: string; name: string; project?: ProjectSummary } | null> => {
+    pickFolder: async (): Promise<FolderOffer | null> => {
       if (!deps.pickFolder) throw new ServiceError('Choosing a folder is not available here.');
       const chosen = await deps.pickFolder();
-      if (!chosen) return null;
-      const folder = checkFolder(chosen);
-      const known = listProjects(root).map((id) => projectSummary(id, root)).find((p) => p.repository && resolve(p.repository) === folder);
-      if (known) return { folder, name: known.name, project: known };
-      picked = folder;
-      return { folder, name: basename(folder) };
+      return chosen ? offerFolder(chosen) : null;
+    },
+    // "Open in Moki" on a folder (system context menu, `Moki <folder>`): the same answer as pickFolder, for the folder main.ts received.
+    openedFolder: (): FolderOffer | null => {
+      const chosen = deps.openedFolder?.();
+      return chosen ? offerFolder(chosen) : null;
     },
 
     // "Open in the IDE" (the linked folder in the tree): that folder in an editor Moki knows (VS Code, Cursor).
@@ -1532,7 +1543,9 @@ export function createService(root: string, deps: Deps) {
       return setFavorite(a.id, on === true, root);
     },
 
-    integrations: async () => {
+    // fresh: the PATH read again first (the + menu, when an AI looks missing: it may have been installed since).
+    integrations: async (fresh?: unknown) => {
+      if (fresh === true) { await deps.fixPath?.(); toolsSeen = null; }
       const available = await toolsFound();
       return (Object.keys(TOOLS) as ToolKey[]).map((k) => ({
         id: k, label: TOOLS[k].label, hint: TOOLS[k].hint ?? '', command: TOOLS[k].command ?? '',
@@ -1557,6 +1570,17 @@ export function createService(root: string, deps: Deps) {
           extension: found && TOOLS[k].mokiExtension ? await extensionVersion(k, runCmd) : '',
         };
       }));
+    },
+
+    // Settings › My AIs › Copy diagnostic: where each command was looked for, for a support request. Copied and returned.
+    toolDiagnostic: async () => {
+      await deps.fixPath?.();
+      toolsSeen = null;
+      const find = deps.which ?? which;
+      const commands = [...new Set([...Object.values(TOOLS).flatMap((t) => (t.command ? [t.command] : [])), 'node', 'npm'])];
+      const text = pathReport(process.platform, process.env, pathRead(), commands.map((c): [string, string | null] => [c, find(c)]));
+      deps.copy?.(text);
+      return text;
     },
 
     // Installs the Moki extension of this app's version in the editor, then opens the editor on the project's

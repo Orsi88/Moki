@@ -8,7 +8,7 @@
 import { openSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
-import { TOOLS, installPlan, isTool, which, type ToolKey } from '../scripts/lib/core.ts';
+import { NODE_INSTALL, TOOLS, installPlan, isTool, nodeInstallPlan, which, type ToolKey } from '../scripts/lib/core.ts';
 import { fixToolPathSync } from './tool-path.ts';
 
 interface LaunchFile { command: string; args: string[]; cwd: string; title: string; tool?: string }
@@ -40,31 +40,58 @@ function main(): void {
   process.on('SIGINT', () => { /* Ctrl+C belongs to the tool; wait for it to exit */ });
   process.stdout.write(`\x1b]0;${req.title}\x07`);
 
-  const path = which(req.command);
+  // Installed since the app last read the PATH (the external-window launch does not read it again): look once more first.
+  const path = which(req.command) ?? (fixToolPathSync(), which(req.command));
   if (path) start(req, path);
   else if (req.tool && isTool(req.tool) && TOOLS[req.tool].install) offerInstall(req, req.tool);
   else waitForKey(`"${req.command}" was not found. Is it installed?`);
 }
 
-// The tool is missing: show how to install it and, only when the user types y, run the
-// fixed vendor command of the TOOLS table. Nothing here comes from user text.
+// Asks in this console; only "y"/"yes" runs onYes.
+function ask(question: string, onYes: () => void): void {
+  process.stdout.write(`${question} [y/N] `);
+  process.stdin.resume();
+  process.stdin.once('data', (d) => {
+    process.stdin.pause();
+    if (/^\s*y(es)?\s*$/i.test(String(d))) onYes();
+    else waitForKey('Not installed. Close this tab, or open another AI from the + menu.');
+  });
+}
+
+// Runs a fixed plan in this console, then reads the PATH again. false: it failed (and the window says so).
+function runPlan(plan: { file: string; args: string[] }): boolean {
+  const r = spawnSync(plan.file, plan.args, { stdio: consoleStdio() });
+  if (r.status !== 0) { waitForKey(`The installer failed (exit ${r.status ?? r.error?.message ?? 'unknown'}). Try the instructions above.`); return false; }
+  fixToolPathSync();
+  return true;
+}
+
+// The tool is missing: show how to install it and, only when the user types y, run the fixed vendor command
+// of the TOOLS table. A tool installed through npm without npm here gets Node.js offered first, with its own y.
+// Nothing here comes from user text.
 function offerInstall(req: LaunchFile, tool: ToolKey): void {
   const { label, install } = TOOLS[tool];
   console.log(`\n${label} is not installed.\nInstallation instructions: ${install!.docs}`);
   const plan = installPlan(tool);
   if (!plan) { waitForKey('Moki cannot install it automatically. Follow the instructions above.'); return; }
-  console.log(`Moki will run: ${plan.shown}`);
-  process.stdout.write(`Install ${label}? [y/N] `);
-  process.stdin.resume();
-  process.stdin.once('data', (d) => {
-    process.stdin.pause();
-    if (!/^\s*y(es)?\s*$/i.test(String(d))) { waitForKey('Not installed. Close this tab, or open another AI from the + menu.'); return; }
-    const r = spawnSync(plan.file, plan.args, { stdio: consoleStdio() });
-    if (r.status !== 0) { waitForKey(`The installer failed (exit ${r.status ?? r.error?.message ?? 'unknown'}). Try the instructions above.`); return; }
-    fixToolPathSync();
-    const path = which(req.command);
-    if (path) start(req, path);
-    else waitForKey(`Installed, but "${req.command}" is not on this app's PATH yet. Restart Moki and open it again.`);
+  const installTool = () => {
+    console.log(`Moki will run: ${plan.shown}`);
+    ask(`Install ${label}?`, () => {
+      if (!runPlan(plan)) return;
+      const path = which(req.command);
+      if (path) start(req, path);
+      else waitForKey(`Installed, but "${req.command}" is not on this app's PATH yet. Restart Moki and open it again.`);
+    });
+  };
+  if (install!.needs !== 'npm' || which('npm')) { installTool(); return; }
+  console.log(`${label} installs with npm, which comes with Node.js, and Node.js is not installed.\nNode.js: ${NODE_INSTALL.docs}`);
+  const node = nodeInstallPlan();
+  if (!node) { waitForKey('Moki cannot install Node.js on this system. Install it from the link above, then open this AI again.'); return; }
+  console.log(`Moki will run: ${node.shown}`);
+  ask('Install Node.js?', () => {
+    if (!runPlan(node)) return;
+    if (which('npm')) installTool();
+    else waitForKey("Node.js was installed, but npm is not on this app's PATH yet. Restart Moki and open this AI again.");
   });
 }
 

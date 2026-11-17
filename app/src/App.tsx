@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, focusRoutine, hasBridge, pageParams, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from './api';
+import { api, focusRoutine, hasBridge, pageParams, type FolderOffer, type ProjectSummary, type Starter, type TerminalRef, type ToolInfo, type WorkspaceInfo } from './api';
 import { t, useLang } from './i18n';
 import { hiddenIds, setMenuWorkspace } from './side-menu';
 import { Ribbon } from './components/Ribbon';
@@ -36,6 +36,7 @@ export function App() {
   // A project just made: the structured one opens with "Set up"; one opened from a folder says what linking it did.
   const [created, setCreated] = useState<{ id: string; setup: boolean; notice: string } | null>(null);
   const [settings, setSettings] = useState<SettingsTab | null>(null);
+  const [offer, setOffer] = useState<FolderOffer | { error: string } | null>(null); // a folder the system asked to open, for the start screen
   useEffect(() => api.onOpenRoutine((target) => { focusRoutine(target); setSettings('routines'); }), []);
   const [launchOnOpen, setLaunchOnOpen] = useState(false);
   const [pendingTerm, setPendingTerm] = useState<TerminalRef | null>(null);
@@ -70,7 +71,21 @@ export function App() {
 
   // Keeps the same list (and project objects) when nothing changed: a burst of file changes then re-renders nothing.
   const loadProjects = useCallback(() => api.projects().then((next) => setProjects((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))), []);
-  const loadTools = useCallback(() => { api.integrations().then(setTools).catch(() => { /* keeps the list it has */ }); }, []);
+  const loadTools = useCallback((fresh?: boolean) => { api.integrations(fresh === true).then(setTools).catch(() => { /* keeps the list it has */ }); }, []);
+
+  // "Open in Moki" on a folder, at start and while running: a folder with a project opens it; a new one opens the
+  // start screen with the quick-project dialog filled in. Nothing changes when no folder was asked.
+  const takeFolder = useCallback(() => {
+    const toWorkspace = () => api.workspaces().then((spaces) => setWorkspace(spaces.list.find((w) => w.id === spaces.active) ?? null));
+    api.openedFolder().then(async (r) => {
+      if (!r) return;
+      await toWorkspace();
+      setSettings(null); setCreated(null);
+      await loadProjects();
+      if (r.project) { setProjectId(r.project.id); remember(r.project.id); } else { setProjectId(null); remember(null); setOffer(r); }
+    }).catch((e: Error) => { void toWorkspace().catch(() => { /* the picker */ }); setProjectId(null); setOffer({ error: e.message }); });
+  }, [loadProjects]);
+  useEffect(() => api.onOpenFolder(takeFolder), [takeFolder]);
 
   useEffect(() => {
     if (!hasBridge()) { setError(t('Moki must be opened with the qa command.')); return; }
@@ -80,6 +95,7 @@ export function App() {
         setVersion(session.version);
         setProjects(list);
         setMenuWorkspace(spaces.active);
+        takeFolder(); // a folder the system asked to open at start
         const params = pageParams();
         const requested = params.get('project');
         // A project asked for at start (checks, shortcuts) opens in the workspace opened last; otherwise the picker comes first.
@@ -93,7 +109,7 @@ export function App() {
         setReady(true);
       })
       .catch((e: Error) => setError(e.message));
-  }, [loadTools]);
+  }, [loadTools, takeFolder]);
 
   const open = (id: string) => { setSettings(null); setProjectId(id); setCreated(null); remember(id); };
   const home = () => { setSettings(null); setProjectId(null); setCreated(null); remember(null); void loadProjects(); };
@@ -147,7 +163,7 @@ export function App() {
       <>
         <div className="shell">
           <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onOpenRoutine={() => setSettings('routines')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
-          <Home newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
+          <Home offer={offer} onOffer={() => setOffer(null)} newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
           <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
         </div>
         {note}

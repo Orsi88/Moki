@@ -21,7 +21,7 @@ Uma operação, inclusive uma atividade que aponta para ela, sempre abre seu pr�
 
 | Origem | Onde | Dá para mudar? |
 |---|---|---|
-| **Ações do Moki** | No código do app: *Só abrir o projeto*, *Contexto do projeto*, *Preparar o projeto*, *Planejar o projeto com a IA*, *Retomar uma execução* | Não: os pedidos delas dependem do app (o plano do projeto, a execução a retomar). Dá para marcar com estrela |
+| **Ações do Moki** | No código do app: *Contexto do projeto*, *Preparar o projeto*, *Planejar o projeto com a IA*, *Retomar uma execução* | Não: os pedidos delas dependem do app (o plano do projeto, a execução a retomar). Dá para marcar com estrela |
 | **Vem com o Moki** | [activities/](../../activities/) no framework: *Revisar histórias de usuário*, *Desenhar testes*, *Revisar e depois desenhar testes*, *Pré-análise de falha*, *Montar evidências de teste*, *Investigar com o Sherlock*, *Contestar com o Moriarty*, *Escrever um documento com o Watson*, *Revisar MF do tracker*, *Registrar itens com o Lestrade*, *Automação* | Só leitura: **Duplicar para editar** cria uma cópia que é sua |
 | **Suas** | `workspace/library/activities/<id>.md` | Sim, em **Configurações › Atividades** |
 

@@ -46,6 +46,13 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
   useEffect(check, [check]);
   useEffect(() => { api.session().then((s) => setVersion(s.version)).catch(() => setVersion('')); }, []);
 
+  const copyDiagnostic = () => {
+    setError(''); setInfo('');
+    api.toolDiagnostic()
+      .then(() => setInfo(t('Diagnostic copied. Paste it in your issue or support message; it lists folders of this computer.')))
+      .catch((e: Error) => setError(e.message));
+  };
+
   const list = tools.filter((x) => QUICK.includes(x.kind));
   const available = (tool: ToolInfo) => status?.[tool.id]?.available ?? tool.available;
   // The default: the one chosen here when it is installed, otherwise the first installed (as the activities do).
@@ -100,7 +107,10 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
   return (
     <div className="list-page ai-tools">
       <ListHead title={t('My AIs')} intro={t('Where each AI is and which one activities start in.')}
-        action={<button type="button" className="btn btn-ghost" disabled={status === null} onClick={check}><IconRefresh size={15} /> {status === null ? t('Checking…') : t('Check again')}</button>} />
+        action={<>
+          <button type="button" className="btn btn-ghost" onClick={copyDiagnostic}>{t('Copy diagnostic')}</button>
+          <button type="button" className="btn btn-ghost" disabled={status === null} onClick={check}><IconRefresh size={15} /> {status === null ? t('Checking…') : t('Check again')}</button>
+        </>} />
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
       {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
       <ul className="ai-grid">

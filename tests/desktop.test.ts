@@ -4,6 +4,7 @@ import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, symli
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { PDFDocument } from 'pdf-lib';
 import { spawnSync } from 'node:child_process';
 import { CHANGED_OUTSIDE, callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
@@ -17,6 +18,7 @@ import { allMarked, toggleMarked } from '../app/src/upload-select.ts';
 import { acceptsItem, droppedItem, ITEM_DRAG, itemPayload, parseItem } from '../app/src/item-drag.ts';
 import { docxToMarkdown, readableInputs } from '../scripts/lib/docx.ts';
 import { frameworkTarget, syncFramework } from '../desktop/framework.ts';
+import { folderArg } from '../desktop/shell-folder.ts';
 import { noteKey, noteQuery, parseNoteRequest } from '../desktop/notes.ts';
 import { remapPdfNotes, type PdfNote } from '../desktop/pdf-notes.ts';
 import { listActivities } from '../scripts/lib/activities.ts';
@@ -25,7 +27,7 @@ import { formatNumber } from '../scripts/lib/numfmt.mjs';
 import { zip } from '../scripts/lib/zip.mjs';
 import { buildXlsx } from '../scripts/xlsx.mjs';
 import { ROOT } from '../scripts/lib/repo.mjs';
-import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, projectSummary, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
+import { CRAFT_APPS, craftAssetEndings, createProject, installPlan, nodeInstallPlan, projectSummary, isProject, linuxPackageFamily, pickCraftAssets, slugify, TOOLS, windowsSafePrompt, type ToolKey } from '../scripts/lib/core.ts';
 
 // Fixture: a framework root with a few skills, the project template and one project.
 const root = mkdtempSync(join(tmpdir(), 'qa-desktop-'));
@@ -1846,6 +1848,36 @@ test('linked folder: a project can be created from an existing folder chosen in 
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });
 
+test('"Open in Moki": the folder in the arguments, taken once, answered like the folder dialog', async () => {
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'qa-open-')));
+  writeFileSync(join(repo, 'a.txt'), 'x');
+  try {
+    assert.equal(folderArg(['Moki.exe', '--allow-file-access-from-files', repo], '/', false), repo, 'packaged: skips Chromium switches');
+    assert.equal(folderArg(['electron', root], '/', true), null, 'from source: the app root is never the folder');
+    assert.equal(folderArg(['electron', root, repo], '/', true), repo);
+    assert.equal(folderArg(['Moki', pathToFileURL(repo).href], '/', false), repo, 'a file:// URI');
+    assert.equal(folderArg(['Moki', basename(repo)], dirname(repo), false), repo, 'relative to the working directory');
+    assert.equal(folderArg(['Moki', join(repo, 'a.txt')], '/', false), null, 'a file is not a folder');
+    assert.equal(folderArg(['Moki', join(repo, 'missing')], '/', false), null);
+
+    assert.equal(createService(root, noLaunch).openedFolder(), null, 'no dependency');
+    let asked: string | null = repo;
+    const svc = createService(root, { ...noLaunch, openedFolder: () => { const f = asked; asked = null; return f; } });
+    assert.deepEqual(svc.openedFolder(), { folder: repo, name: basename(repo) });
+    assert.equal(svc.openedFolder(), null, 'taken once');
+    const made = svc.createProject('Opened', 'minimal', repo, []);
+    assert.equal(made.repository, repo, 'the folder it offered can be linked');
+    asked = repo;
+    assert.equal(svc.openedFolder()?.project?.id, 'opened', 'a linked folder opens its project');
+    asked = root;
+    assert.throws(() => svc.openedFolder(), /outside Moki/);
+    assert.deepEqual(await callService(svc, 'openedFolder', []), { ok: true, value: null });
+  } finally {
+    rmSync(join(root, 'workspace', 'projects', 'opened'), { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 // ------------------------------------------------------------- Skills & agents dialog
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
@@ -2742,6 +2774,21 @@ test('install plans: fixed vendor commands per system for every terminal AI; edi
   assert.equal(TOOLS.cursor.mokiExtension, 'unverified');
 });
 
+test('install plans: Node.js comes from winget or Homebrew only; the tools installed through npm declare it', () => {
+  const found = (c: string) => `/bin/${c}`;
+  const none = () => null;
+  assert.equal(nodeInstallPlan('win32', found)?.shown, 'winget install --id OpenJS.NodeJS.LTS --exact --source winget');
+  assert.equal(nodeInstallPlan('win32', found)?.file, 'powershell.exe');
+  assert.equal(nodeInstallPlan('win32', none), null);
+  for (const p of ['darwin', 'linux']) {
+    assert.deepEqual(nodeInstallPlan(p, found), { file: '/bin/sh', args: ['-c', 'brew install node'], shown: 'brew install node' });
+    assert.equal(nodeInstallPlan(p, none), null);
+  }
+  assert.equal(TOOLS.codex.install?.needs, 'npm');
+  assert.equal(TOOLS.gemini.install?.needs, 'npm');
+  assert.equal(TOOLS.claude.install?.needs, undefined);
+});
+
 test('a missing installable tool opens run-tool in the tab; the request carries the tool and one prompt argument', { skip: process.platform === 'win32' }, () => {
   const bin = mkdtempSync(join(tmpdir(), 'qa-empty-'));
   const home = mkdtempSync(join(tmpdir(), 'qa-home-'));
@@ -2774,10 +2821,27 @@ test('run-tool: a missing tool shows the instructions and asks; anything but y i
   const file = join(dir, 'req.json');
   writeFileSync(file, JSON.stringify({ command: 'claude', args: ['--', 'x'], cwd: dir, title: 'Claude Code', tool: 'claude' }));
   try {
-    const r = spawnSync(process.execPath, [join(ROOT, 'desktop', 'run-tool.ts'), file], { input: 'n\n\n', encoding: 'utf8', env: { PATH: bin, HOME: dir } });
+    const r = spawnSync(process.execPath, [join(ROOT, 'desktop', 'run-tool.ts'), file], { input: 'n\n\n', encoding: 'utf8', env: { PATH: bin, HOME: dir, SHELL: '/bin/false' } });
     assert.match(r.stdout, /Installation instructions: https:\/\/code\.claude\.com\/docs\/en\/setup/);
     assert.match(r.stdout, /Install Claude Code\? \[y\/N\]/);
     assert.match(r.stderr, /Not installed/);
+    assert.equal(r.status, 1);
+  } finally {
+    rmSync(bin, { recursive: true, force: true }); rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('run-tool: a missing npm tool offers Node.js first, and says so when it cannot install it', { skip: process.platform === 'win32' || ['/usr/local/bin/npm', '/opt/homebrew/bin/npm', '/opt/homebrew/bin/brew', '/usr/local/bin/brew', '/home/linuxbrew/.linuxbrew/bin/brew'].some(existsSync) }, () => {
+  const bin = mkdtempSync(join(tmpdir(), 'qa-empty-'));
+  const dir = mkdtempSync(join(tmpdir(), 'qa-req-'));
+  const file = join(dir, 'req.json');
+  writeFileSync(file, JSON.stringify({ command: 'codex', args: ['x'], cwd: dir, title: 'Codex', tool: 'codex' }));
+  try {
+    const r = spawnSync(process.execPath, [join(ROOT, 'desktop', 'run-tool.ts'), file], { input: '\n', encoding: 'utf8', env: { PATH: bin, HOME: dir, SHELL: '/bin/false' } });
+    assert.match(r.stdout, /Node\.js is not installed/);
+    assert.match(r.stdout, /https:\/\/nodejs\.org\/en\/download/);
+    assert.match(r.stderr, /cannot install Node\.js/);
+    assert.doesNotMatch(r.stdout, /Install .*\[y\/N\]/);
     assert.equal(r.status, 1);
   } finally {
     rmSync(bin, { recursive: true, force: true }); rmSync(dir, { recursive: true, force: true });
@@ -3527,6 +3591,39 @@ test('my AIs: tools are found through PATH, kept while it is the same, and aiToo
     process.env.PATH = `${bin}${process.platform === 'win32' ? ';' : ':'}${tmpdir()}`; // a new PATH is a new lookup
     assert.equal(await claude(), true);
   } finally { process.env.PATH = savedPath; rmSync(bin, { recursive: true, force: true }); }
+});
+
+test('my AIs: the + menu asks for a fresh look, and integrations() without it keeps the cache', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'qa-tools-'));
+  const savedPath = process.env.PATH;
+  const exe = join(bin, process.platform === 'win32' ? 'claude.cmd' : 'claude');
+  process.env.PATH = bin;
+  let reads = 0;
+  try {
+    // The PATH read installs the tool: it appears after the app started, outside Moki.
+    const svc = createService(root, { ...noLaunch, fixPath: () => { reads++; writeFileSync(exe, '#!/bin/sh\nexit 0\n'); chmodSync(exe, 0o755); } });
+    const claude = async (fresh?: boolean) => (await svc.integrations(fresh)).find((t) => t.id === 'claude')?.available;
+    assert.equal(await claude(), false);
+    assert.equal(await claude(false), false, 'not fresh: cached, the PATH is not read');
+    assert.equal(reads, 0);
+    assert.equal(await claude(true), true, 'fresh: the PATH is read again and the cache forgotten');
+    assert.equal(reads, 1);
+    assert.equal(await claude('yes' as unknown as boolean), true, 'only true asks for a fresh read');
+    assert.equal(reads, 1);
+  } finally { process.env.PATH = savedPath; rmSync(bin, { recursive: true, force: true }); }
+});
+
+test('my AIs: Copy diagnostic lists where each command was looked for, and copies it', async () => {
+  const copied: string[] = [];
+  let reads = 0;
+  const svc = createService(root, { ...noLaunch, fixPath: () => { reads++; }, which: (c) => (c === 'claude' ? '/opt/bin/claude' : null), copy: (text) => { copied.push(text); } });
+  const text = await svc.toolDiagnostic();
+  assert.equal(reads, 1, 'the PATH is read again first');
+  assert.match(text, /claude: \/opt\/bin\/claude/);
+  assert.match(text, /codex: not found/);
+  assert.match(text, /node: not found/);
+  assert.match(text, /Folders searched/);
+  assert.deepEqual(copied, [text]);
 });
 
 test('an activity effort level goes to the AI as its own flag; an AI without one starts with its default', () => {

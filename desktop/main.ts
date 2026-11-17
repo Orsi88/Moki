@@ -10,6 +10,7 @@ import { basename, dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ROOT, workspaceDir } from '../scripts/lib/repo.mjs';
 import { TOOLS, isProject, isTool, projectRepository, projectSummary, projectsDir, which, type ToolKey } from '../scripts/lib/core.ts';
+import { folderArg } from './shell-folder.ts';
 import { callService, createService, servedFile, type CallResult } from './service.ts';
 import { FILE_SCHEME, createFileGrants } from './file-protocol.ts';
 import { PREVIEW_SCHEME, createPreviewGrants } from './html-preview.ts';
@@ -54,7 +55,11 @@ const terminals = createTerminals((channel, id, payload) => win?.webContents.sen
 // QA_FAKE_TOOLS (UI tests only): every AI tool looks installed; AI launches are faked.
 const fakeTools = process.env.QA_FAKE_TOOLS === '1';
 
+// "Open in Moki" on a folder: kept until the UI takes it (service.openedFolder), so a start before the UI is ready is not lost.
+let openedFolder: string | null = folderArg(process.argv, process.cwd(), Boolean(process.defaultApp));
+
 const service = createService(ROOT, {
+  openedFolder: () => { const folder = openedFolder; openedFolder = null; return folder; },
   // Terminal tools open in a tab of the app; editors, or no node-pty, use the external launcher.
   launch: (tool, prompt, root, plugins = [], extra = []) => (fakeTools ? { opened: true, message: 'fake' }
     : terminals.available() && !TOOLS[tool].clipboard ? launchInTerminal(tool, prompt, root, terminals.prepare, plugins, extra) : launchTool(tool, prompt, root, plugins, extra)),
@@ -310,7 +315,9 @@ if (!app.requestSingleInstanceLock()) {
   // A run from the source is electron.exe; claiming the installed app's id leaves
   // the Electron atom on the taskbar after Moki is installed.
   app.setAppUserModelId(app.isPackaged ? 'io.github.orsi88.qualityagents' : 'io.github.orsi88.qualityagents.dev');
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv, workingDirectory) => {
+    const folder = folderArg(argv, workingDirectory, Boolean(process.defaultApp));
+    if (folder) { openedFolder = folder; win?.webContents.send('qa:open-folder'); }
     if (!win) return;
     if (win.isMinimized()) win.restore();
     if (!win.isVisible()) win.show();

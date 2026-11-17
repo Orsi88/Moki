@@ -50,7 +50,7 @@ import { readWorkspaceView, writeWorkspaceView } from '../workspace-view-state';
 import { confirmDialog } from '../dialogs';
 import { projectLink, resolveInternal, type Anchor, type LinkJump } from '../internal-links';
 
-interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: () => void; onOtherProjectTerminal?: (terminal: TerminalRef, projectId: string) => void }
+interface Props { workspaceId: string; project: ProjectSummary; tools: ToolInfo[]; onHome: () => void; onNewLooseNote: () => void; noteProjects?: { id: string; name: string }[]; settings: SettingsTab | null; onSettings: (tab: SettingsTab | null) => void; onProjectChanged: () => void; launchOnOpen?: boolean; startSetup?: boolean; startNotice?: string; pendingTerminal?: TerminalRef | null; onPendingTerminal?: () => void; pendingPath?: string | null; onPendingPath?: () => void; search?: boolean; onSearch?: () => void; onFound?: (project: string, path?: string) => void; onToolsChanged: (fresh?: boolean) => void; onOtherProjectTerminal?: (terminal: TerminalRef, projectId: string) => void }
 
 // seen: the tree's size/mtime of the file before the tab read it (see tab-refresh.ts).
 // A .md file is edited and commented in the formatted editor ('edit'); its Markdown source ('source') is edited as text;
@@ -140,7 +140,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     if (docSide) { window.dispatchEvent(new Event('moki:doc-side-close')); setPanelRail(false); return; }
     togglePanel();
   };
-  const [launch, setLaunch] = useState<LaunchPreset | null>(startSetup && project.starter === 'blank' ? { activity: 'plan', startAtTool: true } : launchOnOpen ? { activity: 'open' } : null);
+  const [launch, setLaunch] = useState<LaunchPreset | null>(startSetup && project.starter === 'blank' ? { activity: 'plan', startAtTool: true } : launchOnOpen ? {} : null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(startNotice);
@@ -588,6 +588,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     newTerminal(tool.id, false, target);
   };
   const openTermMenu = (e: MouseEvent<HTMLElement>) => {
+    if (tools.some((x) => x.kind === 'terminal' && !x.available)) onToolsChanged(true); // installed outside Moki since: look again
     const r = e.currentTarget.getBoundingClientRect();
     setTermMenu({ left: r.left, top: r.bottom + 4 });
   };
@@ -1011,7 +1012,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
         onSettings={toggleSettings}
         onOpenRoutine={() => onSettings('routines')}
-        onPlay={() => setLaunch({ activity: 'open' })}
+        onPlay={() => setLaunch({})}
         onTerminal={openTermMenu}
         onFolder={() => { void api.openFolder(project.id); }}
         onLink={linkFolder}

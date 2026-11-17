@@ -61,8 +61,10 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
   { id: 'skill', label: 'Use a skill', description: 'follow one skill', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
 ].map((a) => ({ ...a, category: 'Moki', note: '', tags: [], template: '', effort: '', source: 'moki' as const })) as ActivityDef[];
 export const isMokiActivity = (id: string): boolean => MOKI_ACTIVITIES.some((a) => a.id === id);
-// Activities offered where one is picked (the app, the IDE, the terminal menu). "talk" and "skill" start only from the project panel.
-export const isPickable = (a: { id: string }): boolean => a.id !== 'talk' && a.id !== 'skill';
+// Activities offered where one is picked (the app, the IDE, the terminal menu). "talk" and "skill" start only from the project panel;
+// "open" is only the default request of the IDE panel's agent cards and of `qa --activity open` (issue #46: not a choice).
+const HIDDEN = new Set(['open', 'talk', 'skill']);
+export const isPickable = (a: { id: string }): boolean => !HIDDEN.has(a.id);
 
 export const builtinDir = (root = ROOT): string => join(root, 'activities');
 export const libraryDir = (root = ROOT): string => join(workspaceDir(root), 'library', 'activities');

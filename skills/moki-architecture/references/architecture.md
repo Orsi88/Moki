@@ -62,6 +62,7 @@ Dependency direction: `app/` → (IPC) → `desktop/` → `scripts/lib/` → Nod
 | `skill-registry.ts` | SkillMD registry search and install, sha256 per file, writes only inside the chosen skills folder |
 | `search.ts`, `workspaces.ts` | Workspace search; workspace registry |
 | `framework.ts`, `boot.ts` | Installer sync; `PATH` from the login shell on macOS/Linux |
+| `tool-path.ts` | Finding the AI tools' `PATH`: login shell (macOS/Linux) or Windows registry, the usual install folders, and the diagnostic text of Settings › My AIs › Copy diagnostic |
 
 `deps` injected into `createService` (`launch`, `openFolder`, `openPath`, `appChooser`, `pdfcraft`, `pickFolder`, `pickFile`, `home`, `fetch`, `trash`, `onWorkspace`) are the test seams: `tests/desktop.test.ts` runs the service without Electron and never starts real tools.
 

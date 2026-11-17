@@ -54,7 +54,7 @@ Clique no **+** ao lado da lista de projetos e digite um nome — por exemplo *L
 | **Temporários** | Arquivos de rascunho; o que tem mais de 7 dias vai para a lixeira. |
 
 > [!TIP]
-> Já tem o código ou os documentos do sistema numa pasta? **Abra um projeto** e escolha essa pasta: o Moki a vincula e a mostra no topo da árvore, ao vivo — nada é copiado.
+> Já tem o código ou os documentos do sistema numa pasta? **Abra um projeto** e escolha essa pasta (ou clique com o botão direito na pasta › **Open in Moki** no Windows; no Linux, *Abrir com › Moki*): o Moki a vincula e a mostra no topo da árvore, ao vivo — nada é copiado.
 
 ## 4. Entregue um arquivo
 

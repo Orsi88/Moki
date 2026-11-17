@@ -139,6 +139,14 @@ test('launching: "talk" is a conversation with one agent, never listed where an 
   assert.match(prompts.at(-1) ?? '', /Ask me what I have in mind\./);
 });
 
+test('"open" stays a request (IDE agent cards, qa --activity open) but is never offered as an activity', () => {
+  prompts.length = 0;
+  assert.ok(listActivities(root).some((a) => a.id === 'open' && a.source === 'moki'));
+  assert.ok(!svc.activities('acme').activities.some((a) => a.id === 'open'), 'not offered as an activity');
+  svc.launch({ project: 'acme', activity: 'open', tool: 'claude', files: [], note: '', language: 'English' } as never);
+  assert.match(prompts.at(-1) ?? '', /load this project's context/);
+});
+
 test('launching: "skill" names one usable skill and stays out of the activity list', () => {
   prompts.length = 0;
   assert.ok(listActivities(root).some((a) => a.id === 'skill' && a.source === 'moki'));

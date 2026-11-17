@@ -198,7 +198,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Moki"
+      "shortcutName": "Moki",
+      "include": "desktop/installer.nsh"
     },
     "mac": {
       "target": [
@@ -216,7 +217,10 @@
       "icon": "app/public/icon-512.png",
       "category": "Development",
       "maintainer": "Moki contributors",
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "mimeTypes": [
+        "inode/directory"
+      ]
     },
     "electronVersion": "43.7.8"
   },

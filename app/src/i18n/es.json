@@ -1616,6 +1616,8 @@
   "My AIs": "Mis IA",
   "Install in Settings › My AIs": "Instalar en Configuración › Mis IA",
   "Check again": "Comprobar de nuevo",
+  "Copy diagnostic": "Copiar diagnóstico",
+  "Diagnostic copied. Paste it in your issue or support message; it lists folders of this computer.": "Diagnóstico copiado. Pégalo en la issue o en el mensaje al soporte; incluye carpetas de este equipo.",
   "Moki extension {version}": "Extensión de Moki {version}",
   "Moki extension not installed": "Extensión de Moki no instalada",
   "Default": "Predeterminada",

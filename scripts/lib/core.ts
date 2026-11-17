@@ -35,7 +35,7 @@ export interface Tool {
   print?: boolean;
   // Fixed here, never from user text. Run only after the user types y in the terminal tab (desktop/run-tool.ts);
   // a tool without a command for the system gets the instructions link only.
-  install?: { docs: string; posix?: string; windows?: string };
+  install?: { docs: string; posix?: string; windows?: string; needs?: 'npm' }; // needs: run-tool offers Node.js first when npm is missing
   download?: string; // editors: where to get the editor itself
   mokiExtension?: 'supported' | 'unverified'; // editors that take the Moki extension (ide/vscode); 'unverified': not tested there
   effort?: (level: Effort) => string[]; // an activity's effort as this tool's arguments; a tool without it starts with its own default
@@ -55,7 +55,7 @@ export const TOOLS: Record<ToolKey, Tool> = {
   codex: {
     label: 'OpenAI Codex CLI', command: 'codex', args: (p) => [p],
     effort: (l) => ['-c', `model_reasoning_effort="${l === 'max' ? 'high' : l}"`], // config.toml key; Codex has no "max"
-    install: { docs: 'https://github.com/openai/codex', posix: 'npm install -g @openai/codex', windows: 'npm install -g @openai/codex' }, // needs Node/npm
+    install: { docs: 'https://github.com/openai/codex', posix: 'npm install -g @openai/codex', windows: 'npm install -g @openai/codex', needs: 'npm' },
   },
   // The installer creates "agent" and the legacy "cursor-agent" on every system (cursor.com/install).
   'cursor-agent': {
@@ -64,7 +64,7 @@ export const TOOLS: Record<ToolKey, Tool> = {
   },
   gemini: {
     label: 'Gemini CLI', command: 'gemini', args: (p) => ['-i', p],
-    install: { docs: 'https://geminicli.com/docs/get-started/installation', posix: 'npm install -g @google/gemini-cli', windows: 'npm install -g @google/gemini-cli' }, // needs Node 20+
+    install: { docs: 'https://geminicli.com/docs/get-started/installation', posix: 'npm install -g @google/gemini-cli', windows: 'npm install -g @google/gemini-cli', needs: 'npm' }, // Node 20+ (version not checked)
   },
   antigravity: {
     label: 'Antigravity CLI', command: 'agy', args: (p) => ['-i', p],
@@ -809,14 +809,26 @@ export async function whichAsync(command: string, env: NodeJS.ProcessEnv = proce
   return i < 0 ? null : files[i];
 }
 
+// Node.js (with npm), for the tools installed through npm. Fixed here; run only after the user types y (desktop/run-tool.ts).
+// winget on Windows, Homebrew where it is installed; elsewhere the instructions only: distro packages need sudo and may be
+// older than the tools need. winget asks for its own agreements and the MSI for elevation.
+export const NODE_INSTALL = { docs: 'https://nodejs.org/en/download', windows: 'winget install --id OpenJS.NodeJS.LTS --exact --source winget', brew: 'brew install node' };
+
+const shellPlan = (cmd: string, platform: string) => (platform === 'win32'
+  ? { file: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], shown: cmd }
+  : { file: '/bin/sh', args: ['-c', cmd], shown: cmd });
+
 // What the terminal tab runs to install a tool, after the user types y (null: instructions only).
 export function installPlan(tool: ToolKey, platform: string = process.platform): { file: string; args: string[]; shown: string } | null {
   const i = TOOLS[tool].install;
   const cmd = platform === 'win32' ? i?.windows : i?.posix;
-  if (!cmd) return null;
-  return platform === 'win32'
-    ? { file: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], shown: cmd }
-    : { file: '/bin/sh', args: ['-c', cmd], shown: cmd };
+  return cmd ? shellPlan(cmd, platform) : null;
+}
+
+// What installs Node.js here (null: the instructions only). `find` is a parameter for tests.
+export function nodeInstallPlan(platform: string = process.platform, find: (command: string) => string | null = which): { file: string; args: string[]; shown: string } | null {
+  if (platform === 'win32') return find('winget') ? shellPlan(NODE_INSTALL.windows, platform) : null;
+  return find('brew') ? shellPlan(NODE_INSTALL.brew, platform) : null;
 }
 
 export async function detectToolsAsync(env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): Promise<Record<ToolKey, boolean>> {

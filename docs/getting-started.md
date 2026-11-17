@@ -54,7 +54,7 @@ Press **+** next to the project list and type a name — say *Online store* — 
 | **Temporary** | Scratch files; anything older than 7 days goes to the trash. |
 
 > [!TIP]
-> Already have the system's code or documents in a folder? **Open a project** and pick that folder: Moki links it and shows it at the top of the tree, live — nothing is copied.
+> Already have the system's code or documents in a folder? **Open a project** and pick that folder (or right-click the folder › **Open in Moki** on Windows; on Linux, *Open with › Moki*): Moki links it and shows it at the top of the tree, live — nothing is copied.
 
 ## 4. Hand over a file
 

@@ -33,7 +33,7 @@ A terminal **keeps running** when you go back to the start screen or to another 
 | Cursor, VS Code | The editor, on the project's folder, with the request copied — see [Moki in the IDE](ide.md) |
 | A web chat (ChatGPT, claude.ai, Gemini) | The request ready to copy, with the files listed |
 
-Your **default AI** is set in **Settings › My AIs**, which also installs a missing terminal AI: a terminal tab shows the official command and runs it only after you type `y`.
+Your **default AI** is set in **Settings › My AIs**, which also installs a missing terminal AI: a terminal tab shows the official command and runs it only after you type `y`. Codex and Gemini CLI install with npm: without Node.js, the tab offers to install it first (winget on Windows, Homebrew where it is installed), with its own `y`; elsewhere it shows nodejs.org. Moki never uses sudo; `npm install -g` with a system Node on Linux may need permissions.
 
 ## See also
 
