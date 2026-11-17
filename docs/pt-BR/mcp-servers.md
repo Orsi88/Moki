@@ -61,7 +61,7 @@ Os caminhos de integração variam conforme a ferramenta:
 | Cursor na pasta vinculada | Comando **Moki: Sync MCP Servers to Cursor** no VS Code; pede confirmação, preserva as entradas próprias e faz backup |
 | Copilot Chat no VS Code | A extensão registra automaticamente os servidores ligados para o projeto; uma variável ausente faz o servidor ser deixado de fora |
 | Claude Code no VS Code | **Connect Claude Code** configura a pasta após confirmação; **Open in Claude Code** inicia com `--mcp-config` |
-| Codex iniciado pelo Moki | Uma sessão própria, com `--no-daemon` e opções `-c`; não altera o login nem o arquivo de configuração da pasta pessoal |
+| Codex iniciado pelo Moki | Uma sessão própria, com `--no-daemon` e opções `-c`; não altera o login nem o arquivo de configuração da pasta pessoal. Uma linha de instruções avisa o modelo que os servidores `moki` e `moki-*` existem, porque o Codex só carrega as ferramentas de MCP quando procura por elas |
 | Gemini CLI e Antigravity iniciados pelo Moki | Entradas `moki` e `moki-*` nas configurações de workspace do Gemini mantidas pelo Moki |
 
 O cliente OAuth HTTP opcional é escrito somente para Claude Code; Cursor e Codex não recebem esse bloco. O servidor próprio do Moki é de leitura e vinculado a um projeto: disponibiliza contexto, arquivos, notas, skills, agentes e o texto dos PDFs. Veja [Moki na IDE](ide.md) e, para os detalhes técnicos completos, [MCP servers](../mcp-servers.md).

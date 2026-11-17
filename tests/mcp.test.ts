@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { ROOT } from '../scripts/lib/repo.mjs';
 import { createProject, mirrorProjectSkills, TOOLS } from '../scripts/lib/core.ts';
 import {
-  appliesTo, clean, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
+  appliesTo, clean, CODEX_SERVER_NAME, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
   mergeCodex, resolveServer, saveServer, serversForAgent, syncCursorFolder, syncToolFolder, toolConfig, type McpServer,
 } from '../scripts/lib/mcp.ts';
 import { createOperationRun } from '../scripts/lib/operation-runs.ts';
@@ -178,11 +178,19 @@ test('Codex started by Moki gets -c overrides for this project and does not writ
   service.launch({ project: 'beta', activity: 'open', tool: 'codex', files: [], note: '', language: 'English' } as never);
   const extra = launched.at(-1)?.extra ?? [];
   const flags = extra.filter((_, i) => extra[i - 1] === '-c');
-  assert.match(flags.join('\n'), /mcp_servers\."moki"\.args=\[.*"--project", "beta"\]/);
+  assert.match(flags.join('\n'), /mcp_servers\.moki\.args=\[.*"--project", "beta"\]/);
   assert.doesNotMatch(flags.join('\n'), /\$\{/);
   assert.equal(existsSync(join(root, '.codex', 'config.toml')), false);
   const sample = codexLaunchArgs(generatedEntries(mokiServer('beta', root, 'server.ts', 'node'), []));
-  assert.equal(sample.filter((_, i) => sample[i - 1] === '-c').some((f) => f.startsWith('mcp_servers."moki".command=')), true);
+  assert.equal(sample.filter((_, i) => sample[i - 1] === '-c').some((f) => f.startsWith('mcp_servers.moki.command=')), true);
+});
+
+test('Codex gets server names it accepts: -c splits the key on dots and keeps quotes in the name', () => {
+  const servers = [{ ...mokiServer('beta', root, 'server.ts', 'node'), id: 'azure-devops-2', name: 'Azure DevOps 2' }];
+  const args = codexLaunchArgs(generatedEntries(mokiServer('beta', root, 'server.ts', 'node'), servers));
+  const names = new Set(args.filter((_, i) => args[i - 1] === '-c').map((f) => /^mcp_servers\.([^.=]+)\./.exec(f)?.[1]));
+  assert.deepEqual([...names], ['moki', 'moki-azure-devops-2']);
+  for (const name of names) assert.match(String(name), CODEX_SERVER_NAME);
 });
 
 test('Gemini and Antigravity started by Moki get this project\'s servers in <root>/.gemini/settings.json', () => {

@@ -317,14 +317,19 @@ export function codexBlock(entries: GeneratedEntry[]): { text: string; skipped: 
   return { text: [CODEX_BEGIN, ...tables, CODEX_END].join('\n\n'), skipped };
 }
 
+// The server names Codex accepts; any other name fails at startup ("Invalid MCP server name").
+export const CODEX_SERVER_NAME = /^[a-zA-Z0-9_:@/.-]+$/;
+
 // -c overrides for a Codex session Moki starts. Same fields as the TOML region, so a variable is never
 // a value and the person's ~/.codex/config.toml (where the login lives) is not touched.
+// The key path of -c is split on dots without TOML unquoting: mcp_servers."moki" would name the server
+// "moki" with its quotes, which Codex refuses. So the name goes bare (ids and moki-<id> are [a-z0-9-]).
 export function codexLaunchArgs(entries: GeneratedEntry[]): string[] {
   const args: string[] = [];
   let table = '';
   for (const line of codexBlock(entries).text.split('\n')) {
     const head = /^\[mcp_servers\.(.+)\]$/.exec(line);
-    if (head) { table = head[1]; continue; }
+    if (head) { table = JSON.parse(head[1]) as string; continue; }
     const kv = /^([A-Za-z0-9_]+) = (.+)$/.exec(line);
     if (table && kv) args.push('-c', `mcp_servers.${table}.${kv[1]}=${kv[2]}`);
   }

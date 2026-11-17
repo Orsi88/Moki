@@ -2729,8 +2729,8 @@ test('app plugins load only in app sessions: Claude by folder, Codex as one line
     const codex = pluginArgs('codex', '/home/u/qa');
     assert.equal(codex[0], '--no-daemon');
     assert.equal(codex[1], '-c');
-    assert.match(codex[2], /^developer_instructions=Ponytail .*SKILL\.md.* rtk /);
-    assert.doesNotMatch(codex[2], /["\n%]/); // survives launcher scripts and cmd.exe quoting
+    assert.match(codex[2], /^developer_instructions=Ponytail .*SKILL\.md.* MCP servers: moki .* rtk /);
+    assert.doesNotMatch(codex[2], /["\n%<>|&^]/); // survives launcher scripts and cmd.exe quoting
     assert.deepEqual(pluginArgs('gemini', '/home/u/qa'), []);
     // caveman only when the project turned it on
     assert.deepEqual(pluginArgs('claude', '/home/u/qa', ['caveman']).slice(-2), ['--plugin-dir', join(dir, 'caveman')]);
