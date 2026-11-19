@@ -13,7 +13,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { zip, unzip } from './lib/zip.mjs';
 import { parseArgs } from './lib/repo.mjs';
 import { BUILTIN_FORMATS, formatNumber } from './lib/numfmt.mjs';
@@ -336,7 +336,7 @@ export function checkValues(layout, data) {
   return problems;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // also imported by the desktop app
+if (isMain(import.meta.url, ['xlsx.mjs'])) {
   const args = parseArgs(process.argv.slice(2));
   const [command, input] = args._;
   const fail = (msg) => { console.error(msg); process.exit(1); };

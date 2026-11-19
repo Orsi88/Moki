@@ -10,7 +10,7 @@
 
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import { pathToFileURL } from 'node:url';
+import { isMain } from '../../scripts/lib/is-main.mjs';
 import { ROOT, parseArgs, readJson, setWorkspaceDir } from '../../scripts/lib/repo.mjs';
 import { readFileSync } from 'node:fs';
 import { listProjects, projectsDir } from '../../scripts/lib/core.ts';
@@ -198,4 +198,4 @@ function main(): void {
   rl.on('close', () => { void chain.then(() => process.exit(0)); });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isMain(import.meta.url, ['server.ts', 'mcp.cjs', 'mcp.mjs'])) main();

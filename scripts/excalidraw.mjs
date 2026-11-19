@@ -13,7 +13,7 @@
 //
 // Without --out the scene is printed; --fence wraps it in an ```excalidraw block.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 
 const SHAPES = new Set(['rectangle', 'ellipse', 'diamond']);
 const COLORS = {
@@ -186,4 +186,4 @@ function main(argv) {
   return 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url, ['excalidraw.mjs'])) process.exitCode = main(process.argv.slice(2));

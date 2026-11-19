@@ -34,6 +34,7 @@ import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
 import { createAiAccounts } from './ai-accounts.ts';
 import { chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
+import { keepChatImage } from './chat-images.ts';
 import { approveProposal, currentText, declineProposal, dismissLearning, itemHistory, learn, listLearnings, originalChanged, pendingProposals, revertTo, versionText } from '../scripts/lib/evolution.ts';
 import { evolutionItem } from '../scripts/lib/evolution-check.ts';
 import { lineDiff } from '../scripts/lib/text-diff.ts';
@@ -56,6 +57,7 @@ import { createConversations } from './chat-conversations.ts';
 import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
 import type { ArtifactViewer } from './artifact-viewer-host.ts';
 import { chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
+import { chatModel, chatModels } from './chat-models.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
@@ -2602,14 +2604,19 @@ export function createService(root: string, deps: Deps) {
       return `temporary/attachments/${file}`;
     },
     // The files a chat answer names (desktop/chat-files.ts): found in this project, gone, or not reachable.
-    chatAnswerFiles: (project: string, text: unknown): ChatFile[] => {
-      projectDir(project);
-      return chatFileRefs(typeof text === 'string' ? text.slice(0, TEXT_LIMIT) : '').map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
+    chatAnswerFiles: (project: string, text: unknown, id?: unknown): ChatFile[] => {
+      return service.chatFiles(project, chatFileRefs(typeof text === 'string' ? text.slice(0, TEXT_LIMIT) : ''), id);
     },
-    chatFiles: (project: string, refs: unknown): ChatFile[] => {
-      projectDir(project);
+    chatFiles: (project: string, refs: unknown, id?: unknown): ChatFile[] => {
+      const dir = projectDir(project);
+      const record = id === undefined ? undefined : failing(() => conversations.state(dir, String(id)).record);
       const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r.length > 0 && r.length < 1000).slice(0, 20) : [];
-      return list.map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
+      const files = list.map((ref) => {
+        const file = resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref);
+        const kept = file.status === 'outside' && file.image && record ? keepChatImage(dir, record, ref, home) : null;
+        return kept ? { ...file, status: 'ok' as const, path: kept } : file;
+      });
+      return files.filter((f, i) => !files.slice(0, i).some((other) => f.status === 'ok' && other.status === 'ok' && f.path === other.path));
     },
 
     // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
@@ -3157,6 +3164,15 @@ export function createService(root: string, deps: Deps) {
     },
     chats: (project: unknown): ChatSummary[] => listChats(projectDir(project)),
     chat: (project: unknown, id: unknown): ChatRecord => readChat(projectDir(project), id),
+    chatModels: (tool: unknown) => {
+      if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
+      return chatModels(tool, home);
+    },
+    chatModel: (project: unknown, id: unknown, model: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      return failing(() => conversations.setModel(dir, id, model));
+    },
     // A Claude artifact linked in a chat answer, shown over the chat tab (desktop/artifact-viewer-host.ts).
     showArtifact: (project: unknown, url: unknown, bounds: unknown) => {
       const dir = projectDir(project);
@@ -3173,11 +3189,12 @@ export function createService(root: string, deps: Deps) {
     },
     // label: the message is a request from Call… (shown folded under that name, which titles the conversation).
     // attachments: files of this project (paths in it) the person added to the message; each must be there.
-    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown, attachments?: unknown) => {
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown, attachments?: unknown, model?: unknown) => {
       const dir = projectDir(project);
       if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
       if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const selected = model === undefined ? undefined : failing(() => chatModel(model));
       const files = (Array.isArray(attachments) ? attachments : []).slice(0, 10).map((ref) => {
         const file = resolveChatFile(projectsDir(root), project as string, workspaceLabel(root), String(ref));
         if (file.status !== 'ok') throw new ServiceError(`The attached file ${file.name} is not in this project any more.`);
@@ -3191,15 +3208,22 @@ export function createService(root: string, deps: Deps) {
       if (!file) throw new ServiceError('Install this AI in Settings › My AIs first.');
       // An npm wrapper (codex.cmd) would need cmd.exe, which cannot take the quotes of the MCP settings: its script runs on Node directly.
       const shim = deps.chatCommand ? null : npmShim(file, (deps.which ?? which)('node'));
+      const imageProfile = { CODEX_HOME: process.env.CODEX_HOME }; // keep the profile that owns this session
       return failing(() => conversations.send(dir, id, tool, text, (record, onEvent) => createChatSession({
         file, adapter: CHAT_ADAPTERS[tool], cwd: root,
         // ELECTRON_RUN_AS_NODE only for the test script run by Electron: the real tool passes its environment to every
         // program it starts, and an Electron program (VS Code's `code`) would then run as plain Node. Moki's own MCP
         // server sets it in its own entry when it needs it (scripts/lib/mcp.ts).
         env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
-        sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
+        sessionId: record.sessionId, onEvent: (event) => {
+          if (event.kind === 'turn-end' && record.tool === 'codex') {
+            const answer = record.messages.at(-1);
+            if (answer?.role === 'assistant') for (const ref of chatFileRefs(answer.text)) keepChatImage(dir, record, ref, home, imageProfile);
+          }
+          onEvent(event);
+        }, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
         setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
-      }), name || undefined, files));
+      }), name || undefined, files, selected));
     },
     chatStop: (project: unknown, id: unknown) => {
       const dir = projectDir(project);

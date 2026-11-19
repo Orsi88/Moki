@@ -137,7 +137,7 @@ test('project links navigate headings, Markdown and PDF comments, pages and note
     await expect(noteSource).toHaveValue(/\[@story.md\]\(\.\.\/inbox\/story.md\)/);
     await view.locator('.note-host').getByRole('button', { name: /Close/, exact: false }).first().click();
     // A real shell prints a link. Plain click does not navigate; Ctrl+click does.
-    await view.getByTitle('New: terminal, AI or file', { exact: true }).click();
+    await view.getByTitle('New: terminal, AI, chat or file', { exact: true }).click();
     await view.getByRole('menuitem', { name: 'Terminal', exact: true }).click();
     await view.getByRole('menuitem', { name: /your shell/ }).click();
     const input = view.locator('.term-pane:not([hidden]) .xterm-helper-textarea');

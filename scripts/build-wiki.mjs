@@ -10,7 +10,8 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 
 const posix = (p) => p.split('\\').join('/');
 export const pageName = (title) => title.trim().replace(/\s+/g, '-');
@@ -101,6 +102,6 @@ function main() {
   console.log(`Wiki: ${Object.keys(pages).length} pages in ${outDir}`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isMain(import.meta.url, ['build-wiki.mjs'])) {
   try { main(); } catch (e) { console.error(e instanceof Error ? e.message : String(e)); process.exit(1); }
 }

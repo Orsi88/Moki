@@ -9,6 +9,8 @@ declare function acquireVsCodeApi(): VsCodeApi;
 
 type Reply = { ok: true; value: unknown } | { ok: false; error: string };
 
+const CALL_TIMEOUT_MS = 30_000; // the longest a panel call may wait for the extension
+const WAITS_FOR_PERSON = new Set(['connectTool', 'connectClaude']); // these ask the person first (a modal): no time limit
 let host: VsCodeApi | null = null;
 const visibility = new Set<(visible: boolean) => void>();
 
@@ -30,9 +32,13 @@ export function installBridge(): void {
     else if (msg?.event === 'visible') visibility.forEach((cb) => cb(Boolean(msg.visible)));
   });
   const bridge: Bridge = {
+    // A call the extension never answers ends with an error, so the panel can offer to try again instead of loading forever.
     call: (method, ...args) => new Promise<Reply>((resolve) => {
       const id = next++;
-      pending.set(id, resolve);
+      const timer = WAITS_FOR_PERSON.has(method) ? 0 : window.setTimeout(() => {
+        if (pending.delete(id)) resolve({ ok: false, error: 'Moki did not answer. Try again, or reload the window.' });
+      }, CALL_TIMEOUT_MS);
+      pending.set(id, (reply) => { window.clearTimeout(timer); resolve(reply); });
       vscode.postMessage({ id, method, args });
     }),
     filePath: () => '',

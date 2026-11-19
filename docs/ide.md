@@ -34,10 +34,10 @@ Registering a tool in Moki instead of directly in the IDE means the agents, the 
 
 **From the desktop app.** The cat icon above **New note** on the fixed rail opens **Moki in your IDE**. Choose an installed editor and press **Open**: Moki installs or updates its extension only when needed, checks that the editor really lists it, then opens the project’s linked folder (or the framework folder) and shows Moki’s view there with that project chosen (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` in Cursor). A window of the editor that was already open loads a newly installed extension only after **Developer: Reload Window**; the dialog says so. Close with the X. The same installer is available in **Settings › My AIs › Install the Moki extension and open** on the VS Code card installs the extension of the app's version (downloaded from its release and checked by SHA-256) and opens VS Code on the project's linked folder. The Cursor card does the same, marked *Not verified*.
 
-**From the release.** Download [moki-0.7.1.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.1/moki-0.7.1.vsix), then:
+**From the release.** Download [moki-0.7.2.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.2/moki-0.7.2.vsix), then:
 
 ```bash
-code --install-extension moki-0.7.1.vsix --force
+code --install-extension moki-0.7.2.vsix --force
 ```
 
 **From the source.** From the repository root:
@@ -170,6 +170,7 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 
 | What you see | Why | What to do |
 |---|---|---|
+| The panel shows a loading error and **Try again** | The extension could not read its initial state or refresh it, or did not answer within 30 seconds | Read the error, address the reported cause and choose **Try again**. A failed initial read replaces *Loading…*; a failed refresh keeps the last loaded project visible |
 | Status bar **Moki: no project**; panel *This folder is not linked to a Moki project* | The open folder is not linked to any project | Choose a project in the panel, or link the folder in the app (**Choose my folder**) |
 | **Moki: choose a project** | The folder is linked to more than one project | Choose one; the choice is kept for this VS Code workspace |
 | *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active when VS Code started | Create a project in the app, or make the right workspace active in the app and **Reload Window** |

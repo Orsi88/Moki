@@ -3,9 +3,10 @@
 // the search and the organizing of files. A conversation is written at the end of each answer.
 
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isChatTool, type ChatTool } from './chat.ts';
+import { isChatModel } from './chat-models.ts';
 import { resolveInside } from './fs-guard.ts';
 
 export const CHATS_DIR = '.chats';
@@ -17,7 +18,7 @@ export interface ChatToolCall { name: string; summary: string; ok?: boolean }
 // label: a request Moki wrote (Call… › In the chat), named by what was called; the chat shows it folded under the label.
 // attachments: files of the project (paths in it) the person added to the message, shown with it.
 export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: ChatToolCall[]; error?: string; label?: string; attachments?: string[] }
-export interface ChatRecord { id: string; tool: ChatTool; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
+export interface ChatRecord { id: string; tool: ChatTool; model?: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
 export interface ChatSummary { id: string; tool: ChatTool; title: string; updated: string }
 
 export const isChatId = (v: unknown): v is string => typeof v === 'string' && ID.test(v);
@@ -29,6 +30,13 @@ function chatFile(projectDir: string, id: unknown): string {
   if (lstatSync(join(projectDir, CHATS_DIR), { throwIfNoEntry: false })?.isSymbolicLink()
     || lstatSync(join(dir, `${id}.json`), { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error('Conversation links are not allowed.');
   return file;
+}
+
+// Images kept with a conversation, hidden from the file tree and carried with the project.
+export function chatAssetsDir(projectDir: string, id: unknown): string {
+  const dir = join(dirname(chatFile(projectDir, id)), id as string);
+  if (lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error('Conversation links are not allowed.');
+  return resolveInside(projectDir, `${CHATS_DIR}/${id}`);
 }
 
 // A new id: the local date and time, then 4 random characters (sorts by creation).
@@ -52,12 +60,13 @@ export function newChat(tool: ChatTool, now = new Date()): ChatRecord {
 function valid(data: unknown, id: string): ChatRecord | null {
   const r = data as Partial<ChatRecord> | null;
   if (!r || typeof r !== 'object' || r.id !== id || !isChatTool(r.tool) || !Array.isArray(r.messages)
-    || typeof r.title !== 'string' || typeof r.created !== 'string' || typeof r.updated !== 'string') return null;
+    || typeof r.title !== 'string' || typeof r.created !== 'string' || typeof r.updated !== 'string'
+    || r.model !== undefined && !isChatModel(r.model)) return null;
   if (!r.messages.every((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && typeof m.at === 'string'
     && (m.error === undefined || typeof m.error === 'string') && (m.label === undefined || typeof m.label === 'string') && (m.attachments === undefined || Array.isArray(m.attachments) && m.attachments.every((a) => typeof a === 'string')) && (m.tools === undefined || Array.isArray(m.tools)
       && m.tools.every((t) => t && typeof t.name === 'string' && typeof t.summary === 'string' && (t.ok === undefined || typeof t.ok === 'boolean'))))) return null;
   const messages = r.messages;
-  return { id, tool: r.tool, ...(typeof r.sessionId === 'string' && r.sessionId ? { sessionId: r.sessionId } : {}), title: String(r.title ?? ''),
+  return { id, tool: r.tool, ...(r.model ? { model: r.model } : {}), ...(typeof r.sessionId === 'string' && r.sessionId ? { sessionId: r.sessionId } : {}), title: String(r.title ?? ''),
     created: String(r.created ?? ''), updated: String(r.updated ?? ''), messages };
 }
 
@@ -103,7 +112,10 @@ export function listChats(projectDir: string): ChatSummary[] {
 }
 
 export function removeChat(projectDir: string, id: unknown): void {
-  rmSync(chatFile(projectDir, id), { force: true });
+  const file = chatFile(projectDir, id);
+  const assets = chatAssetsDir(projectDir, id); // validate both paths before removing either
+  rmSync(assets, { recursive: true, force: true });
+  rmSync(file, { force: true });
 }
 
 // The conversation so far as text, for a new session when the old one is gone. The latest messages are kept.

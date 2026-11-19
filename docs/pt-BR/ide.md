@@ -36,10 +36,10 @@ Cadastrar uma ferramenta no Moki, em vez de direto na IDE, faz com que os agente
 
 **Pelo app desktop.** O ícone de gato acima de **Nova nota**, na barra fixa, abre **Moki na sua IDE**. Escolha um editor instalado e pressione **Abrir**: o Moki instala ou atualiza a extensão quando necessário confere se o editor realmente lista a extensão, abre a pasta ligada do projeto (ou a pasta do framework) e mostra ali a view do Moki com esse projeto escolhido (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` no Cursor). Uma janela do editor que já estava aberta só carrega uma extensão recém-instalada depois de **Developer: Reload Window**; o diálogo avisa. O X fecha a janela. O mesmo instalador fica em **Configurações › Minhas IAs › Instalar a extensão do Moki e abrir**, no cartão do VS Code, instala a extensão da versão do app (baixada da release e conferida por SHA-256) e abre o VS Code na pasta ligada do projeto. O cartão do Cursor faz o mesmo, marcado como *Não verificado*.
 
-**Pela release.** Baixe o [moki-0.7.1.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.1/moki-0.7.1.vsix) e rode:
+**Pela release.** Baixe o [moki-0.7.2.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.2/moki-0.7.2.vsix) e rode:
 
 ```bash
-code --install-extension moki-0.7.1.vsix --force
+code --install-extension moki-0.7.2.vsix --force
 ```
 
 **A partir do código.** Na raiz do repositório:
@@ -174,6 +174,7 @@ As mensagens da extensão aparecem em inglês.
 
 | O que aparece | Por quê | O que fazer |
 |---|---|---|
+| O painel mostra um erro de carregamento e **Tentar de novo** | A extensão não conseguiu ler o estado inicial ou atualizá-lo, ou não respondeu em 30 segundos | Leia o erro, resolva a causa informada e use **Tentar de novo**. A falha inicial substitui *Carregando…*; uma falha ao atualizar mantém o último projeto carregado visível |
 | Barra de status **Moki: no project**; painel *Esta pasta não está vinculada a um projeto do Moki* | A pasta aberta não está ligada a nenhum projeto | Escolha um projeto no painel, ou ligue a pasta no app (**Escolher minha pasta**) |
 | **Moki: choose a project** | A pasta está ligada a mais de um projeto | Escolha um; a escolha fica guardada para este workspace do VS Code |
 | *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo quando o VS Code iniciou | Crie um projeto no app, ou deixe o workspace certo ativo no app e rode **Reload Window** |

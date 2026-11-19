@@ -236,7 +236,7 @@ export interface TerminalRef { id: string; title: string; tool?: string }
 export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string; label?: string; attachments?: string[] }
 // A file named in a chat (desktop/chat-files.ts): its path in the project and whether it can be opened.
 export interface ChatFile { ref: string; path: string; name: string; status: 'ok' | 'missing' | 'other-project' | 'outside'; image: boolean }
-export interface ChatRecord { id: string; tool: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
+export interface ChatRecord { id: string; tool: string; model?: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
 export interface ChatState { record: ChatRecord; busy: boolean; error?: string }
 export interface ArtifactStatus { url: string; loading: boolean; error: string }
 export type Invocation = { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string; label: string };
@@ -416,6 +416,7 @@ export interface Evolution {
 
 // The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
 export const CHAT_TOOLS: string[] = ['claude', 'codex'];
+export const CHAT_NAMES: Record<string, string> = { claude: 'Claude', codex: 'ChatGPT (Codex)' };
 
 export const api = {
   evolution: (kind: EvolutionKind, name: string, project?: string) => call<Evolution>('evolution', kind, name, project),
@@ -433,9 +434,11 @@ export const api = {
   onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
   chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),
   chatState: (project: string, id: string) => call<ChatState>('chatState', project, id),
-  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string, label?: string, attachments?: string[]) => call<ChatState>('chatSend', project, id, tool, text, language, label, attachments),
-  chatAnswerFiles: (project: string, text: string) => call<ChatFile[]>('chatAnswerFiles', project, text),
-  chatFiles: (project: string, refs: string[]) => call<ChatFile[]>('chatFiles', project, refs),
+  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string, label?: string, attachments?: string[], model?: string) => call<ChatState>('chatSend', project, id, tool, text, language, label, attachments, model),
+  chatModels: (tool: string) => call<{ id: string; label: string }[]>('chatModels', tool),
+  chatModel: (project: string, id: string, model: string) => call<ChatState>('chatModel', project, id, model),
+  chatAnswerFiles: (project: string, text: string, id?: string) => call<ChatFile[]>('chatAnswerFiles', project, text, id),
+  chatFiles: (project: string, refs: string[], id?: string) => call<ChatFile[]>('chatFiles', project, refs, id),
   saveAttachment: (project: string, name: string, data: Uint8Array) => call<string>('saveAttachment', project, name, data),
   chatStop: (project: string, id: string) => call<boolean>('chatStop', project, id),
   removeChat: (project: string, id: string) => call<boolean>('removeChat', project, id),

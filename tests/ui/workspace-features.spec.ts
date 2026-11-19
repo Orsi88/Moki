@@ -65,7 +65,7 @@ test('native Office edits/comments, runnable isolated HTML and the IDE rail shor
     await expect(view.locator('.ribbon .ribbon-ide + .ribbon-note')).toHaveCount(1);
     await expect(view.locator('.ribbon-ide svg path').first()).toHaveAttribute('d', 'M12 19c-4.4 0-7.5-1.6-7.5-4.7 0-1.3.4-2.5 1.1-3.4l-.5-4.7a.8.8 0 0 1 1.3-.7l3.4 2.6a8.6 8.6 0 0 1 4.4 0l3.4-2.6a.8.8 0 0 1 1.3.7l-.5 4.7c.7.9 1.1 2.1 1.1 3.4 0 3.1-3.1 4.7-7.5 4.7Z');
     await expect(view.locator('.pp-ide')).toHaveCount(0);
-    await view.getByRole('button', { name: 'New: terminal, AI or file', exact: true }).click();
+    await view.getByRole('button', { name: 'New: terminal, AI, chat or file', exact: true }).click();
     await expect(view.getByRole('menuitem', { name: 'Moki in your IDE' })).toHaveCount(0); await view.keyboard.press('Escape');
     await view.locator('.tree-row[title="inbox"]').click();
     await view.locator('.tree-row[title="inbox/styled.docx"]').click();

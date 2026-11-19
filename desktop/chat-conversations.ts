@@ -4,6 +4,7 @@
 import { join } from 'node:path';
 import { chatTitle, newChat, readChat, removeChat, saveChat, type ChatRecord, type ChatToolCall } from './chat-store.ts';
 import type { ChatEvent, ChatSession, ChatTool } from './chat.ts';
+import { chatModel } from './chat-models.ts';
 
 export interface ChatState { record: ChatRecord; busy: boolean; error?: string }
 type Factory = (record: ChatRecord, onEvent: (event: ChatEvent) => void) => ChatSession;
@@ -18,7 +19,20 @@ export function createConversations(onChange: (dir: string, id: string) => void 
     try { saveChat(dir, entry.record); delete entry.error; }
     catch (e) { entry.error = e instanceof Error ? e.message : String(e); }
   };
+  const setModel = (dir: string, id: string, value: unknown): ChatState => {
+    const model = chatModel(value);
+    const entry = live.get(key(dir, id));
+    if (entry?.session.busy()) throw new Error('Wait for the answer, or stop it first.');
+    const record = entry?.record ?? readChat(dir, id);
+    const next = { ...record, model: model || undefined, updated: new Date().toISOString() };
+    saveChat(dir, next);
+    Object.assign(record, next); // Event callbacks keep this same record.
+    if (entry) delete entry.error;
+    onChange(dir, id);
+    return entry ? snapshot(entry) : { record, busy: false };
+  };
   return {
+    setModel,
     state(dir: string, id: string): ChatState {
       const entry = live.get(key(dir, id));
       if (entry) return snapshot(entry);
@@ -31,13 +45,24 @@ export function createConversations(onChange: (dir: string, id: string) => void 
     // label: the message is a request Moki wrote (Call…), shown folded under this name, which also titles the conversation.
     // attachments: files of the project (paths in it) added to the message; kept apart from its text, and given to the
     // AI by their full paths after it. A message may be only attachments.
-    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory, label?: string, attachments: string[] = []): ChatState {
+    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory, label?: string, attachments: string[] = [], model?: string): ChatState {
       if (typeof text !== 'string' || (!text.trim() && !attachments.length)) throw new Error('Write a message first.');
       if (text.length > 1_000_000) throw new Error('This message is too long.');
       let entry = id ? live.get(key(dir, id)) : undefined;
+      if (entry?.session.busy()) throw new Error('Wait for the answer, or stop it first.');
+      if (entry && entry.record.tool !== tool) throw new Error('Start a new conversation to change the AI.');
+      if (model !== undefined) {
+        chatModel(model);
+        if (id) {
+          const record = entry?.record ?? readChat(dir, id);
+          if (record.tool !== tool) throw new Error('Start a new conversation to change the AI.');
+          if ((record.model ?? '') !== model) setModel(dir, id, model);
+        }
+      }
       const created = !id;
       if (!entry) {
         const record = id ? readChat(dir, id) : newChat(tool);
+        if (!id && model) record.model = model;
         if (record.tool !== tool) throw new Error('Start a new conversation to change the AI.');
         if (!id) saveChat(dir, record);
         const calls = new Map<string, ChatToolCall>();
@@ -76,7 +101,7 @@ export function createConversations(onChange: (dir: string, id: string) => void 
       const forAi = attachments.length
         ? `${text.trim() ? `${text}\n\n` : ''}Attached files (read them before answering):\n${attachments.map((a) => `- ${join(dir, ...a.split('/'))}`).join('\n')}`
         : text;
-      try { entry.session.send(forAi); }
+      try { entry.session.send(forAi, entry.record.model); }
       catch (e) {
         entry.record.messages.splice(-2);
         // A conversation made for this message and never started leaves nothing behind (no empty history entry).

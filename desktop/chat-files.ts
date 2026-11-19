@@ -5,6 +5,7 @@
 
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export type ChatFileStatus = 'ok' | 'missing' | 'other-project' | 'outside';
 export interface ChatFile { ref: string; path: string; name: string; status: ChatFileStatus; image: boolean }
@@ -25,9 +26,9 @@ export function chatFileRefs(text: string): string[] {
     if (!new RegExp(`\\.(${EXT})$`, 'i').test(ref.split(/[?#]/)[0])) return;
     if (!found.includes(ref)) found.push(ref);
   };
-  const link = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  const link = /!?\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+"[^"]*")?\s*\)/g;
   const code = /`([^`\n]+)`/g;
-  for (const m of text.matchAll(link)) { try { add(decodeURI(m[1])); } catch { add(m[1]); } }
+  for (const m of text.matchAll(link)) { const src = m[1] ?? m[2]; try { add(decodeURI(src)); } catch { add(src); } }
   for (const m of text.matchAll(code)) add(m[1]);
   // Bare paths in the rest of the text (links and code already read).
   for (const m of text.replace(link, ' ').replace(code, ' ').matchAll(new RegExp(`(?:[A-Za-z]:[\\\\/]|\\.{0,2}/|(?:workspace|projects|runs|inbox|notes|context|temporary)[\\\\/])[^\\s\`'"<>()\\[\\]]*\\.(?:${EXT})\\b`, 'gi'))) add(m[0]);
@@ -38,11 +39,15 @@ const real = (p: string) => { try { return realpathSync(p); } catch { return res
 const same = (a: string, b: string) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
 const within = (dir: string, p: string) => { const r = relative(dir, p); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
 
+export function chatLocalPath(ref: string): string {
+  return /^file:\/\//i.test(ref) ? fileURLToPath(ref) : ref.trim();
+}
+
 // `projects`: the workspace's projects folder; `label`: how the workspace is written in paths (workspace, or the
 // workspace folder's name). The path returned is relative to the project, with forward slashes.
 export function resolveChatFile(projects: string, project: string, label: string, ref: string): ChatFile {
   let raw = ref.trim();
-  if (/^file:\/\//i.test(raw)) { try { raw = decodeURIComponent(new URL(raw).pathname).replace(/^\/([A-Za-z]:)/, '$1'); } catch { /* as written */ } }
+  try { raw = chatLocalPath(raw); } catch { /* an invalid file URL is not a local path */ }
   const slashed = raw.replace(/\\/g, '/');
   const name = basename(slashed);
   const image = CHAT_IMAGE.has(extname(name).toLowerCase());

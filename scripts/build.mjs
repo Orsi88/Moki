@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { ROOT, MIRRORS, listSkillDirs, walkFiles, relPosix } from './lib/repo.mjs';
 import { claudeSubagent, hasUsableStatus, listAgents } from './lib/agents.ts';
 
@@ -84,7 +84,7 @@ export function build(root = ROOT) {
   return files.size;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
+if (isMain(import.meta.url, ['build.mjs'])) {
   if (process.argv.includes('--check')) {
     const drift = findDrift();
     if (drift.length) {

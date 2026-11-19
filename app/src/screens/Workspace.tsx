@@ -25,6 +25,7 @@ import { SidePanel } from '../components/SidePanel';
 import { SetupDialog } from '../components/SetupDialog';
 import { TerminalView } from '../components/TerminalView';
 import { ChatView } from '../components/ChatView';
+import { chatTabPrefix, isChatTab } from '../chat-tabs';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
@@ -76,7 +77,6 @@ const findFile = (nodes: TreeNode[], path: string): TreeNode | null => {
 // Above this a .md file opens for reading: the formatted editor is much heavier than the rendered page.
 const LARGE_MD = 1024 * 1024;
 const AUTOSAVE_MS = 700;
-const CHAT = 'chat';
 const autosaves = (t: Tab): boolean => t.content.kind === 'markdown' && t.content.editable;
 const isDirty = (t: Tab): boolean => (t.content.kind === 'markdown' || t.content.kind === 'text') && t.content.editable && t.draft !== t.content.text;
 const sidebarWidthWithinBounds = (width: number) => Math.max(180, Math.min(720, Math.round(width)));
@@ -152,9 +152,27 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     setTimeout(() => setNotice((cur) => (cur?.text === text ? null : cur)), 6000);
   };
   const [terms, setTerms] = useState<TermTab[]>([]);
-  const [chatRequest, setChatRequest] = useState<{ text: string; tool: string; label: string; key: number } | null>(null);
+  const [chatRequest, setChatRequest] = useState<{ tab: string; text: string; tool: string; label: string; key: number } | null>(null);
   const chatSequence = useRef(0);
-  const openChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); apply((b) => boardOpen(b, CHAT)); }, [apply, onSettings]);
+  const [chatTitles, setChatTitles] = useState<Record<string, string>>({});
+  const titleChat = useCallback((tab: string, title: string) => setChatTitles((old) => old[tab] === title ? old : { ...old, [tab]: title }), []);
+  const revealChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); }, [onSettings]);
+  const openChat = useCallback(() => {
+    revealChat();
+    apply((b) => boardOpen(b, [focusedKey(b), ...b.order].find(isChatTab) ?? 'chat'));
+  }, [apply, revealChat]);
+  const newChat = (tool: string, id?: string): string => {
+    const existing = id ? board.order.find((key) => isChatTab(key) && recall(`${chatTabPrefix(workspaceId, project.id, key)}:id`) === id) : undefined;
+    const tab = existing ?? `chat:${crypto.randomUUID()}`;
+    if (!existing) {
+      const prefix = chatTabPrefix(workspaceId, project.id, tab);
+      remember(`${prefix}:tool`, tool);
+      if (id) remember(`${prefix}:id`, id);
+    }
+    revealChat();
+    apply((b) => boardOpen(b, tab));
+    return tab;
+  };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       // In a terminal, Ctrl+L belongs to the shell or the AI tool there (clear or redraw the screen).
@@ -528,7 +546,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   // The board keeps only tabs that exist (a saved board, a terminal closed elsewhere) and knows every open one.
   useEffect(() => {
     if (!termsReady || !viewReady) return;
-    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : []), ...(board.tabs[CHAT] ? [CHAT] : [])]);
+    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : []), ...Object.keys(board.tabs).filter(isChatTab)]);
     const known = Object.keys(board.tabs);
     if (known.length === alive.size && known.every((k) => alive.has(k))) return;
     apply((b) => [...alive].filter((k) => !b.tabs[k]).reduce((acc, k) => {
@@ -981,7 +999,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   );
   // ---- groups and views
   const titleOf = (key: TabKey): PaneTab => {
-    if (key === CHAT) return { key, label: t('Chat'), title: t('Chat'), icon: <IconChat size={14} /> };
+    if (isChatTab(key)) return { key, label: chatTitles[key] || t('Chat'), title: chatTitles[key] || t('Chat'), icon: <IconChat size={14} /> };
     if (key.startsWith('term:')) {
       const term = terms.find((x) => x.id === key.slice(5));
       const title = term?.title ?? t('Terminal');
@@ -993,7 +1011,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     return { key, label: path.split('/').pop() ?? path, title: path, icon: <FileIcon name={path} size={14} />, dirty: doc ? isDirty(doc) : false, fresh: board.tabs[key]?.fresh };
   };
   const selectTab = (key: TabKey) => { if (key.startsWith('file:')) touchRecentFile(project.id, key.slice(5)); apply((b) => show(b, key)); };
-  const closeTab = (key: TabKey) => { if (key === CHAT) apply((b) => boardClose(b, CHAT)); else if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
+  const closeTab = (key: TabKey) => { if (isChatTab(key)) apply((b) => boardClose(b, key)); else if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
   const closeGroupFiles = (group: string) => {
     for (const key of tabsOfGroup(board, group)) if (key.startsWith('file:')) close(key.slice(5));
     apply((b) => dropGroup(b, group));
@@ -1176,15 +1194,17 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                   onTabMenu={(key, at) => setTabMenu({ key, ...at })} onDropTab={(key) => apply((b) => moveToPane(b, key, i))}
                   actions={i === TOP_RIGHT[board.arrangement] ? <>
                     <LayoutButton arrangement={board.arrangement} onArrange={(a) => apply((b) => arrange(b, a))} />
-                    <AddButton size="md" variant="ghost" title={t('New: terminal, AI or file')} onClick={openTermMenu} />
+                    <AddButton size="md" variant="ghost" title={t('New: terminal, AI, chat or file')} onClick={openTermMenu} />
                   </> : undefined}
                 />
                 <div className="pane-body">
-                  {keys.includes(CHAT) && <ChatView project={project.id} workspace={workspaceId} tools={tools} active={pane.active === CHAT && !note && !opView && !activityView} pending={chatRequest} onPending={() => setChatRequest(null)} onLink={(href) => onLinkFrom('', href)} />}
+                  {keys.filter(isChatTab).map((key) => <ChatView key={key} tab={key} project={project.id} workspace={workspaceId} tools={tools}
+                    active={pane.active === key && !note && !opView && !activityView} pending={chatRequest?.tab === key ? chatRequest : null}
+                    onPending={() => setChatRequest(null)} onHistory={(id, tool) => newChat(tool, id)} onTitle={titleChat} onLink={(href) => onLinkFrom('', href)} />)}
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
                     <TerminalView key={x.id} id={x.id} project={project.id} tool={x.tool} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
                   ))}
-                  {pane.active === CHAT ? null : pane.active === GRAPH ? (
+                  {isChatTab(pane.active) ? null : pane.active === GRAPH ? (
                     <div className="welcome">
                       <h1>{t('Graph view')}</h1>
                       <p className="muted">{t('Under construction.')}</p>
@@ -1229,6 +1249,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
 
       {termMenu && (
         <NewMenu at={termMenu} tools={tools} onTerminal={newTerminal} withDefaults={project.defaults.some((d) => d.kind !== 'operation') || Boolean(project.startInstructions.trim())} onClose={() => setTermMenu(null)}
+          onChat={(tool) => { setTermMenu(null); newChat(tool); }}
           onFile={(ext) => { setTermMenu(null); setCreating({ parent: tree.some((n) => n.path === 'inbox') ? 'inbox' : '', kind: 'file', ext }); }}
           onCraft={() => { setTermMenu(null); setCraftOpen(true); }} />
       )}
@@ -1330,7 +1351,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {showSetup && <SetupDialog project={project} onClose={() => setShowSetup(false)}
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onPin={pinActivity} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
-        onChat={(text, tool, label) => { setLaunch(null); setChatRequest({ text, tool, label, key: ++chatSequence.current }); openChat(); }}
+        onChat={(text, tool, label) => { setLaunch(null); const tab = newChat(tool); setChatRequest({ tab, text, tool, label, key: ++chatSequence.current }); }}
         onPrepared={(terminal) => {
           setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
           flash(t('Request pasted. Add context and press Enter when ready.'), true);

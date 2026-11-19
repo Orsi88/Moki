@@ -11,7 +11,7 @@
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { ROOT, git } from './lib/repo.mjs';
 import { PATTERNS } from './lib/secret-patterns.mjs';
 
@@ -41,7 +41,7 @@ function readStaged(path) {
   try { return git(['show', `:${path}`]); } catch { return null; }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
+if (isMain(import.meta.url, ['check-secrets.mjs'])) {
   const argv = process.argv.slice(2);
   const staged = !argv.length;
   const problems = [];
