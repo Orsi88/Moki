@@ -31,6 +31,7 @@ Dependency direction: `app/` → (IPC) → `desktop/` → `scripts/lib/` → Nod
 | `repo.mjs` | `ROOT` (honors `QA_ROOT`), `workspaceDir`/`setWorkspaceDir`/`workspaceLabel` (honors `QA_WORKSPACE`), `MIRRORS`, `listSkillDirs`, `walkFiles`, `relPosix`, `toPosix`, `readJson`, `git`, `nowStamp`, `parseArgs`, `SLUG` |
 | `core.ts` | `ACTIVITIES`, `TOOLS`, `LANGUAGES`, `STARTERS`, `isActivity`, `isTool`, `skillStatus`, `isUsable`, `listSkills`, projects, runs, tags, linked folder, installed skills and agents, `buildPrompt`, tool detection, clipboard |
 | `agents.ts` | `Agent` model, `parseAgent`, `validateAgent` (shared by the validator and the app editor), `listAgents`, `listCategories`, `isUsableAgent`, `duplicateAgent`, `claudeSubagent` |
+| `evolution.ts`, `evolution-check.ts`, `text-diff.ts` | Mycroft's registry: learnings, proposals, versions and history per item (`learn`, `propose`, `approveProposal`, `revertTo`, `activeFile`), the check of a proposed text against the item's rules (`versionProblems`), the line diff the app shows (`lineDiff`) |
 | `frontmatter.mjs` | Minimal YAML-subset parser (single-line values, one nested map) |
 | `schema.mjs` | Minimal JSON Schema validator |
 | `markdown.mjs` | Markdown → HTML with all HTML escaped (app and PDF) |

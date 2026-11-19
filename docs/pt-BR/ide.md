@@ -113,6 +113,7 @@ Enquanto programa ou escreve testes, pergunte em linguagem natural: *"quais regr
 | `moki_search_knowledge` | Linhas que batem com a busca nos arquivos que ela pode ler |
 | `moki_list_resources` / `moki_get_resource` | Referências, e o texto de um arquivo do projeto (o contexto primeiro, depois as outras pastas; um PDF como texto), nota, arquivo compartilhado, agente ou skill |
 | `moki_get_agent` | As instruções de um agente (ler não executa o agente) |
+| `moki_record_learning`, `moki_list_learnings`, `moki_get_evolution`, `moki_propose_version` | O que você ensinou a um agente, skill ou atividade, e as propostas do Mycroft ([Mycroft](mycroft.md)). As únicas ferramentas que escrevem, e só no registro de evolução do Moki: uma proposta espera a sua aprovação no app |
 
 ### Iniciar uma atividade de QA
 

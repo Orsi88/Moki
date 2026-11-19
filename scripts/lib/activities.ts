@@ -17,7 +17,8 @@
 // becomes the project id. Text-only activities need a request; others can use their target's default.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { activeLabel, isItemName } from './evolution.ts';
 import { ROOT, workspaceDir } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { appliesTo, cleanTags } from './tags.mjs';
@@ -128,9 +129,18 @@ function readDir(dir: string, source: 'builtin' | 'library'): ActivityDef[] {
 }
 
 // Every activity, or the ones a project sees (library ones by their tags). An id is unique: moki, then builtin, then library.
+// A built-in activity with a version approved in this workspace is read from that version (its own file never changes).
+function evolvedActivity(a: ActivityDef, root: string): ActivityDef {
+  const label = isItemName(a.id) ? activeLabel({ kind: 'activity', name: a.id, builtin: true }, root) : null;
+  if (!label) return a;
+  const file = resolve(root, label);
+  const { activity } = parseActivity(readFileSync(file, 'utf8'), a.id, 'builtin', file);
+  return activity ?? a;
+}
+
 export function listActivities(root = ROOT, project?: string): ActivityDef[] {
   const seen = new Set<string>();
-  return [...MOKI_ACTIVITIES, ...readDir(builtinDir(root), 'builtin'), ...readDir(libraryDir(root), 'library')]
+  return [...MOKI_ACTIVITIES, ...readDir(builtinDir(root), 'builtin').map((a) => evolvedActivity(a, root)), ...readDir(libraryDir(root), 'library')]
     .filter((a) => !seen.has(a.id) && seen.add(a.id))
     .filter((a) => !project || appliesTo(a.tags, project, root));
 }

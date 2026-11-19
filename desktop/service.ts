@@ -34,6 +34,9 @@ import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
 import { createAiAccounts } from './ai-accounts.ts';
 import { chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
+import { approveProposal, currentText, declineProposal, dismissLearning, itemHistory, learn, listLearnings, originalChanged, pendingProposals, revertTo, versionText } from '../scripts/lib/evolution.ts';
+import { evolutionItem } from '../scripts/lib/evolution-check.ts';
+import { lineDiff } from '../scripts/lib/text-diff.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
 import { checkOperation, cleanOperation, formatMessage, listOperations, removeOperation, seedExample, suggestOutput, writeOperation, type OperationAgent } from '../scripts/lib/operations.ts';
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
@@ -410,7 +413,9 @@ export function createService(root: string, deps: Deps) {
   const customFile = (agent: Agent): string => inside(libraryDir(root), `${agent.category}/${agent.name}.md`);
 
   // Agents a project may use: the usable agents whose tags reach it (scripts/lib/agent-tags.ts; no tag = every project).
-  const enabledAgents = (project: string): string[] => { projectDir(project); return agentsOfProject(project, root); };
+  // Mycroft, who evolves Moki with the person, is in every project (agents/learning/mycroft.md).
+  const ALWAYS_AGENTS = ['mycroft'];
+  const enabledAgents = (project: string): string[] => { projectDir(project); const own = agentsOfProject(project, root); return [...own, ...ALWAYS_AGENTS.filter((n) => !own.includes(n) && listAgents(root).some((a) => a.name === n))]; };
 
   // Copies the folder's AI settings to <into>/<kind>-<date>/; undefined when it has none.
   function backupAiConfig(into: string, folder: string, kind: string, names = AI_CONFIG): string | undefined {
@@ -913,7 +918,7 @@ export function createService(root: string, deps: Deps) {
     const enabled = new Set(agentsOfProject(project, root));
     for (const agent of listAgents(root)) {
       if (!enabled.has(agent.name) || !isUsableAgent(agent)) continue;
-      const text = geminiAgent(readFileSync(join(root, agent.path), 'utf8'));
+      const text = geminiAgent(readFileSync(resolve(root, agent.path), 'utf8'));
       if (text) files.set(text.name, text.text);
     }
     const own = projectAgentsDir(project, root).dir;
@@ -2167,7 +2172,7 @@ export function createService(root: string, deps: Deps) {
 
     agent: (name: string) => {
       const agent = findAgent(name);
-      return { ...agent, usable: isUsableAgent(agent), text: readFileSync(join(root, agent.path), 'utf8'), html: markdownToHtml(agent.body) };
+      return { ...agent, usable: isUsableAgent(agent), text: readFileSync(resolve(root, agent.path), 'utf8'), html: markdownToHtml(agent.body) };
     },
 
     duplicateAgent: (name: string) => {
@@ -3200,6 +3205,59 @@ export function createService(root: string, deps: Deps) {
       const dir = projectDir(project);
       if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       conversations.stop(dir, id); return true;
+    },
+    // Evolution (Mycroft, scripts/lib/evolution.ts): an item's versions, the change waiting for the person, what they
+    // taught it. Approving, declining, going back and restoring the original happen only here, on the person's click.
+    // `project`: the project whose own learnings show too (never another project's).
+    evolution: (kind: unknown, name: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const h = itemHistory(item.kind, item.name, root);
+      const waiting = pendingProposals(root).find((p) => p.kind === item.kind && p.name === item.name);
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      const learnings = listLearnings(root, own).filter((l) => l.kind === item.kind && l.name === item.name);
+      return {
+        kind: item.kind, name: item.name, builtin: item.builtin, active: h.active, entries: h.entries, originalChanged: originalChanged(item, root),
+        proposal: waiting ? { id: waiting.id, at: waiting.at, reason: waiting.reason, proposedBy: waiting.proposedBy,
+          learnings: learnings.filter((l) => waiting.learnings.includes(l.id)).map((l) => l.text), diff: lineDiff(currentText(item, root), waiting.text) } : null,
+        learnings: learnings.filter((l) => l.status === 'open'),
+      };
+    },
+    // The difference between two versions (0: the original).
+    evolutionDiff: (kind: unknown, name: unknown, from: unknown, to: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      return failing(() => lineDiff(versionText(item, Number(from), root), versionText(item, Number(to), root)));
+    },
+    // The changes waiting for the person, every item (the notification bell).
+    evolutionWaiting: () => pendingProposals(root).map(({ id, kind, name, reason, at }) => ({ id, kind, name, reason, at })),
+    approveVersion: (kind: unknown, name: unknown, proposalId: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      failing(() => approveProposal(item, proposalId, root, own));
+      return service.evolution(kind, name, project);
+    },
+    declineVersion: (kind: unknown, name: unknown, proposalId: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      failing(() => declineProposal(item, proposalId, root));
+      return service.evolution(kind, name);
+    },
+    // "Go back to this version" (a new version with its text) and "Restore the original" (version 0).
+    revertVersion: (kind: unknown, name: unknown, version: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      failing(() => revertTo(item, typeof version === 'number' ? version : Number.NaN, root));
+      return service.evolution(kind, name, project);
+    },
+    // "Teach this item something": what the person wants, in their words, for the workspace or only one project.
+    teach: (kind: unknown, name: unknown, text: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const own = typeof project === 'string' && project ? { id: project, dir: projectDir(project) } : undefined;
+      failing(() => learn({ kind: item.kind, name: item.name, text, scope: own ? 'project' : 'workspace', source: 'Moki settings' }, root, own));
+      return service.evolution(kind, name, project);
+    },
+    dismissTeaching: (kind: unknown, name: unknown, learningId: unknown, project?: unknown) => {
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      if (typeof learningId !== 'string') throw new ServiceError('Unknown learning.');
+      dismissLearning(learningId, root, own);
+      return service.evolution(kind, name, project);
     },
     // Settings › My AIs and the status bar's Usage: each AI's accounts, the one in use, hiding one, and a new one to sign in to.
     aiAccounts: () => aiAccounts.list(),

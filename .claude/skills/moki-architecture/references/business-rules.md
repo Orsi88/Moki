@@ -23,6 +23,7 @@ The domain rules of the framework and what no change may break. Each rule names 
 - Built-in: `agents/<category>/<name>.md`, `name` = file name, `category` = folder and defined in `agents/categories.json`, zero or more existing skills, sections Role, When to use, How to work, Boundaries. `validateAgent` in `scripts/lib/agents.ts` is shared by the validator and the app editor. Every built-in agent is listed in `AGENTS.md`. *validate*
 - Access levels (`ACCESS_LEVELS`): `read-only` (reads, writes nothing), `project-write` (only inside `workspace/projects/<project-id>/`), `repository-write` (may also change a linked repository, after an approved plan). They are instructions to the AI; in Claude Code, `read-only` agents are generated without the editing tools (`claudeSubagent`).
 - Only usable built-in agents become Claude Code subagents in `.claude/agents/`. *build*
+- Evolution (Mycroft, `docs/mycroft.md`): what the person taught an item becomes a proposal, and an approved proposal a new version of it (invariant 12). Prompts name the version in use (`skillFile`, `evolvedAgent`, `evolvedActivity`, `evolvedSkillsNote`).
 - Built-in agents are read-only in the app; the user's own agents live in `workspace/library/agents/<category>/` and can never shadow a built-in name (`listAgents`). A copy records `metadata.basedOn`.
 - Per project, `project.json` `agents` lists the enabled agents (absent = every usable agent); a launch with an agent requires it to be usable and enabled. *service.ts*
 
@@ -74,7 +75,7 @@ Language: framework files and skills in English; conversation in the user's lang
 9. Editing only for existing `.md` and `.txt` files; opening with the default program only for `OPENABLE_EXTENSIONS`, never executables or scripts; "Open with" only for `OPEN_WITH_TYPES` (a subset), with a program from the system's own list, and the system default is never changed.
 10. User text reaches terminal AI tools as the prompt argument (`cleanPrompt`; UTF-8 file on Windows; single-quoted on macOS/Linux), and project chat tools as JSON on stdin with a separate context file — never interpolated into a shell command line.
 11. Markdown is rendered with all HTML escaped, attribute quotes included.
-12. Built-in agents cannot be edited or deleted from the app; custom ones are validated before saving.
+12. Built-in agents, skills and activities are never edited: an approved Mycroft version shadows one in the workspace (`workspace/library/evolution/`, resolved by `activeFile`), every earlier version stays in its history and "Restore the original" brings the shipped file back. Versions change only on the person's click in the app (service `approveVersion`, `revertVersion`); the MCP tools only record learnings and proposals, checked by `versionProblems`. Custom agents are validated before saving.
 
 **Installer**
 13. `syncFramework` never touches `workspace/` or `workspaces/`.

@@ -194,8 +194,10 @@ test('MCP: initialize, tools/list, tools/call, and every call is logged', async 
   assert.equal(init.result.protocolVersion, '2025-03-26');
   assert.equal(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const list = await handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['moki_get_project', 'moki_list_resources', 'moki_search_knowledge', 'moki_get_resource', 'moki_get_context', 'moki_get_agent']);
-  assert.ok(list.result.tools.every((t) => t.annotations.readOnlyHint));
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['moki_get_project', 'moki_list_resources', 'moki_search_knowledge', 'moki_get_resource', 'moki_get_context', 'moki_get_agent',
+    'moki_record_learning', 'moki_list_learnings', 'moki_get_evolution', 'moki_propose_version']);
+  // Only the two evolution tools write, and only to the evolution registry.
+  assert.deepEqual(list.result.tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name), ['moki_record_learning', 'moki_propose_version']);
   const call = async (name: string, args: object) => ((await handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } })) as { result: { content: { text: string }[]; isError: boolean } }).result;
   assert.equal(JSON.parse((await call('moki_get_project', {})).content[0].text).id, 'acme');
   assert.match((await call('moki_search_knowledge', { query: 'renewal' })).content[0].text, /business-rules\.md/);
@@ -206,6 +208,18 @@ test('MCP: initialize, tools/list, tools/call, and every call is logged', async 
   assert.equal(((await handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'moki_write', arguments: {} } })) as { error: { code: number } }).error.code, -32602);
   const log = readFileSync(join(projects, 'acme', 'logs', 'companion.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(log.some((e) => e.tool === 'moki_get_resource' && e.error));
+  // Evolution: a learning in the person's words, Mycroft's proposal checked and left waiting (never applied here).
+  const taught = JSON.parse((await call('moki_record_learning', { kind: 'skill', name: 'test-design', text: 'Number the cases TC-001.', scope: 'project' })).content[0].text);
+  assert.equal(taught.scope, 'project');
+  assert.ok(existsSync(join(projects, 'acme', 'learnings.jsonl')));
+  assert.equal(JSON.parse((await call('moki_list_learnings', {})).content[0].text).learnings[0].id, taught.id);
+  const current = JSON.parse((await call('moki_get_evolution', { kind: 'skill', name: 'test-design' })).content[0].text);
+  const broken = await call('moki_propose_version', { kind: 'skill', name: 'test-design', text: current.text.replace('## Human approval points', '## Gates'), reason: 'x' });
+  assert.ok(broken.isError && /missing section "## Human approval points"/.test(broken.content[0].text));
+  const waiting = await call('moki_propose_version', { kind: 'skill', name: 'test-design', text: current.text.replace('## Purpose', '## Purpose\n\nTC- numbering.'), reason: 'The person numbers cases.', learnings: [taught.id] });
+  assert.ok(!waiting.isError);
+  assert.equal(JSON.parse((await call('moki_list_learnings', {})).content[0].text).waiting.length, 1);
+  assert.equal(JSON.parse((await call('moki_get_evolution', { kind: 'skill', name: 'test-design' })).content[0].text).history.active, 0, 'not applied by the AI');
 });
 
 test('MCP: the session is bound to one project, or explains why not', async () => {

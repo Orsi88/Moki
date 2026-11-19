@@ -1,5 +1,7 @@
 // Moki's MCP server (stdio): the AI of an IDE reads one project's context, agents
-// and skills through read-only tools. The project is fixed when the server starts
+// and skills through read-only tools. Three tools write, and only to Moki's evolution registry
+// (scripts/lib/evolution.ts): what the person taught an agent, skill or activity, and the change
+// Mycroft proposes from it. None applies a change: the person approves it in the Moki app. The project is fixed when the server starts
 // (--project, or the folder linked to it: --folder or the current folder) and no
 // tool can change it. The IDE starts the server when its AI needs it and stops it
 // with the session; the Moki desktop app does not have to be open.
@@ -10,14 +12,18 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { ROOT, parseArgs, readJson, setWorkspaceDir } from '../../scripts/lib/repo.mjs';
-import { listProjects } from '../../scripts/lib/core.ts';
+import { readFileSync } from 'node:fs';
+import { listProjects, projectsDir } from '../../scripts/lib/core.ts';
+import { currentText, itemHistory, learn, listLearnings, originalChanged, pendingProposals, propose } from '../../scripts/lib/evolution.ts';
+import { evolutionItem, versionProblems } from '../../scripts/lib/evolution-check.ts';
 import { activeWorkspace } from '../../desktop/workspaces.ts';
 import { CompanionError, openCompanion, projectsForFolder, type Companion, type ResourceKind } from '../../desktop/companion.ts';
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const KINDS: ResourceKind[] = ['context', 'note', 'file', 'shared', 'agent', 'skill'];
 
-interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; run: (c: Companion, args: Record<string, unknown>) => unknown }
+// write: the tool records something (the evolution registry only); the others only read.
+interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; run: (c: Companion, args: Record<string, unknown>) => unknown; write?: boolean }
 
 const object = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false });
 
@@ -61,7 +67,52 @@ const TOOLS: Tool[] = [
     inputSchema: object({ name: { type: 'string' } }, ['name']),
     run: (c, a) => c.getResource(`agent:${String(a.name ?? '')}`),
   },
+  {
+    name: 'moki_record_learning',
+    description: 'Record what the person said about how a Moki agent, skill or activity should work from now on ("next time do it like this"), in their own words. Do not change the item yourself: Mycroft turns learnings into a proposal the person approves in Moki. scope "project" when it is only about this project.',
+    inputSchema: object({ kind: { type: 'string', enum: ['agent', 'skill', 'activity'] }, name: { type: 'string' }, text: { type: 'string' }, scope: { type: 'string', enum: ['workspace', 'project'] }, source: { type: 'string' } }, ['kind', 'name', 'text']),
+    write: true,
+    run: (c, a) => evolution(() => learn({ kind: a.kind, name: a.name, text: a.text, scope: a.scope, source: a.source }, c.root, { id: c.project, dir: join(projectsDir(c.root), c.project) })),
+  },
+  {
+    name: 'moki_list_learnings',
+    description: 'What the person taught Moki\'s agents, skills and activities: the whole workspace\'s and this project\'s (open ones unless status says otherwise), with the proposals waiting for them.',
+    inputSchema: object({ status: { type: 'string', enum: ['open', 'used', 'dismissed', 'all'] } }),
+    run: (c, a) => {
+      const status = typeof a.status === 'string' ? a.status : 'open';
+      const learnings = listLearnings(c.root, join(projectsDir(c.root), c.project)).filter((l) => status === 'all' || l.status === status);
+      return { learnings, waiting: pendingProposals(c.root).map(({ id, kind, name, reason, at }) => ({ id, kind, name, reason, at })) };
+    },
+  },
+  {
+    name: 'moki_get_evolution',
+    description: 'An agent, skill or activity as it is used now (its current text), its versions and, when Moki shipped a newer original of an item the person evolved, that original, to carry the learnings over to it.',
+    inputSchema: object({ kind: { type: 'string', enum: ['agent', 'skill', 'activity'] }, name: { type: 'string' } }, ['kind', 'name']),
+    run: (c, a) => evolution(() => {
+      const item = evolutionItem(a.kind, a.name, c.root);
+      const changed = originalChanged(item, c.root);
+      return { text: currentText(item, c.root), history: itemHistory(item.kind, item.name, c.root), originalChanged: changed, ...(changed ? { newOriginal: readText(item.file) } : {}) };
+    }),
+  },
+  {
+    name: 'moki_propose_version',
+    description: 'Propose a new version of an agent, skill or activity: its whole new text, why it helps the person, and the learnings it answers. Keep its structure, approval points and rules; the smallest change that does it. Moki checks it, then it waits for the person to approve it in Moki (Settings, the item\'s page); it is never applied by this call.',
+    inputSchema: object({ kind: { type: 'string', enum: ['agent', 'skill', 'activity'] }, name: { type: 'string' }, text: { type: 'string' }, reason: { type: 'string' }, learnings: { type: 'array', items: { type: 'string' } } }, ['kind', 'name', 'text', 'reason']),
+    write: true,
+    run: (c, a) => evolution(() => {
+      const item = evolutionItem(a.kind, a.name, c.root);
+      const text = typeof a.text === 'string' ? a.text : '';
+      const proposal = propose(item, { text, reason: a.reason, learnings: a.learnings, proposedBy: 'mycroft' }, versionProblems(item, text, c.root), c.root);
+      return { id: proposal.id, waiting: 'The person reviews it in Moki: Settings, the item\'s page. It is not applied until they approve it.' };
+    }),
+  },
 ];
+
+// The evolution registry's refusals reach the AI as they are (what to fix), not as "could not read".
+function evolution<T>(work: () => T): T {
+  try { return work(); } catch (e) { throw new CompanionError(e instanceof Error ? e.message : String(e)); }
+}
+const readText = (file: string) => readFileSync(file, 'utf8');
 
 type Message = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
@@ -85,7 +136,7 @@ export function createHandler(companion: Companion | null, unbound: string) {
       }
       case 'ping': return reply({});
       case 'tools/list':
-        return reply({ tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema, annotations: { readOnlyHint: true, openWorldHint: false } })) });
+        return reply({ tools: TOOLS.map(({ name, description, inputSchema, write }) => ({ name, description, inputSchema, annotations: { readOnlyHint: !write, openWorldHint: false } })) });
       case 'tools/call': {
         const name = String(msg.params?.name ?? '');
         const tool = TOOLS.find((t) => t.name === name);

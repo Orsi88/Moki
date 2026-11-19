@@ -95,7 +95,7 @@ test('state: the connected project, the list to switch, the MCP servers that are
 
 test('agents: only the ones the project uses', async () => {
   const agents = await call('agents') as { name: string }[];
-  assert.deepEqual(agents.map((a) => a.name), ['test-designer']);
+  assert.deepEqual(agents.map((a) => a.name), ['mycroft', 'test-designer']); // Mycroft is in every project
 });
 
 test('context: switching a file off leaves it out of requests and of what the AI reads', async () => {

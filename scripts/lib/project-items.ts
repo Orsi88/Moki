@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { ROOT } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { reachOf } from './tags.mjs';
-import { installedAgents, installedSkills, isUsable, projectAgentsDir, projectSkillsDir, projectSummary, skillFolders } from './core.ts';
+import { installedAgents, installedSkills, isUsable, projectAgentsDir, projectSkillsDir, projectSummary, skillFile, skillFolders } from './core.ts';
 import { isUsableAgent, listAgents } from './agents.ts';
 import { agentTags } from './agent-tags.ts';
 import { listUploads } from './uploads.ts';
@@ -52,7 +52,7 @@ export function linkedGlobalSkills(project: string, root = ROOT, home = ''): { n
   return projectSummary(project, root).linkedSkills.flatMap((name) => {
     const base = globalSkillDirs(home).find((dir) => skillFolders(dir).includes(name));
     if (base) return [{ name, path: join(base, name, 'SKILL.md') }];
-    return artcraftSkills(root).includes(name) ? [{ name, path: `skills/${name}/SKILL.md` }] : [];
+    return artcraftSkills(root).includes(name) ? [{ name, path: skillFile(name, root) }] : [];
   });
 }
 
@@ -82,7 +82,8 @@ export function projectItems(project: string, root = ROOT, home = ''): ProjectIt
   for (const d of summary.defaults) {
     if (d.kind === 'skill') {
       if (existsSync(join(root, 'skills', d.id, 'SKILL.md')) && isUsable(d.id, root)) {
-        add({ kind: 'skill', name: d.id, scope: 'moki', path: `skills/${d.id}/SKILL.md`, description: describe(join(root, 'skills', d.id, 'SKILL.md')) });
+        add({ kind: 'skill', name: d.id, scope: 'moki', path: skillFile(d.id, root), // the version approved in this workspace, if any
+          description: describe(join(root, 'skills', d.id, 'SKILL.md')) });
       } else {
         const base = globalSkillDirs(home).find((dir) => skillFolders(dir).includes(d.id));
         add(base ? { kind: 'skill', name: d.id, scope: 'global', path: join(base, d.id, 'SKILL.md'), description: describe(join(base, d.id, 'SKILL.md')) } : missingSkill(d.id));

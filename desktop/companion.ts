@@ -7,7 +7,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { contextChoice, listProjects, listSkills, isUsable, projectSummary, projectsDir, type ProjectSummary } from '../scripts/lib/core.ts';
+import { contextChoice, listProjects, listSkills, isUsable, projectSummary, projectsDir, skillFile, type ProjectSummary } from '../scripts/lib/core.ts';
 import { isUsableAgent, listAgents } from '../scripts/lib/agents.ts';
 import { readJson, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
@@ -219,9 +219,9 @@ export function openCompanion(root: string, project: string) {
     if (r.kind === 'agent') {
       const agent = listAgents(root).find((a) => `agent:${a.name}` === r.id);
       if (!agent) throw new CompanionError('Unknown agent.');
-      return readFileSync(join(root, agent.path), 'utf8');
+      return readFileSync(resolve(root, agent.path), 'utf8');
     }
-    if (r.kind === 'skill') return readFileSync(join(root, 'skills', r.id.slice('skill:'.length), 'SKILL.md'), 'utf8');
+    if (r.kind === 'skill') return readFileSync(resolve(root, skillFile(r.id.slice('skill:'.length), root)), 'utf8'); // the version in use
     const rel = r.id.slice(prefix().length + r.source.length + 1);
     let file: string;
     try { file = resolveInside(join(projectsDir(root), r.source), rel); } catch (e) {
@@ -247,6 +247,7 @@ export function openCompanion(root: string, project: string) {
 
   return {
     project,
+    root, // the framework folder this session reads (the MCP server's evolution tools write under its workspace)
 
     // mcpServers: the MCP servers on in Moki for this project (MCP Manager), by id; never their command or variables.
     summary: (): ProjectSummary & { agents: string[]; skills: string[]; mcpServers: { id: string; name: string; transport: string; access: string; description: string }[] } => {
@@ -353,8 +354,8 @@ export function openCompanion(root: string, project: string) {
     // A file resource's place on disk, for "Open in editor".
     filePath: (id: unknown): string | null => {
       const r = find(id);
-      if (r.kind === 'agent') { const a = listAgents(root).find((x) => `agent:${x.name}` === r.id); return a ? join(root, a.path) : null; }
-      if (r.kind === 'skill') return join(root, 'skills', r.id.slice('skill:'.length), 'SKILL.md');
+      if (r.kind === 'agent') { const a = listAgents(root).find((x) => `agent:${x.name}` === r.id); return a ? resolve(root, a.path) : null; }
+      if (r.kind === 'skill') return resolve(root, skillFile(r.id.slice('skill:'.length), root));
       return join(projectsDir(root), r.source, ...r.id.slice(prefix().length + r.source.length + 1).split('/'));
     },
 

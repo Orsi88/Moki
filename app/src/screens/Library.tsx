@@ -7,6 +7,7 @@
 // own agents also chooses its skills here.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { EvolutionPanel } from '../components/EvolutionPanel';
 import { api, type AgentContract, type AgentDetail, type AgentInfo, type AgentProfile, type Category, type ProjectSummary, type SkillInfo, type ToolInfo } from '../api';
 import { AgentContractFields } from '../components/AgentContractFields';
 import { agentFace } from '../catalog-copy';
@@ -347,6 +348,7 @@ export function Library({ onBack, backLabel, embedded = false, onCreate, creatin
                   </section>
 
                   <AgentContractFields value={profile?.contract ?? shown!} onChange={profile ? (contract) => setProfile({ ...profile, contract }) : undefined} mcps={mcps} tools={tools} access={detail.access} />
+                  <EvolutionPanel key={detail.name} kind="agent" name={detail.name} />
                 </div>
 
                 <aside className="agent-side">

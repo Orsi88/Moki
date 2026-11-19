@@ -111,6 +111,7 @@ While you code or write tests, ask in plain language: *"which business rules app
 | `moki_search_knowledge` | Matching lines across the files it may read |
 | `moki_list_resources` / `moki_get_resource` | References, and the text of one project file (context first, then the other folders; a PDF as its text), note, shared file, agent or skill |
 | `moki_get_agent` | An agent's instructions (reading them does not run the agent) |
+| `moki_record_learning`, `moki_list_learnings`, `moki_get_evolution`, `moki_propose_version` | What you taught an agent, skill or activity, and Mycroft's proposals ([Mycroft](mycroft.md)). The only tools that write, and only to Moki's evolution registry: a proposal waits for your approval in the app |
 
 ### Start a QA activity
 

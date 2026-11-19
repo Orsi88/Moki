@@ -12,6 +12,7 @@ import { parseFrontmatter } from './frontmatter.mjs';
 import { contractLines, isUsableAgent, listAgents, type AgentContract } from './agents.ts';
 import { activityRequest, activitySkills, getActivity, listActivities, type ActivityDef, type Effort } from './activities.ts';
 import { MARKERS_FILE, markersForAi, readMarkers } from './markers.ts';
+import { activeLabel, evolvedSkills } from './evolution.ts';
 
 // Activities are scripts/lib/activities.ts: the app's own actions in code, the others in activities/ and the workspace library.
 export type ActivityKey = string;
@@ -655,6 +656,8 @@ export function buildInvokePrompt({ project, target, language = 'English', repos
     parts.push(`Read ${target.paths.join(', ')} and use ${target.paths.length > 1 ? 'them' : 'it'} as context for what I ask next.`);
   } else if (target.kind === 'skill') parts.push(`Use the ${target.name} skill: read ${target.path} and follow its procedure and approval gates.`);
   else parts.push(`Act as the ${target.name} agent: read ${target.path} and follow it.`);
+  const evolved = evolvedSkillsNote();
+  if (evolved) parts.push(evolved);
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
 }
@@ -701,8 +704,18 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
       + ' For a closed question, write a ```choices block: {"question":"…","options":["…","…"]}; I pick one (it comes back as my next message) or answer in my own words.'
       + ' Before a step that needs my approval, write a ```approval block: {"title":"…","items":["exactly what will change"]} and do not act before my answer comes back as my next message.'
     : 'Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
+  const evolved = evolvedSkillsNote(root);
+  if (evolved) parts.push(evolved);
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
+}
+
+// Where a skill's text is: the version approved in this workspace (scripts/lib/evolution.ts), else Moki's own.
+export const skillFile = (name: string, root = ROOT): string => activeLabel({ kind: 'skill', name, builtin: true }, root) ?? `skills/${name}/SKILL.md`;
+// The skills evolved in this workspace, for a request that may use one by its name only (an activity, an agent).
+export function evolvedSkillsNote(root = ROOT): string {
+  const list = evolvedSkills(root);
+  return list.length ? `Skills evolved in this workspace: read their current version instead of the installed one: ${list.map((s) => `${s.name} → ${s.path}`).join('; ')}.` : '';
 }
 
 export function buildPrompt({ project, activity, files = [], note = '', run = '', language = 'English', agent, repository = '', skills = [], agents = [], description = '', globalSkills = [], available, shared = [], excluded = [], references = [], root = ROOT, workspace = 'workspace', skill = '', skillPath = '' }: Request): string {
@@ -747,7 +760,7 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
     case 'skill': {
       const name = skill.trim();
       if (!name) throw new Error('Using a skill needs its name.');
-      parts.push(`Use the ${name} skill: read ${skillPath.trim() || `skills/${name}/SKILL.md`} and follow its procedure and approval gates.`);
+      parts.push(`Use the ${name} skill: read ${skillPath.trim() || skillFile(name, root)} and follow its procedure and approval gates.`);
       break;
     }
     case 'call':
@@ -785,6 +798,8 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
   // The person's markers (Settings › Markers): what each icon on a comment or passage means.
   if (existsSync(join(workspaceDir(root), MARKERS_FILE)) && readMarkers(workspaceDir(root)).length) parts.push(markersForAi(`${workspace}/${MARKERS_FILE}`));
   if (note.trim()) parts.push(`Additional instructions: ${note.trim().replace(/([^.!?])$/, '$1.')}`);
+  const evolved = evolvedSkillsNote(root);
+  if (evolved) parts.push(evolved);
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
 }

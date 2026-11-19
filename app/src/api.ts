@@ -403,10 +403,29 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
 export interface AiAccount { id: string; name: string; email: string; signedIn: boolean; active: boolean; hidden: boolean }
 export interface AiAccounts { tool: string; label: string; accounts: AiAccount[] }
 
+// Evolution (Mycroft, scripts/lib/evolution.ts): an item's versions, the change waiting for the person, what they taught it.
+export type EvolutionKind = 'agent' | 'skill' | 'activity';
+export interface DiffLine { kind: 'same' | 'added' | 'removed'; text: string }
+export interface VersionEntry { version: number; at: string; event: 'version' | 'revert' | 'restore'; reason: string; proposedBy: 'mycroft' | 'person'; learnings: string[]; from?: number }
+export interface Teaching { id: string; at: string; text: string; scope: 'workspace' | 'project'; project?: string; status: string }
+export interface Evolution {
+  kind: EvolutionKind; name: string; builtin: boolean; active: number; entries: VersionEntry[]; originalChanged: boolean;
+  proposal: { id: string; at: string; reason: string; proposedBy: string; learnings: string[]; diff: DiffLine[] } | null;
+  learnings: Teaching[];
+}
+
 // The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
 export const CHAT_TOOLS: string[] = ['claude', 'codex'];
 
 export const api = {
+  evolution: (kind: EvolutionKind, name: string, project?: string) => call<Evolution>('evolution', kind, name, project),
+  evolutionDiff: (kind: EvolutionKind, name: string, from: number, to: number) => call<DiffLine[]>('evolutionDiff', kind, name, from, to),
+  evolutionWaiting: () => call<{ id: string; kind: EvolutionKind; name: string; reason: string; at: string }[]>('evolutionWaiting'),
+  approveVersion: (kind: EvolutionKind, name: string, id: string, project?: string) => call<Evolution>('approveVersion', kind, name, id, project),
+  declineVersion: (kind: EvolutionKind, name: string, id: string) => call<Evolution>('declineVersion', kind, name, id),
+  revertVersion: (kind: EvolutionKind, name: string, version: number, project?: string) => call<Evolution>('revertVersion', kind, name, version, project),
+  teach: (kind: EvolutionKind, name: string, text: string, project?: string) => call<Evolution>('teach', kind, name, text, project),
+  dismissTeaching: (kind: EvolutionKind, name: string, id: string, project?: string) => call<Evolution>('dismissTeaching', kind, name, id, project),
   aiAccounts: () => call<AiAccounts[]>('aiAccounts'),
   useAiAccount: (tool: string, id: string) => call<AiAccounts[]>('useAiAccount', tool, id),
   hideAiAccount: (tool: string, id: string, on: boolean) => call<AiAccounts[]>('hideAiAccount', tool, id, on),

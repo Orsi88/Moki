@@ -7,6 +7,7 @@
 // one to change it. Your own are edited here and saved in workspace/library/activities/.
 
 import { useCallback, useEffect, useState } from 'react';
+import { EvolutionPanel } from './EvolutionPanel';
 import { api, activityTargetLabel, type ActivityDetail, type ActivityDraft, type ActivityInfo } from '../api';
 import { activityFace, skillFace } from '../catalog-copy';
 import { t } from '../i18n';
@@ -167,6 +168,7 @@ export function ActivitiesPage() {
         {mine ? (
           <>
             <section className="agent-card">{form(draft)}</section>
+            <EvolutionPanel key={open.id} kind="activity" name={open.id} />
             <div className="agent-savebar">
               <span className="muted small">{open.path}</span><span className="statusbar-spacer" />
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => remove(open)}>{t('Delete')}</button>
@@ -188,6 +190,7 @@ export function ActivitiesPage() {
                 <pre className="activity-template">{open.template}</pre>
               </section>
             )}
+            {open.source === 'builtin' && <EvolutionPanel key={open.id} kind="activity" name={open.id} />}
             {open.source === 'builtin' && (
               <div className="agent-savebar"><span className="statusbar-spacer" />
                 <button type="button" className="btn" disabled={busy} onClick={() => { void duplicate(open.id); }}>{t('Duplicate to edit')}</button>

@@ -1037,7 +1037,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         onHome={goHome}
         onNewNote={() => { if (settings) onNewLooseNote(); else { setOpView(null); setActivityView(null); setNote({ path: null, loose: true }); } }}
         onSettings={toggleSettings}
-        onOpenRoutine={() => onSettings('routines')}
+        onOpenRoutine={(tab) => onSettings(tab ?? 'routines')}
         onPlay={() => setLaunch({})}
         onTerminal={openTermMenu}
         onFolder={() => { void api.openFolder(project.id); }}
