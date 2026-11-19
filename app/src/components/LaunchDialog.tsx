@@ -1,9 +1,9 @@
 // "Open in your AI tool": a short wizard — one question per screen — that
 // prepares the request (activity, inbox files, shared context, agent, notes with @ files) and opens the AI
-// tool the QA already uses, or prepares a draft in the project's chat.
+// tool the QA already uses, or sends it to the project's chat.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type Invocation, type LaunchPreset, type LaunchResult, type OpenRun, type Operation, type ProjectSummary, type SkillInfo, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
+import { api, CHAT_TOOLS, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type Invocation, type LaunchPreset, type LaunchResult, type OpenRun, type Operation, type ProjectSummary, type SkillInfo, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
 import { agentFace } from '../catalog-copy';
 import { conversationLanguage, t } from '../i18n';
 import { defaultTool, remember } from '../prefs';
@@ -132,7 +132,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
   const suited = agents.filter((a) => current && current.skills.some((s) => a.skills.includes(s)));
   const others = agents.filter((a) => !suited.includes(a));
   const selectedTool = tools.find((t) => t.id === tool);
-  const installed = tools.filter((t) => t.available && (destination !== 'chat' || t.id === 'claude'));
+  const installed = tools.filter((t) => t.available && (destination !== 'chat' || CHAT_TOOLS.includes(t.id)));
   const notInstalled = tools.filter((t) => !t.available);
   const pick = (item: Invocation) => {
     const chosen = item.kind === 'activity' ? activities.find((a) => a.id === item.id) : undefined;
@@ -357,7 +357,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
             </div>
           )}
           {step === 'destination' && <div className="answer-list">
-            {onChat && tools.some((ai) => ai.id === 'claude' && ai.available) && <Answer title={t('In the chat')} hint={t('Send it now, in a new conversation in the single chat tab of this project.')}
+            {onChat && tools.some((ai) => CHAT_TOOLS.includes(ai.id) && ai.available) && <Answer title={t('In the chat')} hint={t('Send it now, in a new conversation in the single chat tab of this project.')}
               on={destination === 'chat'} onPick={() => { setDestination('chat'); setTool('claude'); setStep('tool'); }} />}
             <Answer title={t('This terminal')} hint={preset?.terminal ? t('Paste into {terminal}. Review it, add context and press Enter when ready.', { terminal: preset.terminal.title }) : t('Open a running AI terminal in this project to use this option.')}
               on={destination === 'current'} disabled={!preset?.terminal} onPick={() => { setDestination('current'); setStep('review'); }} />

@@ -1,20 +1,21 @@
 // The chat of a project (one tab per project, phase 2 of the chat plan): the person picks an AI tool and talks to it
 // in the app, with the same access a terminal of that tool gets (Moki folder, the project's MCP servers and plugins,
 // the project's start context). This file is the tool-neutral engine: one live process per conversation, fed one
-// message at a time on stdin, its stdout read as events. Each tool has an adapter (only Claude Code for now).
+// message at a time on stdin, its stdout read as events. Each tool has an adapter: Claude Code keeps one process for
+// the conversation; Codex runs one process per message and resumes its session (`oneShot`).
 // The person's text never goes on a command line: messages travel on stdin, the project context in a file.
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { rm } from 'node:fs';
+import { readFileSync, rm } from 'node:fs';
 import type { Effort } from '../scripts/lib/activities.ts';
 
-export type ChatTool = 'claude';
-export const CHAT_TOOLS: ChatTool[] = ['claude'];
+export type ChatTool = 'claude' | 'codex';
+export const CHAT_TOOLS: ChatTool[] = ['claude', 'codex'];
 export const isChatTool = (v: unknown): v is ChatTool => CHAT_TOOLS.includes(v as ChatTool);
 
 export type ChatEvent =
   | { kind: 'session'; id: string } // the tool's session id, kept for --resume
-  | { kind: 'text'; delta: string } // answer text as it arrives
+  | { kind: 'text'; delta: string; whole?: boolean } // answer text as it arrives; `whole`: a complete message (its own paragraph)
   | { kind: 'tool'; id: string; name: string; summary: string } // "Read relatorio-bugs.md", "Bash npm test"
   | { kind: 'tool-done'; id: string; ok: boolean }
   | { kind: 'turn-end'; ok: boolean; error?: string };
@@ -23,9 +24,11 @@ export interface ChatArgs { resume?: string; contextFile: string; extra: string[
 
 export interface ChatAdapter {
   args(o: ChatArgs): string[]; // never the person's text
-  encode(text: string): string; // one stdin line per message
+  encode(text: string, context?: string): string; // one stdin message; `context`: see contextInMessage
   parse(line: string): ChatEvent[]; // one stdout line → its events ([] for lines the chat does not show)
   lost(stderr: string): boolean; // the session to resume no longer exists (other computer, cleared cache)
+  oneShot?: boolean; // one process per message: stdin closes after it and the next message resumes the session
+  contextInMessage?: boolean; // no system-prompt file: the first message of a new session carries the project context
 }
 
 const SUMMARY_LIMIT = 120;
@@ -83,7 +86,60 @@ export const claudeAdapter: ChatAdapter = {
   lost: (stderr) => /No conversation found with session ID/i.test(stderr),
 };
 
-export const CHAT_ADAPTERS: Record<ChatTool, ChatAdapter> = { claude: claudeAdapter };
+// Codex CLI in exec mode with JSON events (codex exec --help, codex-cli 0.166; shapes captured on 2026-11-18). Global
+// options (--no-daemon and the -c overrides for MCP servers and plugin instructions from the launcher) go before
+// `exec`; `exec resume` takes no -C or -s, so the folder is the process's and the sandbox is off, as the person chose
+// for the chat. The message is read from stdin (`-`). Agent messages arrive whole, never in pieces.
+const CODEX_TOOLS: Record<string, (item: Json) => { name: string; input: Json }> = {
+  command_execution: (item) => ({ name: 'Shell', input: { command: item.command } }),
+  file_change: (item) => ({ name: 'Edit', input: { path: list(item.changes).map((c) => obj(c).path).filter((p) => typeof p === 'string').join(', ') } }),
+  mcp_tool_call: (item) => ({ name: [item.server, item.tool].filter((v) => typeof v === 'string').join('.') || 'MCP', input: {} }),
+  web_search: (item) => ({ name: 'WebSearch', input: { query: item.query } }),
+};
+const codexTool = (item: Json): (ChatEvent & { kind: 'tool' }) | null => {
+  const shape = typeof item.type === 'string' ? CODEX_TOOLS[item.type] : undefined;
+  if (!shape || typeof item.id !== 'string') return null;
+  const { name, input } = shape(item);
+  return { kind: 'tool', id: item.id, name, summary: toolSummary(input) };
+};
+const CODEX_EFFORT: Record<Effort, string> = { low: 'low', medium: 'medium', high: 'high', max: 'xhigh' };
+
+export const codexAdapter: ChatAdapter = {
+  oneShot: true,
+  contextInMessage: true,
+  args: ({ resume, extra, effort }) => [
+    ...extra,
+    ...(effort ? ['-c', `model_reasoning_effort=${CODEX_EFFORT[effort]}`] : []),
+    'exec', ...(resume ? ['resume'] : []),
+    '--json', '--skip-git-repo-check',
+    '--dangerously-bypass-approvals-and-sandbox', // the person chose "everything allowed" for the chat (2026-11-18)
+    ...(resume ? [resume] : []), '-',
+  ],
+  encode: (text, context) => (context?.trim() ? `<project-context>\n${context.trim()}\n</project-context>\n\n${text}` : text),
+  parse: (line) => {
+    let data: Json;
+    try { data = obj(JSON.parse(line)); } catch { return []; }
+    const item = obj(data.item);
+    if (data.type === 'thread.started') return typeof data.thread_id === 'string' ? [{ kind: 'session', id: data.thread_id }] : [];
+    if (data.type === 'item.started') { const tool = codexTool(item); return tool ? [tool] : []; }
+    if (data.type === 'item.completed') {
+      if (item.type === 'agent_message') return typeof item.text === 'string' && item.text.trim() ? [{ kind: 'text', delta: item.text, whole: true }] : [];
+      const tool = codexTool(item);
+      if (!tool) return [];
+      const ok = item.status === 'completed' && (item.exit_code === undefined || item.exit_code === null || item.exit_code === 0);
+      return [tool, { kind: 'tool-done', id: tool.id, ok }]; // the call again, for items reported only when done
+    }
+    if (data.type === 'turn.completed') return [{ kind: 'turn-end', ok: true }];
+    if (data.type === 'turn.failed') {
+      const message = obj(data.error).message;
+      return [{ kind: 'turn-end', ok: false, error: typeof message === 'string' && message.trim() ? message.trim() : 'error' }];
+    }
+    return [];
+  },
+  lost: (stderr) => /no rollout found for thread id/i.test(stderr),
+};
+
+export const CHAT_ADAPTERS: Record<ChatTool, ChatAdapter> = { claude: claudeAdapter, codex: codexAdapter };
 
 export interface ChatSessionOptions {
   file: string; // the tool's resolved path
@@ -132,6 +188,7 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
   let retried = false;
   let resuming = false; // started with --resume and nothing heard yet: a failure may be a lost session
   let held: ChatEvent | null = null; // the turn-end of such a start, until the exit says whether it was lost
+  let context = ''; // contextInMessage: the project context of a start without a session, for its first message
 
   const emit = (event: ChatEvent) => { if (!closed) o.onEvent(event); };
   const finish = (event: ChatEvent & { kind: 'turn-end' }) => { if (!working) return; working = false; pending = ''; retried = false; emit(event); };
@@ -139,7 +196,9 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
   const start = (lost: boolean): ChildProcessWithoutNullStreams => {
     const { contextFile, extra, effort, scratch = [] } = o.setup({ lost });
     const clean = () => { for (const file of scratch.splice(0)) rm(file, { force: true }, () => { /* already gone */ }); };
-    const args = o.adapter.args({ resume: lost ? undefined : session, contextFile, extra, effort });
+    const resume = lost ? undefined : session;
+    try { context = o.adapter.contextInMessage && !resume ? readFileSync(contextFile, 'utf8') : ''; } catch (e) { clean(); throw e; }
+    const args = o.adapter.args({ resume, contextFile, extra, effort });
     const run = o.command ? o.command(args) : { file: o.file, args };
     const shell = !o.command && process.platform === 'win32' && /\.(cmd|bat)$/i.test(run.file);
     // Expand quoted environment variables once, with delayed expansion off. Paths containing %, ! or & then
@@ -162,6 +221,8 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
         if (event.kind === 'turn-end' && resuming && !event.ok && o.adapter.lost(`${stderr}\n${event.error ?? ''}`)) { held = event; continue; }
         if (event.kind !== 'session') resuming = false;
         if (event.kind === 'session') { session = event.id; clean(); }
+        // A one-shot process is done with this turn: the next message starts (and resumes) a new one.
+        if (event.kind === 'turn-end' && o.adapter.oneShot) child = null;
         if (event.kind === 'turn-end') finish(event); else emit(event);
       }
     };
@@ -194,7 +255,7 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
       if (wasResuming && working && !stopped && !retried && o.adapter.lost(`${stderr}\n${held?.kind === 'turn-end' ? held.error ?? '' : ''}`)) {
         retried = true;
         session = undefined;
-        try { start(true).stdin.write(o.adapter.encode(pending)); } catch (e) { finish({ kind: 'turn-end', ok: false, error: e instanceof Error ? e.message : String(e) }); }
+        try { deliver(start(true), pending); } catch (e) { finish({ kind: 'turn-end', ok: false, error: e instanceof Error ? e.message : String(e) }); }
         return;
       }
       if (!working) return;
@@ -204,6 +265,13 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
     }
     return proc;
   };
+
+  // The message on stdin; the context goes with the first one only, and a one-shot tool reads until stdin closes.
+  function deliver(proc: ChildProcessWithoutNullStreams, text: string): void {
+    proc.stdin.write(o.adapter.encode(text, context));
+    context = '';
+    if (o.adapter.oneShot) proc.stdin.end();
+  }
 
   return {
     send(text) {
@@ -215,7 +283,7 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
       stopped = false;
       pending = text;
       try {
-        (child ?? start(false)).stdin.write(o.adapter.encode(text));
+        deliver(child ?? start(false), text);
       } catch (e) {
         working = false;
         pending = '';

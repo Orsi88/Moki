@@ -43,8 +43,9 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await page.locator('.chat-head').click();
     await page.keyboard.press('Control+l');
     await expect(page.locator('.chat-view')).toHaveCount(1);
-    // One chat AI: no selector, and no history before the first conversation.
-    await expect(page.getByRole('combobox', { name: 'Chat AI' })).toHaveCount(0);
+    // Claude and Codex installed: the header picks the AI, Claude first; no history before the first conversation.
+    await expect(page.getByRole('combobox', { name: 'Chat AI' })).toHaveValue('claude');
+    await expect(page.getByRole('combobox', { name: 'Chat AI' }).locator('option')).toHaveText(['Claude', 'ChatGPT (Codex)']);
     await expect(page.getByRole('combobox', { name: 'Conversation history' })).toHaveCount(0);
 
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('See [the deck](https://claude.ai/artifact/deck-123)');

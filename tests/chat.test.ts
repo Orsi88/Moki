@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
-import { claudeAdapter, createChatSession, toolSummary, type ChatEvent } from '../desktop/chat.ts';
+import { claudeAdapter, codexAdapter, createChatSession, toolSummary, type ChatEvent } from '../desktop/chat.ts';
 import { CHATS_DIR, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
 import { isArtifactUrl, isViewerUrl, viewerBounds } from '../desktop/artifact-viewer.ts';
 import { createService } from '../desktop/service.ts';
@@ -157,6 +157,106 @@ test('chat: missing sessions never start an unbounded retry loop', async (t) => 
   await until(() => r.turns().length === 1);
   assert.equal(r.starts.length, 2);
   assert.ok(r.turns()[0].kind === 'turn-end' && !r.turns()[0].ok);
+});
+
+// A stand-in for codex exec: reads the whole message from stdin, answers with it and exits (one process per message).
+const codexEmit = "const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n');";
+const codexEcho = `${codexEmit}let input='';process.stdin.setEncoding('utf8');process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{`
+  + "emit({type:'thread.started',thread_id:'thread-1'});emit({type:'turn.started'});"
+  + "emit({type:'item.completed',item:{id:'item_0',type:'agent_message',text:input}});emit({type:'turn.completed',usage:{}});});";
+function codexRig(t: TestContext, script = codexEcho, resume?: string, command?: (args: string[], n: number) => string) {
+  const contextFile = join(temp(t), 'context.md');
+  writeFileSync(contextFile, 'Project: acme\n', 'utf8');
+  const events: ChatEvent[] = [], starts: string[][] = [], setup: boolean[] = [];
+  const session = createChatSession({ file: process.execPath, adapter: codexAdapter, cwd: process.cwd(), env, sessionId: resume,
+    setup: ({ lost }) => { setup.push(lost); return { contextFile, extra: ['--no-daemon'] }; },
+    onEvent: (event) => events.push(event),
+    command: (args) => { starts.push(args); return { file: process.execPath, args: ['-e', command?.(args, starts.length) ?? script] }; },
+  });
+  t.after(() => session.close());
+  return { session, events, starts, setup,
+    texts: () => events.flatMap((e) => e.kind === 'text' ? [e.delta] : []), turns: () => events.filter((e) => e.kind === 'turn-end') };
+}
+const CONTEXT = '<project-context>\nProject: acme\n</project-context>\n\n';
+
+test('chat: fixed Codex flags, global options before exec, resume by session and the message on stdin', () => {
+  const fresh = codexAdapter.args({ contextFile: 'c.md', extra: ['--no-daemon', '-c', 'mcp_servers.moki.command="node"'], effort: 'max' });
+  assert.deepEqual(fresh.slice(0, 3), ['--no-daemon', '-c', 'mcp_servers.moki.command="node"']);
+  assert.ok(fresh.indexOf('model_reasoning_effort=xhigh') < fresh.indexOf('exec'));
+  assert.ok(fresh.includes('--json') && fresh.includes('--dangerously-bypass-approvals-and-sandbox') && !fresh.includes('resume'));
+  assert.equal(fresh.at(-1), '-');
+  const resumed = codexAdapter.args({ resume: 'thread-1', contextFile: 'c.md', extra: [] });
+  assert.deepEqual(resumed.slice(0, 2), ['exec', 'resume']);
+  assert.deepEqual(resumed.slice(-2), ['thread-1', '-']);
+  const message = 'ação\n"quoted" & %PATH% $(command)';
+  assert.equal(codexAdapter.encode(message), message);
+  assert.equal(codexAdapter.encode(message, 'Project: acme\n'), `${CONTEXT}${message}`);
+  assert.ok(!fresh.includes(message));
+});
+
+test('chat: the recorded Codex event shapes yield whole messages, tool progress and turn outcomes', () => {
+  // Synthetic values, preserving the event shapes captured from codex-cli 0.166.
+  const stream = [
+    { type: 'thread.started', thread_id: 'thread-1' },
+    { type: 'turn.started' },
+    { type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: 'Running it.' } },
+    { type: 'item.started', item: { id: 'item_1', type: 'command_execution', command: 'npm\n test', aggregated_output: '', exit_code: null, status: 'in_progress' } },
+    { type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command: 'npm\n test', aggregated_output: 'ok', exit_code: 0, status: 'completed' } },
+    { type: 'item.completed', item: { id: 'item_2', type: 'reasoning', text: 'hidden' } },
+    { type: 'item.completed', item: { id: 'item_3', type: 'agent_message', text: 'OK' } },
+    { type: 'turn.completed', usage: { input_tokens: 1 } },
+  ];
+  assert.deepEqual(stream.flatMap((line) => codexAdapter.parse(JSON.stringify(line))), [
+    { kind: 'session', id: 'thread-1' }, { kind: 'text', delta: 'Running it.', whole: true },
+    { kind: 'tool', id: 'item_1', name: 'Shell', summary: 'npm test' },
+    { kind: 'tool', id: 'item_1', name: 'Shell', summary: 'npm test' }, { kind: 'tool-done', id: 'item_1', ok: true },
+    { kind: 'text', delta: 'OK', whole: true }, { kind: 'turn-end', ok: true },
+  ]);
+  assert.deepEqual(codexAdapter.parse(JSON.stringify({ type: 'item.completed', item: { id: 'f', type: 'file_change', changes: [{ path: 'notes/a.md', kind: 'add' }], status: 'completed' } })),
+    [{ kind: 'tool', id: 'f', name: 'Edit', summary: 'notes/a.md' }, { kind: 'tool-done', id: 'f', ok: true }]);
+  assert.deepEqual(codexAdapter.parse(JSON.stringify({ type: 'item.completed', item: { id: 'c', type: 'command_execution', command: 'x', exit_code: 1, status: 'failed' } }))[1],
+    { kind: 'tool-done', id: 'c', ok: false });
+  assert.deepEqual(codexAdapter.parse(JSON.stringify({ type: 'turn.failed', error: { message: 'usage limit' } })), [{ kind: 'turn-end', ok: false, error: 'usage limit' }]);
+  assert.deepEqual(codexAdapter.parse('{bad'), []);
+  assert.ok(codexAdapter.lost('Error: thread/resume: thread/resume failed: no rollout found for thread id 0000 (code -32600)'));
+});
+
+test('chat: Codex runs one process per message, resumes its session and sends the context only to a new session', async (t) => {
+  const r = codexRig(t);
+  r.session.send('ação first');
+  await until(() => r.turns().length === 1);
+  assert.ok(!r.session.busy());
+  r.session.send('second');
+  await until(() => r.turns().length === 2);
+  assert.equal(r.starts.length, 2);
+  assert.ok(!r.starts[0].includes('resume'));
+  assert.deepEqual(r.starts[1].slice(-2), ['thread-1', '-']);
+  assert.deepEqual(r.texts(), [`${CONTEXT}ação first`, 'second']);
+  assert.equal(r.session.sessionId(), 'thread-1');
+});
+
+test('chat: a lost Codex session starts over once with the context and the same message', async (t) => {
+  const lost = "process.stdin.resume();process.stdin.on('end',()=>{process.stderr.write('Error: thread/resume: thread/resume failed: no rollout found for thread id old');process.exit(1);});";
+  const r = codexRig(t, codexEcho, 'old-thread', (_args, n) => n === 1 ? lost : codexEcho);
+  r.session.send('retained');
+  await until(() => r.turns().length === 1);
+  assert.deepEqual(r.setup, [false, true]);
+  assert.ok(r.starts[0].includes('resume') && !r.starts[1].includes('resume'));
+  assert.deepEqual(r.texts(), [`${CONTEXT}retained`]);
+  assert.ok(r.turns()[0].kind === 'turn-end' && r.turns()[0].ok);
+});
+
+test('chat: stopping a Codex answer ends the turn and the next message resumes the session', async (t) => {
+  const hang = `${codexEmit}process.stdin.resume();process.stdin.on('end',()=>{emit({type:'thread.started',thread_id:'thread-1'});setInterval(()=>{},1000);});`;
+  const r = codexRig(t, codexEcho, undefined, (_args, n) => n === 1 ? hang : codexEcho);
+  r.session.send('wait');
+  await until(() => r.events.some((e) => e.kind === 'session'));
+  r.session.stop();
+  await until(() => r.turns().length === 1);
+  assert.deepEqual(r.turns()[0], { kind: 'turn-end', ok: false, error: 'stopped' });
+  r.session.send('continue');
+  await until(() => r.turns().length === 2);
+  assert.deepEqual(r.starts[1].slice(-2), ['thread-1', '-']);
 });
 
 test('chat: Windows npm wrappers preserve spaces, Unicode and literal shell metacharacters', { skip: process.platform !== 'win32' }, async (t) => {

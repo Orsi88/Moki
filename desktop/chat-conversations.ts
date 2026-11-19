@@ -42,8 +42,8 @@ export function createConversations(onChange: (dir: string, id: string) => void 
           const answer = record.messages.at(-1);
           if (event.kind === 'session') record.sessionId = event.id;
           else if (answer?.role === 'assistant') {
-            if (event.kind === 'text') answer.text += event.delta;
-            if (event.kind === 'tool') {
+            if (event.kind === 'text') answer.text += event.whole && answer.text.trim() ? `\n\n${event.delta}` : event.delta;
+            if (event.kind === 'tool' && !calls.has(event.id)) {
               const call: ChatToolCall = { name: event.name, summary: event.summary };
               calls.set(event.id, call);
               (answer.tools ??= []).push(call);

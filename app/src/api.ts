@@ -397,6 +397,9 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   return res.value as T;
 }
 
+// The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
+export const CHAT_TOOLS: string[] = ['claude', 'codex'];
+
 export const api = {
   onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
   chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),

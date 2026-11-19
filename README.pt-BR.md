@@ -57,7 +57,7 @@ Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias ativid
 
 ### Chat do projeto
 
-Abra a aba única de **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**. O chat usa o Claude Code instalado, com acesso direto aos arquivos, às skills e aos MCPs do projeto, e um artefato do Claude que ele indicar (apresentação, planilha ou página) abre dentro da própria aba. **Chamar… › No chat** envia o pedido na hora, numa conversa nova. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
+Abra a aba única de **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**. O chat usa o Claude Code ou o Codex (ChatGPT) instalado, com acesso direto aos arquivos, às skills e aos MCPs do projeto, e um artefato do Claude que ele indicar (apresentação, planilha ou página) abre dentro da própria aba. **Chamar… › No chat** envia o pedido na hora, numa conversa nova. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
 
 ### Documentos, PDFs e diagramas
 

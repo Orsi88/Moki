@@ -2,7 +2,7 @@
 // tools), its answers as they arrive, the history and a new conversation in the same tab. A Claude artifact linked
 // in an answer (presentation, spreadsheet, page) opens over the conversation, in an isolated viewer.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, type ArtifactStatus, type ChatState, type ToolInfo } from '../api';
+import { api, CHAT_TOOLS, type ArtifactStatus, type ChatState, type ToolInfo } from '../api';
 import { isArtifactUrl as isArtifactLink } from '../../../scripts/lib/artifact-links.ts';
 import { conversationLanguage, t } from '../i18n';
 import { recall, remember } from '../prefs';
@@ -10,8 +10,8 @@ import { IconArrowLeft, IconChat, IconExternal, IconPlay, IconPlus, IconRefresh,
 import { MarkdownBody } from './MarkdownBody';
 import './chat.css';
 
-// The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
-const CHAT_TOOLS = ['claude'];
+// Names in the chat (brand names, not translated): Codex is the ChatGPT of the terminal.
+const CHAT_NAMES: Record<string, string> = { claude: 'Claude', codex: 'ChatGPT (Codex)' };
 const SAFETY_POLL_MS = 2000; // while answering, in case a change notice was missed
 const RENDER_EVERY_MS = 300; // an answer arriving is formatted at most this often
 
@@ -102,7 +102,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   };
   const fresh = () => { setError(''); setArtifact(null); setState(null); remember(`${prefix}:id`, ''); box.current?.focus(); };
   const link = (href: string) => { if (isArtifactLink(href)) setArtifact(href); else onLink(href); };
-  const label = (id: string) => usable.find((x) => x.id === id)?.label.replace(/ \(.*\)$/, '') ?? 'Claude';
+  const label = (id: string) => CHAT_NAMES[id] ?? id;
   // A conversation stays with the AI it started with; another AI starts a new one.
   const pick = (next: string) => { setChosen(next); if (state && state.record.tool !== next) fresh(); };
 
@@ -111,9 +111,9 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
       <IconChat size={18} />
       {usable.length > 1
         ? <select aria-label={t('Chat AI')} value={tool?.id ?? ''} onChange={(e) => pick(e.target.value)}>
-          {usable.map((x) => <option key={x.id} value={x.id}>{t(x.label)}</option>)}
+          {usable.map((x) => <option key={x.id} value={x.id}>{label(x.id)}</option>)}
         </select>
-        : <span className="chat-tool">{tool ? t(tool.label) : t('Chat')}</span>}
+        : <span className="chat-tool">{tool ? label(tool.id) : t('Chat')}</span>}
       {(history.length > 0 || state) && <select className="chat-history" aria-label={t('Conversation history')} value={state?.record.id ?? ''} onFocus={() => { void loadHistory().catch((e: Error) => setError(e.message)); }} onChange={(e) => { void selectHistory(e.target.value); }}>
         <option value="">{t('Conversation history')}</option>
         {state && !history.some((c) => c.id === state.record.id) && <option value={state.record.id}>{state.record.title || t('New conversation')}</option>}
