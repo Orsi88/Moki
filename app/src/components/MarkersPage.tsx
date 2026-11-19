@@ -48,7 +48,7 @@ export function MarkersPage() {
       <h1>{t('Markers')}</h1>
       <p className="muted">{t('Icons you put on comments and passages of your documents. The AIs read what each one means, so you can ask them to act on what you marked.')}</p>
       {error && <p className="result warn" role="alert">{error}</p>}
-      {notice && <p className="result" role="status">{notice}</p>}
+      {notice && <p className="result success" role="status">{notice}</p>}
       <ol className="marker-rows">
         {draft.map((m, i) => (
           <li key={i} className="marker-row">

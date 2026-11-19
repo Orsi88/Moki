@@ -143,9 +143,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const [launch, setLaunch] = useState<LaunchPreset | null>(startSetup && project.starter === 'blank' ? { activity: 'plan', startAtTool: true } : launchOnOpen ? {} : null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState(startNotice);
+  const [notice, setNotice] = useState<{ text: string; success?: boolean } | null>(startNotice ? { text: startNotice, success: true } : null);
   // A notice about something done that shows on its own (a request pasted into the conversation): it goes away by itself.
-  const flash = (message: string) => { setNotice(message); setTimeout(() => setNotice((cur) => (cur === message ? '' : cur)), 6000); };
+  const flash = (text: string, success = false) => {
+    setNotice({ text, success });
+    setTimeout(() => setNotice((cur) => (cur?.text === text ? null : cur)), 6000);
+  };
   const [terms, setTerms] = useState<TermTab[]>([]);
   const termsRef = useRef(terms);
   termsRef.current = terms;
@@ -423,7 +426,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     if (!app) { system(); return; }
     api.openWith(project.id, path, app.id).catch(() => {
       keep(extOf(path), null);
-      setNotice(t('{name} is no longer offered for this file, so it opened with the default program.', { name: app.name }));
+      setNotice({ text: t('{name} is no longer offered for this file, so it opened with the default program.', { name: app.name }) });
       system();
     });
   };
@@ -573,7 +576,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     api.invokeItem(project.id, target, conversationLanguage(), terminalId)
       .then(() => {
         apply((b) => show(b, termKey(terminalId)));
-        flash(t('Request pasted. Add context and press Enter when ready.'));
+        flash(t('Request pasted. Add context and press Enter when ready.'), true);
         requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`.term-pane[data-term="${terminalId}"]:not([hidden]) textarea`)?.focus());
       })
       .catch((e: Error) => setError(e.message));
@@ -656,8 +659,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       if (folder) setExpanded((s) => new Set(s).add(folder));
       setSelection(new Set());
       const changed = moved.filter((m) => m.from !== m.to);
-      if (changed.length === 1) setNotice(t('Moved {name} to {folder}.', { name: changed[0].to.split('/').pop() ?? changed[0].to, folder: folderLabel(folder) }));
-      else if (changed.length > 1) setNotice(t('Moved {n} items to {folder}.', { n: changed.length, folder: folderLabel(folder) }));
+      if (changed.length === 1) setNotice({ text: t('Moved {name} to {folder}.', { name: changed[0].to.split('/').pop() ?? changed[0].to, folder: folderLabel(folder) }), success: true });
+      else if (changed.length > 1) setNotice({ text: t('Moved {n} items to {folder}.', { n: changed.length, folder: folderLabel(folder) }), success: true });
       if (error) setError(error);
     };
     if (paths.length === 1) api.moveEntry(project.id, paths[0], folder).then((to) => done([{ from: paths[0], to }], '')).catch((err: Error) => setError(err.message));
@@ -685,9 +688,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       setExpanded((s) => new Set(s).add(folder));
       for (const p of r.saved.slice(0, 8)) openPath(p);
       const label = folderLabel(folder);
-      setNotice(r.saved.length === 1
-        ? t('Added {name} to {folder}. It stays in this project.', { name: r.saved[0].split('/').pop() ?? '', folder: label })
-        : t('Added {n} files to {folder}. They stay in this project.', { n: r.saved.length, folder: label }));
+      setNotice({
+        text: r.saved.length === 1
+          ? t('Added {name} to {folder}. It stays in this project.', { name: r.saved[0].split('/').pop() ?? '', folder: label })
+          : t('Added {n} files to {folder}. They stay in this project.', { n: r.saved.length, folder: label }),
+        success: r.saved.length > 0,
+      });
       setError(r.skipped.length ? t('Skipped {names}. Only files are kept, not folders.', { names: r.skipped.join(', ') }) : '');
     }).catch((err: Error) => setError(t(err.message)));
   };
@@ -767,7 +773,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   // F2 on an item that keeps its name says why, instead of doing nothing.
   function startRename(path: string): void {
     const reason = renameBlock(path);
-    if (reason) setNotice(reason); else if (canRename(path)) setRenaming(path);
+    if (reason) setNotice({ text: reason }); else if (canRename(path)) setRenaming(path);
   }
   async function renameItem(path: string, name: string): Promise<void> {
     if (isNote(path)) {
@@ -797,7 +803,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   };
   const copyItemPath = (path: string) => {
     setItemMenu(null);
-    api.copyPath(project.id, path).then((full) => setNotice(t('Path copied: {path}', { path: full }))).catch((e: Error) => setError(e.message));
+    api.copyPath(project.id, path).then((full) => setNotice({ text: t('Path copied: {path}', { path: full }), success: true })).catch((e: Error) => setError(e.message));
   };
 
   const exportItem = (path: string) => {
@@ -847,11 +853,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
 
   // Links a folder of this machine (chosen in the native dialog). Its AI settings are backed up inside it (.moki-backup/).
   const linkFolder = () => {
-    setError(''); setNotice('');
+    setError(''); setNotice(null);
     api.linkRepository(project.id).then((r) => {
       if (!r) return;
       onProjectChanged(); loadTree();
-      setNotice(linkedNotice(r));
+      setNotice({ text: linkedNotice(r), success: true });
       setShowSetup(true);
     }).catch((e: Error) => setError(e.message));
   };
@@ -889,9 +895,12 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       loadTree();
       setExpanded((s) => new Set(s).add('inbox'));
       for (const p of r.saved.slice(0, 8)) openPath(p);
-      setNotice(r.saved.length === 1
-        ? t('Added {name} to the inbox. It stays in this project.', { name: r.saved[0].split('/').pop() ?? '' })
-        : t('Added {n} files to the inbox. They stay in this project.', { n: r.saved.length }));
+      setNotice({
+        text: r.saved.length === 1
+          ? t('Added {name} to the inbox. It stays in this project.', { name: r.saved[0].split('/').pop() ?? '' })
+          : t('Added {n} files to the inbox. They stay in this project.', { n: r.saved.length }),
+        success: r.saved.length > 0,
+      });
       setError(r.skipped.length ? t('Skipped {names}. Only files are kept, not folders.', { names: r.skipped.join(', ') }) : '');
     }).catch((err: Error) => setError(t(err.message)));
   };
@@ -934,7 +943,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         void openPath(path);
         flash(created
           ? t('Converted to an editable copy. The original file was kept.')
-          : t('Opened the editable copy. The original file was kept.'));
+          : t('Opened the editable copy. The original file was kept.'), created);
       }}
       onLink={(href) => onLinkFrom(doc.path, href)}
       resolveLink={resolveProjectLink}
@@ -1134,7 +1143,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
               onClose={() => { const loose = note.loose; setNote(null); loadTree(); if (loose) document.querySelector<HTMLElement>('.ribbon .ribbon-note')?.focus(); }} />
           </div>
         )}
-        {notice && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
+        {notice && <div className={`error-bar info-bar${notice.success ? ' success' : ''}`} role="status">{notice.text}<button type="button" className="icon-btn" onClick={() => setNotice(null)}><IconX size={14} /></button></div>}
         {error && <div className="error-bar">{error}<button type="button" className="icon-btn" onClick={() => setError('')}><IconX size={14} /></button></div>}
         <div ref={panesBox} className={`panes arr-${board.arrangement}`} style={{ '--split-x': `${board.split.x}%`, '--split-y': `${board.split.y}%` } as CSSProperties}>
           {board.panes.map((pane, i) => {
@@ -1291,7 +1300,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
             {findFile(tree, itemMenu.path)?.type === 'file' && <li><button type="button" role="menuitem" onClick={() => exportItem(itemMenu.path)}><IconDownload size={15} /> {t('Export a copy…')}</button></li>}
             {findFile(tree, itemMenu.path) && <li><button type="button" role="menuitem" onClick={() => {
               const path = itemMenu.path; setItemMenu(null);
-              api.copyText(projectLink(path)).then(() => flash(t('Link copied.'))).catch((e: Error) => setError(e.message));
+              api.copyText(projectLink(path)).then(() => flash(t('Link copied.'), true)).catch((e: Error) => setError(e.message));
             }}><IconCopy size={15} /> {t('Copy link')}</button></li>}
             {itemMenu.path !== 'project.json' && itemMenu.path !== '@folder' && !itemMenu.path.startsWith('.') && (
               <li><button type="button" role="menuitem" className="danger" onClick={() => removeItem(itemMenu.path)}><IconTrash size={15} /> {t('Delete')}</button></li>
@@ -1305,7 +1314,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onPin={pinActivity} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
         onPrepared={(terminal) => {
           setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
-          flash(t('Request pasted. Add context and press Enter when ready.'));
+          flash(t('Request pasted. Add context and press Enter when ready.'), true);
           requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.term-pane:not([hidden]) textarea')?.focus());
         }} onActivityStart={beginActivity} onActivityUpdate={updateActivity} onOperation={startOperationForm} onMyAis={() => { setLaunch(null); onSettings('ai'); }} />}
     </div>

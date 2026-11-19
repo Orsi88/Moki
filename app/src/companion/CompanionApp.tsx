@@ -20,6 +20,7 @@ type Tab = 'activities' | 'agents' | 'context' | 'operations' | 'runs';
 interface State { project: { id: string; name: string; description: string; repository: string } | null; projects: { id: string; name: string }[]; folder: string | null; mcp: { id: string; name: string; access: string; transport: string }[] }
 interface ContextFile { id: string; path: string; title: string; description: string; kind: string; source: string; included: boolean; priority: boolean }
 interface Launch { activity: string; run?: string; agent?: string; needsFiles?: boolean; key: string }
+type NoticeTone = 'success' | 'warn';
 
 export function CompanionApp() {
   const [state, setState] = useState<State | null>(null);
@@ -32,7 +33,7 @@ export function CompanionApp() {
   const [operations, setOperations] = useState<OperationRun[]>([]);
   const [files, setFiles] = useState<ContextFile[]>([]);
   const [open, setOpen] = useState<string>(''); // the card whose launch options are showing
-  const [notice, setNotice] = useState<{ text: string; warn?: boolean } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone?: NoticeTone } | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectMenu, setConnectMenu] = useState(false); // which AI tool gets Moki's MCP servers
   const [openRun, setOpenRun] = useState(''); // the operation run whose screen is showing
@@ -44,8 +45,8 @@ export function CompanionApp() {
 
   const shownActivities = useShortlist('activities', useMemo(() => activities.filter((a) => a.available && a.id !== 'resume'), [activities]), (a) => a.id, (a) => { const face = activityFace(a.id, a.label, a.hint); return `${face.label} ${face.hint} ${t(a.label)}`; });
   const shownAgents = useShortlist('agents', agents, (a) => a.name, (a) => { const face = agentFace(a.name, a.description); return `${face.label} ${face.hint} ${a.name} ${a.description}`; });
-  const fail = (e: unknown) => setNotice({ text: e instanceof Error ? e.message : String(e), warn: true });
-  const notify = useCallback((text: string, warn?: boolean) => setNotice({ text, warn }), []);
+  const fail = (e: unknown) => setNotice({ text: e instanceof Error ? e.message : String(e), tone: 'warn' });
+  const notify = useCallback((text: string, warn?: boolean) => setNotice({ text, tone: warn ? 'warn' : undefined }), []);
   const load = useCallback(() => {
     setTick((n) => n + 1);
     call<State>('state').then((s) => {
@@ -70,7 +71,10 @@ export function CompanionApp() {
       .then((r) => {
         if (r.cancelled) return;
         const left = r.skipped?.length ? ` ${t('Left out (a variable Codex cannot read): {list}', { list: r.skipped.join(', ') })}` : '';
-        setNotice({ text: (r.changed ? t('{tool} connected: {file}', { tool: label, file: r.file }) : t('{tool} already had Moki\'s servers.', { tool: label })) + left, warn: Boolean(r.skipped?.length) });
+        setNotice({
+          text: (r.changed ? t('{tool} connected: {file}', { tool: label, file: r.file }) : t('{tool} already had Moki\'s servers.', { tool: label })) + left,
+          tone: r.skipped?.length ? 'warn' : r.changed ? 'success' : undefined,
+        });
       })
       .catch(fail).finally(() => setConnecting(false));
   };
@@ -128,7 +132,7 @@ export function CompanionApp() {
   const toggle = (key: string) => { setOpen((o) => (o === key ? '' : key)); setNotice(null); };
   const launchBox = (l: Launch) => open === l.key && (
     <LaunchBox launch={l} inbox={inbox} languages={languages} agents={l.agent || l.run ? [] : agents.filter((a) => !l.activity || a.skills.includes(activities.find((x) => x.id === l.activity)?.skill ?? ''))}
-      onDone={(text, warn) => setNotice({ text, warn })} />
+      onDone={(text, tone) => setNotice({ text, tone })} />
   );
 
   return (
@@ -144,7 +148,7 @@ export function CompanionApp() {
       </div>
 
       <main className="mk-body">
-        {notice && <div className={`result${notice.warn ? ' warn' : ''}`} role="status"><p className="result-title">{notice.text}</p></div>}
+        {notice && <div className={`result${notice.tone ? ` ${notice.tone}` : ''}`} role="status"><p className="result-title">{notice.text}</p></div>}
 
         {tab === 'activities' && (
           <div className="mk-list">
@@ -260,7 +264,7 @@ function Card({ star, on, fresh = false, icon, title, hint, pill, chips, onPick,
 }
 
 // What the request needs before it goes: inbox files, an agent, a note and the language; then Claude Code or the chat.
-function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launch; inbox: InboxFile[]; languages: string[]; agents: AgentInfo[]; onDone: (text: string, warn?: boolean) => void }) {
+function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launch; inbox: InboxFile[]; languages: string[]; agents: AgentInfo[]; onDone: (text: string, tone?: NoticeTone) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [agent, setAgent] = useState(launch.agent ?? '');
   const [note, setNote] = useState('');
@@ -275,12 +279,12 @@ function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launc
     try {
       if (where === 'terminal') {
         const r = await call<LaunchResult>('launch', input);
-        onDone(r.message ?? (r.opened ? t('Claude Code is opening in a terminal.') : t('Claude Code could not open.')), !r.opened);
+        onDone(r.message ?? (r.opened ? t('Claude Code is opening in a terminal.') : t('Claude Code could not open.')), r.opened ? undefined : 'warn');
       } else {
         const r = await call<{ chat: string }>('copyRequest', input);
-        onDone(r.chat ? t('Request copied. Paste it in {chat}.', { chat: r.chat }) : t('Request copied. Paste it in the chat of your AI.'));
+        onDone(r.chat ? t('Request copied. Paste it in {chat}.', { chat: r.chat }) : t('Request copied. Paste it in the chat of your AI.'), 'success');
       }
-    } catch (e) { onDone(e instanceof Error ? e.message : String(e), true); } finally { setBusy(false); }
+    } catch (e) { onDone(e instanceof Error ? e.message : String(e), 'warn'); } finally { setBusy(false); }
   };
 
   return (

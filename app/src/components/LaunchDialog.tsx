@@ -360,7 +360,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
           {step === 'review' && (
             <>
               {(result || error) && (
-                <div className={`result${error ? ' warn' : ''}`} role="status" ref={outcomeRef}>
+                <div className={`result ${error ? 'warn' : 'success'}`} role="status" ref={outcomeRef}>
                   {result?.opened && <p className="result-title"><IconCheck size={17} /> {result.message || t('The request is ready.')}</p>}
                   {error && <p className="result-title">{error}</p>}
                   {result && !result.opened && !error && selectedTool?.kind === 'print' && (

@@ -146,7 +146,7 @@ export function ClaudeUpload({ project, scopes, onInstalled, onBusyChange }: Pro
 
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
       {done && (
-        <div className="result" role="status">
+        <div className="result success" role="status">
           <p className="result-title"><IconCheck size={17} /> {t('Installed {n} item(s)', { n: done.installed.length })}</p>
           <ul className="small upload-list">{done.installed.flatMap((i) => i.folders.map((f) => <li key={f}><code>{f}</code></li>))}</ul>
           {done.backup && <p className="small">{t('Backup of the previous .claude:')} <code>{done.backup}</code></p>}

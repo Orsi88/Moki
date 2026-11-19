@@ -112,7 +112,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
           <button type="button" className="btn btn-ghost" disabled={status === null} onClick={check}><IconRefresh size={15} /> {status === null ? t('Checking…') : t('Check again')}</button>
         </>} />
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-      {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+      {info && <div className="result success" role="status"><p className="result-title">{info}</p></div>}
       <ul className="ai-grid">
         {list.map((tool) => {
           const s = status?.[tool.id];

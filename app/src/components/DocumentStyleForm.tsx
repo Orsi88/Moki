@@ -171,7 +171,7 @@ export function DocumentStyleForm() {
           <TagFilter catalog={catalog} value={filter} onChange={setFilter} />
         </ListTools>
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-        {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+        {info && <div className="result success" role="status"><p className="result-title">{info}</p></div>}
         <ul className="list-cards">
           {fav.first(visible, (x) => x.id).map((x) => (
             <li key={x.id} className="fav-item">

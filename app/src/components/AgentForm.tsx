@@ -166,7 +166,7 @@ export function AgentForm({ project, scope, onFindSkills, onCreated }: Props) {
       <AgentContractFields value={contract} onChange={setContract} mcps={mcps} tools={tools} />
 
       {(created || error) && (
-        <div className={`result${error ? ' warn' : ''}`} role="status">
+        <div className={`result ${error ? 'warn' : 'success'}`} role="status">
           {error && <p className="result-title">{error}</p>}
           {created && (
             <>

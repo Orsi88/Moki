@@ -95,7 +95,7 @@ export function McpManager({ project, projects: summaries }: Props) {
   const [picker, setPicker] = useState<string | null>(null); // the server whose projects are being chosen
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [info, setInfo] = useState<{ text: string; success: boolean } | null>(null);
 
   const load = useCallback(() => {
     api.mcpCatalog().then((c) => { setServers(c.servers); setProjects(c.projects); }).catch((e: Error) => setError(e.message));
@@ -111,8 +111,8 @@ export function McpManager({ project, projects: summaries }: Props) {
   }, [picker]);
 
   const act = async (fn: () => Promise<unknown>, done?: string) => {
-    setBusy(true); setError(''); setInfo('');
-    try { await fn(); if (done) setInfo(done); load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    setBusy(true); setError(''); setInfo(null);
+    try { await fn(); if (done) setInfo({ text: done, success: true }); load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
 
   const nameOf = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects]);
@@ -152,24 +152,25 @@ export function McpManager({ project, projects: summaries }: Props) {
   const test = (s: McpEntry) => act(async () => {
     const r = await api.testMcpServer(s.id);
     if (!r.ok) throw new Error(r.error ?? t('The test failed.'));
-    setInfo(t('{name} answered with {n} tools.', { name: s.name, n: r.tools.length }));
+    setInfo({ text: t('{name} answered with {n} tools.', { name: s.name, n: r.tools.length }), success: true });
   });
   const importText = (text: string, where: string[]) => act(async () => {
     const r = await api.importMcpServers(text, where);
     setImporting(false); setPasted('');
     const notes = [...r.replaced.map((x) => t('Credential replaced by a variable: {what}', { what: x })), ...r.problems];
     if (notes.length) await alertDialog(notes.join('\n'));
-  }, t('Imported.'));
+    setInfo({ text: t('Imported.'), success: r.saved.length > 0 && r.problems.length === 0 });
+  });
   const missingProjects = Boolean(draft && !draft.global && !draft.projects.length);
 
   if (draft) {
     return (
       <div className="list-page mcp-page">
         <header className="library-head">
-          <div className="title-row"><BackArrow label={t('MCP servers')} onBack={() => { setDraft(null); setInfo(''); setError(''); }} /><h1>{draft.id ? draft.name : t('New MCP server')}</h1></div>
+          <div className="title-row"><BackArrow label={t('MCP servers')} onBack={() => { setDraft(null); setInfo(null); setError(''); }} /><h1>{draft.id ? draft.name : t('New MCP server')}</h1></div>
         </header>
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-        {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+        {info && <div className={`result${info.success ? ' success' : ''}`} role="status"><p className="result-title">{info.text}</p></div>}
         <section className="agent-card mcp-panel">
           <div className="dialog-tabs" role="tablist">
             {([['config', t('Configuration')], ['env', draft.transport === 'http' ? t('Headers') : t('Environment')], ['tools', t('Tools')]] as const).map(([id, label]) => (
@@ -266,7 +267,7 @@ export function McpManager({ project, projects: summaries }: Props) {
         ] as const).map(([id, label]) => ({ id, label, count: servers.filter((x) => inFilter(x, id)).length }))} />
         <ListTools query={query} onQuery={setQuery} placeholder={t('Search MCP servers')} count={countLabel(shown.length, '1 server', '{n} servers')} />
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-        {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+        {info && <div className={`result${info.success ? ' success' : ''}`} role="status"><p className="result-title">{info.text}</p></div>}
 
         {importing && (
           <div className="mcp-import">

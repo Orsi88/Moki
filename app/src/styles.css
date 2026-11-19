@@ -14,6 +14,7 @@
   --accent-soft: rgb(241 210 124 / 0.13);
   --accent-text: #1c1b19;
   --ok: #8fbf7f;
+  --ok-soft: color-mix(in srgb, var(--ok) 25%, var(--bg));
   --plugin: #c79be0; /* plugins (packages of skills and hooks), set apart from skills */
   --plugin-soft: rgb(199 155 224 / 0.14);
   --running: #b9a2ec; /* operation runs under way: lilac */
@@ -549,6 +550,7 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .term-menu .menu-note label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .error-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 12px; background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--text); font-size: 0.86rem; }
 .error-bar.info-bar { background: var(--bg-2); }
+.error-bar.info-bar.success { background: var(--ok-soft); }
 
 .doc { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .doc-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 12px 6px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -947,6 +949,7 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .pick-list .library-item svg { color: var(--accent); flex-shrink: 0; }
 .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-soft); }
+.result.success { border-color: var(--ok); background: var(--ok-soft); }
 .result.warn { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--bg)); }
 .result-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .upload-list { margin: 6px 0 8px; padding-left: 18px; word-break: break-all; }
