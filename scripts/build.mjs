@@ -84,7 +84,7 @@ export function build(root = ROOT) {
   return files.size;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
   if (process.argv.includes('--check')) {
     const drift = findDrift();
     if (drift.length) {
