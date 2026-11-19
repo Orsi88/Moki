@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.1/Moki.Setup.0.7.1.exe"><b>⬇️ Download Moki for Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.2/Moki.Setup.0.7.2.exe"><b>⬇️ Download Moki for Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
@@ -58,7 +58,7 @@ You can use the built-in workflows or create your own activities, skills and age
 
 ### Project chat
 
-Open the project's single **Chat** tab with the ribbon icon or **Ctrl+L**. The chat runs your installed Claude Code or Codex (ChatGPT) with direct access to the project's files, skills and MCP tools, and a Claude artifact it links (a presentation, spreadsheet or page) opens inside the tab. **Call… › In the chat** sends the request at once, in a new conversation; **Just call** opens the AI with the project context and no activity. Answers read like the AI apps: pictures and files the AI made show in the conversation, charts with their data, clickable choices and approvals, attachments by paste, drop or `@`. Each AI can have several accounts (Settings › My AIs), switched in one click. See [AI terminals and project chat](docs/ai-terminals.md).
+Open the project's **Chat** with the ribbon icon or **Ctrl+L**; each conversation has its own tab (**+ › Chats** opens another, with Claude or ChatGPT), and the history is searchable. The chat runs your installed Claude Code or Codex (ChatGPT) with direct access to the project's files, skills and MCP tools, and a Claude artifact it links (a presentation, spreadsheet or page) opens inside the tab. **Call… › In the chat** sends the request at once, in a new conversation; **Just call** opens the AI with the project context and no activity. Answers read like the AI apps: pictures and files the AI made show in the conversation, charts with their data, clickable choices and approvals, attachments by paste, drop or `@`. Choose the model of each conversation at the top of the chat. Each AI can have several accounts (Settings › My AIs), switched in one click. See [AI terminals and project chat](docs/ai-terminals.md).
 
 ### Documents, PDFs and diagrams
 
@@ -94,9 +94,9 @@ Moki includes ready-made workflows for software quality, requirements, research,
 
 ## Install
 
-1. Download [Moki.Setup.0.7.1.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.1/Moki.Setup.0.7.1.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Download [Moki.Setup.0.7.2.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.2/Moki.Setup.0.7.2.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Install at least one AI tool you want to use.
-3. For VS Code, download [moki-0.7.1.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.1/moki-0.7.1.vsix) and install it with `code --install-extension moki-0.7.1.vsix`.
+3. For VS Code, download [moki-0.7.2.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.2/moki-0.7.2.vsix) and install it with `code --install-extension moki-0.7.2.vsix`.
 
 Your projects live in **Documents\Moki** by default. A newer installer refreshes the app without touching your workspaces. For macOS, Linux and running from source, see [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 
