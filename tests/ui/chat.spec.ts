@@ -43,7 +43,7 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await page.locator('.chat-head').click();
     await page.keyboard.press('Control+l');
     await expect(page.locator('.chat-view')).toHaveCount(1);
-    // Claude and Codex installed: the header picks the AI, Claude first; no history before the first conversation.
+    // Claude and Codex installed: the conversation's AI is named in the header; no history before the first conversation.
     // No AI switch inside a conversation: the header names its AI, and a new conversation is where the AI is chosen.
     await expect(page.getByRole('combobox', { name: 'Chat AI' })).toHaveCount(0);
     await expect(page.locator('.chat-tool')).toHaveText('Claude');
@@ -51,14 +51,14 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await expect(page.getByRole('menu', { name: 'New conversation' }).getByRole('menuitem')).toHaveText(['New conversation with Claude', 'New conversation with ChatGPT (Codex)']);
     await page.getByRole('menuitem', { name: 'New conversation with Claude' }).click();
     await expect(page.getByRole('menu')).toHaveCount(0);
-    await expect(page.getByRole('combobox', { name: 'Conversation history' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Conversation history' })).toHaveCount(0);
 
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('See [the deck](https://claude.ai/artifact/deck-123)');
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     const answer = page.locator('.chat-assistant');
     await expect(answer).toContainText('Answer: See the deck');
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Conversation history' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Conversation history' })).toBeVisible();
 
     // The artifact link opens over the conversation in a view with nothing of Moki.
     const look = () => app!.evaluate(({ BrowserWindow, WebContentsView }) => {
@@ -136,7 +136,13 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     const request = page.locator('.chat-user details.chat-request');
     await expect(request.locator('summary')).toHaveText(/^Request from Moki: /);
     await expect(request).not.toHaveAttribute('open', '');
-    await expect(page.getByRole('combobox', { name: 'Conversation history' }).locator('option:checked')).not.toContainText('Follow AGENTS.md');
+    // The history icon lists the conversations by name and AI, the open one marked; none is named after the raw request.
+    await page.getByRole('button', { name: 'Conversation history' }).click();
+    const historyMenu = page.getByRole('menu', { name: 'Conversation history' });
+    await expect(historyMenu.locator('[aria-current="true"] .chat-history-meta')).toContainText('Claude');
+    await expect(historyMenu).not.toContainText('Follow AGENTS.md');
+    if (process.env.QA_CHAT_INSPECTION) await page.screenshot({ path: join(realpathSync(process.env.QA_CHAT_INSPECTION), 'chat-history.png') });
+    await page.keyboard.press('Escape');
     if (process.env.QA_CHAT_INSPECTION) await page.screenshot({ path: join(realpathSync(process.env.QA_CHAT_INSPECTION), 'chat-request.png') });
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('my draft');
     await expect(page.locator('.chat-view')).toHaveCount(1);

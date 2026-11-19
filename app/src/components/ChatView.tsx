@@ -6,7 +6,7 @@ import { api, CHAT_TOOLS, type ArtifactStatus, type ChatState, type ToolInfo } f
 import { isArtifactUrl as isArtifactLink } from '../../../scripts/lib/artifact-links.ts';
 import { conversationLanguage, t } from '../i18n';
 import { recall, remember } from '../prefs';
-import { IconArrowLeft, IconChat, IconExternal, IconPlay, IconPlus, IconRefresh, IconStop } from './Icons';
+import { IconArrowLeft, IconChat, IconExternal, IconHistory, IconPlay, IconPlus, IconRefresh, IconStop } from './Icons';
 import { MarkdownBody } from './MarkdownBody';
 import './chat.css';
 
@@ -34,6 +34,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   const [sending, setSending] = useState(false);
   const [artifact, setArtifact] = useState<string | null>(null);
   const [newMenu, setNewMenu] = useState<{ left: number; top: number } | null>(null);
+  const [historyMenu, setHistoryMenu] = useState<{ left: number; top: number } | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const lastPending = useRef<number | null>(null);
@@ -116,14 +117,22 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
     <header className="chat-head">
       <IconChat size={18} />
       <span className="chat-tool">{state ? label(state.record.tool) : tool ? label(tool.id) : t('Chat')}</span>
-      {(history.length > 0 || state) && <select className="chat-history" aria-label={t('Conversation history')} value={state?.record.id ?? ''} onFocus={() => { void loadHistory().catch((e: Error) => setError(e.message)); }} onChange={(e) => { void selectHistory(e.target.value); }}>
-        <option value="">{t('Conversation history')}</option>
-        {state && !history.some((c) => c.id === state.record.id) && <option value={state.record.id}>{state.record.title || t('New conversation')}</option>}
-        {history.map((c) => <option key={c.id} value={c.id}>{c.title || t('New conversation')}</option>)}
-      </select>}
+      <span className="chat-head-space" />
+      {history.length > 0 && <button className="icon-btn" type="button" title={t('Conversation history')} aria-label={t('Conversation history')} aria-haspopup="menu" aria-expanded={Boolean(historyMenu)}
+        onClick={(e) => { void loadHistory().catch((err: Error) => setError(err.message)); const r = e.currentTarget.getBoundingClientRect(); setHistoryMenu(historyMenu ? null : { left: Math.max(8, r.right - 320), top: r.bottom + 4 }); }}><IconHistory size={17} /></button>}
       <button className="icon-btn" type="button" onClick={startNew} disabled={!tool} title={t('New conversation')} aria-label={t('New conversation')}
         aria-haspopup={usable.length > 1 ? 'menu' : undefined} aria-expanded={usable.length > 1 ? Boolean(newMenu) : undefined}><IconPlus size={17} /></button>
     </header>
+    {historyMenu && (
+      <div className="menu-backdrop" onMouseDown={() => setHistoryMenu(null)}>
+        <ul className="term-menu chat-history-menu" role="menu" aria-label={t('Conversation history')} style={{ left: historyMenu.left, top: historyMenu.top, width: 320 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setHistoryMenu(null); }}>
+          {history.map((c, i) => <li key={c.id}><button type="button" role="menuitem" autoFocus={i === 0} aria-current={c.id === state?.record.id || undefined} onClick={() => { setHistoryMenu(null); void selectHistory(c.id); }}>
+            <span className="chat-history-title">{c.title || t('New conversation')}</span>
+            <span className="chat-history-meta">{label(c.tool)} · {new Date(c.updated).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+          </button></li>)}
+        </ul>
+      </div>
+    )}
     {newMenu && (
       <div className="menu-backdrop" onMouseDown={() => setNewMenu(null)}>
         <ul className="term-menu" role="menu" aria-label={t('New conversation')} style={{ left: newMenu.left, top: newMenu.top, minWidth: 240 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setNewMenu(null); }}>

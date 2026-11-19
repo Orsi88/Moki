@@ -156,6 +156,10 @@ export const IconNotePlus = ({ size }: IconProps) => (
 export const IconHome = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /></svg>
 );
+// History: a clock with the arrow going back (the chat's earlier conversations).
+export const IconHistory = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>
+);
 export const IconChevron = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M9 6l6 6-6 6" /></svg>
 );
