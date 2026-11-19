@@ -32,10 +32,11 @@ function temp(t: TestContext) {
   t.after(async () => {
     const rel = relative(base, realpathSync(dir));
     assert.ok(rel && !rel.startsWith('..') && !isAbsolute(rel));
-    // Windows releases the child's current directory asynchronously. Let its close event run between attempts.
+    // Windows releases the child's current directory asynchronously, and later still when the whole suite loads the
+    // machine. Let its close event run between attempts (up to about 5 s).
     for (let attempt = 0; ; attempt++) {
       try { rmSync(dir, { recursive: true, force: true }); break; }
-      catch (e) { if (attempt === 2) throw e; await delay(250); }
+      catch (e) { if (attempt === 10) throw e; await delay(500); }
     }
   });
   return dir;
