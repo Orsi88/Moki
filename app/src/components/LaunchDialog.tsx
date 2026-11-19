@@ -24,7 +24,7 @@ interface Props {
   onClose: () => void;
   onTerminal: (terminal: TerminalRef) => void; // the tool opened in a terminal tab of the app
   onPrepared?: (terminal: TerminalRef) => void; // pasted without Enter; close the dialog and focus this exact terminal
-  onChat?: (text: string, tool: string) => void;
+  onChat?: (text: string, tool: string, label: string) => void; // label: what was called, the request's name in the chat
   onActivityStart?: (activity: string, label: string) => string | undefined;
   onPin?: (activity: string, on: boolean) => void; // the 📌 of an activity: pinned to this project's panel
   onActivityUpdate?: (id: string | undefined, phase: ActivityLaunchPhase) => void;
@@ -173,7 +173,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
       const req = { project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, skill: skill || undefined, exclude: resume ? [] : exclude, ...(context.length ? { context } : {}), ...(trackingId ? { trackingId } : {}) };
       if (destination === 'chat' && onChat) {
         const prepared = await api.chatRequest(req);
-        if (!late) { onActivityUpdate?.(trackingId, 'sent'); onChat(prepared.prompt, tool); }
+        if (!late) { onActivityUpdate?.(trackingId, 'sent'); onChat(prepared.prompt, tool, plain ? t('Just call') : selection ? t(selection.label) : current ? t(current.label) : skill || activity); }
         return;
       }
       if (destination === 'current' && preset?.terminal) {

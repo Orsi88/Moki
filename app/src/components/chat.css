@@ -20,6 +20,10 @@
 .chat-markdown table { border-collapse:collapse; max-width:100%; }
 .chat-markdown th, .chat-markdown td { padding:6px 10px; border:1px solid var(--border); }
 .chat-markdown img { max-width:100%; }
+/* A request Moki wrote (Call…): one line with its name; the full text when opened. */
+.chat-request summary { cursor:pointer; font-weight:600; color:var(--muted); }
+.chat-request[open] summary { margin-bottom:8px; }
+.chat-request .chat-user-text { font-size:13px; color:var(--muted); }
 .chat-tools { margin-top:12px; font-size:12px; color:var(--muted); }
 .chat-tools summary { cursor:pointer; }
 .chat-tools ul { padding-left:18px; }

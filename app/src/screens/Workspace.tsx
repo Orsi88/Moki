@@ -152,7 +152,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     setTimeout(() => setNotice((cur) => (cur?.text === text ? null : cur)), 6000);
   };
   const [terms, setTerms] = useState<TermTab[]>([]);
-  const [chatRequest, setChatRequest] = useState<{ text: string; tool: string; key: number } | null>(null);
+  const [chatRequest, setChatRequest] = useState<{ text: string; tool: string; label: string; key: number } | null>(null);
   const chatSequence = useRef(0);
   const openChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); apply((b) => boardOpen(b, CHAT)); }, [apply, onSettings]);
   useEffect(() => {
@@ -1330,7 +1330,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {showSetup && <SetupDialog project={project} onClose={() => setShowSetup(false)}
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onPin={pinActivity} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
-        onChat={(text, tool) => { setLaunch(null); setChatRequest({ text, tool, key: ++chatSequence.current }); openChat(); }}
+        onChat={(text, tool, label) => { setLaunch(null); setChatRequest({ text, tool, label, key: ++chatSequence.current }); openChat(); }}
         onPrepared={(terminal) => {
           setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
           flash(t('Request pasted. Add context and press Enter when ready.'), true);

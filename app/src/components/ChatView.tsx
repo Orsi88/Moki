@@ -17,7 +17,7 @@ const RENDER_EVERY_MS = 300; // an answer arriving is formatted at most this oft
 
 interface Props {
   project: string; workspace: string; tools: ToolInfo[]; active: boolean;
-  pending?: { text: string; tool: string; key: number } | null;
+  pending?: { text: string; tool: string; label?: string; key: number } | null;
   onPending: () => void;
   onLink: (href: string) => void;
 }
@@ -56,7 +56,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
     setArtifact(null);
     if (!target) { setError(t('Install in Settings › My AIs')); return; }
     setChosen(target.id);
-    void deliver(pending.text, target.id, undefined);
+    void deliver(pending.text, target.id, undefined, pending.label);
   }, [pending]);
 
   // The answer arriving: the app says when the conversation changed, and it is read then (one read at a time).
@@ -81,10 +81,11 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   useEffect(() => { if (active && !artifact) end.current?.scrollIntoView({ block: 'nearest' }); }, [active, artifact, state?.record.messages.at(-1)?.text]);
 
   // `chat`: the conversation to continue; undefined starts a new one.
-  const deliver = async (text: string, toolId: string, chat: string | undefined) => {
+  // `label`: a request Moki wrote (Call…), shown folded under that name.
+  const deliver = async (text: string, toolId: string, chat: string | undefined, label?: string) => {
     setSending(true); setError('');
     try {
-      const next = await api.chatSend(project, chat, toolId, text, conversationLanguage());
+      const next = await api.chatSend(project, chat, toolId, text, conversationLanguage(), label);
       setState(next); remember(`${prefix}:id`, next.record.id);
       return true;
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
@@ -130,7 +131,10 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
         </div>}
         {state?.record.messages.map((message, i) => <article key={i} className={`chat-message chat-${message.role}`}>
           <span className="chat-author">{message.role === 'user' ? t('You') : label(state.record.tool)}</span>
-          {message.role === 'user' ? <p className="chat-user-text">{message.text}</p>
+          {message.role === 'user' && message.label
+            // A request Moki wrote: its name, and the full text only when opened (the AI got all of it).
+            ? <details className="chat-request"><summary>{t('Request from Moki: {name}', { name: message.label })}</summary><p className="chat-user-text">{message.text}</p></details>
+            : message.role === 'user' ? <p className="chat-user-text">{message.text}</p>
             : <ChatMarkdown text={message.text} project={project} live={busy && i === state.record.messages.length - 1} onLink={link} />}
           {message.tools?.length ? <details className="chat-tools"><summary>{t('Tools used')} ({message.tools.length})</summary><ul>{message.tools.map((call, index) => <li key={index}><span aria-hidden="true">{call.ok === false ? '×' : call.ok ? '✓' : '·'}</span> {call.name} {call.summary}</li>)}</ul></details> : null}
           {message.error && <p className="error" role="status">{message.error === 'stopped' ? t('Response stopped.') : message.error}</p>}

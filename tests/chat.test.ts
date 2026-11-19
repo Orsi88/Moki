@@ -286,6 +286,19 @@ test('chat conversations: text after a tool call starts its own paragraph; an an
   assert.equal(conversations.state(dir, quiet).record.messages[1].error, undefined);
 });
 
+test('chat conversations: a request from Call… keeps its full text for the AI, its name titles the conversation', (t) => {
+  const dir = temp(t);
+  const conversations = createConversations();
+  const hand = handSession();
+  const id = conversations.send(dir, undefined, 'claude', 'Follow AGENTS.md. Project: acme. A very long request…', hand.factory, 'Prepare the project').record.id;
+  const saved = readChat(dir, id);
+  assert.equal(saved.title, 'Prepare the project');
+  assert.deepEqual([saved.messages[0].label, saved.messages[0].text], ['Prepare the project', 'Follow AGENTS.md. Project: acme. A very long request…']);
+  const plain = conversations.send(dir, undefined, 'claude', 'What is left to test?', handSession().factory).record.id;
+  assert.equal(readChat(dir, plain).messages[0].label, undefined);
+  assert.equal(readChat(dir, plain).title, 'What is left to test?');
+});
+
 test('chat conversations: a new conversation whose first message cannot start leaves no history entry', (t) => {
   const dir = temp(t);
   const conversations = createConversations();

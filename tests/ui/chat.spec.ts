@@ -121,6 +121,12 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.locator('.chat-user')).toHaveCount(1);
     await expect(page.locator('.chat-user')).toContainText('qa-lead');
+    // Folded under its name: the person sees what was called, the AI got the whole request; it also titles the conversation.
+    const request = page.locator('.chat-user details.chat-request');
+    await expect(request.locator('summary')).toHaveText(/^Request from Moki: /);
+    await expect(request).not.toHaveAttribute('open', '');
+    await expect(page.getByRole('combobox', { name: 'Conversation history' }).locator('option:checked')).not.toContainText('Follow AGENTS.md');
+    if (process.env.QA_CHAT_INSPECTION) await page.screenshot({ path: join(realpathSync(process.env.QA_CHAT_INSPECTION), 'chat-request.png') });
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('my draft');
     await expect(page.locator('.chat-view')).toHaveCount(1);
     expect(errors).toEqual([]);

@@ -2502,5 +2502,6 @@
   "Let in": "Incluir",
   "Just call": "Solo llamar",
   "the AI with the project context, no activity": "la IA con el contexto del proyecto, sin actividad",
-  "The AI with the project context, no activity, agent or skill. Nothing is recorded unless you ask for an activity in the conversation.": "La IA con el contexto del proyecto, sin actividad, agente ni skill. No se registra nada, salvo que pidas una actividad en la conversación."
+  "The AI with the project context, no activity, agent or skill. Nothing is recorded unless you ask for an activity in the conversation.": "La IA con el contexto del proyecto, sin actividad, agente ni skill. No se registra nada, salvo que pidas una actividad en la conversación.",
+  "Request from Moki: {name}": "Solicitud de Moki: {name}"
 }

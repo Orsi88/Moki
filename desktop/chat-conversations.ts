@@ -27,7 +27,8 @@ export function createConversations(onChange: (dir: string, id: string) => void 
       if (last?.role === 'assistant' && !last.text && !last.tools?.length && !last.error) last.error = 'stopped';
       return { record, busy: false };
     },
-    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory): ChatState {
+    // label: the message is a request Moki wrote (Call…), shown folded under this name, which also titles the conversation.
+    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory, label?: string): ChatState {
       if (typeof text !== 'string' || !text.trim()) throw new Error('Write a message first.');
       if (text.length > 1_000_000) throw new Error('This message is too long.');
       let entry = id ? live.get(key(dir, id)) : undefined;
@@ -67,8 +68,8 @@ export function createConversations(onChange: (dir: string, id: string) => void 
       if (entry.record.tool !== tool) throw new Error('Start a new conversation to change the AI.');
       if (entry.session.busy()) throw new Error('Wait for the answer, or stop it first.');
       const at = new Date().toISOString();
-      entry.record.messages.push({ role: 'user', text, at }, { role: 'assistant', text: '', at });
-      entry.record.title ||= chatTitle(text);
+      entry.record.messages.push({ role: 'user', text, at, ...(label ? { label } : {}) }, { role: 'assistant', text: '', at });
+      entry.record.title ||= label ? chatTitle(label) : chatTitle(text);
       try { entry.session.send(text); }
       catch (e) {
         entry.record.messages.splice(-2);

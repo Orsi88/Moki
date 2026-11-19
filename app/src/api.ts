@@ -233,7 +233,7 @@ export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Ver
 export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string; context?: string[] }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
 export interface TerminalRef { id: string; title: string; tool?: string }
-export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string }
+export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string; label?: string }
 export interface ChatRecord { id: string; tool: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
 export interface ChatState { record: ChatRecord; busy: boolean; error?: string }
 export interface ArtifactStatus { url: string; loading: boolean; error: string }
@@ -410,7 +410,7 @@ export const api = {
   onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
   chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),
   chatState: (project: string, id: string) => call<ChatState>('chatState', project, id),
-  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string) => call<ChatState>('chatSend', project, id, tool, text, language),
+  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string, label?: string) => call<ChatState>('chatSend', project, id, tool, text, language, label),
   chatStop: (project: string, id: string) => call<boolean>('chatStop', project, id),
   removeChat: (project: string, id: string) => call<boolean>('removeChat', project, id),
   chatRequest: (req: LaunchRequest) => call<{ prompt: string }>('chatRequest', req),

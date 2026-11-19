@@ -3139,11 +3139,13 @@ export function createService(root: string, deps: Deps) {
       if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       return failing(() => conversations.state(dir, id));
     },
-    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown) => {
+    // label: the message is a request from Call… (shown folded under that name, which titles the conversation).
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown) => {
       const dir = projectDir(project);
       if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
       if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const name = typeof label === 'string' ? cleanPrompt(label).replace(/\s+/g, ' ').trim().slice(0, 120) : '';
       const workspace = workspaceDir(root);
       await deps.fixPath?.();
       if (workspaceDir(root) !== workspace || projectDir(project) !== dir) throw new ServiceError('The workspace changed. Open the chat again.');
@@ -3159,7 +3161,7 @@ export function createService(root: string, deps: Deps) {
         env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
         sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
         setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
-      })));
+      }), name || undefined));
     },
     chatStop: (project: unknown, id: unknown) => {
       const dir = projectDir(project);

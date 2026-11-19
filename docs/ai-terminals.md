@@ -47,7 +47,7 @@ The chat uses an installed **Claude Code** or **Codex** (shown as ChatGPT), with
 
 When an answer links a Claude artifact (a presentation, spreadsheet or page on claude.ai), the link opens in a viewer inside the chat tab, with **Back to the conversation** and **Open in the browser**. Sign in to your claude.ai account once in the viewer to see private artifacts; if the sign-in is blocked there, use **Open in the browser**. The viewer is an isolated browser surface with no access to Moki or the project's files, and other links open in the browser as before.
 
-**Call… › In the chat** is available with an installed Claude Code or Codex. It sends the validated project request at once, in a new conversation of the chat tab (like a new terminal); a draft you were writing stays in the message box.
+**Call… › In the chat** is available with an installed Claude Code or Codex. It sends the validated project request at once, in a new conversation of the chat tab (like a new terminal); a draft you were writing stays in the message box. The request shows folded as *Request from Moki: <what was called>*, open it to read the full text the AI got, and that name titles the conversation.
 
 ## See also
 
