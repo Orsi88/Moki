@@ -40,9 +40,6 @@ await esbuild({
   outfile: join(ROOT, 'scripts', 'lib', 'diagram-frame.iife.js'),
 });
 
-// Identifies this build, so an installed app refreshes its framework files once per build.
-mkdirSync(out, { recursive: true });
-writeFileSync(join(out, 'build-info.json'), JSON.stringify({ buildId: new Date().toISOString() }));
 
 // Staging folder for the installer (electron-builder two-package.json layout):
 // only the built app and a minimal package.json, no development files.

@@ -6,7 +6,7 @@ import { basename, dirname, join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { PDFDocument } from 'pdf-lib';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { CHANGED_OUTSIDE, callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
 import { PathError, resolveInside, isEditable, isOpenable } from '../desktop/fs-guard.ts';
 import { launchInTerminal, pluginArgs, scriptFor, windowsStartArgs, type LaunchResult } from '../desktop/launcher.ts';
@@ -17,7 +17,7 @@ import { selectionMarks, selectionNote, stackCards } from '../app/src/pdf-quads.
 import { allMarked, toggleMarked } from '../app/src/upload-select.ts';
 import { acceptsItem, droppedItem, ITEM_DRAG, itemPayload, parseItem } from '../app/src/item-drag.ts';
 import { docxToMarkdown, readableInputs } from '../scripts/lib/docx.ts';
-import { frameworkTarget, syncFramework } from '../desktop/framework.ts';
+import { frameworkId, frameworkTarget, syncFramework } from '../desktop/framework.ts';
 import { folderArg } from '../desktop/shell-folder.ts';
 import { noteKey, noteQuery, parseNoteRequest } from '../desktop/notes.ts';
 import { remapPdfNotes, type PdfNote } from '../desktop/pdf-notes.ts';
@@ -2979,22 +2979,71 @@ test('installer framework sync refreshes framework files and never touches works
     mkdirSync(join(bundled, 'workspace'), { recursive: true });
     writeFileSync(join(bundled, 'workspace', 'README.md'), 'readme');
 
-    assert.equal(syncFramework(bundled, target, 'build-1'), true);
+    assert.deepEqual(syncFramework(bundled, target), { changed: true, skipped: [] });
     assert.equal(readFileSync(join(target, 'skills', 'a', 'SKILL.md'), 'utf8'), 'v1');
+    assert.equal(readFileSync(join(target, '.qa-framework-build'), 'utf8').trim(), frameworkId(bundled));
     assert.ok(existsSync(join(target, 'workspace', 'projects')));
 
     // The user's data, plus a stale framework file.
     mkdirSync(join(target, 'workspace', 'projects', 'p', 'runs'), { recursive: true });
     writeFileSync(join(target, 'workspace', 'projects', 'p', 'notes.md'), 'keep me');
     writeFileSync(join(target, 'skills', 'stale.md'), 'old');
+    mkdirSync(join(target, 'skills', 'gone', 'deep'), { recursive: true });
 
-    assert.equal(syncFramework(bundled, target, 'build-1'), false, 'same build: nothing to do');
+    assert.equal(syncFramework(bundled, target).changed, false, 'same content: nothing to do');
+    // The other installed copy (app or IDE extension) with the same framework does not redo it either.
+    const twin = mkdtempSync(join(tmpdir(), 'qa-bundle-twin-'));
+    cpSync(bundled, twin, { recursive: true });
+    try { assert.equal(syncFramework(twin, target).changed, false, 'same content from another install'); }
+    finally { rmSync(twin, { recursive: true, force: true }); }
     writeFileSync(join(bundled, 'skills', 'a', 'SKILL.md'), 'v2');
-    assert.equal(syncFramework(bundled, target, 'build-2'), true);
+    assert.deepEqual(syncFramework(bundled, target), { changed: true, skipped: [] });
     assert.equal(readFileSync(join(target, 'skills', 'a', 'SKILL.md'), 'utf8'), 'v2');
     assert.equal(existsSync(join(target, 'skills', 'stale.md')), false);
+    assert.equal(existsSync(join(target, 'skills', 'gone')), false);
     assert.equal(readFileSync(join(target, 'workspace', 'projects', 'p', 'notes.md'), 'utf8'), 'keep me');
   } finally {
+    rmSync(bundled, { recursive: true, force: true });
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// What happened on 2026-11-19: an AI tool open in Documents/Moki held .agents/skills, deleting the folder failed with
+// EPERM and the IDE extension did not start. A folder in use is now skipped, the rest refreshed, and tried again later.
+test('installer framework sync skips a folder another program holds and finishes it on the next start', () => {
+  const bundled = mkdtempSync(join(tmpdir(), 'qa-bundle-'));
+  const target = mkdtempSync(join(tmpdir(), 'qa-installed-'));
+  const held = join(target, '.agents', 'skills');
+  let holder: ReturnType<typeof spawn> | null = null;
+  try {
+    mkdirSync(join(bundled, '.agents', 'skills', 'a'), { recursive: true });
+    writeFileSync(join(bundled, '.agents', 'skills', 'a', 'SKILL.md'), 'v1');
+    writeFileSync(join(bundled, 'AGENTS.md'), 'agents v1');
+    assert.deepEqual(syncFramework(bundled, target).skipped, []);
+    // The stale folder is held: on Windows by a process working in it, elsewhere by a read-only parent.
+    mkdirSync(join(held, 'old'), { recursive: true });
+    if (process.platform === 'win32') {
+      holder = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { cwd: join(held, 'old'), stdio: 'ignore' });
+      spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 500)']); // let it start in that folder
+    } else chmodSync(held, 0o555);
+    writeFileSync(join(bundled, 'AGENTS.md'), 'agents v2');
+    writeFileSync(join(bundled, '.agents', 'skills', 'a', 'SKILL.md'), 'v2');
+
+    const first = syncFramework(bundled, target);
+    assert.equal(first.changed, true);
+    assert.deepEqual(first.skipped, ['.agents/skills/old']);
+    assert.equal(readFileSync(join(target, 'AGENTS.md'), 'utf8'), 'agents v2', 'the rest is refreshed');
+    assert.equal(readFileSync(join(held, 'a', 'SKILL.md'), 'utf8'), 'v2');
+    assert.notEqual(readFileSync(join(target, '.qa-framework-build'), 'utf8').trim(), frameworkId(bundled), 'not marked done');
+
+    holder?.kill(); holder = null;
+    if (process.platform !== 'win32') chmodSync(held, 0o755);
+    for (let i = 0; i < 50 && syncFramework(bundled, target).skipped.length; i++) spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 100)']);
+    assert.equal(existsSync(join(held, 'old')), false, 'released on the next start: removed');
+    assert.equal(readFileSync(join(target, '.qa-framework-build'), 'utf8').trim(), frameworkId(bundled));
+  } finally {
+    holder?.kill();
+    if (process.platform !== 'win32') try { chmodSync(held, 0o755); } catch { /* gone */ }
     rmSync(bundled, { recursive: true, force: true });
     rmSync(target, { recursive: true, force: true });
   }
@@ -3031,8 +3080,8 @@ test('installer framework sync rejects Git checkouts and worktrees before touchi
       writeFileSync(tracked, 'repository content');
 
       const nested = join(checkout, 'nested');
-      assert.throws(() => syncFramework(bundled, checkout, 'new-build'), /Git checkout/);
-      assert.throws(() => syncFramework(bundled, nested, 'new-build'), /Git checkout/);
+      assert.throws(() => syncFramework(bundled, checkout), /Git checkout/);
+      assert.throws(() => syncFramework(bundled, nested), /Git checkout/);
       assert.equal(readFileSync(tracked, 'utf8'), 'repository content');
       assert.equal(existsSync(join(checkout, '.agents', 'installed.md')), false);
       assert.equal(existsSync(join(checkout, '.qa-framework-build')), false);
@@ -3070,8 +3119,8 @@ test('installed copies sync separately from Git and keep the existing default wo
       import { prepareInstalledFramework } from './desktop/framework.ts';
       const [bundled, docs, fallback, checkout, workspace, client] = process.argv.slice(1);
       const fallbackOverride = process.platform === 'win32' || process.platform === 'linux' ? undefined : fallback;
-      prepareInstalledFramework(bundled, docs, 'first-build', fallbackOverride);
-      prepareInstalledFramework(bundled, docs, 'second-build', fallbackOverride);
+      assert.deepEqual(prepareInstalledFramework(bundled, docs, fallbackOverride), {});
+      assert.deepEqual(prepareInstalledFramework(bundled, docs, fallbackOverride), {});
       assert.equal(process.env.QA_ROOT, fallback);
       assert.equal(process.env.QA_WORKSPACE_DATA_ROOT, checkout);
       const { ROOT, workspaceDir } = await import('./scripts/lib/repo.mjs');
@@ -3088,7 +3137,7 @@ test('installed copies sync separately from Git and keep the existing default wo
       assert.equal(workspaceDir(), client);
       const custom = join(docs, 'custom');
       process.env.QA_ROOT = custom;
-      prepareInstalledFramework(bundled, docs, 'third-build', fallbackOverride);
+      prepareInstalledFramework(bundled, docs, fallbackOverride);
       assert.equal(process.env.QA_ROOT, custom);
       assert.equal(process.env.QA_WORKSPACE_DATA_ROOT, undefined);
     `;
@@ -3098,7 +3147,7 @@ test('installed copies sync separately from Git and keep the existing default wo
     });
     assert.equal(checked.status, 0, checked.stderr || checked.error?.message);
     assert.equal(readFileSync(join(fallback, 'AGENTS.md'), 'utf8'), 'installed framework');
-    assert.equal(readFileSync(join(fallback, '.qa-framework-build'), 'utf8').trim(), 'second-build');
+    assert.equal(readFileSync(join(fallback, '.qa-framework-build'), 'utf8').trim(), frameworkId(bundled));
     assert.equal(readFileSync(join(checkout, 'AGENTS.md'), 'utf8'), 'checkout framework');
     assert.equal(readFileSync(registry, 'utf8'), savedRegistry);
     assert.equal(existsSync(join(fallback, 'workspaces', 'workspaces.json')), false);
