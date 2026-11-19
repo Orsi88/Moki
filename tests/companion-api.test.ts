@@ -95,7 +95,7 @@ test('state: the connected project, the list to switch, the MCP servers that are
 
 test('agents: only the ones the project uses', async () => {
   const agents = await call('agents') as { name: string }[];
-  assert.deepEqual(agents.map((a) => a.name), ['test-designer']);
+  assert.deepEqual(agents.map((a) => a.name), ['mycroft', 'test-designer']); // Mycroft is in every project
 });
 
 test('context: switching a file off leaves it out of requests and of what the AI reads', async () => {
@@ -112,6 +112,21 @@ test('context: switching a file off leaves it out of requests and of what the AI
   const rules = files.find((f) => f.id.endsWith('context/rules.md'))!;
   const starred = await call('setPriority', rules.id, true) as { id: string; priority: boolean }[];
   assert.ok(starred.find((f) => f.id === rules.id)?.priority);
+});
+
+test('context by folder: each file says its folder and size, and a folder is switched at once, priorities included', async () => {
+  type File = { id: string; included: boolean; priority: boolean; folder: string; size: number };
+  const files = await call('context') as File[];
+  const story = files.find((f) => f.id.endsWith('inbox/us-1.md'))!;
+  assert.equal(story.folder, 'inbox');
+  assert.ok(story.size > 0);
+  assert.equal(files.find((f) => f.id.endsWith('context/rules.md'))?.folder, 'context');
+  await call('setPriority', story.id, true);
+  const out = await call('setFolder', 'inbox', false) as File[];
+  assert.ok(out.filter((f) => f.folder === 'inbox').every((f) => !f.included && !f.priority), 'leaving a folder out takes its priorities too');
+  const back = await call('setFolder', 'inbox', true) as File[];
+  assert.ok(back.filter((f) => f.folder === 'inbox').every((f) => f.included));
+  await assert.rejects(call('setFolder', '../beta', true), /not in the project/);
 });
 
 test('launch: Claude Code with the request, the exclusions and --mcp-config, for the active project only', async () => {

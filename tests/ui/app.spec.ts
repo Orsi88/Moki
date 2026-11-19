@@ -3583,6 +3583,11 @@ test.describe.serial('Moki tab groups and split views', () => {
     await chips().first().click({ button: 'right' });
     const menu = gp.getByRole('dialog', { name: /^Grupo / });
     await menu.getByRole('textbox', { name: 'Nome do grupo' }).fill('Triagem');
+    // Each color shows as a round 20 px swatch with its own color (the menu's button style must not flatten them).
+    const swatches = await menu.getByRole('radio').evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return { w: el.getBoundingClientRect().width, round: s.borderRadius, border: s.borderTopColor, width: s.borderTopWidth }; }));
+    expect(swatches.length).toBe(9);
+    expect(swatches.every((s) => Math.round(s.w) === 20 && s.round === '50%' && parseFloat(s.width) > 1)).toBe(true); // the window may be zoomed
+    expect(new Set(swatches.map((s) => s.border)).size).toBe(9);
     await menu.getByRole('radio', { name: 'Rosa' }).click();
     await expect(menu.getByRole('radio', { name: 'Rosa' })).toHaveAttribute('aria-checked', 'true');
     await menu.getByRole('textbox', { name: 'Nome do grupo' }).press('Enter');

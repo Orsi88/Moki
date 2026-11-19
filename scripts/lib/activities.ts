@@ -17,7 +17,8 @@
 // becomes the project id. Text-only activities need a request; others can use their target's default.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { activeLabel, isItemName } from './evolution.ts';
 import { ROOT, workspaceDir } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { appliesTo, cleanTags } from './tags.mjs';
@@ -54,6 +55,8 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
   { id: 'context', label: 'Project context', description: 'onboarding, questions, updates', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
   { id: 'setup', label: 'Prepare the project', description: 'adapts the context to the project description', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
   { id: 'plan', label: 'Plan the project with the AI', description: 'interview, then a plan you review in the app', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
+  // "Just call" in Call…: the AI with the project's context and nothing else; not an activity (issue #46), so never listed.
+  { id: 'call', label: 'Just call', description: 'the AI with the project context, no activity', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
   { id: 'resume', label: 'Resume a run', description: '', target: { kind: 'moki', name: 'qa-orchestrator' }, files: 'none' },
   // "Call an agent" in the project panel: a conversation with one agent, not an activity (never in the activity lists: PICKABLE).
   { id: 'talk', label: 'Talk with an agent', description: 'a conversation about an idea, no activity', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
@@ -63,7 +66,7 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
 export const isMokiActivity = (id: string): boolean => MOKI_ACTIVITIES.some((a) => a.id === id);
 // Activities offered where one is picked (the app, the IDE, the terminal menu). "talk" and "skill" start only from the project panel;
 // "open" is only the default request of the IDE panel's agent cards and of `qa --activity open` (issue #46: not a choice).
-const HIDDEN = new Set(['open', 'talk', 'skill']);
+const HIDDEN = new Set(['open', 'call', 'talk', 'skill']);
 export const isPickable = (a: { id: string }): boolean => !HIDDEN.has(a.id);
 
 export const builtinDir = (root = ROOT): string => join(root, 'activities');
@@ -126,9 +129,18 @@ function readDir(dir: string, source: 'builtin' | 'library'): ActivityDef[] {
 }
 
 // Every activity, or the ones a project sees (library ones by their tags). An id is unique: moki, then builtin, then library.
+// A built-in activity with a version approved in this workspace is read from that version (its own file never changes).
+function evolvedActivity(a: ActivityDef, root: string): ActivityDef {
+  const label = isItemName(a.id) ? activeLabel({ kind: 'activity', name: a.id, builtin: true }, root) : null;
+  if (!label) return a;
+  const file = resolve(root, label);
+  const { activity } = parseActivity(readFileSync(file, 'utf8'), a.id, 'builtin', file);
+  return activity ?? a;
+}
+
 export function listActivities(root = ROOT, project?: string): ActivityDef[] {
   const seen = new Set<string>();
-  return [...MOKI_ACTIVITIES, ...readDir(builtinDir(root), 'builtin'), ...readDir(libraryDir(root), 'library')]
+  return [...MOKI_ACTIVITIES, ...readDir(builtinDir(root), 'builtin').map((a) => evolvedActivity(a, root)), ...readDir(libraryDir(root), 'library')]
     .filter((a) => !seen.has(a.id) && seen.add(a.id))
     .filter((a) => !project || appliesTo(a.tags, project, root));
 }

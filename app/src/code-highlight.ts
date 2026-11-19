@@ -23,8 +23,12 @@ const OPS = new Set('=+-*/%<>!&|?:.,;()[]{}');
 
 const HASH = new Set(['python', 'bash', 'yaml', 'ruby']);
 
+// The short names AIs and people write after the fence (```js, ```py…) for the languages above.
+const ALIASES: Record<string, string> = { js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', sh: 'bash', shell: 'bash', zsh: 'bash', yml: 'yaml', golang: 'go', rs: 'rust', 'c++': 'cpp' };
+
 // Walks the source once. A hash starts a comment only in the languages that use it.
-export function highlightParts(source: string, lang: string): CodeToken[] {
+export function highlightParts(source: string, given: string): CodeToken[] {
+  const lang = ALIASES[given.toLowerCase()] ?? given.toLowerCase();
   const words = new Set(KEYS[lang] ?? []);
   const hash = HASH.has(lang);
   const slash = lang !== 'python' && lang !== 'css' && lang !== 'sql';

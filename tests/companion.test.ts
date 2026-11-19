@@ -131,11 +131,47 @@ test('manual resources are hidden until selected; modes are saved in companion.j
   c.select(id, true);
   assert.equal((await c.search('playwright'))[0].id, id);
   const saved = JSON.parse(readFileSync(join(projects, 'acme', 'companion.json'), 'utf8'));
-  assert.deepEqual(saved, { selected: [id], modes: { [id]: 'manual' } });
+  assert.deepEqual(saved, { selected: [id], modes: { [id]: 'manual' }, folders: {} });
   c.setMode(id, 'auto'); // the default again: nothing stored
   c.clearSelection();
-  assert.deepEqual(JSON.parse(readFileSync(join(projects, 'acme', 'companion.json'), 'utf8')), { selected: [], modes: {} });
+  assert.deepEqual(JSON.parse(readFileSync(join(projects, 'acme', 'companion.json'), 'utf8')), { selected: [], modes: {}, folders: {} });
   assert.throws(() => c.setMode(id, 'always'), /Unknown mode/);
+});
+
+test('what the AI sees, by folder: the person\'s folders go, deliverables wait, Moki\'s working files never show', async () => {
+  const dir = join(projects, 'gamma');
+  for (const [path, text] of [['requisitos-cliente/escopo.md', '# Escopo\n'], ['inbox/us-9.md', '# US 9\n'], ['temporary/scratch.md', 'scratch'],
+    ['runs/20261119-0900-review/outputs/report.md', '# Report\n'], ['runs/20261119-0900-review/work/draft.md', 'draft'],
+    ['runs/20261119-0900-review/logs/run.md', 'log'], ['runs/20261119-0900-review/state.json', JSON.stringify({ title: 'Review US 9' })]]) {
+    mkdirSync(join(dir, ...path.split('/').slice(0, -1)), { recursive: true });
+    writeFileSync(join(dir, ...path.split('/')), text);
+  }
+  const c = openCompanion(root, 'gamma');
+  const all = c.allResources().filter((r) => r.source === 'gamma');
+  const ids = all.map((r) => r.id);
+  const report = label('gamma', 'runs/20261119-0900-review/outputs/report.md');
+  const escopo = label('gamma', 'requisitos-cliente/escopo.md');
+  assert.ok(ids.includes(report) && ids.includes(escopo) && ids.includes(label('gamma', 'inbox/us-9.md')));
+  assert.deepEqual(ids.filter((id) => /temporary\/|state\.json|\/work\/|\/logs\//.test(id)), []);
+  assert.equal(all.find((r) => r.id === report)?.description, 'Review US 9', 'a deliverable says which request it answered');
+  // Defaults: a folder the person made goes to the AI; the deliverables wait.
+  assert.ok(c.resources().some((r) => r.id === escopo));
+  assert.ok(!c.resources().some((r) => r.id === report));
+  await assert.rejects(() => c.getResource(report), CompanionError);
+  // A folder at once, kept in companion.json only where it differs from the default.
+  c.setFolder('runs', true);
+  c.setFolder('requisitos-cliente', false);
+  assert.ok(c.resources().some((r) => r.id === report));
+  assert.ok(!c.resources().some((r) => r.id === escopo));
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'companion.json'), 'utf8')).folders, { runs: true, 'requisitos-cliente': false });
+  // A file let in from a folder left out is an exception; switching the folder again clears it.
+  c.setMode(escopo, 'auto');
+  assert.ok(c.resources().some((r) => r.id === escopo));
+  c.setFolder('requisitos-cliente', true);
+  c.setFolder('requisitos-cliente', false);
+  assert.ok(!c.resources().some((r) => r.id === escopo));
+  assert.throws(() => c.setFolder('../beta', true), /not in the project/);
+  assert.throws(() => c.setFolder('temporary', true), /not in the project/);
 });
 
 test('context pack: selected text first within the budget, then related references', async () => {
@@ -158,8 +194,10 @@ test('MCP: initialize, tools/list, tools/call, and every call is logged', async 
   assert.equal(init.result.protocolVersion, '2025-03-26');
   assert.equal(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const list = await handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['moki_get_project', 'moki_list_resources', 'moki_search_knowledge', 'moki_get_resource', 'moki_get_context', 'moki_get_agent']);
-  assert.ok(list.result.tools.every((t) => t.annotations.readOnlyHint));
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['moki_get_project', 'moki_list_resources', 'moki_search_knowledge', 'moki_get_resource', 'moki_get_context', 'moki_get_agent',
+    'moki_record_learning', 'moki_list_learnings', 'moki_get_evolution', 'moki_propose_version']);
+  // Only the two evolution tools write, and only to the evolution registry.
+  assert.deepEqual(list.result.tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name), ['moki_record_learning', 'moki_propose_version']);
   const call = async (name: string, args: object) => ((await handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } })) as { result: { content: { text: string }[]; isError: boolean } }).result;
   assert.equal(JSON.parse((await call('moki_get_project', {})).content[0].text).id, 'acme');
   assert.match((await call('moki_search_knowledge', { query: 'renewal' })).content[0].text, /business-rules\.md/);
@@ -170,6 +208,18 @@ test('MCP: initialize, tools/list, tools/call, and every call is logged', async 
   assert.equal(((await handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'moki_write', arguments: {} } })) as { error: { code: number } }).error.code, -32602);
   const log = readFileSync(join(projects, 'acme', 'logs', 'companion.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(log.some((e) => e.tool === 'moki_get_resource' && e.error));
+  // Evolution: a learning in the person's words, Mycroft's proposal checked and left waiting (never applied here).
+  const taught = JSON.parse((await call('moki_record_learning', { kind: 'skill', name: 'test-design', text: 'Number the cases TC-001.', scope: 'project' })).content[0].text);
+  assert.equal(taught.scope, 'project');
+  assert.ok(existsSync(join(projects, 'acme', 'learnings.jsonl')));
+  assert.equal(JSON.parse((await call('moki_list_learnings', {})).content[0].text).learnings[0].id, taught.id);
+  const current = JSON.parse((await call('moki_get_evolution', { kind: 'skill', name: 'test-design' })).content[0].text);
+  const broken = await call('moki_propose_version', { kind: 'skill', name: 'test-design', text: current.text.replace('## Human approval points', '## Gates'), reason: 'x' });
+  assert.ok(broken.isError && /missing section "## Human approval points"/.test(broken.content[0].text));
+  const waiting = await call('moki_propose_version', { kind: 'skill', name: 'test-design', text: current.text.replace('## Purpose', '## Purpose\n\nTC- numbering.'), reason: 'The person numbers cases.', learnings: [taught.id] });
+  assert.ok(!waiting.isError);
+  assert.equal(JSON.parse((await call('moki_list_learnings', {})).content[0].text).waiting.length, 1);
+  assert.equal(JSON.parse((await call('moki_get_evolution', { kind: 'skill', name: 'test-design' })).content[0].text).history.active, 0, 'not applied by the AI');
 });
 
 test('MCP: the session is bound to one project, or explains why not', async () => {

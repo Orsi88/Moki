@@ -54,6 +54,25 @@ body { font-size: 13px; background: var(--bg); padding: 0; }
 .mk-ctx-name { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-ctx .mk-card-hint { -webkit-line-clamp: 1; }
 
+/* What the AI sees: one row per folder (checkbox, name, files and tokens under it); the files only when it is open. */
+.mk-folders { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); }
+.mk-folders[aria-busy="true"] { opacity: 0.7; }
+.mk-folder + .mk-folder { border-top: 1px solid var(--border); }
+.mk-folder-row { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; padding: 8px 10px; }
+.mk-folder-row input[type="checkbox"] { margin: 0; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.mk-folder-name { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 600; text-align: left; cursor: pointer; }
+.mk-folder-name svg { flex-shrink: 0; color: var(--muted); transition: transform 0.15s; }
+.mk-folder-name[aria-expanded="true"] svg { transform: rotate(90deg); }
+.mk-folder-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-folder-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.68rem; font-weight: 500; color: var(--muted); }
+.mk-folder-meta { grid-column: 2; padding-left: 18px; font-size: 0.75rem; color: var(--muted); }
+.mk-folder.off .mk-folder-label { color: var(--faint); }
+.mk-folder-files { list-style: none; margin: 0; padding: 0 10px 6px 33px; }
+.mk-folder-files li { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-top: 1px dashed var(--border); }
+.mk-folder-files li.off .mk-ctx-name { color: var(--faint); text-decoration: line-through; }
+.mk-folder-files .mk-card-hint { -webkit-line-clamp: 1; }
+.mk-file-toggle { flex-shrink: 0; font-size: 0.75rem; }
+
 .mk-switch { position: relative; flex-shrink: 0; width: 28px; height: 16px; cursor: pointer; }
 .mk-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .mk-switch-track { position: absolute; inset: 0; border-radius: 999px; background: var(--bg-3); border: 1px solid var(--border); transition: background 0.15s; }

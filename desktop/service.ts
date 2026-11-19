@@ -32,7 +32,11 @@ import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
 import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
-import { createClaudeProfiles } from './claude-profiles.ts';
+import { createAiAccounts } from './ai-accounts.ts';
+import { chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
+import { approveProposal, currentText, declineProposal, dismissLearning, itemHistory, learn, listLearnings, originalChanged, pendingProposals, revertTo, versionText } from '../scripts/lib/evolution.ts';
+import { evolutionItem } from '../scripts/lib/evolution-check.ts';
+import { lineDiff } from '../scripts/lib/text-diff.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
 import { checkOperation, cleanOperation, formatMessage, listOperations, removeOperation, seedExample, suggestOutput, writeOperation, type OperationAgent } from '../scripts/lib/operations.ts';
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
@@ -175,6 +179,7 @@ const CONTEXT_FILE = /^context\/[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const PLAN_FOLDER = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 const TEXT_LIMIT = 2 * 1024 * 1024;
+const ATTACHMENT_LIMIT = 25 * 1024 * 1024; // one chat attachment
 const AGENT_TEXT_LIMIT = 8000;
 const MAX_TREE_ENTRIES = 5000;
 const OFFICE_TYPES: Record<string, 'docx' | 'xlsx'> = { '.docx': 'docx', '.docm': 'docx', '.dotx': 'docx', '.dotm': 'docx', '.xlsx': 'xlsx', '.xlsm': 'xlsx', '.xltx': 'xlsx', '.xltm': 'xlsx' };
@@ -408,7 +413,9 @@ export function createService(root: string, deps: Deps) {
   const customFile = (agent: Agent): string => inside(libraryDir(root), `${agent.category}/${agent.name}.md`);
 
   // Agents a project may use: the usable agents whose tags reach it (scripts/lib/agent-tags.ts; no tag = every project).
-  const enabledAgents = (project: string): string[] => { projectDir(project); return agentsOfProject(project, root); };
+  // Mycroft, who evolves Moki with the person, is in every project (agents/learning/mycroft.md).
+  const ALWAYS_AGENTS = ['mycroft'];
+  const enabledAgents = (project: string): string[] => { projectDir(project); const own = agentsOfProject(project, root); return [...own, ...ALWAYS_AGENTS.filter((n) => !own.includes(n) && listAgents(root).some((a) => a.name === n))]; };
 
   // Copies the folder's AI settings to <into>/<kind>-<date>/; undefined when it has none.
   function backupAiConfig(into: string, folder: string, kind: string, names = AI_CONFIG): string | undefined {
@@ -474,9 +481,9 @@ export function createService(root: string, deps: Deps) {
 
   // Skills and agents for all projects live in the user folder: Claude Code's, and .agents for Codex/Gemini/Cursor.
   const home = deps.home ?? homedir();
-  // Claude accounts (desktop/claude-profiles.ts): the active profile is set in this process's environment, so every
-  // Claude started afterwards uses it.
-  const claudeProfiles = createClaudeProfiles(home, join(workspacesHome(root), 'claude-profile.json'));
+  // Accounts of the AI tools (desktop/ai-accounts.ts): the active one of each is set in this process's environment, so
+  // everything started afterwards uses it. claude-profile.json is the first version's file (Claude only).
+  const aiAccounts = createAiAccounts(home, join(workspacesHome(root), 'ai-accounts.json'), process.env, join(workspacesHome(root), 'claude-profile.json'));
   const globalSkillDirs = [join(home, '.claude', 'skills'), join(home, '.agents', 'skills')];
   const globalAgentsDir = join(home, '.claude', 'agents');
 
@@ -911,7 +918,7 @@ export function createService(root: string, deps: Deps) {
     const enabled = new Set(agentsOfProject(project, root));
     for (const agent of listAgents(root)) {
       if (!enabled.has(agent.name) || !isUsableAgent(agent)) continue;
-      const text = geminiAgent(readFileSync(join(root, agent.path), 'utf8'));
+      const text = geminiAgent(readFileSync(resolve(root, agent.path), 'utf8'));
       if (text) files.set(text.name, text.text);
     }
     const own = projectAgentsDir(project, root).dir;
@@ -1046,7 +1053,7 @@ export function createService(root: string, deps: Deps) {
     if (!project) throw new ServiceError('Unknown project.');
     const activity = String(req.activity ?? '');
     const trackingId = req.trackingId;
-    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
+    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk' || activity === 'call')) throw new ServiceError('Invalid activity tracking identifier.');
     const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
     if (!def) throw new ServiceError('Unknown activity.');
     if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
@@ -1103,7 +1110,8 @@ export function createService(root: string, deps: Deps) {
       description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
       available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
     // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
-    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
+    // A plain call is no activity: a run the conversation later starts records its own.
+    const origin = activity === 'resume' || activity === 'call' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, references, prompt, tool, def };
   }
@@ -2164,7 +2172,7 @@ export function createService(root: string, deps: Deps) {
 
     agent: (name: string) => {
       const agent = findAgent(name);
-      return { ...agent, usable: isUsableAgent(agent), text: readFileSync(join(root, agent.path), 'utf8'), html: markdownToHtml(agent.body) };
+      return { ...agent, usable: isUsableAgent(agent), text: readFileSync(resolve(root, agent.path), 'utf8'), html: markdownToHtml(agent.body) };
     },
 
     duplicateAgent: (name: string) => {
@@ -2577,6 +2585,31 @@ export function createService(root: string, deps: Deps) {
       const file = join(folder, name);
       writeFileSync(file, bytes);
       return file;
+    },
+    // Chat attachments: a file dropped or picked from the computer, or pasted, saved in the project's
+    // temporary/attachments/ from its bytes (never from a path the window sends). Returns the path in the project.
+    saveAttachment: (project: string, name: unknown, data: unknown) => {
+      projectDir(project);
+      const bytes = data instanceof Uint8Array ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (!bytes || !bytes.length) throw new ServiceError('The file is empty.');
+      if (bytes.length > ATTACHMENT_LIMIT) throw new ServiceError('The file is too large to attach (25 MB at most).');
+      const clean = (basename(String(name ?? '')).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/^\.+/, '').trim() || 'file').slice(-120);
+      const folder = projectPath(project, 'temporary/attachments');
+      mkdirSync(folder, { recursive: true });
+      let file = clean;
+      for (let n = 2; existsSync(join(folder, file)); n++) file = clean.replace(/(\.[^.]*)?$/, (ext) => `-${n}${ext}`);
+      writeFileSync(join(folder, file), bytes);
+      return `temporary/attachments/${file}`;
+    },
+    // The files a chat answer names (desktop/chat-files.ts): found in this project, gone, or not reachable.
+    chatAnswerFiles: (project: string, text: unknown): ChatFile[] => {
+      projectDir(project);
+      return chatFileRefs(typeof text === 'string' ? text.slice(0, TEXT_LIMIT) : '').map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
+    },
+    chatFiles: (project: string, refs: unknown): ChatFile[] => {
+      projectDir(project);
+      const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r.length > 0 && r.length < 1000).slice(0, 20) : [];
+      return list.map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
     },
 
     // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
@@ -3138,11 +3171,19 @@ export function createService(root: string, deps: Deps) {
       if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       return failing(() => conversations.state(dir, id));
     },
-    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown) => {
+    // label: the message is a request from Call… (shown folded under that name, which titles the conversation).
+    // attachments: files of this project (paths in it) the person added to the message; each must be there.
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown, attachments?: unknown) => {
       const dir = projectDir(project);
       if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
       if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const files = (Array.isArray(attachments) ? attachments : []).slice(0, 10).map((ref) => {
+        const file = resolveChatFile(projectsDir(root), project as string, workspaceLabel(root), String(ref));
+        if (file.status !== 'ok') throw new ServiceError(`The attached file ${file.name} is not in this project any more.`);
+        return file.path;
+      });
+      const name = typeof label === 'string' ? cleanPrompt(label).replace(/\s+/g, ' ').trim().slice(0, 120) : '';
       const workspace = workspaceDir(root);
       await deps.fixPath?.();
       if (workspaceDir(root) !== workspace || projectDir(project) !== dir) throw new ServiceError('The workspace changed. Open the chat again.');
@@ -3158,17 +3199,71 @@ export function createService(root: string, deps: Deps) {
         env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
         sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
         setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
-      })));
+      }), name || undefined, files));
     },
     chatStop: (project: unknown, id: unknown) => {
       const dir = projectDir(project);
       if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       conversations.stop(dir, id); return true;
     },
-    // Settings › My AIs and the status bar's Usage: the Claude accounts, the one in use, and a new one to sign in to.
-    claudeProfiles: () => claudeProfiles.list(),
-    useClaudeProfile: (id: unknown) => failing(() => claudeProfiles.use(id)),
-    addClaudeProfile: (name: unknown) => failing(() => claudeProfiles.add(name)),
+    // Evolution (Mycroft, scripts/lib/evolution.ts): an item's versions, the change waiting for the person, what they
+    // taught it. Approving, declining, going back and restoring the original happen only here, on the person's click.
+    // `project`: the project whose own learnings show too (never another project's).
+    evolution: (kind: unknown, name: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const h = itemHistory(item.kind, item.name, root);
+      const waiting = pendingProposals(root).find((p) => p.kind === item.kind && p.name === item.name);
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      const learnings = listLearnings(root, own).filter((l) => l.kind === item.kind && l.name === item.name);
+      return {
+        kind: item.kind, name: item.name, builtin: item.builtin, active: h.active, entries: h.entries, originalChanged: originalChanged(item, root),
+        proposal: waiting ? { id: waiting.id, at: waiting.at, reason: waiting.reason, proposedBy: waiting.proposedBy,
+          learnings: learnings.filter((l) => waiting.learnings.includes(l.id)).map((l) => l.text), diff: lineDiff(currentText(item, root), waiting.text) } : null,
+        learnings: learnings.filter((l) => l.status === 'open'),
+      };
+    },
+    // The difference between two versions (0: the original).
+    evolutionDiff: (kind: unknown, name: unknown, from: unknown, to: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      return failing(() => lineDiff(versionText(item, Number(from), root), versionText(item, Number(to), root)));
+    },
+    // The changes waiting for the person, every item (the notification bell).
+    evolutionWaiting: () => pendingProposals(root).map(({ id, kind, name, reason, at }) => ({ id, kind, name, reason, at })),
+    approveVersion: (kind: unknown, name: unknown, proposalId: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      failing(() => approveProposal(item, proposalId, root, own));
+      return service.evolution(kind, name, project);
+    },
+    declineVersion: (kind: unknown, name: unknown, proposalId: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      failing(() => declineProposal(item, proposalId, root));
+      return service.evolution(kind, name);
+    },
+    // "Go back to this version" (a new version with its text) and "Restore the original" (version 0).
+    revertVersion: (kind: unknown, name: unknown, version: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      failing(() => revertTo(item, typeof version === 'number' ? version : Number.NaN, root));
+      return service.evolution(kind, name, project);
+    },
+    // "Teach this item something": what the person wants, in their words, for the workspace or only one project.
+    teach: (kind: unknown, name: unknown, text: unknown, project?: unknown) => {
+      const item = failing(() => evolutionItem(kind, name, root));
+      const own = typeof project === 'string' && project ? { id: project, dir: projectDir(project) } : undefined;
+      failing(() => learn({ kind: item.kind, name: item.name, text, scope: own ? 'project' : 'workspace', source: 'Moki settings' }, root, own));
+      return service.evolution(kind, name, project);
+    },
+    dismissTeaching: (kind: unknown, name: unknown, learningId: unknown, project?: unknown) => {
+      const own = typeof project === 'string' && project ? projectDir(project) : undefined;
+      if (typeof learningId !== 'string') throw new ServiceError('Unknown learning.');
+      dismissLearning(learningId, root, own);
+      return service.evolution(kind, name, project);
+    },
+    // Settings › My AIs and the status bar's Usage: each AI's accounts, the one in use, hiding one, and a new one to sign in to.
+    aiAccounts: () => aiAccounts.list(),
+    useAiAccount: (tool: unknown, id: unknown) => failing(() => aiAccounts.use(tool, id)),
+    hideAiAccount: (tool: unknown, id: unknown, on: unknown) => failing(() => aiAccounts.hide(tool, id, on === true)),
+    addAiAccount: (tool: unknown, name: unknown) => failing(() => aiAccounts.add(tool, name)),
     closeChats: () => { conversations.close(); deps.artifactViewer?.close(); return true; },
     removeChat: (project: unknown, id: unknown) => {
       const dir = projectDir(project);

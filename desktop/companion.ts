@@ -7,7 +7,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { contextChoice, listProjects, listSkills, isUsable, projectSummary, projectsDir, type ProjectSummary } from '../scripts/lib/core.ts';
+import { contextChoice, listProjects, listSkills, isUsable, projectSummary, projectsDir, skillFile, type ProjectSummary } from '../scripts/lib/core.ts';
 import { isUsableAgent, listAgents } from '../scripts/lib/agents.ts';
 import { readJson, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
@@ -43,14 +43,21 @@ export interface ContextPack {
 
 export interface SearchHit { id: string; title: string; line: number; snippet: string }
 
-interface Choices { selected: string[]; modes: Record<string, Mode> }
+// folders: the person's choice per folder of the project (its first path segment; '' for loose files) when it
+// differs from the folder's default. A file's own mode, set inside the folder, is an exception to it.
+interface Choices { selected: string[]; modes: Record<string, Mode>; folders: Record<string, boolean> }
 
 export class CompanionError extends Error {}
 
 const TEXT = new Set(['.md', '.txt', '.json', '.csv', '.yaml', '.yml', '.xml', '.feature', '.mmd', '.mermaid', '.puml', '.plantuml', '.d2', '.dot', '.gv', '.pdf']);
-// logs is Moki's own record of what was read; node_modules is not project content.
-const SKIP_FOLDERS = new Set(['logs', 'node_modules']);
-const STANDARD_FOLDERS = ['inbox', 'runs', 'temporary'];
+// Moki's own working folders are never offered: logs (what was read), temporary (scratch files) and, of a run,
+// everything but its deliverables in outputs/ (state.json, inputs, logs, work). node_modules is not project content.
+const SKIP_FOLDERS = new Set(['logs', 'node_modules', 'temporary']);
+const STANDARD_FOLDERS = ['inbox'];
+// The folder of a resource, for the per-folder choice: its first path segment ('' for a loose file).
+export const folderOf = (path: string): string => (path.includes('/') ? path.slice(0, path.indexOf('/')) : '');
+// Deliverables of runs pile up and are long: they wait for the person; every other folder goes to the AI.
+export const folderDefault = (folder: string): boolean => folder !== 'runs';
 const SENSITIVE = [/^\.env(\..*)?$/i, /\.(pem|key|p12|pfx|crt|jks)$/i, /^(credentials|secrets?)(\..*)?$/i, /^id_(rsa|dsa|ecdsa|ed25519)/i];
 const FILE_LIMIT = 200_000; // characters of one resource
 export const DEFAULT_BUDGET = 24_000; // characters of selected content in one context pack
@@ -118,9 +125,11 @@ export function openCompanion(root: string, project: string) {
       return {
         selected: Array.isArray(data.selected) ? data.selected.filter((s): s is string => typeof s === 'string') : [],
         modes: Object.fromEntries(Object.entries(data.modes ?? {}).filter(([, m]) => MODES.includes(m as Mode))) as Record<string, Mode>,
+        folders: Object.fromEntries(Object.entries(data.folders ?? {}).filter(([, on]) => typeof on === 'boolean')) as Record<string, boolean>,
       };
-    } catch { return { selected: [], modes: {} }; }
+    } catch { return { selected: [], modes: {}, folders: {} }; }
   };
+  const folderOn = (c: Choices, folder: string): boolean => c.folders[folder] ?? folderDefault(folder);
   const saveChoices = (c: Choices): void => writeFileSync(choicesFile, `${JSON.stringify(c, null, 2)}\n`);
 
   const fileResource = (owner: string, path: string, kind: ResourceKind, c: Choices): Resource => {
@@ -130,10 +139,17 @@ export function openCompanion(root: string, project: string) {
     let size = 0;
     try { size = statSync(file).size; if (!pdf) text = readFileSync(file, 'utf8').slice(0, 4000); } catch { /* listed, then gone */ }
     const id = label(owner, path);
+    // This project's own files follow their folder's choice unless the file has its own; shared ones keep theirs.
+    const fallback = owner === project && kind !== 'shared' && !folderOn(c, folderOf(path)) ? 'manual' : DEFAULT_MODES[kind];
+    // A run's deliverable says which request it answered (the run's title), not its first line.
+    const run = owner === project ? /^runs\/([^/]+)\/outputs\//.exec(path) : null;
     return {
-      id, kind, title: path, description: pdf ? 'PDF' : firstLine(text), source: owner, size,
-      mode: c.modes[id] ?? DEFAULT_MODES[kind], selected: c.selected.includes(id),
+      id, kind, title: path, description: run ? runTitle(run[1]) || firstLine(text) : pdf ? 'PDF' : firstLine(text), source: owner, size,
+      mode: c.modes[id] ?? fallback, selected: c.selected.includes(id),
     };
+  };
+  const runTitle = (run: string): string => {
+    try { const v = (readJson(join(dir, 'runs', run, 'state.json')) as { title?: unknown }).title; return typeof v === 'string' ? v.slice(0, 200) : ''; } catch { return ''; }
   };
 
   // context/ first, then the standard folders, then every other folder and loose file of the project.
@@ -145,8 +161,12 @@ export function openCompanion(root: string, project: string) {
     add('context', 'context');
     add('notes', 'note');
     for (const folder of STANDARD_FOLDERS) add(folder, 'file');
+    // Of each run, only its deliverables.
+    if (existsSync(join(dir, 'runs'))) {
+      for (const run of readdirSync(join(dir, 'runs')).sort().reverse()) add(`runs/${run}/outputs`, 'file');
+    }
     if (!existsSync(dir)) return out;
-    const standard = new Set(['context', 'notes', ...STANDARD_FOLDERS, ...SKIP_FOLDERS]);
+    const standard = new Set(['context', 'notes', 'runs', ...STANDARD_FOLDERS, ...SKIP_FOLDERS]);
     for (const name of readdirSync(dir).sort()) {
       if (name.startsWith('.') || standard.has(name)) continue;
       let st;
@@ -199,9 +219,9 @@ export function openCompanion(root: string, project: string) {
     if (r.kind === 'agent') {
       const agent = listAgents(root).find((a) => `agent:${a.name}` === r.id);
       if (!agent) throw new CompanionError('Unknown agent.');
-      return readFileSync(join(root, agent.path), 'utf8');
+      return readFileSync(resolve(root, agent.path), 'utf8');
     }
-    if (r.kind === 'skill') return readFileSync(join(root, 'skills', r.id.slice('skill:'.length), 'SKILL.md'), 'utf8');
+    if (r.kind === 'skill') return readFileSync(resolve(root, skillFile(r.id.slice('skill:'.length), root)), 'utf8'); // the version in use
     const rel = r.id.slice(prefix().length + r.source.length + 1);
     let file: string;
     try { file = resolveInside(join(projectsDir(root), r.source), rel); } catch (e) {
@@ -227,6 +247,7 @@ export function openCompanion(root: string, project: string) {
 
   return {
     project,
+    root, // the framework folder this session reads (the MCP server's evolution tools write under its workspace)
 
     // mcpServers: the MCP servers on in Moki for this project (MCP Manager), by id; never their command or variables.
     summary: (): ProjectSummary & { agents: string[]; skills: string[]; mcpServers: { id: string; name: string; transport: string; access: string; description: string }[] } => {
@@ -305,11 +326,27 @@ export function openCompanion(root: string, project: string) {
 
     clearSelection: (): void => saveChoices({ ...choices(), selected: [] }),
 
+    // A whole folder of this project in or out (the panel's checkbox per folder): the exceptions set inside it go,
+    // and leaving it out also takes away the priority of its files.
+    setFolder: (folder: unknown, on: boolean): void => {
+      const own = projectDocuments().filter((d) => folderOf(d.path) === folder);
+      if (typeof folder !== 'string' || !own.length) throw new CompanionError('This folder is not in the project.');
+      const c = choices();
+      if (on === folderDefault(folder)) delete c.folders[folder]; else c.folders[folder] = on;
+      const ids = new Set(own.map((d) => label(project, d.path)));
+      c.modes = Object.fromEntries(Object.entries(c.modes).filter(([id]) => !ids.has(id)));
+      if (!on) c.selected = c.selected.filter((id) => !ids.has(id));
+      saveChoices(c);
+    },
+
     setMode: (id: unknown, mode: unknown): Mode => {
       const r = find(id);
       if (!MODES.includes(mode as Mode)) throw new CompanionError('Unknown mode.');
       const c = choices();
-      if (mode === DEFAULT_MODES[r.kind]) delete c.modes[r.id]; else c.modes[r.id] = mode as Mode;
+      // What the file gets without an exception of its own: its folder's choice (this project's files), else its kind's.
+      const own = r.source === project && r.kind !== 'shared' && r.kind !== 'agent' && r.kind !== 'skill';
+      const base = own && !folderOn(c, folderOf(r.id.slice(prefix().length + project.length + 1))) ? 'manual' : DEFAULT_MODES[r.kind];
+      if (mode === base) delete c.modes[r.id]; else c.modes[r.id] = mode as Mode;
       saveChoices(c);
       return mode as Mode;
     },
@@ -317,8 +354,8 @@ export function openCompanion(root: string, project: string) {
     // A file resource's place on disk, for "Open in editor".
     filePath: (id: unknown): string | null => {
       const r = find(id);
-      if (r.kind === 'agent') { const a = listAgents(root).find((x) => `agent:${x.name}` === r.id); return a ? join(root, a.path) : null; }
-      if (r.kind === 'skill') return join(root, 'skills', r.id.slice('skill:'.length), 'SKILL.md');
+      if (r.kind === 'agent') { const a = listAgents(root).find((x) => `agent:${x.name}` === r.id); return a ? resolve(root, a.path) : null; }
+      if (r.kind === 'skill') return resolve(root, skillFile(r.id.slice('skill:'.length), root));
       return join(projectsDir(root), r.source, ...r.id.slice(prefix().length + r.source.length + 1).split('/'));
     },
 

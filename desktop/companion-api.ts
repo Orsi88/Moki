@@ -9,7 +9,7 @@
 
 import { listProjects, projectSummary, type ProjectSummary } from '../scripts/lib/core.ts';
 import { enabledServers, generatedEntries, syncToolFolder, toolFile, type McpServer } from '../scripts/lib/mcp.ts';
-import type { Companion, Resource } from './companion.ts';
+import { folderOf, type Companion, type Resource } from './companion.ts';
 import { AGENT_AIS } from '../scripts/lib/agents.ts';
 import type { Service } from './service.ts';
 import { allFavorites, allMostUsed, isFavoriteKind, recordUse, setFavoriteOf } from '../scripts/lib/favorites.ts';
@@ -28,7 +28,8 @@ export interface CompanionHost {
   showTerminal: (id: string) => boolean; // brings a step's terminal to the front; false when it is not open here
 }
 
-export interface ContextFile { id: string; path: string; title: string; description: string; kind: string; source: string; included: boolean; priority: boolean }
+// folder: the project folder it belongs to ('' for a loose file), the unit the panel switches; size in bytes, for the estimate.
+export interface ContextFile { id: string; path: string; title: string; description: string; kind: string; source: string; included: boolean; priority: boolean; folder: string; size: number }
 export interface CompanionState { project: ProjectSummary | null; projects: { id: string; name: string }[]; folder: string | null; mcp: { id: string; name: string; access: string; transport: string }[] }
 export interface LaunchInput { activity?: unknown; files?: unknown; note?: unknown; language?: unknown; run?: unknown; agent?: unknown }
 
@@ -44,10 +45,13 @@ export function createCompanionApi(root: string, service: Service, host: Compani
     if (!c) throw new Error('Choose the Moki project of this folder first.');
     return c;
   };
-  const contextFiles = (c: Companion): ContextFile[] => c.allResources().filter((r) => PANEL_KINDS.has(r.kind)).map((r) => ({
-    id: r.id, path: r.id.replace(/^.*?\/projects\/[^/]+\//, ''), title: r.title, description: r.description, kind: r.kind, source: r.source,
-    included: included(r), priority: r.selected,
-  }));
+  const contextFiles = (c: Companion): ContextFile[] => c.allResources().filter((r) => PANEL_KINDS.has(r.kind)).map((r) => {
+    const path = r.id.replace(/^.*?\/projects\/[^/]+\//, '');
+    return {
+      id: r.id, path, title: r.title, description: r.description, kind: r.kind, source: r.source,
+      included: included(r), priority: r.selected, folder: r.kind === 'shared' ? '' : folderOf(path), size: r.size ?? 0,
+    };
+  });
   const context = (id: unknown): Resource => {
     const r = active().allResources().find((x) => x.id === id && PANEL_KINDS.has(x.kind));
     if (!r) throw new Error('This file is not in the project.');
@@ -161,6 +165,12 @@ export function createCompanionApi(root: string, service: Service, host: Compani
       const c = active();
       if (on === true) c.setMode(r.id, 'auto');
       else { c.select(r.id, false); c.setMode(r.id, 'manual'); }
+      return contextFiles(c);
+    },
+    // A whole folder of the project in or out (the panel's checkbox); its files' own exceptions go.
+    setFolder: (folder, on) => {
+      const c = active();
+      c.setFolder(folder, on === true);
       return contextFiles(c);
     },
     // "Priority": moki_get_context gives it first (and it counts as included).

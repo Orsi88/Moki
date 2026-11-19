@@ -2231,9 +2231,9 @@ test('blank project: no QA context files; the AI plan is filtered and approved f
   assert.throws(() => svc.setupProject('blank-one', { description: 'x', linkedSkills: [], agents: ['nobody'] }), /Unknown or unavailable agents: nobody/);
   const summary = svc.setupProject('blank-one', { description: 'React app', linkedSkills: ['react-dev'], agents: ['failure-analyst'], contextFiles: ['context/stack.md'], folders: ['design/docs', '../outside'] });
   assert.deepEqual(summary.linkedSkills, ['react-dev']);
-  assert.deepEqual(svc.projectAgents('blank-one'), ['failure-analyst']);
+  assert.deepEqual(svc.projectAgents('blank-one'), ['failure-analyst', 'mycroft']); // Mycroft is in every project
   assert.deepEqual(svc.readPlan('blank-one'), {
-    approved: true, skills: ['react-dev'], agents: ['failure-analyst'], searchSkills: ['playwright'], contextFiles: [{ path: 'context/stack.md', contains: 'Tech stack' }],
+    approved: true, skills: ['react-dev'], agents: ['failure-analyst', 'mycroft'], searchSkills: ['playwright'], contextFiles: [{ path: 'context/stack.md', contains: 'Tech stack' }],
     folders: [{ path: 'design/docs', contains: 'Documentation' }],
   });
   assert.deepEqual(svc.projectAgents('acme').length > 1, true, 'Set up without agents keeps every agent');

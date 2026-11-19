@@ -51,6 +51,7 @@ Moki turns reusable instructions into work you can start from the app, a termina
 - **Agents** are roles that combine instructions and skills.
 - **Operations** chain several agents, each in its own terminal, passing work to the next step.
 - **Runs** record what happened, where the work stopped and which files were delivered.
+- **Mycroft** turns what you teach ("next time, do it like this") into new versions of agents, skills and activities that you approve, with a history and the original always one click away.
 - Important steps wait for your approval instead of silently changing the project or publishing something.
 
 You can use the built-in workflows or create your own activities, skills and agents.
@@ -115,6 +116,7 @@ The full documentation is in the [wiki](https://github.com/Orsi88/moki/wiki):
 | [Moki in the IDE](https://github.com/Orsi88/moki/wiki/Moki-in-the-IDE) | VS Code, Cursor and project-aware AI |
 | [MCP servers](https://github.com/Orsi88/moki/wiki/MCP-servers) | External tools available to each project |
 | [Routines and notifications](https://github.com/Orsi88/moki/wiki/Routines-and-notifications) | Scheduled checks, baselines and proposals |
+| [Mycroft: teach Moki how you work](https://github.com/Orsi88/moki/wiki/Mycroft) | Learnings, proposed versions, history and restoring the original |
 | [Specialized workflows](https://github.com/Orsi88/moki/wiki/QA-skills-and-agents) | Built-in QA, research, documentation and engineering workflows |
 
 ## Privacy

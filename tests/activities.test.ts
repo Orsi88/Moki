@@ -139,6 +139,18 @@ test('launching: "talk" is a conversation with one agent, never listed where an 
   assert.match(prompts.at(-1) ?? '', /Ask me what I have in mind\./);
 });
 
+test('"Just call": the AI with the project context, no activity, nothing tracked or recorded, never in the activity list', () => {
+  prompts.length = 0;
+  assert.ok(listActivities(root).some((a) => a.id === 'call' && a.source === 'moki'));
+  assert.ok(!svc.activities('acme').activities.some((a) => a.id === 'call'), 'not offered as an activity (issue #46)');
+  svc.launch({ project: 'acme', activity: 'call', tool: 'claude', files: [], note: '', language: 'English' } as never);
+  const prompt = prompts.at(-1) ?? '';
+  assert.match(prompt, /This is a plain call, not an activity/);
+  assert.match(prompt, /Do not start a run, follow a skill procedure or write files on your own\./);
+  assert.doesNotMatch(prompt, /record the activity it came from/, 'a run started later records its own activity');
+  assert.throws(() => svc.launch({ project: 'acme', activity: 'call', tool: 'claude', files: [], note: '', language: 'English', trackingId: 'a'.repeat(32) } as never), /Invalid activity tracking identifier/);
+});
+
 test('"open" stays a request (IDE agent cards, qa --activity open) but is never offered as an activity', () => {
   prompts.length = 0;
   assert.ok(listActivities(root).some((a) => a.id === 'open' && a.source === 'moki'));

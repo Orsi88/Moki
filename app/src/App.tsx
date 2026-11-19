@@ -162,7 +162,7 @@ export function App() {
     return (
       <>
         <div className="shell">
-          <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onOpenRoutine={() => setSettings('routines')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
+          <Ribbon onIde={() => setIdeCompanion(true)} settingsOn={settings !== null} onHome={home} onSettings={() => setSettings(settings ? null : 'agents')} onOpenRoutine={(tab) => setSettings(tab ?? 'routines')} onNewNote={settings ? openQuickNote : () => setHomeNote((n) => n + 1)} searchOn={search} onSearch={toggleSearch} />
           <Home offer={offer} onOffer={() => setOffer(null)} newNote={homeNote} projects={projects} tools={tools} version={version} onOpen={open} onCreate={create} settings={settings} onSettings={setSettings} project={null} onTerminal={openTerminal} workspace={workspace} onWorkspace={openWorkspace} search={search} onSearch={toggleSearch} onFound={openFound} onDeleted={() => { void loadProjects(); }} onRenamed={() => { void loadProjects(); }} onToolsChanged={loadTools} />
           <footer className="statusbar"><span className="statusbar-spacer" /><UsageStatus names={Object.fromEntries(projects.map((p) => [p.id, p.name]))} /></footer>
         </div>
