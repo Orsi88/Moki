@@ -37,6 +37,13 @@ test('AI accounts: one block per AI, choose and remember, hide, and add one that
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const envOf = (name: string) => app!.evaluate((_electron, key) => process.env[key] ?? '', name);
+    // Screens for a person to look at (QA_UI_INSPECTION), taken by Electron: page.screenshot waits for every font, and
+    // the emoji font of the Markers page may never report loaded.
+    const shot = async (name: string) => {
+      if (!process.env.QA_UI_INSPECTION) return;
+      const png = await app!.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64'));
+      writeFileSync(join(realpathSync(process.env.QA_UI_INSPECTION), name), Buffer.from(png, 'base64'));
+    };
 
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('tab', { name: 'My AIs', exact: true }).click();
@@ -68,8 +75,24 @@ test('AI accounts: one block per AI, choose and remember, hide, and add one that
       const width = await section.evaluate((el) => ({ own: el.clientWidth, scroll: el.scrollWidth, grid: (document.querySelector('.ai-grid') as HTMLElement).clientWidth }));
       expect(width.scroll).toBeLessThanOrEqual(width.own + 1);
       expect(Math.abs(width.own - width.grid)).toBeLessThanOrEqual(2); // as wide as the AI cards above it
-      if (process.env.QA_UI_INSPECTION) await page.screenshot({ path: join(realpathSync(process.env.QA_UI_INSPECTION), `ai-accounts-${theme}.png`), fullPage: true });
+      await section.scrollIntoViewIfNeeded();
+      await shot(`ai-accounts-${theme}.png`);
     }
+
+    // The page's header: Check again, and the rare diagnostic inside "More options".
+    await expect(page.getByRole('button', { name: 'Copy diagnostic' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'More options', exact: true }).first().click();
+    await expect(page.getByRole('menuitem', { name: /Copy the AI detection diagnostic/ })).toBeVisible();
+    await shot('my-ais-head.png');
+    await page.locator('.menu-backdrop').click({ position: { x: 5, y: 5 } }); // a click outside closes it
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    // Markers use the page's whole width, like My AIs.
+    const myAis = await page.locator('.ai-tools').evaluate((el) => el.getBoundingClientRect().width);
+    await page.getByRole('tab', { name: 'Markers', exact: true }).click();
+    const markers = await page.locator('.settings-markers').evaluate((el) => el.getBoundingClientRect().width);
+    expect(Math.abs(markers - myAis)).toBeLessThanOrEqual(2);
+    await shot('markers.png');
+    await page.getByRole('tab', { name: 'My AIs', exact: true }).click();
 
     // A new Codex account: an empty profile, made active, and Codex opens in a terminal tab to sign in.
     await page.getByRole('button', { name: 'Add ChatGPT (Codex) account', exact: true }).click();

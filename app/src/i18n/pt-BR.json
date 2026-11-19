@@ -2519,5 +2519,7 @@
   "Open the AI in a terminal of a project to sign in to this account.": "Abra a IA num terminal de um projeto para entrar nesta conta.",
   "This AI has no accounts in Moki.": "Esta IA não tem contas no Moki.",
   "Unknown account.": "Conta desconhecida.",
-  "Choose another account before hiding the one in use.": "Escolha outra conta antes de ocultar a que está em uso."
+  "Choose another account before hiding the one in use.": "Escolha outra conta antes de ocultar a que está em uso.",
+  "Where Moki looked for each AI on this computer, to paste in a request for help": "Onde o Moki procurou cada IA neste computador, para colar num pedido de ajuda",
+  "Copy the AI detection diagnostic": "Copiar o diagnóstico de detecção das IAs"
 }

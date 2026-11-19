@@ -938,6 +938,8 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .choice-title { font-weight: 600; font-size: 0.9rem; }
 .choice-hint { font-size: 0.78rem; color: var(--muted); }
+/* A page header with more than one action keeps them together at its right. */
+.list-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 /* Accounts of each AI (AiAccounts): Settings › My AIs, full width like the AI grid, and the quick switch in Usage. */
 .ai-accounts-section { display: grid; gap: 10px; margin-top: 24px; }
 .ai-accounts-section h3 { margin: 0; font-size: 0.95rem; }
@@ -2709,7 +2711,7 @@ span.mcp-row-main { cursor: default; }
 .marker-choice:hover:not(:disabled) { border-color: var(--muted); }
 .marker-choice.on { border-color: var(--accent); background: var(--accent-soft); }
 .marker-none { margin-left: 4px; font-size: 0.78rem; }
-.settings-markers { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 980px; height: 100%; padding: var(--settings-page-y) var(--settings-page-x) var(--settings-page-bottom); overflow: auto; }
+.settings-markers { display: flex; flex-direction: column; gap: 14px; width: 100%; height: 100%; padding: var(--settings-page-y) var(--settings-page-x) var(--settings-page-bottom); overflow: auto; }
 .settings-markers h1 { font-size: 1.6rem; margin: 0; }
 .settings-markers > p { margin: 0; }
 .marker-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
