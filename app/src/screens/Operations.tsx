@@ -320,7 +320,7 @@ export function Operations({ tools }: Props) {
         ) : (
           <div className={`ops-editor${expanded ? ' expanded' : ''}`} ref={editor}>
             {error && <div className="error-bar">{error}<button type="button" className="icon-btn" onClick={() => setError('')}><IconX size={14} /></button></div>}
-            {notice && !dirty && <div className="error-bar info-bar" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
+            {notice && !dirty && <div className="error-bar info-bar success" role="status">{notice}<button type="button" className="icon-btn" onClick={() => setNotice('')}><IconX size={14} /></button></div>}
             <header className="ops-head">
               <BackArrow label={t('Operations')} onBack={back} />
               <div className="ops-titles">

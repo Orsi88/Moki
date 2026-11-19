@@ -168,7 +168,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
           </div>
         </header>
         {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-        {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+        {info && <div className="result success" role="status"><p className="result-title">{info}</p></div>}
         <section className="agent-card">
           <div className="agent-card-head"><h2>{t('Description')}</h2></div>
           <p>{current.description || '—'}</p>

@@ -56,7 +56,7 @@ export function SkillLibrary({ project, scope }: Props) {
   return (
     <>
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
-      {info && <div className="result" role="status"><p className="result-title">{info}</p></div>}
+      {info && <div className="result success" role="status"><p className="result-title">{info}</p></div>}
 
       <section className="field">
         <div className="skill-card-head">

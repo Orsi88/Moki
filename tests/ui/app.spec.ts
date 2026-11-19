@@ -61,6 +61,51 @@ async function cssSize(selector: string): Promise<{ height: number; fontSize: st
   });
 }
 
+async function expectSuccessInBothThemes(view: Page, message: Locator): Promise<void> {
+  await expect(message).toBeVisible();
+  const previous = await view.locator('html').getAttribute('data-theme');
+  try {
+    for (const mode of ['light', 'dark'] as const) {
+      await view.evaluate((value) => { document.documentElement.dataset.theme = value; }, mode);
+      const { background, contrast } = await message.evaluate((element) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) throw new Error('Could not read message colors.');
+        const channels = (color: string) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+        };
+        const luminance = (rgb: number[]) => {
+          const [red, green, blue] = rgb.map((channel) => {
+            const value = channel / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+        };
+        const style = getComputedStyle(element);
+        const background = channels(style.backgroundColor);
+        const text = getComputedStyle(element.querySelector('.result-title') ?? element).color;
+        const values = [luminance(background), luminance(channels(text))];
+        return { background, contrast: (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05) };
+      });
+      const expected = mode === 'light' ? [208, 221, 197] : [57, 68, 51];
+      // Canvas converts fractional CSS channels to 8-bit values.
+      expect(Math.max(...background.map((value, index) => Math.abs(value - expected[index])))).toBeLessThanOrEqual(1);
+      expect(contrast).toBeGreaterThanOrEqual(4.5);
+      await message.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+      await view.screenshot({ path: test.info().outputPath(`success-${mode}.png`) });
+    }
+  } finally {
+    await view.evaluate((value) => {
+      if (value === null) delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = value;
+    }, previous);
+  }
+}
+
 test('Moki restores document tabs, active mode and scroll after leaving, reloading and deleting a file', async () => {
   const root = fixture();
   const profile = mkdtempSync(join(tmpdir(), 'moki-view-profile-'));
@@ -1623,7 +1668,12 @@ test.describe.serial('Moki MCP servers list', () => {
     await mcpPage.getByRole('button', { name: 'Adicionar servidor', exact: true }).click();
     await mcpPage.getByRole('textbox', { name: 'Nome do servidor', exact: true }).fill('Azure DevOps');
     await mcpPage.getByRole('button', { name: 'HTTP', exact: true }).click();
-    await mcpPage.getByRole('textbox', { name: 'URL', exact: true }).fill('https://mcp.dev.azure.com/acme');
+    const url = mcpPage.getByRole('textbox', { name: 'URL', exact: true });
+    const save = mcpPage.getByRole('button', { name: 'Salvar', exact: true });
+    await url.fill('invalid-url');
+    await save.click();
+    await expect(mcpPage.locator('.mcp-page .result.warn')).toContainText('http://');
+    await url.fill('https://mcp.dev.azure.com/acme');
     await mcpPage.getByRole('tab', { name: 'Cabeçalhos' }).click();
     await expect(mcpPage.getByText('Login OAuth (opcional)')).toBeVisible();
     await mcpPage.getByRole('textbox', { name: 'Client id' }).fill('0f1e2d3c-aaaa-bbbb-cccc-1234567890ab');
@@ -1632,8 +1682,9 @@ test.describe.serial('Moki MCP servers list', () => {
       await mcpPage.evaluate((m) => document.documentElement.setAttribute('data-theme', m), mode);
       await mcpPage.locator('.mcp-form').screenshot({ path: test.info().outputPath(`mcp-oauth-${mode}.png`) });
     }
-    await mcpPage.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await save.click();
     await expect.poll(saved).toEqual({ clientId: '0f1e2d3c-aaaa-bbbb-cccc-1234567890ab', callbackPort: 3118 });
+    await expectSuccessInBothThemes(mcpPage, mcpPage.getByRole('status').filter({ hasText: 'Salvo.' }));
     // stdio servers have no OAuth fields.
     await mcpPage.getByRole('tab', { name: 'Configuração' }).click();
     await mcpPage.getByRole('button', { name: 'stdio', exact: true }).click();
@@ -2169,6 +2220,7 @@ test.describe.serial('Moki activities', () => {
     const file = join(dirs[0], 'workspace', 'projects', 'acme', 'agents', 'writing-helper.md');
     await expect.poll(() => existsSync(file)).toBe(true);
     expect(readFileSync(file, 'utf8')).toContain('No skills are assigned. Follow the role and instructions above.');
+    await expectSuccessInBothThemes(actPage, actPage.getByRole('status').filter({ hasText: 'Agente writing-helper criado' }));
   });
 });
 
@@ -3915,6 +3967,7 @@ test('markers: set in Settings in the person language, put on a comment as the p
     await captureRoutineWindow(opened.app, info.outputPath('markers-settings.png'));
     await view.getByRole('button', { name: 'Salvar marcadores', exact: true }).click();
     await expect(view.getByRole('status')).toContainText('Marcadores salvos.');
+    await expectSuccessInBothThemes(view, view.getByRole('status').filter({ hasText: 'Marcadores salvos.' }));
     const saved = JSON.parse(readFileSync(join(root, 'workspace', 'markers.json'), 'utf8'));
     expect(saved.at(-1)).toMatchObject({ icon: '🧪', name: 'Testar', meaning: 'Precisa de um teste antes de seguir.', color: 'red' });
   } finally {

@@ -227,7 +227,7 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
           <div ref={listTop} />
           {busy === 'search' && <p className="muted small">{loadingPage > 1 ? t('Loading page {n}…', { n: loadingPage }) : t('Searching…')} {t('The registry can take a few seconds.')}</p>}
           {(done || error) && (
-            <div className={`result${error ? ' warn' : ''}`} role="status">
+            <div className={`result${error ? ' warn' : done && !done.unverified.length ? ' success' : ''}`} role="status">
               {error && <p className="result-title">{error}</p>}
               {done && (
                 <>

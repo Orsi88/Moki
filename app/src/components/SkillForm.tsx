@@ -26,19 +26,19 @@ export function SkillForm({ project, scope, tools, onTerminal }: Props) {
   const [tool, setTool] = useState(() => preferredTool(usable)?.id ?? '');
   const [proposals, setProposals] = useState<{ name: string; description: string }[]>([]);
   const [busy, setBusy] = useState('');
-  const [info, setInfo] = useState('');
+  const [info, setInfo] = useState<{ text: string; success?: boolean } | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(() => { api.skillProposals(project.id).then(setProposals).catch(() => { /* keep */ }); }, [project.id]);
   useEffect(load, [load]);
 
   const create = async () => {
-    setBusy('create'); setError(''); setInfo('');
+    setBusy('create'); setError(''); setInfo(null);
     setSkillCat(name, cat);
     try {
       const r = await api.proposeSkill(project.id, { name, prompt, tool, language: conversationLanguage() });
       if (r.terminal) { onTerminal(r.terminal); return; }
-      if (r.opened) setInfo(r.message ?? ''); else setError(r.message ?? t('Could not open the AI tool.'));
+      if (r.opened) setInfo(r.message ? { text: r.message } : null); else setError(r.message ?? t('Could not open the AI tool.'));
     } catch (e) { setError(message(e)); } finally { setBusy(''); }
   };
 
@@ -48,10 +48,13 @@ export function SkillForm({ project, scope, tools, onTerminal }: Props) {
       : toClaude ? t("the project {name}?\n\nThis CHANGES {folder}/.claude: the skill is written to its skills folder (the current .claude is backed up to the project's backups/ first)", { name: project.name, folder: project.repository })
       : t('the project {name}', { name: project.name });
     if (!await confirmDialog(`${t('Install the proposal "{name}" for {where}', { name: n, where })}${toClaude ? '.' : '?'}\n\n${t('Review its SKILL.md first: a skill can instruct the AI to run commands.')}`)) return;
-    setBusy(n); setError(''); setInfo('');
+    setBusy(n); setError(''); setInfo(null);
     try {
       const r = await api.installProposal(project.id, n, scope, toClaude);
-      setInfo(`${t('Installed {name} in {folders}', { name: r.name, folders: r.folders.join(', ') })}${r.backup ? `. ${t('Backup of the previous .claude:')} ${r.backup}` : ''}`);
+      setInfo({
+        text: `${t('Installed {name} in {folders}', { name: r.name, folders: r.folders.join(', ') })}${r.backup ? `. ${t('Backup of the previous .claude:')} ${r.backup}` : ''}`,
+        success: true,
+      });
     } catch (e) { setError(message(e)); } finally { setBusy(''); }
   };
 
@@ -98,8 +101,8 @@ export function SkillForm({ project, scope, tools, onTerminal }: Props) {
       </label>
 
       {(info || error) && (
-        <div className={`result${error ? ' warn' : ''}`} role="status">
-          <p className="result-title">{error || <><IconCheck size={17} /> {info}</>}</p>
+        <div className={`result${error ? ' warn' : info?.success ? ' success' : ''}`} role="status">
+          <p className="result-title">{error || <><IconCheck size={17} /> {info?.text}</>}</p>
         </div>
       )}
 
