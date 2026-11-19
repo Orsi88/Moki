@@ -165,7 +165,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
       const req = { project: project.id, activity, tool, files, note, language, run: resume ? run : undefined, agent: agent || undefined, skill: skill || undefined, exclude: resume ? [] : exclude, ...(context.length ? { context } : {}), ...(trackingId ? { trackingId } : {}) };
       if (destination === 'chat' && onChat) {
         const prepared = await api.chatRequest(req);
-        if (!late) { onActivityUpdate?.(trackingId, 'prepared'); onChat(prepared.prompt, tool); }
+        if (!late) { onActivityUpdate?.(trackingId, 'sent'); onChat(prepared.prompt, tool); }
         return;
       }
       if (destination === 'current' && preset?.terminal) {
@@ -191,7 +191,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
 
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } };
 
-  const buttonLabel = destination === 'chat' ? t('Prepare in the chat') : destination === 'current' ? t('Paste into this terminal') : !selectedTool ? t('Open') : selectedTool.kind === 'print' ? t('Prepare the request')
+  const buttonLabel = destination === 'chat' ? t('Send to the chat') : destination === 'current' ? t('Paste into this terminal') : !selectedTool ? t('Open') : selectedTool.kind === 'print' ? t('Prepare the request')
     : selectedTool.kind === 'chat' ? t('Prepare for the web chat') : t('Open in {tool}', { tool: t(selectedTool.label).replace(/ \(.*\)$/, '') });
   // "Just show the request" and the web chat never open a program. The request itself is the result.
   const requestReady = Boolean(result && !error && !result.opened && result.prompt && (selectedTool?.kind === 'print' || selectedTool?.kind === 'chat'));
@@ -357,7 +357,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
             </div>
           )}
           {step === 'destination' && <div className="answer-list">
-            {onChat && tools.some((ai) => ai.id === 'claude' && ai.available) && <Answer title={t('In the chat')} hint={t('Prepare a draft in the single chat tab of this project. Review it before sending.')}
+            {onChat && tools.some((ai) => ai.id === 'claude' && ai.available) && <Answer title={t('In the chat')} hint={t('Send it now, in a new conversation in the single chat tab of this project.')}
               on={destination === 'chat'} onPick={() => { setDestination('chat'); setTool('claude'); setStep('tool'); }} />}
             <Answer title={t('This terminal')} hint={preset?.terminal ? t('Paste into {terminal}. Review it, add context and press Enter when ready.', { terminal: preset.terminal.title }) : t('Open a running AI terminal in this project to use this option.')}
               on={destination === 'current'} disabled={!preset?.terminal} onPick={() => { setDestination('current'); setStep('review'); }} />

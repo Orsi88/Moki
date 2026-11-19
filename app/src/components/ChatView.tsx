@@ -50,11 +50,13 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   useEffect(() => {
     if (!pending || pending.key === lastPending.current) return;
     lastPending.current = pending.key;
-    if (CHAT_TOOLS.includes(pending.tool)) setChosen(pending.tool);
-    setArtifact(null);
-    setDraft((current) => `${current}${current.trim() ? '\n\n' : ''}${pending.text}`);
+    // A request from Call… is sent at once, in a new conversation (like a new terminal); the person's draft stays.
+    const target = usable.find((x) => x.id === pending.tool) ?? tool;
     onPending();
-    requestAnimationFrame(() => box.current?.focus());
+    setArtifact(null);
+    if (!target) { setError(t('Install in Settings › My AIs')); return; }
+    setChosen(target.id);
+    void deliver(pending.text, target.id, undefined);
   }, [pending]);
 
   // The answer arriving: the app says when the conversation changed, and it is read then (one read at a time).
@@ -78,16 +80,20 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   }, [id, busy, project, loadHistory]);
   useEffect(() => { if (active && !artifact) end.current?.scrollIntoView({ block: 'nearest' }); }, [active, artifact, state?.record.messages.at(-1)?.text]);
 
+  // `chat`: the conversation to continue; undefined starts a new one.
+  const deliver = async (text: string, toolId: string, chat: string | undefined) => {
+    setSending(true); setError('');
+    try {
+      const next = await api.chatSend(project, chat, toolId, text, conversationLanguage());
+      setState(next); remember(`${prefix}:id`, next.record.id);
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
+    finally { setSending(false); }
+  };
   const send = async () => {
     if (!tool || !draft.trim() || sending || state?.busy) return;
-    setSending(true); setError('');
     const text = draft;
-    try {
-      const next = await api.chatSend(project, state?.record.id, tool.id, text, conversationLanguage());
-      setState(next); remember(`${prefix}:id`, next.record.id);
-      setDraft((current) => current === text ? '' : current);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setSending(false); }
+    if (await deliver(text, tool.id, state?.record.id)) setDraft((current) => current === text ? '' : current);
   };
   const selectHistory = async (chat: string) => {
     if (!chat) return;
@@ -120,7 +126,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
       <div className="chat-messages" role="log" aria-label={t('Conversation')}>
         {!state?.record.messages.length && <div className="chat-empty"><IconChat size={30} />
           <h2>{t('Talk about this project')}</h2>
-          <p>{tool ? t('The AI can use the project files, skills and connected tools.') : t('Install Claude Code in Settings › My AIs to use the chat.')}</p>
+          <p>{tool ? t('The AI can use the project files, skills and connected tools.') : t('Install in Settings › My AIs')}</p>
         </div>}
         {state?.record.messages.map((message, i) => <article key={i} className={`chat-message chat-${message.role}`}>
           <span className="chat-author">{message.role === 'user' ? t('You') : label(state.record.tool)}</span>

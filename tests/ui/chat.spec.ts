@@ -1,5 +1,5 @@
 // The project chat: one tab, answers as they arrive, a Claude artifact opened in an isolated viewer, Ctrl+L left to
-// a focused terminal, and Call preparing (never sending) a draft. QA_FAKE_TOOLS puts a script in place of Claude.
+// a focused terminal, and Call sending its request at once in a new conversation. QA_FAKE_TOOLS puts a script in place of Claude.
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,7 @@ import { isAbsolute, join, relative } from 'node:path';
 import { ROOT } from '../../scripts/lib/repo.mjs';
 import { launchMoki } from './launch.ts';
 
-test('one project chat tab, artifacts in an isolated viewer, history and a draft from Call', async () => {
+test('one project chat tab, artifacts in an isolated viewer, history and a request sent from Call', async () => {
   const base = realpathSync(tmpdir());
   const root = mkdtempSync(join(base, 'moki-chat-ui-'));
   let app: ElectronApplication | undefined;
@@ -106,7 +106,8 @@ test('one project chat tab, artifacts in an isolated viewer, history and a draft
       }
     }
 
-    // Call › In the chat prepares the request in the message box and never sends it.
+    // Call › In the chat sends the request at once, in a new conversation; the draft in the box stays.
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('my draft');
     await page.keyboard.press('Control+Shift+k');
     await page.getByRole('tab', { name: /^Agents/ }).click();
     await page.getByPlaceholder('Search activities, agents, skills and operations').fill('qa-lead');
@@ -115,10 +116,11 @@ test('one project chat tab, artifacts in an isolated viewer, history and a draft
     await page.getByRole('button', { name: 'Nothing else — continue', exact: true }).click();
     await page.getByRole('button', { name: /^In the chat/ }).click();
     await page.locator('.answer-list .answer').first().click();
-    await page.getByRole('button', { name: 'Prepare in the chat', exact: true }).click();
+    await page.getByRole('button', { name: 'Send to the chat', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(/qa-lead/);
     await expect(page.locator('.chat-user')).toHaveCount(1);
+    await expect(page.locator('.chat-user')).toContainText('qa-lead');
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('my draft');
     await expect(page.locator('.chat-view')).toHaveCount(1);
     expect(errors).toEqual([]);
   } finally {

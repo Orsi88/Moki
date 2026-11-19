@@ -57,7 +57,7 @@ You can use the built-in workflows or create your own activities, skills and age
 
 ### Project chat
 
-Open the project's single **Chat** tab with the ribbon icon or **Ctrl+L**. The chat runs your installed Claude Code with direct access to the project's files, skills and MCP tools, and a Claude artifact it links (a presentation, spreadsheet or page) opens inside the tab. **Call… › In the chat** prepares a draft for you to review and send. See [AI terminals and project chat](docs/ai-terminals.md).
+Open the project's single **Chat** tab with the ribbon icon or **Ctrl+L**. The chat runs your installed Claude Code with direct access to the project's files, skills and MCP tools, and a Claude artifact it links (a presentation, spreadsheet or page) opens inside the tab. **Call… › In the chat** sends the request at once, in a new conversation. See [AI terminals and project chat](docs/ai-terminals.md).
 
 ### Documents, PDFs and diagrams
 

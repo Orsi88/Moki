@@ -4,7 +4,7 @@ The Moki desktop app is a thin visual layer over the framework. It has **no AI o
 
 ## Project chat
 
-The single `chat` board key in [Workspace](../app/src/screens/Workspace.tsx) uses [ChatView](../app/src/components/ChatView.tsx). The ribbon and Ctrl+L focus that tab (Ctrl+L is left to a focused terminal); **Call… › In the chat** uses `chatRequest` and the existing `prepareLaunch` validation, then appends a draft without submitting it.
+The single `chat` board key in [Workspace](../app/src/screens/Workspace.tsx) uses [ChatView](../app/src/components/ChatView.tsx). The ribbon and Ctrl+L focus that tab (Ctrl+L is left to a focused terminal); **Call… › In the chat** uses `chatRequest` and the existing `prepareLaunch` validation, then sends it at once in a new conversation (the draft in the message box is kept).
 
 [chat.ts](../desktop/chat.ts) runs Claude Code with newline-delimited JSON on stdin/stdout. [chat-conversations.ts](../desktop/chat-conversations.ts) owns live processes and tool progress, saves the question as soon as it is sent, and reports every change; [chat-store.ts](../desktop/chat-store.ts) writes transcripts atomically under the active project's `.chats/`. Paths reject escaping symlinks and junctions. The context and MCP launch files of each start are written to the active workspace's `temporary/` (out of the project tree) and deleted once the tool has read them. Changes reach the UI as `qa:chat-changed` notices (batched), with a 2-second safety refresh while an answer runs; a hidden tab does not stop the process. `ELECTRON_RUN_AS_NODE` is never passed to the real tool. Workspace changes and app shutdown close live conversations.
 

@@ -43,7 +43,7 @@ O chat usa o Claude Code instalado, com as instruções, skills, plugins e MCPs 
 
 Quando a resposta indica um artefato do Claude (apresentação, planilha ou página no claude.ai), o link abre num visualizador dentro da aba do chat, com **Voltar à conversa** e **Abrir no navegador**. Entre uma vez na sua conta do claude.ai no visualizador para ver artefatos privados; se o login for bloqueado ali, use **Abrir no navegador**. O visualizador é uma área isolada, sem acesso ao Moki nem aos arquivos do projeto, e os outros links continuam abrindo no navegador.
 
-O **Chamar… › No chat**, disponível com o Claude Code instalado, prepara o pedido validado na caixa de mensagem, preserva o rascunho e não envia nada.
+O **Chamar… › No chat**, disponível com o Claude Code instalado, envia o pedido validado na hora, numa conversa nova da aba de chat (como um terminal novo); o rascunho que você estava escrevendo continua na caixa de mensagem.
 
 ## Veja também
 
