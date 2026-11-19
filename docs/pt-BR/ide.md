@@ -87,7 +87,7 @@ Para ligar uma pasta de vez, abra o projeto no app desktop e use o botão de **v
 
 Em **Atividades**, **Agentes** e **Operações** o painel lista só os itens com estrela (as mesmas do app) e os 5 mais usados, contados quando você inicia algo pelo painel. A caixa de busca encontra os outros. Sem estrela nem uso ainda, aparecem os 5 primeiros.
 
-Em **Contexto**, cada arquivo do projeto aparece por pasta: contexto primeiro, depois notas, entrada, execuções, temporários e qualquer outra pasta, e por fim os arquivos compartilhados por tags. Cada um tem um botão de ligar. Desligado, ele fica fora dos pedidos e fora do que a IA consegue ler pelo servidor MCP do Moki. A estrela dá prioridade: a IA recebe o arquivo primeiro, com o texto, no pacote de contexto. Arquivos compartilhados por tags com outros projetos começam desligados e esperam você ligar. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
+Em **Contexto**, o projeto aparece **por pasta**, uma linha para cada, com uma caixa de marcar, quantos arquivos tem e quantos tokens, aproximadamente, ela entrega à IA, com o total no topo: contexto do projeto, notas, entrada, as suas pastas (marcadas *sua pasta*), arquivos soltos, **Entregas** (o `outputs/` de cada execução, com o título do pedido) e arquivos compartilhados por tags. Marcada, a pasta vai para os pedidos e para o que a IA consegue ler pelo servidor MCP do Moki; desmarcada, fica fora dos dois. As suas pastas, inclusive uma nova, começam marcadas; Entregas e compartilhados começam desmarcados. Abra uma pasta para deixar um arquivo de fora ou incluir um (a pasta fica parcialmente marcada, *2 de fora*) e para marcar um arquivo com estrela: a IA recebe esse arquivo primeiro, com o texto, no pacote de contexto. Os arquivos de trabalho do Moki nunca aparecem: `temporary/`, `logs/` e o `state.json`, as entradas, os logs e o `work/` de uma execução. As escolhas ficam por projeto em `workspace/projects/<id>/companion.json`.
 
 ## O painel
 
@@ -95,7 +95,7 @@ Em **Contexto**, cada arquivo do projeto aparece por pasta: contexto primeiro, d
 |---|---|
 | **Atividades** | Escolhe uma atividade, arquivos da entrada, um agente, uma nota e o idioma, e depois **Abrir no Claude Code** ou **Copiar para o chat** |
 | **Agentes** | Os agentes habilitados no projeto e o que cada um faz; escolha um para trabalhar com ele |
-| **Contexto** | Liga e desliga arquivos para a IA; marca com estrela os que ela deve ler primeiro |
+| **Contexto** | Marca as pastas que vão para a IA; abre uma para a exceção de um arquivo ou para marcar com estrela os que ela deve ler primeiro |
 | **Execuções** | Atividades para retomar, e operações multiagente para iniciar e acompanhar passo a passo |
 
 O rodapé mostra quantos servidores MCP do projeto estão ligados (**MCPs: n ligados**), **Conectar ao Claude Code** e **Atualizar**. A barra de título da view tem *Choose Project* e *Refresh*; o menu "…" tem *Connect Claude Code*, *Sync MCP Servers to Cursor* e *Show What the AI Read*.
@@ -205,7 +205,7 @@ As mensagens da extensão aparecem em inglês.
 
 | Arquivo | Quando |
 |---|---|
-| `workspace/projects/<id>/companion.json` | Você liga, desliga ou marca com estrela arquivos de contexto |
+| `workspace/projects/<id>/companion.json` | Você marca ou desmarca pastas, abre exceções de arquivos ou marca arquivos com estrela |
 | `workspace/projects/<id>/logs/companion.log` | A IA lê algo pelo servidor do Moki |
 | `<pasta>/.mcp.json` e `<pasta>/.moki-backup/` | **Conectar ao Claude Code**, depois que você confirma |
 | `<pasta ligada>/.cursor/mcp.json` e `.moki-backup/` | **Sync MCP Servers to Cursor**, depois que você confirma |

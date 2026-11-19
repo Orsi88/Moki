@@ -2492,5 +2492,12 @@
   "Unknown Claude account.": "Cuenta de Claude desconocida.",
   "Name the account with letters or numbers.": "Pon a la cuenta un nombre con letras o números.",
   "There is already an account with this name.": "Ya existe una cuenta con este nombre.",
-  "If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.": "Si {tool} ya estaba abierto, recarga su ventana para que aparezca Moki: Ctrl+Shift+P › Developer: Reload Window."
+  "If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.": "Si {tool} ya estaba abierto, recarga su ventana para que aparezca Moki: Ctrl+Shift+P › Developer: Reload Window.",
+  "≈ {n} tokens": "≈ {n} tokens",
+  "Check a folder to give it to the AI. Open it to leave a file out or to give one to the AI first (star).": "Marca una carpeta para dársela a la IA. Ábrela para dejar fuera un archivo o para que la IA lea uno primero (estrella).",
+  "{folder} goes to the AI": "{folder} va a la IA",
+  "your folder": "tu carpeta",
+  "{n} left out": "{n} fuera",
+  "Leave out": "Dejar fuera",
+  "Let in": "Incluir"
 }
