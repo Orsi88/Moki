@@ -63,7 +63,9 @@ export function codexWindows(data: Json): PlanWindow[] {
 async function claudeToken(): Promise<string | null> {
   const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
   let raw = await readFile(join(dir, '.credentials.json'), 'utf8').catch(() => '');
-  if (!raw && process.platform === 'darwin') {
+  // The keychain item below is the default profile's: for another account (desktop/claude-profiles.ts) it would show
+  // the wrong plan, so there the usage is left unavailable rather than guessed.
+  if (!raw && process.platform === 'darwin' && !process.env.CLAUDE_CONFIG_DIR) {
     raw = await run('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { timeout: 5000 }).then((r) => r.stdout, () => '');
   }
   try { return (JSON.parse(raw) as Json).claudeAiOauth?.accessToken || null; } catch { return null; }

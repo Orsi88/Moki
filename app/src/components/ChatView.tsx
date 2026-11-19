@@ -153,12 +153,23 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
 // An answer as formatted Markdown. While it is still arriving it is formatted at most every RENDER_EVERY_MS.
 function ChatMarkdown({ text, project, live, onLink }: { text: string; project: string; live: boolean; onLink: (href: string) => void }) {
   const [html, setHtml] = useState('');
+  const latest = useRef(text);
+  latest.current = text;
+  const timer = useRef<number | undefined>(undefined);
+  const seq = useRef(0); // only the newest render shows
+  const last = useRef(0);
+  useEffect(() => () => { window.clearTimeout(timer.current); seq.current++; }, []);
   useEffect(() => {
-    let cancelled = false;
-    const render = () => { void api.renderMarkdown(text, project, '').then((result) => { if (!cancelled) setHtml(result); }).catch(() => { if (!cancelled) setHtml(''); }); };
-    const timer = live ? setTimeout(render, RENDER_EVERY_MS) : undefined;
-    if (!live) render();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+    // While the answer arrives, the newest text is formatted at most every RENDER_EVERY_MS (a throttle: text that
+    // keeps arriving still shows); once it is done, right away.
+    const render = () => {
+      timer.current = undefined;
+      last.current = Date.now();
+      const n = ++seq.current;
+      void api.renderMarkdown(latest.current, project, '').then((result) => { if (n === seq.current) setHtml(result); }).catch(() => { if (n === seq.current) setHtml(''); });
+    };
+    if (!live) { window.clearTimeout(timer.current); render(); return; }
+    if (timer.current === undefined) timer.current = window.setTimeout(render, Math.max(0, RENDER_EVERY_MS - (Date.now() - last.current)));
   }, [text, project, live]);
   return html ? <MarkdownBody html={html} className="chat-markdown" onClick={(e) => {
     const anchor = (e.target as Element).closest('a');

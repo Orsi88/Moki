@@ -6,7 +6,8 @@
 // The person's text never goes on a command line: messages travel on stdin, the project context in a file.
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { readFileSync, rm } from 'node:fs';
+import { existsSync, readFileSync, rm } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { Effort } from '../scripts/lib/activities.ts';
 
 export type ChatTool = 'claude' | 'codex';
@@ -165,6 +166,21 @@ export interface ChatSession {
 }
 
 const STDERR_KEEP = 4000;
+
+// The script behind an npm wrapper on Windows (`"%dp0%\node_modules\...\cli.js" %*`) and the Node that runs it: the
+// wrapper's own node.exe when npm put one next to it, otherwise `node` from the PATH. null for anything else.
+export function npmShim(file: string, node: string | null): { node: string; script: string } | null {
+  if (process.platform !== 'win32' || !/\.cmd$/i.test(file)) return null;
+  let text = '';
+  try { text = readFileSync(file, 'utf8'); } catch { return null; }
+  const found = /"%~?dp0%\\?([^"]+?\.[cm]?js)"/i.exec(text);
+  if (!found) return null;
+  const dir = dirname(file);
+  const script = join(dir, found[1]);
+  const own = join(dir, 'node.exe');
+  const runner = existsSync(own) ? own : node;
+  return runner && existsSync(script) ? { node: runner, script } : null;
+}
 
 // Stop the tool and its children too: killing only an npm .cmd wrapper leaves the AI running on Windows.
 function terminate(child: ChildProcessWithoutNullStreams): void {

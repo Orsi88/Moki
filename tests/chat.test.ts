@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
-import { claudeAdapter, codexAdapter, createChatSession, toolSummary, type ChatEvent } from '../desktop/chat.ts';
+import { claudeAdapter, codexAdapter, createChatSession, npmShim, toolSummary, type ChatEvent, type ChatSession } from '../desktop/chat.ts';
+import { createConversations } from '../desktop/chat-conversations.ts';
 import { CHATS_DIR, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
 import { isArtifactUrl, isViewerUrl, viewerBounds } from '../desktop/artifact-viewer.ts';
 import { createService } from '../desktop/service.ts';
@@ -257,6 +258,71 @@ test('chat: stopping a Codex answer ends the turn and the next message resumes t
   r.session.send('continue');
   await until(() => r.turns().length === 2);
   assert.deepEqual(r.starts[1].slice(-2), ['thread-1', '-']);
+});
+
+// A session the test drives by hand: what the AI says is whatever the test emits.
+function handSession(onSend: () => void = () => {}) {
+  let emit: (event: ChatEvent) => void = () => {};
+  let working = false;
+  const factory = (_record: unknown, onEvent: (event: ChatEvent) => void): ChatSession => {
+    emit = (event) => { if (event.kind === 'turn-end') working = false; onEvent(event); };
+    return { send: () => { onSend(); working = true; }, stop: () => {}, close: () => {}, busy: () => working, sessionId: () => undefined };
+  };
+  return { factory, emit: (event: ChatEvent) => emit(event) };
+}
+
+test('chat conversations: text after a tool call starts its own paragraph; an answer of tools only is not "stopped"', (t) => {
+  const dir = temp(t);
+  const conversations = createConversations();
+  const hand = handSession();
+  const id = conversations.send(dir, undefined, 'claude', 'read it', hand.factory).record.id;
+  for (const event of [{ kind: 'text', delta: 'Let me read' }, { kind: 'text', delta: ' the file.' }, { kind: 'tool', id: 't1', name: 'Read', summary: 'a.md' },
+    { kind: 'tool-done', id: 't1', ok: true }, { kind: 'text', delta: 'It says X.' }, { kind: 'turn-end', ok: true }] as ChatEvent[]) hand.emit(event);
+  assert.equal(readChat(dir, id).messages[1].text, 'Let me read the file.\n\nIt says X.');
+  const second = handSession();
+  const quiet = conversations.send(dir, undefined, 'claude', 'write it', second.factory).record.id;
+  for (const event of [{ kind: 'tool', id: 'w1', name: 'Write', summary: 'b.md' }, { kind: 'tool-done', id: 'w1', ok: true }, { kind: 'turn-end', ok: true }] as ChatEvent[]) second.emit(event);
+  conversations.close(dir);
+  assert.equal(conversations.state(dir, quiet).record.messages[1].error, undefined);
+});
+
+test('chat conversations: a new conversation whose first message cannot start leaves no history entry', (t) => {
+  const dir = temp(t);
+  const conversations = createConversations();
+  const failing = handSession(() => { throw new Error('Invalid AI tool argument.'); });
+  assert.throws(() => conversations.send(dir, undefined, 'codex', 'hello', failing.factory), /Invalid AI tool argument/);
+  assert.deepEqual(listChats(dir), []);
+  assert.equal(conversations.busy(dir), false);
+});
+
+test('chat service: a lost session gets the transcript without the message being answered (sent again on its own)', (t) => {
+  const root = temp(t);
+  for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
+  createProject('alpha', 'Alpha', root, 'blank');
+  const dir = join(root, 'workspace', 'projects', 'alpha');
+  const record = newChat('claude');
+  const at = new Date().toISOString();
+  record.messages.push({ role: 'user', text: 'first-question', at }, { role: 'assistant', text: 'first-answer', at },
+    { role: 'user', text: 'pending-question', at }, { role: 'assistant', text: '', at });
+  saveChat(dir, record);
+  const service = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {} });
+  const context = readFileSync(service.chatSetup('alpha', 'claude', 'English', record.id).contextFile, 'utf8');
+  assert.match(context, /first-question[\s\S]*first-answer/);
+  assert.doesNotMatch(context, /pending-question/);
+});
+
+test('chat: an npm wrapper on Windows runs its script on Node, without cmd.exe', { skip: process.platform !== 'win32' }, (t) => {
+  const dir = temp(t);
+  mkdirSync(join(dir, 'node_modules', '@openai', 'codex', 'bin'), { recursive: true });
+  writeFileSync(join(dir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js'), '');
+  const wrapper = join(dir, 'codex.cmd');
+  writeFileSync(wrapper, '@ECHO off\r\nendLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*\r\n');
+  assert.deepEqual(npmShim(wrapper, 'C:\\node\\node.exe'), { node: 'C:\\node\\node.exe', script: join(dir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js') });
+  writeFileSync(join(dir, 'node.exe'), '');
+  assert.equal(npmShim(wrapper, 'C:\\node\\node.exe')?.node, join(dir, 'node.exe'));
+  assert.equal(npmShim(join(dir, 'codex.exe'), 'node'), null);
+  writeFileSync(join(dir, 'other.cmd'), '@ECHO off\r\n"%~dp0\\bin\\other.exe" %*\r\n');
+  assert.equal(npmShim(join(dir, 'other.cmd'), 'node'), null);
 });
 
 test('chat: Windows npm wrappers preserve spaces, Unicode and literal shell metacharacters', { skip: process.platform !== 'win32' }, async (t) => {

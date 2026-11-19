@@ -47,7 +47,7 @@ import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scrip
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
 import { cleanPrompt, pluginArgs, type LaunchResult } from './launcher.ts';
-import { CHAT_ADAPTERS, createChatSession, isChatTool, type ChatSessionOptions } from './chat.ts';
+import { CHAT_ADAPTERS, createChatSession, isChatTool, npmShim, type ChatSessionOptions } from './chat.ts';
 import { createConversations } from './chat-conversations.ts';
 import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
 import type { ArtifactViewer } from './artifact-viewer-host.ts';
@@ -1369,6 +1369,7 @@ export function createService(root: string, deps: Deps) {
         runningRoutines(root, id) ? 'a routine' : '',
       ].filter(Boolean);
       if (busy.length) throw new ServiceError(`Close what is still running in this project first (${busy.join(', ')}).`);
+      conversations.close(from); // idle chat processes end with the project; none may write into it once it moved
       mkdirSync(suspendedDir(root), { recursive: true });
       failing(() => renameSync(from, join(suspendedDir(root), id))); // same parent: all or nothing
       projectsScan = null;
@@ -1385,6 +1386,7 @@ export function createService(root: string, deps: Deps) {
       if (typeof confirm !== 'string' || confirm.trim() !== to.name) throw new ServiceError('Type the name of the project that receives the files to confirm.');
       const busy = [from.id, to.id].flatMap((id) => [
         deps.runningTerminals?.(id) ? `a terminal of ${projectSummary(id, root).name}` : '',
+        conversations.busy(projectDir(id)) ? `a chat of ${projectSummary(id, root).name}` : '',
         runningRoutines(root, id) ? `a routine of ${projectSummary(id, root).name}` : '',
       ]).filter(Boolean);
       if (busy.length) throw new ServiceError(`Close what is still running first (${busy.join(', ')}).`);
@@ -1404,6 +1406,7 @@ export function createService(root: string, deps: Deps) {
         setProjectTags(to.id, [...new Set([...projectSummary(to.id, root).tags, ...projectSummary(from.id, root).tags])], root);
         shareServers(from.id, to.id, root);
       }));
+      conversations.close(from.dir);
       let suspended = true;
       try { mkdirSync(suspendedDir(root), { recursive: true }); renameSync(from.dir, join(suspendedDir(root), from.id)); } catch { suspended = false; } // merged: suspending is a convenience
       return { ...plan, suspended };
@@ -3104,7 +3107,11 @@ export function createService(root: string, deps: Deps) {
       let context = buildStartPrompt({ project: id, defaults: summary.defaults, instructions: summary.startInstructions, language: lang, chat: true,
         repository: projectRepository(id, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(id), items: listProjectItems(id, root, home), root });
       if (lostChat !== undefined) {
-        const past = chatTranscript(readChat(dir, lostChat));
+        // The message being answered goes again on its own: the transcript stops before it (and its empty answer).
+        const record = readChat(dir, lostChat);
+        const last = record.messages.at(-1);
+        if (last?.role === 'assistant' && !last.text && record.messages.at(-2)?.role === 'user') record.messages.splice(-2);
+        const past = chatTranscript(record);
         if (past) context += `\n\nThis conversation started in an earlier session that is no longer available. What was said so far:\n\n${past}`;
       }
       // The active workspace's scratch folder, out of the project's file tree; the chat deletes both files once read.
@@ -3141,13 +3148,15 @@ export function createService(root: string, deps: Deps) {
       if (workspaceDir(root) !== workspace || projectDir(project) !== dir) throw new ServiceError('The workspace changed. Open the chat again.');
       const file = deps.chatCommand ? process.execPath : (deps.which ?? which)(TOOLS[tool].command ?? tool);
       if (!file) throw new ServiceError('Install this AI in Settings › My AIs first.');
+      // An npm wrapper (codex.cmd) would need cmd.exe, which cannot take the quotes of the MCP settings: its script runs on Node directly.
+      const shim = deps.chatCommand ? null : npmShim(file, (deps.which ?? which)('node'));
       return failing(() => conversations.send(dir, id, tool, text, (record, onEvent) => createChatSession({
         file, adapter: CHAT_ADAPTERS[tool], cwd: root,
         // ELECTRON_RUN_AS_NODE only for the test script run by Electron: the real tool passes its environment to every
         // program it starts, and an Electron program (VS Code's `code`) would then run as plain Node. Moki's own MCP
         // server sets it in its own entry when it needs it (scripts/lib/mcp.ts).
         env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
-        sessionId: record.sessionId, onEvent, command: deps.chatCommand,
+        sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
         setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
       })));
     },
