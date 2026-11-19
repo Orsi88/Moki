@@ -15,6 +15,8 @@ O **Chamar…** é como você pede algo à IA num projeto. Ele está no painel d
 
 A lista abre em **Atividades** (ou no tipo do padrão do projeto). A busca procura em todas as abas, e cada aba mostra quantos encontrou. Os **padrões** do projeto vêm primeiro, marcados como *Padrão*; os seus favoritos (☆) logo depois.
 
+**Só chamar**, acima das abas, abre a IA com o contexto do projeto e mais nada: sem atividade, agente nem skill. Pula os passos de arquivos, agente e notas e vai direto para onde abrir e qual IA. Não é uma atividade (issue #46): nada aparece em Atividades do painel, e a IA não cria execução por conta própria; uma execução só começa se você pedir uma atividade ou uma entrega na conversa.
+
 ## Passo a passo
 
 1. **Escolha** o que chamar.

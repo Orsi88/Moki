@@ -109,18 +109,21 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
 
   const current = activities.find((a) => a.id === activity);
   const resume = activity === 'resume';
+  // "Just call": the AI with the project context, no activity (issue #46 keeps it out of the activity list): no inputs,
+  // no notes step, nothing tracked in the panel.
+  const plain = activity === 'call';
   // The context step only shows when the project's tags bring something from other projects.
   const sharing = choice.shared.length > 0;
   // Started from the side panel: the activity, the agent and the AI arrive chosen (changed in the last step, with the
   // same pickers), so only what the activity needs is asked: files, shared context, notes.
   const fromPanel = Boolean(preset?.skipActivity && !resume);
-  const inputSteps: StepKey[] = resume ? ['run'] : [
+  const inputSteps: StepKey[] = plain ? [] : resume ? ['run'] : [
     ...(current?.files === 'none' && activity !== 'talk' && activity !== 'skill' ? [] : ['files' as const]),
     ...(sharing ? ['context' as const] : []),
     ...(agents.length && activity !== 'talk' && !fromPanel ? ['agent' as const] : []),
   ];
   const steps: StepKey[] = preset?.startAtTool ? ['tool', 'review']
-    : [...(fromPanel ? [] : ['activity' as const]), ...inputSteps, 'details', 'destination', ...(destination !== 'current' ? ['tool' as const] : []), 'review'];
+    : [...(fromPanel ? [] : ['activity' as const]), ...inputSteps, ...(plain ? [] : ['details' as const]), 'destination', ...(destination !== 'current' ? ['tool' as const] : []), 'review'];
   const toggle = (paths: string[]) => setExclude((ex) => (paths.every((p) => ex.includes(p)) ? ex.filter((p) => !paths.includes(p)) : [...new Set([...ex, ...paths])]));
   const sharedPaths = [...new Set(choice.shared.flatMap((g) => g.sources.flatMap((s) => s.paths)))];
   const keptShared = sharedPaths.filter((p) => !exclude.includes(p));
@@ -149,9 +152,14 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
     } else setStep(chosen?.files !== 'none' ? 'files' : sharing ? 'context' : agents.length ? 'agent' : 'details');
   };
 
+  const callPlain = () => {
+    setSelection(null); setActivity('call'); setSkill(''); setAgent(''); setNote('');
+    setError(''); setResult(null); setStep('destination');
+  };
+
   const submit = async () => {
     setBusy(true); setResult(null); setError(''); setCopied(false);
-    const trackingId = onActivityStart?.(activity, selection ? t(selection.label) : current ? t(current.label) : skill || activity);
+    const trackingId = plain ? undefined : onActivityStart?.(activity, selection ? t(selection.label) : current ? t(current.label) : skill || activity);
     remember('qa-language', language);
     // The window shares the main process. If opening the tool never returns, say so instead of leaving "Opening…" up.
     let late = false;
@@ -220,17 +228,17 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
   const summary: { step: StepKey; label: string; value: string }[] = preset?.startAtTool ? [
     { step: 'tool', label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' },
   ] : [
-    { step: 'activity', label: t('Call'), value: selection ? t(selection.label) : current ? t(current.label) : '—' },
-    ...(resume ? [{ step: 'run' as StepKey, label: t('Continue'), value: run ? describeRun(run).title : '—' }] : [
+    { step: 'activity', label: t('Call'), value: plain ? t('Just call') : selection ? t(selection.label) : current ? t(current.label) : '—' },
+    ...(plain ? [] : resume ? [{ step: 'run' as StepKey, label: t('Continue'), value: run ? describeRun(run).title : '—' }] : [
       { step: 'files' as StepKey, label: t('Files'), value: files.length ? files.join(', ') : t('None') },
       ...(sharing ? [{ step: 'context' as StepKey, label: t('Shared context'), value: t('{n} of {total} files from other projects', { n: keptShared.length, total: sharedPaths.length })
         + (exclude.some((p) => choice.own.includes(p)) ? ` · ${t('{n} of this project left out', { n: exclude.filter((p) => choice.own.includes(p)).length })}` : '') }] : []),
       ...(agents.length && !fromPanel && activity !== 'talk' ? [{ step: 'agent' as StepKey, label: t('Who does it'), value: agentLabel }] : []),
     ]),
-    { step: 'details', label: t('Notes'), value: note.trim() || t('None') },
+    ...(plain ? [] : [{ step: 'details' as StepKey, label: t('Notes'), value: note.trim() || t('None') }]),
     ...(current?.effort && destination === 'new' ? [{ step: 'tool' as StepKey, label: t('Effort level'), value: t(({ low: 'Low', medium: 'Medium', high: 'High', max: 'Maximum' } as Record<string, string>)[current.effort])
       + (selectedTool && !selectedTool.effort ? ` · ${t('not supported by this AI')}` : '') }] : []),
-    ...(resume ? [] : [{ step: 'details' as StepKey, label: t('Conversation language'), value: t(language) }]),
+    ...(resume || plain ? [] : [{ step: 'details' as StepKey, label: t('Conversation language'), value: t(language) }]),
     { step: 'destination', label: t('Destination'), value: destination === 'chat' ? t('In the chat') : destination === 'current' ? `${t('This terminal')} · ${preset?.terminal?.title ?? ''}` : t('New terminal') },
     ...(destination === 'current' || fromPanel ? [] : [{ step: 'tool' as StepKey, label: t('AI tool'), value: selectedTool ? t(selectedTool.label) : '—' }]),
   ];
@@ -249,10 +257,14 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
 
         <div className="modal-body">
           {error && step !== 'review' && <p className="error" role="alert">{error}</p>}
-          {step === 'activity' && (
+          {step === 'activity' && (<>
+            <div className="answer-list call-plain">
+              <Answer icon={<IconPlay size={18} />} title={t('Just call')} on={plain} onPick={callPlain}
+                hint={t('The AI with the project context, no activity, agent or skill. Nothing is recorded unless you ask for an activity in the conversation.')} />
+            </div>
             <InvokeCatalog activities={activities.filter((a) => a.available && (a.id !== 'resume' || runs.length > 0))}
               agents={agents} skills={skills} operations={operations} onPick={pick} defaults={project.defaults} pinned={pins} onPin={pin} />
-          )}
+          </>)}
 
           {step === 'run' && (
             <div className="answer-list">

@@ -746,6 +746,11 @@ export function buildPrompt({ project, activity, files = [], note = '', run = ''
       parts.push(`Use the ${name} skill: read ${skillPath.trim() || `skills/${name}/SKILL.md`} and follow its procedure and approval gates.`);
       break;
     }
+    case 'call':
+      // Just the AI with the project: no activity, and nothing recorded unless the person then asks for one.
+      parts.push('This is a plain call, not an activity: read the project context you need with the project-context skill, briefly, and wait for my request.'
+        + ' Do not start a run, follow a skill procedure or write files on your own. If I then ask for an activity or a deliverable, follow its skill, and its run starts then.');
+      break;
     case 'talk':
       // Only with an agent (the "Act as" line above): a conversation, so nothing runs or is written on its own.
       if (!agent) throw new Error('Talking needs an agent: choose one.');

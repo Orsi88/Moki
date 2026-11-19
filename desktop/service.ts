@@ -1046,7 +1046,7 @@ export function createService(root: string, deps: Deps) {
     if (!project) throw new ServiceError('Unknown project.');
     const activity = String(req.activity ?? '');
     const trackingId = req.trackingId;
-    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk')) throw new ServiceError('Invalid activity tracking identifier.');
+    if (trackingId !== undefined && (typeof trackingId !== 'string' || !/^[a-f0-9]{32}$/.test(trackingId) || activity === 'resume' || activity === 'talk' || activity === 'call')) throw new ServiceError('Invalid activity tracking identifier.');
     const def = listActivities(root, project).find((a) => a.id === activity); // only the activities this project sees
     if (!def) throw new ServiceError('Unknown activity.');
     if (activity === 'talk' && !req.agent) throw new ServiceError('Choose the agent to talk with.');
@@ -1103,7 +1103,8 @@ export function createService(root: string, deps: Deps) {
       description: cleanPrompt(projectSummary(project, root).description).slice(0, 2000), globalSkills: linkedGlobalSkills(project),
       available: activity === 'plan' ? { skills: [...linkableSkills()].sort(), agents: listAgents(root).filter(isUsableAgent).map((a) => a.name) } : undefined, skill: skillName });
     // A run made for this request records the activity it came from (state.json activity): the app shows it under that activity.
-    const origin = activity === 'resume' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
+    // A plain call is no activity: a run the conversation later starts records its own.
+    const origin = activity === 'resume' || activity === 'call' ? '' : ` If this request creates a run, record the activity it came from: add --activity ${def.id} to npm run new-run (or write "activity": "${def.id}" in its state.json), with a --title saying what was asked in a few words.`;
     const prompt = (trackingId ? `${request} If this request creates a run, use the slug moki-${trackingId} when creating it, so Moki can identify it. Do not create a run solely for tracking; follow the skill's procedure and approval gates.` : request) + origin;
     return { project, dir, files, run, shared, references, prompt, tool, def };
   }

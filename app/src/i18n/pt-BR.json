@@ -2499,5 +2499,8 @@
   "your folder": "sua pasta",
   "{n} left out": "{n} de fora",
   "Leave out": "Deixar de fora",
-  "Let in": "Incluir"
+  "Let in": "Incluir",
+  "Just call": "Só chamar",
+  "the AI with the project context, no activity": "a IA com o contexto do projeto, sem atividade",
+  "The AI with the project context, no activity, agent or skill. Nothing is recorded unless you ask for an activity in the conversation.": "A IA com o contexto do projeto, sem atividade, agente nem skill. Nada é registrado, a não ser que você peça uma atividade na conversa."
 }

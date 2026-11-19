@@ -54,6 +54,8 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
   { id: 'context', label: 'Project context', description: 'onboarding, questions, updates', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
   { id: 'setup', label: 'Prepare the project', description: 'adapts the context to the project description', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
   { id: 'plan', label: 'Plan the project with the AI', description: 'interview, then a plan you review in the app', target: { kind: 'moki', name: 'project-context' }, files: 'optional' },
+  // "Just call" in Call…: the AI with the project's context and nothing else; not an activity (issue #46), so never listed.
+  { id: 'call', label: 'Just call', description: 'the AI with the project context, no activity', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
   { id: 'resume', label: 'Resume a run', description: '', target: { kind: 'moki', name: 'qa-orchestrator' }, files: 'none' },
   // "Call an agent" in the project panel: a conversation with one agent, not an activity (never in the activity lists: PICKABLE).
   { id: 'talk', label: 'Talk with an agent', description: 'a conversation about an idea, no activity', target: { kind: 'moki', name: 'project-context' }, files: 'none' },
@@ -63,7 +65,7 @@ export const MOKI_ACTIVITIES: ActivityDef[] = [
 export const isMokiActivity = (id: string): boolean => MOKI_ACTIVITIES.some((a) => a.id === id);
 // Activities offered where one is picked (the app, the IDE, the terminal menu). "talk" and "skill" start only from the project panel;
 // "open" is only the default request of the IDE panel's agent cards and of `qa --activity open` (issue #46: not a choice).
-const HIDDEN = new Set(['open', 'talk', 'skill']);
+const HIDDEN = new Set(['open', 'call', 'talk', 'skill']);
 export const isPickable = (a: { id: string }): boolean => !HIDDEN.has(a.id);
 
 export const builtinDir = (root = ROOT): string => join(root, 'activities');

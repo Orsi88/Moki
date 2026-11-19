@@ -15,6 +15,8 @@
 
 The list opens on **Activities** (or on the kind of the project's default). The search looks in every tab and each tab shows how many it found. The project's **defaults** come first, marked *Default*; your favorites (☆) next.
 
+**Just call**, above the tabs, opens the AI with the project context and nothing else: no activity, agent or skill. It skips the files, agent and notes steps and goes to where it opens and which AI. It is not an activity (issue #46): nothing shows in the panel's Activities, and the AI starts no run on its own; a run starts only if you then ask for an activity or a deliverable in the conversation.
+
 ## Step by step
 
 1. **Choose** what to call.
