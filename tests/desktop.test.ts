@@ -1855,6 +1855,7 @@ test('"Open in Moki": the folder in the arguments, taken once, answered like the
     assert.equal(folderArg(['Moki.exe', '--allow-file-access-from-files', repo], '/', false), repo, 'packaged: skips Chromium switches');
     assert.equal(folderArg(['electron', root], '/', true), null, 'from source: the app root is never the folder');
     assert.equal(folderArg(['electron', root, repo], '/', true), repo);
+    assert.equal(folderArg(['electron', '--inspect=0', '--remote-debugging-port=0', root], '/', true, root), null, 'from source with switches first (Playwright): the app root is still not the folder');
     assert.equal(folderArg(['Moki', pathToFileURL(repo).href], '/', false), repo, 'a file:// URI');
     assert.equal(folderArg(['Moki', basename(repo)], dirname(repo), false), repo, 'relative to the working directory');
     assert.equal(folderArg(['Moki', join(repo, 'a.txt')], '/', false), null, 'a file is not a folder');

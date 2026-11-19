@@ -67,7 +67,7 @@ const chatChanged = (project: string, id: string) => {
 };
 
 // "Open in Moki" on a folder: kept until the UI takes it (service.openedFolder), so a start before the UI is ready is not lost.
-let openedFolder: string | null = folderArg(process.argv, process.cwd(), Boolean(process.defaultApp));
+let openedFolder: string | null = folderArg(process.argv, process.cwd(), Boolean(process.defaultApp), app.getAppPath());
 
 const service = createService(ROOT, {
   openedFolder: () => { const folder = openedFolder; openedFolder = null; return folder; },
@@ -334,7 +334,7 @@ if (!app.requestSingleInstanceLock()) {
   // the Electron atom on the taskbar after Moki is installed.
   app.setAppUserModelId(app.isPackaged ? 'io.github.orsi88.qualityagents' : 'io.github.orsi88.qualityagents.dev');
   app.on('second-instance', (_event, argv, workingDirectory) => {
-    const folder = folderArg(argv, workingDirectory, Boolean(process.defaultApp));
+    const folder = folderArg(argv, workingDirectory, Boolean(process.defaultApp), app.getAppPath());
     if (folder) { openedFolder = folder; win?.webContents.send('qa:open-folder'); }
     if (!win) return;
     if (win.isMinimized()) win.restore();
