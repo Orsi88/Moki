@@ -238,7 +238,8 @@ function validateSchemas(root, err) {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run as a script only. Imported (the app imports REQUIRED_SECTIONS), argv[1] may be missing: the installed app has none.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const errors = validate();
   if (errors.length) {
     console.error(`Validation failed with ${errors.length} problem(s):`);

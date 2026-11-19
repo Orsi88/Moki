@@ -41,7 +41,7 @@ function readStaged(path) {
   try { return git(['show', `:${path}`]); } catch { return null; }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
   const argv = process.argv.slice(2);
   const staged = !argv.length;
   const problems = [];

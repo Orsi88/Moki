@@ -316,3 +316,14 @@ test('markdown to html', () => {
   assert.match(html, /<ul><li>x<ul><li>y<\/li><\/ul><\/li><\/ul>/);
   assert.match(html, /<strong>b<\/strong> &lt;i&gt;/);
 });
+
+// The installed app imports validate.mjs (Mycroft's check) with no process.argv[1]: importing a script must never
+// run or break it. 0.7.0 failed to start because pathToFileURL(undefined) threw on import.
+test('scripts can be imported without process.argv[1], as the installed app does', async () => {
+  const { spawnSync } = await import('node:child_process');
+  for (const name of ['validate', 'build', 'check-artifacts', 'check-output', 'check-secrets']) {
+    const url = new URL(`../scripts/${name}.mjs`, import.meta.url).href;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(url)})`], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${name}.mjs: ${r.stderr}`);
+  }
+});

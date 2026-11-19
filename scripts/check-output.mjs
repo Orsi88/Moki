@@ -105,7 +105,7 @@ export function checkReviewMatrix(data, layout) {
   return problems;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
   const args = parseArgs(process.argv.slice(2));
   const [kind, file] = args._;
   const fail = (msg) => { console.error(msg); process.exit(1); };

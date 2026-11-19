@@ -45,7 +45,7 @@ function listPaths(argv) {
   return git(['diff', '--cached', '--name-only', '--diff-filter=ACMR']).split('\n').filter(Boolean);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
   const violations = findViolations(listPaths(process.argv.slice(2)));
   if (violations.length) {
     console.error('Artifact check failed — these files must not be versioned:');
