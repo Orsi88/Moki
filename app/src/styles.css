@@ -2394,8 +2394,10 @@ span.mcp-row-main { cursor: default; }
 .group-menu { display: flex; flex-direction: column; gap: 8px; width: 236px; padding: 10px; }
 .group-name { width: 100%; }
 .group-colors { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
-.group-swatch { width: 20px; height: 20px; padding: 0; border: 2px solid var(--group); border-radius: 50%; background: var(--group-soft); cursor: pointer; }
-.group-swatch.on, .group-swatch:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* Inside .term-menu, whose button rule is more specific than a lone class: these keep each swatch round and colored. */
+.group-menu .group-swatch { display: block; width: 20px; height: 20px; padding: 0; border: 2px solid var(--group); border-radius: 50%; background: var(--group-soft); cursor: pointer; justify-self: center; }
+.group-menu .group-swatch:hover:not(:disabled) { background: var(--group); }
+.group-menu .group-swatch.on, .group-menu .group-swatch:focus-visible { background: var(--group); outline: 2px solid var(--text); outline-offset: 2px; }
 .group-menu-item { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; font-size: 0.85rem; }
 .group-menu-item:hover { background: var(--bg-3); }
 .group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--group, var(--muted)); flex-shrink: 0; }
