@@ -55,6 +55,10 @@ O Moki transforma instruções reutilizáveis em trabalhos que você pode inicia
 
 Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias atividades, skills e agentes.
 
+### Chat do projeto
+
+Abra a aba única de **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**. O chat usa o Claude Code instalado, com acesso direto aos arquivos, às skills e aos MCPs do projeto, e um artefato do Claude que ele indicar (apresentação, planilha ou página) abre dentro da própria aba. **Chamar… › No chat** prepara um rascunho para você revisar e enviar. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
+
 ### Documentos, PDFs e diagramas
 
 O Moki também é um espaço para ler, editar e revisar o material com que a IA trabalha:

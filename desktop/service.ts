@@ -45,7 +45,12 @@ import { PATTERNS as SECRET_PATTERNS } from '../scripts/lib/secret-patterns.mjs'
 import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
-import { cleanPrompt, type LaunchResult } from './launcher.ts';
+import { cleanPrompt, pluginArgs, type LaunchResult } from './launcher.ts';
+import { CHAT_ADAPTERS, createChatSession, isChatTool, type ChatSessionOptions } from './chat.ts';
+import { createConversations } from './chat-conversations.ts';
+import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
+import type { ArtifactViewer } from './artifact-viewer-host.ts';
+import { chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
@@ -102,6 +107,9 @@ export interface Deps {
   callTool?: RunHooks['callTool']; // a routine's MCP read (tests pass a fake)
   startTerminal?: (id: string, project: string) => string; // routines start their prepared terminal even with no project view
   runningTerminals?: (project: string) => number; // terminal tabs still running for the project (a busy project is not suspended)
+  chatCommand?: ChatSessionOptions['command']; // tests replace the AI with a local script
+  artifactViewer?: ArtifactViewer; // Claude artifacts opened from a chat answer (desktop app only)
+  chatChanged?: (project: string, id: string) => void; // a live conversation changed: the window reads it again
 }
 
 export interface TreeNode {
@@ -233,10 +241,13 @@ const backupFilter = (src: string): boolean => basename(src) !== 'node_modules' 
 const PROJECTS_TTL_MS = 1500;
 
 export function createService(root: string, deps: Deps) {
+  const conversations = createConversations((dir, id) => deps.chatChanged?.(basename(dir), id));
   let projectsScan: Promise<ProjectSummary[]> | null = null; // the `projects` scan in flight, or finished less than PROJECTS_TTL_MS ago
   let projectsDoneAt = 0; // when projectsScan finished (0: still running)
   // Every project path goes through the active workspace; it starts as the one opened last.
   const useWorkspace = (w: WorkspaceInfo): WorkspaceInfo => {
+    conversations.close();
+    deps.artifactViewer?.close();
     projectsScan = null; // another workspace: a scan in flight is of the old one
     setWorkspaceDir(root, w.path);
     deps.onWorkspace?.(w.path);
@@ -912,11 +923,11 @@ export function createService(root: string, deps: Deps) {
   // Claude Code gets --mcp-config (a file in workspace/temporary/). Codex gets -c overrides and its home config stays.
   // Cursor, Gemini and Antigravity open in the Moki folder, so their file there is rewritten (the person's entries stay)
   // and holds the last project started in that tool.
-  function mcpLaunch(tool: ToolKey, project: string, servers: McpServer[] = enabledServers(project, root)): string[] {
+  function mcpLaunch(tool: ToolKey, project: string, servers: McpServer[] = enabledServers(project, root), scratch = join(root, 'workspace', 'temporary')): string[] {
     try { mirrorProjectSkills(project, root); } catch (e) { mcpLog({ action: 'skills', project, error: e instanceof Error ? e.message : String(e) }); }
     const entries = generated(project, servers);
     if (tool === 'claude') {
-      const dir = join(root, 'workspace', 'temporary');
+      const dir = scratch;
       mkdirSync(dir, { recursive: true });
       const file = join(dir, `mcp-${project}-${stamp()}.json`);
       writeFileSync(file, `${JSON.stringify(toolConfig(entries, 'claude'), null, 2)}\n`);
@@ -1318,6 +1329,8 @@ export function createService(root: string, deps: Deps) {
     // Deletes the project folder for good (no trash), only after the word "delete" is typed. A linked folder is never touched.
     deleteProject: (project: string, confirm: unknown) => {
       if (confirm !== 'delete') throw new ServiceError('Type delete to confirm.');
+      conversations.close(projectDir(project));
+      deps.artifactViewer?.hide(projectDir(project));
       failing(() => rmSync(projectDir(project), { recursive: true, force: true }));
       projectsScan = null; // see createProject
       return true;
@@ -1335,6 +1348,7 @@ export function createService(root: string, deps: Deps) {
       const id = project as string;
       const busy = [
         deps.runningTerminals?.(id) ? 'a terminal' : '',
+        conversations.busy(from) ? 'a chat' : '',
         runningRoutines(root, id) ? 'a routine' : '',
       ].filter(Boolean);
       if (busy.length) throw new ServiceError(`Close what is still running in this project first (${busy.join(', ')}).`);
@@ -3061,6 +3075,77 @@ export function createService(root: string, deps: Deps) {
       return { prompt, label: names.length === 1 ? names[0] : '', several: names.length ? names.length > 1 : Boolean(summary.startInstructions.trim()) };
     },
 
+    // The chat of a project (desktop/chat.ts): what the tool gets at each start of its process, as a terminal of that
+    // tool does (the project's MCP servers and app plugins), plus the project's context in a file (never on the
+    // command line). `lostChat`: the session to resume is gone, so the context also carries that conversation.
+    chatSetup: (project: unknown, tool: unknown, language: unknown, lostChat?: unknown): { contextFile: string; extra: string[]; scratch: string[] } => {
+      const dir = projectDir(project);
+      const id = project as string;
+      if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
+      const summary = projectSummary(id, root);
+      const lang = LANGUAGES.includes(String(language)) ? String(language) : 'English';
+      let context = buildStartPrompt({ project: id, defaults: summary.defaults, instructions: summary.startInstructions, language: lang, chat: true,
+        repository: projectRepository(id, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(id), items: listProjectItems(id, root, home), root });
+      if (lostChat !== undefined) {
+        const past = chatTranscript(readChat(dir, lostChat));
+        if (past) context += `\n\nThis conversation started in an earlier session that is no longer available. What was said so far:\n\n${past}`;
+      }
+      // The active workspace's scratch folder, out of the project's file tree; the chat deletes both files once read.
+      const tmp = join(workspaceDir(root), 'temporary');
+      mkdirSync(tmp, { recursive: true });
+      const contextFile = join(tmp, `chat-${id}-${stamp()}-${randomBytes(3).toString('hex')}.md`);
+      writeFileSync(contextFile, `${context}\n`, 'utf8');
+      const mcp = mcpLaunch(tool, id, enabledServers(id, root), tmp);
+      return { contextFile, extra: [...pluginArgs(tool, root, summary.plugins), ...mcp], scratch: [contextFile, ...(mcp[0] === '--mcp-config' && mcp[1] ? [mcp[1]] : [])] };
+    },
+    chats: (project: unknown): ChatSummary[] => listChats(projectDir(project)),
+    chat: (project: unknown, id: unknown): ChatRecord => readChat(projectDir(project), id),
+    // A Claude artifact linked in a chat answer, shown over the chat tab (desktop/artifact-viewer-host.ts).
+    showArtifact: (project: unknown, url: unknown, bounds: unknown) => {
+      const dir = projectDir(project);
+      if (!isArtifactUrl(url)) throw new ServiceError('This link is not a Claude artifact.');
+      if (!deps.artifactViewer) throw new ServiceError('Artifacts open only in the desktop app.');
+      return deps.artifactViewer.show(dir, url as string, failing(() => viewerBounds(bounds)));
+    },
+    hideArtifact: (project: unknown) => { deps.artifactViewer?.hide(projectDir(project)); return true; },
+    reloadArtifact: (project: unknown) => { deps.artifactViewer?.reload(projectDir(project)); return true; },
+    chatState: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      return failing(() => conversations.state(dir, id));
+    },
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown) => {
+      const dir = projectDir(project);
+      if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
+      if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const workspace = workspaceDir(root);
+      await deps.fixPath?.();
+      if (workspaceDir(root) !== workspace || projectDir(project) !== dir) throw new ServiceError('The workspace changed. Open the chat again.');
+      const file = deps.chatCommand ? process.execPath : (deps.which ?? which)(TOOLS[tool].command ?? tool);
+      if (!file) throw new ServiceError('Install this AI in Settings › My AIs first.');
+      return failing(() => conversations.send(dir, id, tool, text, (record, onEvent) => createChatSession({
+        file, adapter: CHAT_ADAPTERS[tool], cwd: root,
+        // ELECTRON_RUN_AS_NODE only for the test script run by Electron: the real tool passes its environment to every
+        // program it starts, and an Electron program (VS Code's `code`) would then run as plain Node. Moki's own MCP
+        // server sets it in its own entry when it needs it (scripts/lib/mcp.ts).
+        env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
+        sessionId: record.sessionId, onEvent, command: deps.chatCommand,
+        setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
+      })));
+    },
+    chatStop: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      conversations.stop(dir, id); return true;
+    },
+    closeChats: () => { conversations.close(); deps.artifactViewer?.close(); return true; },
+    removeChat: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      conversations.close(dir, id); removeChat(dir, id); return true;
+    },
+
     openGlobal: (kind: unknown, name: unknown) => {
       if (kind === 'skill') deps.openFolder(globalSkill(name)[0]);
       else if (kind === 'agent') deps.openPath(globalAgent(name));
@@ -3147,6 +3232,7 @@ export function createService(root: string, deps: Deps) {
       if (!deps.pasteRequest?.(prepared.project, terminalId, prepared.prompt)) throw new ServiceError('Choose a running AI terminal in this project.');
       return { prepared: true, prompt: prepared.prompt };
     },
+    chatRequest: (req: LaunchRequest) => ({ prompt: prepareLaunch({ ...req, tool: 'print' }).prompt }),
 
     // ---------------------------------------------------------- routines
 

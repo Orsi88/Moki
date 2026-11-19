@@ -35,6 +35,16 @@ Um terminal **continua rodando** quando você volta para a tela inicial ou vai p
 
 A sua **IA padrão** fica em **Configurações › Minhas IAs**, que também instala uma IA de terminal que falte: uma aba de terminal mostra o comando oficial e só roda depois que você digita `y`. Codex e Gemini CLI se instalam com npm: sem o Node.js, a aba oferece instalá-lo primeiro (winget no Windows, Homebrew onde ele está instalado), com o próprio `y`; nos outros casos mostra nodejs.org. O Moki nunca usa sudo; `npm install -g` com o Node do sistema no Linux pode exigir permissões.
 
+## Chat do projeto
+
+Use o ícone **Chat** na barra ou **Ctrl+L** (Cmd+L no macOS). Com o foco num terminal, o Ctrl+L continua sendo do terminal (limpar a tela). Existe uma única aba de chat por projeto. Abrir de novo leva à mesma aba; você pode movê-la entre as divisões da tela, como o terminal.
+
+O chat usa o Claude Code instalado, com as instruções, skills, plugins e MCPs do projeto: o mesmo acesso de um terminal do Claude. A resposta aparece conforme chega; as ferramentas usadas ficam recolhidas e o botão **Parar** interrompe a resposta. Nova conversa e histórico ficam na mesma aba. As conversas são salvas na pasta oculta `.chats/` do projeto, fora da árvore e da busca de documentos. Fechar a aba esconde a conversa; uma resposta em andamento continua até terminar, ser interrompida ou o Moki sair. A mensagem seguinte retoma a sessão da IA; se ela não existir mais, o histórico salvo dá contexto à nova sessão.
+
+Quando a resposta indica um artefato do Claude (apresentação, planilha ou página no claude.ai), o link abre num visualizador dentro da aba do chat, com **Voltar à conversa** e **Abrir no navegador**. Entre uma vez na sua conta do claude.ai no visualizador para ver artefatos privados; se o login for bloqueado ali, use **Abrir no navegador**. O visualizador é uma área isolada, sem acesso ao Moki nem aos arquivos do projeto, e os outros links continuam abrindo no navegador.
+
+O **Chamar… › No chat**, disponível com o Claude Code instalado, prepara o pedido validado na caixa de mensagem, preserva o rascunho e não envia nada.
+
 ## Veja também
 
 - [Chamar atividades, agentes e skills](call.md)

@@ -29,6 +29,7 @@ import { configPrompt, readConfigPlan, type ConfigPlan } from './configurator.ts
 import { describeSwitches, resolveSwitches } from './chromium-switches.ts';
 import { startRoutineHost } from './routine-host.ts';
 import { createParseClient } from './parse-pool.ts';
+import { createArtifactViewer } from './artifact-viewer-host.ts';
 
 const DIST = dirname(fileURLToPath(import.meta.url)); // app/dist-electron
 const UI = join(DIST, '..', 'dist'); // app/dist, inside the app (not the framework folder)
@@ -54,12 +55,24 @@ const terminals = createTerminals((channel, id, payload) => win?.webContents.sen
 
 // QA_FAKE_TOOLS (UI tests only): every AI tool looks installed; AI launches are faked.
 const fakeTools = process.env.QA_FAKE_TOOLS === '1';
+const artifacts = createArtifactViewer(() => win, (url) => { void shell.openExternal(url); }, fakeTools,
+  (key) => win?.webContents.send('qa:chat-shortcut', key));
+// A live chat changed: the window is told at most every CHAT_NOTIFY_MS per conversation, and reads it then.
+const CHAT_NOTIFY_MS = 80;
+const chatNotices = new Map<string, ReturnType<typeof setTimeout>>();
+const chatChanged = (project: string, id: string) => {
+  const key = `${project}\0${id}`;
+  if (chatNotices.has(key)) return;
+  chatNotices.set(key, setTimeout(() => { chatNotices.delete(key); win?.webContents.send('qa:chat-changed', project, id); }, CHAT_NOTIFY_MS));
+};
 
 // "Open in Moki" on a folder: kept until the UI takes it (service.openedFolder), so a start before the UI is ready is not lost.
 let openedFolder: string | null = folderArg(process.argv, process.cwd(), Boolean(process.defaultApp));
 
 const service = createService(ROOT, {
   openedFolder: () => { const folder = openedFolder; openedFolder = null; return folder; },
+  artifactViewer: artifacts,
+  chatChanged,
   // Terminal tools open in a tab of the app; editors, or no node-pty, use the external launcher.
   launch: (tool, prompt, root, plugins = [], extra = []) => (fakeTools ? { opened: true, message: 'fake' }
     : terminals.available() && !TOOLS[tool].clipboard ? launchInTerminal(tool, prompt, root, terminals.prepare, plugins, extra) : launchTool(tool, prompt, root, plugins, extra)),
@@ -67,6 +80,7 @@ const service = createService(ROOT, {
     detectTools: () => Object.fromEntries(Object.keys(TOOLS).map((k) => [k, true])) as Record<ToolKey, boolean>,
     which: (command: string) => command,
     runCommand: async (_command: string, args: string[]) => (args[0] === '--version' ? '1.0.0 (fake)' : ''),
+    chatCommand: () => ({ file: which('node') ?? process.execPath, args: ['-e', "const readline=require('node:readline'); const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n'); emit({type:'system',subtype:'init',session_id:'fake-session'}); readline.createInterface({input:process.stdin}).on('line',l=>{const text=JSON.parse(l).message.content;emit({type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta',text:'Answer: '+text}}});emit({type:'result',subtype:'success'});});"] }),
   } : { fixPath: () => fixToolPath() }),
   openFolder,
   openPath: (file) => { void shell.openPath(file); },
@@ -250,6 +264,7 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => { if (process.env.QA_UI_HEADLESS !== '1') win?.show(); });
+  win.webContents.on('did-start-loading', () => artifacts.hide());
   // QA_OPEN_PROJECT opens a project directly, QA_OPEN_VIEW=library|launch the agent library or the launch wizard (used by checks and shortcuts).
   const query: Record<string, string> = {};
   if (process.env.QA_OPEN_PROJECT) query.project = process.env.QA_OPEN_PROJECT;
@@ -295,6 +310,7 @@ function createWindow(): void {
     linkedWatcher?.();
     linkedWatcher = null;
     terminals.killAll();
+    service.closeChats();
   });
 }
 

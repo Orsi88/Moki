@@ -24,10 +24,11 @@ import { OperationRunView } from '../components/OperationRunView';
 import { SidePanel } from '../components/SidePanel';
 import { SetupDialog } from '../components/SetupDialog';
 import { TerminalView } from '../components/TerminalView';
+import { ChatView } from '../components/ChatView';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
 import { SearchPanel } from '../components/SearchPanel';
-import { IconBroom, IconChevron, IconCode, IconCopy, IconDownload, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconMoveTo, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
+import { IconBroom, IconChat, IconChevron, IconCode, IconCopy, IconDownload, IconEdit, IconExternal, IconEyeOff, IconFile, IconFolder, IconGraph, IconMore, IconMoveTo, IconPlay, IconPlus, IconSliders, IconStar, IconTerminal, IconTrash, IconX } from '../components/Icons';
 import { MoveNoteDialog } from '../components/MoveNoteDialog';
 import { NewEntryDialog } from '../components/NewEntryDialog';
 import { favoriteNotes, hideProject, isFavorite, renameRecentFile, retitleNote, setFavorite, touchRecentFile, touchRecentProject } from '../side-menu';
@@ -75,6 +76,7 @@ const findFile = (nodes: TreeNode[], path: string): TreeNode | null => {
 // Above this a .md file opens for reading: the formatted editor is much heavier than the rendered page.
 const LARGE_MD = 1024 * 1024;
 const AUTOSAVE_MS = 700;
+const CHAT = 'chat';
 const autosaves = (t: Tab): boolean => t.content.kind === 'markdown' && t.content.editable;
 const isDirty = (t: Tab): boolean => (t.content.kind === 'markdown' || t.content.kind === 'text') && t.content.editable && t.draft !== t.content.text;
 const sidebarWidthWithinBounds = (width: number) => Math.max(180, Math.min(720, Math.round(width)));
@@ -150,6 +152,18 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     setTimeout(() => setNotice((cur) => (cur?.text === text ? null : cur)), 6000);
   };
   const [terms, setTerms] = useState<TermTab[]>([]);
+  const [chatRequest, setChatRequest] = useState<{ text: string; tool: string; key: number } | null>(null);
+  const chatSequence = useRef(0);
+  const openChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); apply((b) => boardOpen(b, CHAT)); }, [apply, onSettings]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      // In a terminal, Ctrl+L belongs to the shell or the AI tool there (clear or redraw the screen).
+      const inTerminal = e.target instanceof Element && Boolean(e.target.closest('.xterm'));
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'l' && !inTerminal && !document.querySelector('[aria-modal="true"]')) { e.preventDefault(); openChat(); }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [openChat]);
   const termsRef = useRef(terms);
   termsRef.current = terms;
   const [termsReady, setTermsReady] = useState(false); // the terminals still running for this project came back
@@ -158,6 +172,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     const current = terms.find((term) => term.id === activeTerm && term.running && term.tool);
     setLaunch({ ...preset, ...(current ? { terminal: current } : {}) });
   }, [terms, activeTerm]);
+  useEffect(() => api.onChatShortcut((key) => { if (key === 'chat') openChat(); else if (!document.querySelector('[aria-modal="true"]')) openCall(); }), [openChat, openCall]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key.toLowerCase() !== 'k' || launch || settings || document.querySelector('[aria-modal="true"]')) return;
@@ -513,7 +528,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   // The board keeps only tabs that exist (a saved board, a terminal closed elsewhere) and knows every open one.
   useEffect(() => {
     if (!termsReady || !viewReady) return;
-    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : [])]);
+    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : []), ...(board.tabs[CHAT] ? [CHAT] : [])]);
     const known = Object.keys(board.tabs);
     if (known.length === alive.size && known.every((k) => alive.has(k))) return;
     apply((b) => [...alive].filter((k) => !b.tabs[k]).reduce((acc, k) => {
@@ -966,6 +981,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   );
   // ---- groups and views
   const titleOf = (key: TabKey): PaneTab => {
+    if (key === CHAT) return { key, label: t('Chat'), title: t('Chat'), icon: <IconChat size={14} /> };
     if (key.startsWith('term:')) {
       const term = terms.find((x) => x.id === key.slice(5));
       const title = term?.title ?? t('Terminal');
@@ -977,7 +993,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     return { key, label: path.split('/').pop() ?? path, title: path, icon: <FileIcon name={path} size={14} />, dirty: doc ? isDirty(doc) : false, fresh: board.tabs[key]?.fresh };
   };
   const selectTab = (key: TabKey) => { if (key.startsWith('file:')) touchRecentFile(project.id, key.slice(5)); apply((b) => show(b, key)); };
-  const closeTab = (key: TabKey) => { if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
+  const closeTab = (key: TabKey) => { if (key === CHAT) apply((b) => boardClose(b, CHAT)); else if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
   const closeGroupFiles = (group: string) => {
     for (const key of tabsOfGroup(board, group)) if (key.startsWith('file:')) close(key.slice(5));
     apply((b) => dropGroup(b, group));
@@ -1014,6 +1030,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
     >
       <Ribbon
+        onChat={openChat}
         project={project}
         onIde={() => setIdeCompanion(true)}
         settingsOn={settings !== null}
@@ -1163,10 +1180,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                   </> : undefined}
                 />
                 <div className="pane-body">
+                  {keys.includes(CHAT) && <ChatView project={project.id} workspace={workspaceId} tools={tools} active={pane.active === CHAT && !note && !opView && !activityView} pending={chatRequest} onPending={() => setChatRequest(null)} onLink={(href) => onLinkFrom('', href)} />}
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
                     <TerminalView key={x.id} id={x.id} project={project.id} tool={x.tool} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
                   ))}
-                  {pane.active === GRAPH ? (
+                  {pane.active === CHAT ? null : pane.active === GRAPH ? (
                     <div className="welcome">
                       <h1>{t('Graph view')}</h1>
                       <p className="muted">{t('Under construction.')}</p>
@@ -1312,6 +1330,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       {showSetup && <SetupDialog project={project} onClose={() => setShowSetup(false)}
         onSaved={(activity) => { setShowSetup(false); onProjectChanged(); if (activity) setLaunch({ activity }); }} />}
       {launch && <LaunchDialog project={project} tools={tools} preset={launch} onPin={pinActivity} onClose={() => setLaunch(null)} onTerminal={(t) => { setLaunch(null); addTerminal(t); }}
+        onChat={(text, tool) => { setLaunch(null); setChatRequest({ text, tool, key: ++chatSequence.current }); openChat(); }}
         onPrepared={(terminal) => {
           setLaunch(null); apply((b) => show(b, termKey(terminal.id)));
           flash(t('Request pasted. Add context and press Enter when ready.'), true);

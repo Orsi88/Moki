@@ -233,6 +233,10 @@ export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Ver
 export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string; context?: string[] }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
 export interface TerminalRef { id: string; title: string; tool?: string }
+export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string }
+export interface ChatRecord { id: string; tool: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
+export interface ChatState { record: ChatRecord; busy: boolean; error?: string }
+export interface ArtifactStatus { url: string; loading: boolean; error: string }
 export type Invocation = { kind: 'activity' | 'agent' | 'skill' | 'operation'; id: string; label: string };
 export interface LaunchPreset { activity?: string; run?: string; skipActivity?: boolean; tool?: string; agent?: string; skill?: string; startAtTool?: boolean; terminal?: TerminalRef }
 
@@ -302,6 +306,8 @@ export interface McpEntry extends McpServer { status: McpProbe | null; usedBy: s
 export interface Bridge {
   query?: string; // the page parameters, when the host cannot put them in the URL (VS Code webview)
   call(method: string, ...args: unknown[]): Promise<{ ok: true; value: unknown } | { ok: false; error: string }>;
+  onChatShortcut?: (callback: (key: 'chat' | 'call') => void) => () => void;
+  onChatChanged?: (callback: (project: string, id: string) => void) => () => void;
   filePath(file: File): string;
   watch(project: string | null): Promise<boolean>;
   onChanged(callback: (project: string) => void): () => void;
@@ -392,6 +398,17 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
 }
 
 export const api = {
+  onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
+  chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),
+  chatState: (project: string, id: string) => call<ChatState>('chatState', project, id),
+  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string) => call<ChatState>('chatSend', project, id, tool, text, language),
+  chatStop: (project: string, id: string) => call<boolean>('chatStop', project, id),
+  removeChat: (project: string, id: string) => call<boolean>('removeChat', project, id),
+  chatRequest: (req: LaunchRequest) => call<{ prompt: string }>('chatRequest', req),
+  onChatChanged: (callback: (project: string, id: string) => void) => window.qa?.onChatChanged?.(callback) ?? (() => {}),
+  showArtifact: (project: string, url: string, bounds: { x: number; y: number; width: number; height: number }) => call<ArtifactStatus>('showArtifact', project, url, bounds),
+  hideArtifact: (project: string) => call<boolean>('hideArtifact', project),
+  reloadArtifact: (project: string) => call<boolean>('reloadArtifact', project),
   session: () => call<{ version: string; platform: string }>('session'),
   projects: () => call<ProjectSummary[]>('projects'),
   workspaces: () => call<{ list: WorkspaceInfo[]; active: string }>('workspaces'),

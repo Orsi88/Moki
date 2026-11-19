@@ -68,11 +68,11 @@ Language: framework files and skills in English; conversation in the user's lang
 5. Skills stay vendor-neutral and self-contained; `CLAUDE.md` only imports `AGENTS.md`; `AGENTS.md` ≤ 32 KB.
 
 **Desktop security** (`docs/desktop-app.md` § Security model)
-6. Renderer: `contextIsolation`, `sandbox`, no `nodeIntegration`, CSP, no navigation or new windows (web links go to the browser), every permission request denied.
+6. Trusted renderer: `contextIsolation`, `sandbox`, no `nodeIntegration`, CSP, no navigation or new windows (web links go to the browser), every permission request denied. Claude artifacts linked in a chat answer open in a separate sandboxed `WebContentsView` with its own claude.ai session, no preload or Moki IPC, validated HTTPS claude.ai hosts and bounds; it never receives local project access.
 7. One request channel `qa:call`, accepted only from the app's own page and only for service method names; every other channel validates caller and arguments.
 8. Every service input is validated: project ids from `listProjects`; paths through `resolveInside` (symlinks included); activities, tools and languages from the fixed lists; agents usable and enabled; folder paths only from the native dialog (`pickFolder`), never from the UI; skill and agent names only from the service's listings.
 9. Editing only for existing `.md` and `.txt` files; opening with the default program only for `OPENABLE_EXTENSIONS`, never executables or scripts; "Open with" only for `OPEN_WITH_TYPES` (a subset), with a program from the system's own list, and the system default is never changed.
-10. User text reaches AI tools only as the prompt argument (`cleanPrompt`; UTF-8 file on Windows; single-quoted on macOS/Linux) — never inside a shell command line.
+10. User text reaches terminal AI tools as the prompt argument (`cleanPrompt`; UTF-8 file on Windows; single-quoted on macOS/Linux), and project chat tools as JSON on stdin with a separate context file — never interpolated into a shell command line.
 11. Markdown is rendered with all HTML escaped, attribute quotes included.
 12. Built-in agents cannot be edited or deleted from the app; custom ones are validated before saving.
 

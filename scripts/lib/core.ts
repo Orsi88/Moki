@@ -663,9 +663,11 @@ export function buildInvokePrompt({ project, target, language = 'English', repos
 // without files (that one starts as its own request, like any activity): the agents, skills and activities set
 // for the project and its instructions; then the AI says in a line or two what is set up and what it needs, and
 // waits. Operations run step by step in terminals of their own, so they are not part of it ('' = nothing set).
-export function buildStartPrompt({ project, defaults, instructions = '', language = 'English', repository = '', workspace = 'workspace', globalSkills = [], items = [], root = ROOT }: {
+// `chat`: the context of the app's chat (desktop/chat.ts), given apart from the person's messages: it always names
+// the project, and the AI answers each message instead of announcing itself and waiting.
+export function buildStartPrompt({ project, defaults, instructions = '', language = 'English', repository = '', workspace = 'workspace', globalSkills = [], items = [], root = ROOT, chat = false }: {
   project: string; defaults: ProjectDefault[]; instructions?: string; language?: string; repository?: string; workspace?: string;
-  globalSkills?: { name: string; path: string }[]; items?: StartItem[]; root?: string;
+  globalSkills?: { name: string; path: string }[]; items?: StartItem[]; root?: string; chat?: boolean;
 }): string {
   const agents = defaults.flatMap((d) => (d.kind === 'agent' ? listAgents(root).filter((a) => a.name === d.id && isUsableAgent(a)) : []));
   const skills = defaults.flatMap((d) => {
@@ -682,7 +684,7 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
   // The project's skills and agents the defaults do not already name: the AI knows they exist and where they are.
   const named = new Set(defaults.filter((d) => d.kind === 'skill' || d.kind === 'agent').map((d) => `${d.kind}:${d.id}`));
   const known = items.filter((i) => !i.missing && !named.has(`${i.kind}:${i.name}`));
-  if (!agents.length && !skills.length && !activities.length && !text && !known.length) return '';
+  if (!chat && !agents.length && !skills.length && !activities.length && !text && !known.length) return '';
   const parts = promptHead(project, workspace, repository);
   if (agents.length === 1) parts.push(`Act as the ${agents[0].name} agent: read ${agents[0].path} and follow it.`);
   else if (agents.length > 1) parts.push(`This project's agents: ${agents.map((a) => `${a.name} (${a.path})`).join(', ')}. For each request act as the one that fits, or ask me which.`);
@@ -692,7 +694,9 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
     parts.push(`This project's activities, to follow when I ask for one: ${activities.map((a) => `"${a.label}"${a.files === 'required' ? ' (it needs files: ask me for them)' : ''}: ${activityRequest(a, [], project)}`).join(' ')}`);
   }
   if (text) parts.push(`Instructions for this project: ${text.replace(/([^.!?])$/, '$1.')}`);
-  parts.push('Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
+  parts.push(chat
+    ? 'This is the chat of the Moki app: answer each of my messages here, in Markdown, loading only what you need of the project context.'
+    : 'Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
 }

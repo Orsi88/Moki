@@ -35,6 +35,16 @@ A terminal **keeps running** when you go back to the start screen or to another 
 
 Your **default AI** is set in **Settings › My AIs**, which also installs a missing terminal AI: a terminal tab shows the official command and runs it only after you type `y`. Codex and Gemini CLI install with npm: without Node.js, the tab offers to install it first (winget on Windows, Homebrew where it is installed), with its own `y`; elsewhere it shows nodejs.org. Moki never uses sudo; `npm install -g` with a system Node on Linux may need permissions.
 
+## Project chat
+
+Use the **Chat** ribbon icon or **Ctrl+L** (Cmd+L on macOS). When a terminal has the keyboard focus, Ctrl+L stays with the terminal (clear screen). There is one chat tab per project. Open it repeatedly to focus the same tab, move it between split views like a terminal, or close it and reopen it later.
+
+The chat uses the installed Claude Code, with the project's instructions, skills, plugins and MCP tools: the same access as a Claude terminal. Responses appear as they arrive, tool calls can be expanded, and **Stop** interrupts the response. New conversation and history stay inside the same tab. Transcripts are stored in the project's hidden `.chats/` folder and stay out of the file tree and document search. Closing a tab hides it; a running answer continues until it finishes, is stopped, or Moki exits. The next message can resume the tool session; if it is gone, the saved transcript supplies context for a new session.
+
+When an answer links a Claude artifact (a presentation, spreadsheet or page on claude.ai), the link opens in a viewer inside the chat tab, with **Back to the conversation** and **Open in the browser**. Sign in to your claude.ai account once in the viewer to see private artifacts; if the sign-in is blocked there, use **Open in the browser**. The viewer is an isolated browser surface with no access to Moki or the project's files, and other links open in the browser as before.
+
+**Call… › In the chat** is available with an installed Claude Code. It prepares the validated project request in the message box, preserving an existing draft and never sending it.
+
 ## See also
 
 - [Calling activities, agents and skills](call.md)
