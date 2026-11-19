@@ -13,7 +13,7 @@ import { defaultTool, setDefaultTool } from '../prefs';
 import { CatIcon } from './CatIcon';
 import { IconCheck, IconDownload, IconExternal, IconMore, IconProgress, IconRefresh, IconStar } from './Icons';
 import { ListHead } from './ListPage';
-import { ClaudeAccounts } from './ClaudeAccounts';
+import { AiAccounts } from './AiAccounts';
 
 interface Props {
   tools: ToolInfo[];
@@ -70,11 +70,11 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
       .catch((e: Error) => setError(e.message));
   };
 
-  // A new Claude account: Claude opens in a terminal tab, which asks the person to sign in.
-  const signIn = () => {
+  // A new account: that AI opens in a terminal tab, which asks the person to sign in.
+  const signIn = (tool: string) => {
     const bridge = api.term();
-    if (!bridge || !project) { setInfo(t('Open Claude in a terminal of a project to sign in to this account.')); return; }
-    bridge.create('claude')
+    if (!bridge || !project) { setInfo(t('Open the AI in a terminal of a project to sign in to this account.')); return; }
+    bridge.create(tool)
       .then((r) => (r.terminal ? onTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
       .catch((e: Error) => setError(e.message));
   };
@@ -165,7 +165,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
         })}
       </ul>
       <p className="muted small">{t('Installing opens a terminal tab with the official command; it runs only after you type y.')}</p>
-      {list.some((x) => x.id === 'claude' && available(x)) && <ClaudeAccounts onSignIn={signIn} />}
+      <AiAccounts installed={list.filter(available).map((x) => x.id)} onSignIn={signIn} />
       {menu && menuTool && (
         <div className="menu-backdrop" onMouseDown={() => setMenu(null)}>
           <ul className="term-menu" role="menu" style={{ left: menu.left, top: menu.top, minWidth: MENU_WIDTH }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setMenu(null); }}>

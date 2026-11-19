@@ -7,7 +7,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, type TerminalRef, type Usage } from '../api';
 import { t } from '../i18n';
 import { IconChevron, IconMemory, IconRefresh, IconTerminal } from './Icons';
-import { ClaudeAccounts } from './ClaudeAccounts';
+import { AiAccounts } from './AiAccounts';
 
 const size = (bytes: number): string => (bytes >= 2 ** 30 ? `${(bytes / 2 ** 30).toFixed(2)} GB` : `${(bytes / 2 ** 20).toFixed(1)} MB`);
 
@@ -109,7 +109,7 @@ export function UsageStatus({ names, terminals = [], onTerminal }: { names: Reco
                   </section>
                 );
               })}
-              <ClaudeAccounts compact onChanged={() => load(true)} />
+              <AiAccounts compact onChanged={() => load(true)} />
             </div>
           ) : (
             <div className="usage-pop" role="dialog" aria-label={t('Resource Manager')} onMouseDown={(e) => e.stopPropagation()}>

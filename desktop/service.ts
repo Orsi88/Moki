@@ -32,7 +32,7 @@ import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
 import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
-import { createClaudeProfiles } from './claude-profiles.ts';
+import { createAiAccounts } from './ai-accounts.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
 import { checkOperation, cleanOperation, formatMessage, listOperations, removeOperation, seedExample, suggestOutput, writeOperation, type OperationAgent } from '../scripts/lib/operations.ts';
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
@@ -474,9 +474,9 @@ export function createService(root: string, deps: Deps) {
 
   // Skills and agents for all projects live in the user folder: Claude Code's, and .agents for Codex/Gemini/Cursor.
   const home = deps.home ?? homedir();
-  // Claude accounts (desktop/claude-profiles.ts): the active profile is set in this process's environment, so every
-  // Claude started afterwards uses it.
-  const claudeProfiles = createClaudeProfiles(home, join(workspacesHome(root), 'claude-profile.json'));
+  // Accounts of the AI tools (desktop/ai-accounts.ts): the active one of each is set in this process's environment, so
+  // everything started afterwards uses it. claude-profile.json is the first version's file (Claude only).
+  const aiAccounts = createAiAccounts(home, join(workspacesHome(root), 'ai-accounts.json'), process.env, join(workspacesHome(root), 'claude-profile.json'));
   const globalSkillDirs = [join(home, '.claude', 'skills'), join(home, '.agents', 'skills')];
   const globalAgentsDir = join(home, '.claude', 'agents');
 
@@ -3168,10 +3168,11 @@ export function createService(root: string, deps: Deps) {
       if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       conversations.stop(dir, id); return true;
     },
-    // Settings › My AIs and the status bar's Usage: the Claude accounts, the one in use, and a new one to sign in to.
-    claudeProfiles: () => claudeProfiles.list(),
-    useClaudeProfile: (id: unknown) => failing(() => claudeProfiles.use(id)),
-    addClaudeProfile: (name: unknown) => failing(() => claudeProfiles.add(name)),
+    // Settings › My AIs and the status bar's Usage: each AI's accounts, the one in use, hiding one, and a new one to sign in to.
+    aiAccounts: () => aiAccounts.list(),
+    useAiAccount: (tool: unknown, id: unknown) => failing(() => aiAccounts.use(tool, id)),
+    hideAiAccount: (tool: unknown, id: unknown, on: unknown) => failing(() => aiAccounts.hide(tool, id, on === true)),
+    addAiAccount: (tool: unknown, name: unknown) => failing(() => aiAccounts.add(tool, name)),
     closeChats: () => { conversations.close(); deps.artifactViewer?.close(); return true; },
     removeChat: (project: unknown, id: unknown) => {
       const dir = projectDir(project);

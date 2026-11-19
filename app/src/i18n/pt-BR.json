@@ -2504,5 +2504,20 @@
   "the AI with the project context, no activity": "a IA com o contexto do projeto, sem atividade",
   "The AI with the project context, no activity, agent or skill. Nothing is recorded unless you ask for an activity in the conversation.": "A IA com o contexto do projeto, sem atividade, agente nem skill. Nada é registrado, a não ser que você peça uma atividade na conversa.",
   "Request from Moki: {name}": "Pedido do Moki: {name}",
-  "New conversation with {tool}": "Nova conversa com {tool}"
+  "New conversation with {tool}": "Nova conversa com {tool}",
+  "Accounts": "Contas",
+  "{tool} account": "Conta do {tool}",
+  "Everything Moki opens from now on uses the account chosen for each AI. An AI already running keeps the account it started with.": "Tudo o que o Moki abrir daqui em diante usa a conta escolhida para cada IA. Uma IA que já está rodando continua na conta em que começou.",
+  "Not signed in yet: open the AI to sign in": "Ainda sem login: abra a IA para entrar",
+  "Show in Moki again": "Mostrar de novo no Moki",
+  "Hide from Moki (the account stays on this computer)": "Ocultar do Moki (a conta continua neste computador)",
+  "Show {account} in Moki again": "Mostrar {account} de novo no Moki",
+  "Hide {account} from Moki": "Ocultar {account} do Moki",
+  "Add {tool} account": "Adicionar conta do {tool}",
+  "Hide the hidden accounts": "Esconder as contas ocultas",
+  "Show hidden ({n})": "Mostrar ocultas ({n})",
+  "Open the AI in a terminal of a project to sign in to this account.": "Abra a IA num terminal de um projeto para entrar nesta conta.",
+  "This AI has no accounts in Moki.": "Esta IA não tem contas no Moki.",
+  "Unknown account.": "Conta desconhecida.",
+  "Choose another account before hiding the one in use.": "Escolha outra conta antes de ocultar a que está em uso."
 }
