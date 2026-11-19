@@ -1268,7 +1268,7 @@ test('operations in a project: linked, started with the initial form, run step b
   assert.deepEqual(svc.projectOperations('acme').map((o) => o.id), [op.id]);
   const plan = svc.operationPlan('acme', op.id);
   assert.deepEqual(plan.steps.map((s) => s.agent), ['requirements-analyst', 'test-designer']);
-  assert.ok('claude' in plan.mcpsByTool && plan.mcpsByTool.antigravity === null);
+  assert.ok('claude' in plan.mcpsByTool && Array.isArray(plan.mcpsByTool.antigravity));
 
   assert.throws(() => svc.startOperation('acme', op.id, { tools: { s1: 'claude' } }), /Choose an AI tool for every step/);
   assert.throws(() => svc.startOperation('acme', op.id, { tools: { s1: 'claude', s2: 'gemini' } }), /not installed/);
@@ -1855,6 +1855,7 @@ test('"Open in Moki": the folder in the arguments, taken once, answered like the
     assert.equal(folderArg(['Moki.exe', '--allow-file-access-from-files', repo], '/', false), repo, 'packaged: skips Chromium switches');
     assert.equal(folderArg(['electron', root], '/', true), null, 'from source: the app root is never the folder');
     assert.equal(folderArg(['electron', root, repo], '/', true), repo);
+    assert.equal(folderArg(['electron', '--inspect=0', '--remote-debugging-port=0', root], '/', true, root), null, 'from source with switches first (Playwright): the app root is still not the folder');
     assert.equal(folderArg(['Moki', pathToFileURL(repo).href], '/', false), repo, 'a file:// URI');
     assert.equal(folderArg(['Moki', basename(repo)], dirname(repo), false), repo, 'relative to the working directory');
     assert.equal(folderArg(['Moki', join(repo, 'a.txt')], '/', false), null, 'a file is not a folder');
@@ -2729,8 +2730,8 @@ test('app plugins load only in app sessions: Claude by folder, Codex as one line
     const codex = pluginArgs('codex', '/home/u/qa');
     assert.equal(codex[0], '--no-daemon');
     assert.equal(codex[1], '-c');
-    assert.match(codex[2], /^developer_instructions=Ponytail .*SKILL\.md.* rtk /);
-    assert.doesNotMatch(codex[2], /["\n%]/); // survives launcher scripts and cmd.exe quoting
+    assert.match(codex[2], /^developer_instructions=Ponytail .*SKILL\.md.* MCP servers: moki .* rtk /);
+    assert.doesNotMatch(codex[2], /["\n%<>|&^]/); // survives launcher scripts and cmd.exe quoting
     assert.deepEqual(pluginArgs('gemini', '/home/u/qa'), []);
     // caveman only when the project turned it on
     assert.deepEqual(pluginArgs('claude', '/home/u/qa', ['caveman']).slice(-2), ['--plugin-dir', join(dir, 'caveman')]);
@@ -3444,7 +3445,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
   const SHA = createHash('sha256').update(BODY).digest('hex');
   const NAME = 'moki-9.9.9.vsix'; // the fixture's package.json is 9.9.9
   const found = { claude: true, codex: false, 'cursor-agent': false, gemini: false, antigravity: false, cursor: false, vscode: true, chat: true, print: true };
-  const mk = (digest: string | null = SHA) => {
+  const mk = (digest: string | null = SHA, takes = true) => { // takes: the editor really keeps what it installs
     const runs: string[][] = [];
     const urls: string[] = [];
     let extension = '';
@@ -3464,7 +3465,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
         if (args[0] === '--list-extensions') return `ms-python.python@2026.1.0\n${extension}`;
         if (args[0] === '--install-extension') {
           if (!readFileSync(args[1]).equals(BODY)) return null;
-          extension = 'orsi88.moki@9.9.9';
+          if (takes) extension = 'orsi88.moki@9.9.9';
           return 'Extension installed.';
         }
         return '';
@@ -3489,7 +3490,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
   test('my AIs: the Moki extension of the app version is downloaded, verified, installed and the editor opens', async () => {
     const { svc, runs, urls } = mk();
     const r = await svc.installMokiExtension('vscode', 'acme');
-    assert.deepEqual(r, { version: '9.9.9', folder: root });
+    assert.deepEqual(r, { version: '9.9.9', folder: root, installed: true });
     assert.ok(urls[0].endsWith('/repos/Orsi88/moki/releases/tags/v9.9.9'));
     assert.ok(urls.includes(`https://github.com/Orsi88/moki/releases/download/v9.9.9/${NAME}`));
     const install = runs.find((a) => a[1] === '--install-extension');
@@ -3497,6 +3498,9 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal(install?.[3], '--force');
     assert.equal(existsSync(install![2]), false); // the download is removed
     assert.ok(runs.some((a) => a[0] === 'code' && a[1] === root));
+    // Then the extension's view in that window, with the project picked: its icon is there without searching.
+    const opened = runs.findIndex((a) => a[0] === 'code' && a[1] === root);
+    assert.deepEqual(runs[opened + 1], ['code', '--open-url', 'vscode://orsi88.moki/open?project=acme']);
     assert.equal((await svc.aiTools()).find((s) => s.id === 'vscode')?.extension, '9.9.9');
   });
 
@@ -3509,6 +3513,13 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
     assert.equal(runs.filter((a) => a[0] === 'code' && a[1] === root).length, 2);
     await assert.rejects(svc.openMokiInEditor('../code', 'acme'), /does not take/);
+  });
+
+  test('IDE shortcut: an install the editor does not keep is reported, and the editor is not opened as if ready', async () => {
+    const { svc, runs } = mk(SHA, false);
+    await assert.rejects(svc.openMokiInEditor('vscode', 'acme'), /did not take the Moki extension 9\.9\.9 \(it lists none\)/);
+    assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
+    assert.ok(!runs.some((a) => a[0] === 'code' && a[1] === root));
   });
 
   test('my AIs: only installed editors that take the extension, and only a vsix GitHub vouches for', async () => {

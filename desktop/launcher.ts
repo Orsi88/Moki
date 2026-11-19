@@ -64,6 +64,8 @@ export function pluginArgs(tool: ToolKey, root: string, plugins: string[] = []):
   // This Codex attaches to a shared daemon that keeps only the servers of the home config.
   // --no-daemon makes this session load the -c servers and instructions itself.
   const lines = [`Ponytail mode is active (level full): before writing, changing or reviewing code, read ${join(dir, 'ponytail', 'skills', 'ponytail', 'SKILL.md')} and follow it.`];
+  // Codex loads MCP tools on demand: without this, the model often answers that a Moki server is missing.
+  lines.push('Moki gives this session MCP servers: moki (this project, read-only: context, files, agents, skills) and one moki-NAME server per project connection (such as the tracker). Their tools load on demand: search for them and use them before reading project files another way or saying a tool is missing.');
   if (rtk) lines.push('Run shell commands through rtk to shrink their output (rtk git status, rtk grep, rtk ls...); rtk proxy CMD runs one unfiltered.');
   if (caveman) lines.push(`Caveman mode is active: before every reply, read ${join(dir, 'caveman', 'skills', 'caveman', 'SKILL.md')} and follow it.`);
   if (superpowers) lines.push(`Superpowers skills are active: read ${join(dir, 'superpowers', 'skills', 'using-superpowers', 'SKILL.md')} and follow it; the other skills are in ${join(dir, 'superpowers', 'skills')}.`);

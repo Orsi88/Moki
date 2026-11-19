@@ -22,7 +22,9 @@ export function IdeDialog({ project, tools, onClose, onMyAis }: Props) {
     setBusy(tool.id); setError(''); setInfo('');
     try {
       const result = await api.openMokiInEditor(tool.id, project);
-      setInfo(t('Moki is ready in {tool}. The editor opened on {folder}.', { tool: tool.label, folder: result.folder }));
+      // The row shows what the editor now lists, not what was read when the dialog opened.
+      setStatus((list) => (list ?? []).map((entry) => (entry.id === tool.id ? { ...entry, available: true, extension: result.version } : entry)));
+      setInfo(`${t('Moki is ready in {tool}. The editor opened on {folder}.', { tool: tool.label, folder: result.folder })}${result.installed ? ` ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: tool.label })}` : ''}`);
     } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
   };
   return (

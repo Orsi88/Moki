@@ -63,7 +63,9 @@ export function codexWindows(data: Json): PlanWindow[] {
 async function claudeToken(): Promise<string | null> {
   const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
   let raw = await readFile(join(dir, '.credentials.json'), 'utf8').catch(() => '');
-  if (!raw && process.platform === 'darwin') {
+  // The keychain item below is the default profile's: for another account (desktop/claude-profiles.ts) it would show
+  // the wrong plan, so there the usage is left unavailable rather than guessed.
+  if (!raw && process.platform === 'darwin' && !process.env.CLAUDE_CONFIG_DIR) {
     raw = await run('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { timeout: 5000 }).then((r) => r.stdout, () => '');
   }
   try { return (JSON.parse(raw) as Json).claudeAiOauth?.accessToken || null; } catch { return null; }
@@ -101,9 +103,11 @@ async function fetchPlans(): Promise<PlanUsage[]> {
 
 // The providers limit how often usage is asked; the status bar polls often, so answers are kept a while.
 const PLAN_TTL = 5 * 60_000;
-let plans: { at: number; value: Promise<PlanUsage[]> } | null = null;
+// Kept per Claude account: choosing another one (desktop/claude-profiles.ts) asks again.
+let plans: { at: number; account: string; value: Promise<PlanUsage[]> } | null = null;
 export function planUsage(refresh = false): Promise<PlanUsage[]> {
-  if (!plans || refresh || Date.now() - plans.at > PLAN_TTL) plans = { at: Date.now(), value: fetchPlans() };
+  const account = process.env.CLAUDE_CONFIG_DIR ?? '';
+  if (!plans || refresh || plans.account !== account || Date.now() - plans.at > PLAN_TTL) plans = { at: Date.now(), account, value: fetchPlans() };
   return plans.value;
 }
 

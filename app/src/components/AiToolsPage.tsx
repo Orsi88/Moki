@@ -13,6 +13,7 @@ import { defaultTool, setDefaultTool } from '../prefs';
 import { CatIcon } from './CatIcon';
 import { IconCheck, IconDownload, IconExternal, IconMore, IconProgress, IconRefresh, IconStar } from './Icons';
 import { ListHead } from './ListPage';
+import { ClaudeAccounts } from './ClaudeAccounts';
 
 interface Props {
   tools: ToolInfo[];
@@ -69,11 +70,20 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
       .catch((e: Error) => setError(e.message));
   };
 
+  // A new Claude account: Claude opens in a terminal tab, which asks the person to sign in.
+  const signIn = () => {
+    const bridge = api.term();
+    if (!bridge || !project) { setInfo(t('Open Claude in a terminal of a project to sign in to this account.')); return; }
+    bridge.create('claude')
+      .then((r) => (r.terminal ? onTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
+      .catch((e: Error) => setError(e.message));
+  };
+
   const installExtension = async (tool: ToolInfo) => {
     setBusy(tool.id); setError(''); setInfo('');
     try {
       const r = await api.installMokiExtension(tool.id, project?.id);
-      setInfo(t('Moki extension {version} installed in {tool}. It opened on {folder}.', { version: r.version || version, tool: toolName(tool), folder: r.folder }));
+      setInfo(`${t('Moki extension {version} installed in {tool}. It opened on {folder}.', { version: r.version || version, tool: toolName(tool), folder: r.folder })} ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: toolName(tool) })}`);
       check();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   };
@@ -155,6 +165,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
         })}
       </ul>
       <p className="muted small">{t('Installing opens a terminal tab with the official command; it runs only after you type y.')}</p>
+      {list.some((x) => x.id === 'claude' && available(x)) && <ClaudeAccounts onSignIn={signIn} />}
       {menu && menuTool && (
         <div className="menu-backdrop" onMouseDown={() => setMenu(null)}>
           <ul className="term-menu" role="menu" style={{ left: menu.left, top: menu.top, minWidth: MENU_WIDTH }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setMenu(null); }}>

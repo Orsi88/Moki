@@ -25,13 +25,14 @@ import { safeName, type OrganizeCandidate } from './hudson.ts';
 import { readConfigPlan, type ConfigSnapshot } from './configurator.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
-import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
+import { MOKI_RELEASES, extensionVersion, mokiExtensionUrl, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
 import { LIMITS, readFolder, readMarkdown, readZip, scan, type Scan } from './claude-import.ts';
 import { listUploads, recordUploads } from '../scripts/lib/uploads.ts';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
 import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scripts/lib/repo.mjs';
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
-import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, type WorkspaceInfo } from './workspaces.ts';
+import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
+import { createClaudeProfiles } from './claude-profiles.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
 import { checkOperation, cleanOperation, formatMessage, listOperations, removeOperation, seedExample, suggestOutput, writeOperation, type OperationAgent } from '../scripts/lib/operations.ts';
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
@@ -45,7 +46,12 @@ import { PATTERNS as SECRET_PATTERNS } from '../scripts/lib/secret-patterns.mjs'
 import { appliesTo as reaches, projectTag, reachOf, withProject } from '../scripts/lib/tags.mjs';
 import { blankXlsx } from '../scripts/xlsx.mjs';
 import { buildDocx } from '../scripts/docx.mjs';
-import { cleanPrompt, type LaunchResult } from './launcher.ts';
+import { cleanPrompt, pluginArgs, type LaunchResult } from './launcher.ts';
+import { CHAT_ADAPTERS, createChatSession, isChatTool, npmShim, type ChatSessionOptions } from './chat.ts';
+import { createConversations } from './chat-conversations.ts';
+import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
+import type { ArtifactViewer } from './artifact-viewer-host.ts';
+import { chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
@@ -102,6 +108,9 @@ export interface Deps {
   callTool?: RunHooks['callTool']; // a routine's MCP read (tests pass a fake)
   startTerminal?: (id: string, project: string) => string; // routines start their prepared terminal even with no project view
   runningTerminals?: (project: string) => number; // terminal tabs still running for the project (a busy project is not suspended)
+  chatCommand?: ChatSessionOptions['command']; // tests replace the AI with a local script
+  artifactViewer?: ArtifactViewer; // Claude artifacts opened from a chat answer (desktop app only)
+  chatChanged?: (project: string, id: string) => void; // a live conversation changed: the window reads it again
 }
 
 export interface TreeNode {
@@ -233,10 +242,13 @@ const backupFilter = (src: string): boolean => basename(src) !== 'node_modules' 
 const PROJECTS_TTL_MS = 1500;
 
 export function createService(root: string, deps: Deps) {
+  const conversations = createConversations((dir, id) => deps.chatChanged?.(basename(dir), id));
   let projectsScan: Promise<ProjectSummary[]> | null = null; // the `projects` scan in flight, or finished less than PROJECTS_TTL_MS ago
   let projectsDoneAt = 0; // when projectsScan finished (0: still running)
   // Every project path goes through the active workspace; it starts as the one opened last.
   const useWorkspace = (w: WorkspaceInfo): WorkspaceInfo => {
+    conversations.close();
+    deps.artifactViewer?.close();
     projectsScan = null; // another workspace: a scan in flight is of the old one
     setWorkspaceDir(root, w.path);
     deps.onWorkspace?.(w.path);
@@ -462,6 +474,9 @@ export function createService(root: string, deps: Deps) {
 
   // Skills and agents for all projects live in the user folder: Claude Code's, and .agents for Codex/Gemini/Cursor.
   const home = deps.home ?? homedir();
+  // Claude accounts (desktop/claude-profiles.ts): the active profile is set in this process's environment, so every
+  // Claude started afterwards uses it.
+  const claudeProfiles = createClaudeProfiles(home, join(workspacesHome(root), 'claude-profile.json'));
   const globalSkillDirs = [join(home, '.claude', 'skills'), join(home, '.agents', 'skills')];
   const globalAgentsDir = join(home, '.claude', 'agents');
 
@@ -814,15 +829,14 @@ export function createService(root: string, deps: Deps) {
   // MCP servers each AI tool sees for this project (null: Moki cannot tell for that tool).
   const mcpsByTool = (project: string): Record<string, string[] | null> => {
     const by: Record<string, string[] | null> = Object.fromEntries(AGENT_AIS.map((t) => [t, [] as string[]]));
-    by.antigravity = null;
     const owner: Record<string, string> = {
       '.mcp.json': 'claude', 'Claude Code (local)': 'claude', 'Claude Code (user)': 'claude',
       '.codex/config.toml': 'codex', '.cursor/mcp.json': 'cursor-agent', '.gemini/settings.json': 'gemini',
     };
     for (const n of mcpServers(project)) { const tool = owner[n.mcp ?? '']; if (tool && by[tool]) by[tool]?.push(n.name); }
-    // The servers on in Moki: Claude Code and Cursor get them when Moki starts them.
+    // The servers on in Moki: Claude Code, Cursor and Antigravity get them when Moki starts them.
     const managed = enabledServers(project, root).map((s) => s.id);
-    for (const tool of ['claude', 'cursor-agent']) if (by[tool]) by[tool] = [...new Set([...(by[tool] ?? []), ...managed])];
+    for (const tool of ['claude', 'cursor-agent', 'antigravity']) if (by[tool]) by[tool] = [...new Set([...(by[tool] ?? []), ...managed])];
     return by;
   };
 
@@ -912,11 +926,11 @@ export function createService(root: string, deps: Deps) {
   // Claude Code gets --mcp-config (a file in workspace/temporary/). Codex gets -c overrides and its home config stays.
   // Cursor, Gemini and Antigravity open in the Moki folder, so their file there is rewritten (the person's entries stay)
   // and holds the last project started in that tool.
-  function mcpLaunch(tool: ToolKey, project: string, servers: McpServer[] = enabledServers(project, root)): string[] {
+  function mcpLaunch(tool: ToolKey, project: string, servers: McpServer[] = enabledServers(project, root), scratch = join(root, 'workspace', 'temporary')): string[] {
     try { mirrorProjectSkills(project, root); } catch (e) { mcpLog({ action: 'skills', project, error: e instanceof Error ? e.message : String(e) }); }
     const entries = generated(project, servers);
     if (tool === 'claude') {
-      const dir = join(root, 'workspace', 'temporary');
+      const dir = scratch;
       mkdirSync(dir, { recursive: true });
       const file = join(dir, `mcp-${project}-${stamp()}.json`);
       writeFileSync(file, `${JSON.stringify(toolConfig(entries, 'claude'), null, 2)}\n`);
@@ -926,8 +940,12 @@ export function createService(root: string, deps: Deps) {
     if (tool === 'cursor' || tool === 'cursor-agent') {
       try { writeMerged(join(root, '.cursor', 'mcp.json'), entries, 'cursor'); } catch (e) { mcpLog({ action: 'cursor', project, error: e instanceof Error ? e.message : String(e) }); }
     }
+    // Antigravity CLI reads MCP servers only from mcp_config.json (global, or <workspace>/.agents/), never from .gemini/settings.json.
+    if (tool === 'antigravity') {
+      try { writeMerged(join(root, '.agents', 'mcp_config.json'), entries, 'antigravity'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
+    }
     if (tool === 'gemini' || tool === 'antigravity') {
-      try { writeMerged(join(root, '.gemini', 'settings.json'), entries, 'gemini'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
+      if (tool === 'gemini') try { writeMerged(join(root, '.gemini', 'settings.json'), entries, 'gemini'); } catch (e) { mcpLog({ action: tool, project, error: e instanceof Error ? e.message : String(e) }); }
       try { publishGeminiAgents(project); } catch (e) { mcpLog({ action: 'agents', project, error: e instanceof Error ? e.message : String(e) }); }
     }
     return [];
@@ -1180,14 +1198,24 @@ export function createService(root: string, deps: Deps) {
     const linked = typeof project === 'string' && project ? (projectDir(project), projectRepository(project, root)) : null;
     const folder = linked && existsSync(linked) ? linked : root;
     const installed = force ? '' : await extensionVersion(tool, runCmd);
-    if (force || installed !== appVersion()) {
+    const installing = force || installed !== appVersion();
+    if (installing) {
       const vsix = await failingAsync(() => mokiVsix(root, appVersion(), tmpdir(), doFetch));
       await failingAsync(() => installExtension(tool, vsix, runCmd));
       toolsSeen = null;
     }
+    // The editor may answer the install and still not take the package: what it lists is what counts.
+    const version = await extensionVersion(tool, runCmd);
+    if (version !== appVersion()) {
+      throw new ServiceError(`${TOOLS[tool].label} did not take the Moki extension ${appVersion()} (it lists ${version || 'none'}). Close the editor and try again, or install moki-${appVersion()}.vsix from https://github.com/${MOKI_RELEASES.repo}/releases by hand (Extensions › … › Install from VSIX).`);
+    }
     const opened = await runCmd(TOOLS[tool].command!, [folder], 15_000);
     if (opened === null) throw new ServiceError('Could not open the editor.');
-    return { version: await extensionVersion(tool, runCmd), folder };
+    // Then Moki's view in that window (and the project picked): a missed link only means the person clicks the icon.
+    const url = mokiExtensionUrl(tool, typeof project === 'string' ? project : '');
+    if (url) await runCmd(TOOLS[tool].command!, ['--open-url', url], 15_000);
+    // `installed`: installed now. A window of the editor that was already open loads it only after a reload.
+    return { version, folder, installed: installing };
   };
 
   // The body of startOperation, so a routine can start its operation without a dialog.
@@ -1318,6 +1346,8 @@ export function createService(root: string, deps: Deps) {
     // Deletes the project folder for good (no trash), only after the word "delete" is typed. A linked folder is never touched.
     deleteProject: (project: string, confirm: unknown) => {
       if (confirm !== 'delete') throw new ServiceError('Type delete to confirm.');
+      conversations.close(projectDir(project));
+      deps.artifactViewer?.hide(projectDir(project));
       failing(() => rmSync(projectDir(project), { recursive: true, force: true }));
       projectsScan = null; // see createProject
       return true;
@@ -1335,9 +1365,11 @@ export function createService(root: string, deps: Deps) {
       const id = project as string;
       const busy = [
         deps.runningTerminals?.(id) ? 'a terminal' : '',
+        conversations.busy(from) ? 'a chat' : '',
         runningRoutines(root, id) ? 'a routine' : '',
       ].filter(Boolean);
       if (busy.length) throw new ServiceError(`Close what is still running in this project first (${busy.join(', ')}).`);
+      conversations.close(from); // idle chat processes end with the project; none may write into it once it moved
       mkdirSync(suspendedDir(root), { recursive: true });
       failing(() => renameSync(from, join(suspendedDir(root), id))); // same parent: all or nothing
       projectsScan = null;
@@ -1354,6 +1386,7 @@ export function createService(root: string, deps: Deps) {
       if (typeof confirm !== 'string' || confirm.trim() !== to.name) throw new ServiceError('Type the name of the project that receives the files to confirm.');
       const busy = [from.id, to.id].flatMap((id) => [
         deps.runningTerminals?.(id) ? `a terminal of ${projectSummary(id, root).name}` : '',
+        conversations.busy(projectDir(id)) ? `a chat of ${projectSummary(id, root).name}` : '',
         runningRoutines(root, id) ? `a routine of ${projectSummary(id, root).name}` : '',
       ]).filter(Boolean);
       if (busy.length) throw new ServiceError(`Close what is still running first (${busy.join(', ')}).`);
@@ -1373,6 +1406,7 @@ export function createService(root: string, deps: Deps) {
         setProjectTags(to.id, [...new Set([...projectSummary(to.id, root).tags, ...projectSummary(from.id, root).tags])], root);
         shareServers(from.id, to.id, root);
       }));
+      conversations.close(from.dir);
       let suspended = true;
       try { mkdirSync(suspendedDir(root), { recursive: true }); renameSync(from.dir, join(suspendedDir(root), from.id)); } catch { suspended = false; } // merged: suspending is a convenience
       return { ...plan, suspended };
@@ -3061,6 +3095,87 @@ export function createService(root: string, deps: Deps) {
       return { prompt, label: names.length === 1 ? names[0] : '', several: names.length ? names.length > 1 : Boolean(summary.startInstructions.trim()) };
     },
 
+    // The chat of a project (desktop/chat.ts): what the tool gets at each start of its process, as a terminal of that
+    // tool does (the project's MCP servers and app plugins), plus the project's context in a file (never on the
+    // command line). `lostChat`: the session to resume is gone, so the context also carries that conversation.
+    chatSetup: (project: unknown, tool: unknown, language: unknown, lostChat?: unknown): { contextFile: string; extra: string[]; scratch: string[] } => {
+      const dir = projectDir(project);
+      const id = project as string;
+      if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
+      const summary = projectSummary(id, root);
+      const lang = LANGUAGES.includes(String(language)) ? String(language) : 'English';
+      let context = buildStartPrompt({ project: id, defaults: summary.defaults, instructions: summary.startInstructions, language: lang, chat: true,
+        repository: projectRepository(id, root), workspace: workspaceLabel(root), globalSkills: linkedGlobalSkills(id), items: listProjectItems(id, root, home), root });
+      if (lostChat !== undefined) {
+        // The message being answered goes again on its own: the transcript stops before it (and its empty answer).
+        const record = readChat(dir, lostChat);
+        const last = record.messages.at(-1);
+        if (last?.role === 'assistant' && !last.text && record.messages.at(-2)?.role === 'user') record.messages.splice(-2);
+        const past = chatTranscript(record);
+        if (past) context += `\n\nThis conversation started in an earlier session that is no longer available. What was said so far:\n\n${past}`;
+      }
+      // The active workspace's scratch folder, out of the project's file tree; the chat deletes both files once read.
+      const tmp = join(workspaceDir(root), 'temporary');
+      mkdirSync(tmp, { recursive: true });
+      const contextFile = join(tmp, `chat-${id}-${stamp()}-${randomBytes(3).toString('hex')}.md`);
+      writeFileSync(contextFile, `${context}\n`, 'utf8');
+      const mcp = mcpLaunch(tool, id, enabledServers(id, root), tmp);
+      return { contextFile, extra: [...pluginArgs(tool, root, summary.plugins), ...mcp], scratch: [contextFile, ...(mcp[0] === '--mcp-config' && mcp[1] ? [mcp[1]] : [])] };
+    },
+    chats: (project: unknown): ChatSummary[] => listChats(projectDir(project)),
+    chat: (project: unknown, id: unknown): ChatRecord => readChat(projectDir(project), id),
+    // A Claude artifact linked in a chat answer, shown over the chat tab (desktop/artifact-viewer-host.ts).
+    showArtifact: (project: unknown, url: unknown, bounds: unknown) => {
+      const dir = projectDir(project);
+      if (!isArtifactUrl(url)) throw new ServiceError('This link is not a Claude artifact.');
+      if (!deps.artifactViewer) throw new ServiceError('Artifacts open only in the desktop app.');
+      return deps.artifactViewer.show(dir, url as string, failing(() => viewerBounds(bounds)));
+    },
+    hideArtifact: (project: unknown) => { deps.artifactViewer?.hide(projectDir(project)); return true; },
+    reloadArtifact: (project: unknown) => { deps.artifactViewer?.reload(projectDir(project)); return true; },
+    chatState: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      return failing(() => conversations.state(dir, id));
+    },
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown) => {
+      const dir = projectDir(project);
+      if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
+      if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const workspace = workspaceDir(root);
+      await deps.fixPath?.();
+      if (workspaceDir(root) !== workspace || projectDir(project) !== dir) throw new ServiceError('The workspace changed. Open the chat again.');
+      const file = deps.chatCommand ? process.execPath : (deps.which ?? which)(TOOLS[tool].command ?? tool);
+      if (!file) throw new ServiceError('Install this AI in Settings › My AIs first.');
+      // An npm wrapper (codex.cmd) would need cmd.exe, which cannot take the quotes of the MCP settings: its script runs on Node directly.
+      const shim = deps.chatCommand ? null : npmShim(file, (deps.which ?? which)('node'));
+      return failing(() => conversations.send(dir, id, tool, text, (record, onEvent) => createChatSession({
+        file, adapter: CHAT_ADAPTERS[tool], cwd: root,
+        // ELECTRON_RUN_AS_NODE only for the test script run by Electron: the real tool passes its environment to every
+        // program it starts, and an Electron program (VS Code's `code`) would then run as plain Node. Moki's own MCP
+        // server sets it in its own entry when it needs it (scripts/lib/mcp.ts).
+        env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
+        sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
+        setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
+      })));
+    },
+    chatStop: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      conversations.stop(dir, id); return true;
+    },
+    // Settings › My AIs and the status bar's Usage: the Claude accounts, the one in use, and a new one to sign in to.
+    claudeProfiles: () => claudeProfiles.list(),
+    useClaudeProfile: (id: unknown) => failing(() => claudeProfiles.use(id)),
+    addClaudeProfile: (name: unknown) => failing(() => claudeProfiles.add(name)),
+    closeChats: () => { conversations.close(); deps.artifactViewer?.close(); return true; },
+    removeChat: (project: unknown, id: unknown) => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      conversations.close(dir, id); removeChat(dir, id); return true;
+    },
+
     openGlobal: (kind: unknown, name: unknown) => {
       if (kind === 'skill') deps.openFolder(globalSkill(name)[0]);
       else if (kind === 'agent') deps.openPath(globalAgent(name));
@@ -3147,6 +3262,7 @@ export function createService(root: string, deps: Deps) {
       if (!deps.pasteRequest?.(prepared.project, terminalId, prepared.prompt)) throw new ServiceError('Choose a running AI terminal in this project.');
       return { prepared: true, prompt: prepared.prompt };
     },
+    chatRequest: (req: LaunchRequest) => ({ prompt: prepareLaunch({ ...req, tool: 'print' }).prompt }),
 
     // ---------------------------------------------------------- routines
 

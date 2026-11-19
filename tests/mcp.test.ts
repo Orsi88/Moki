@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { ROOT } from '../scripts/lib/repo.mjs';
 import { createProject, mirrorProjectSkills, TOOLS } from '../scripts/lib/core.ts';
 import {
-  appliesTo, clean, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
+  appliesTo, clean, CODEX_SERVER_NAME, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
   mergeCodex, resolveServer, saveServer, serversForAgent, syncCursorFolder, syncToolFolder, toolConfig, type McpServer,
 } from '../scripts/lib/mcp.ts';
 import { createOperationRun } from '../scripts/lib/operation-runs.ts';
@@ -118,6 +118,10 @@ test('configurations for Claude Code and Cursor; merging keeps the person\'s ent
   assert.deepEqual(toolConfig(entries, 'cursor').mcpServers['moki-gh'], { url: 'https://x.dev/${env:PATH_PART}', headers: { Authorization: 'Bearer ${env:GH}' } });
   assert.equal((toolConfig(entries, 'claude').mcpServers['moki-gh'] as { type: string }).type, 'http');
   assert.deepEqual(toolConfig(entries, 'gemini').mcpServers['moki-gh'], { httpUrl: 'https://x.dev/${PATH_PART}', headers: { Authorization: 'Bearer ${GH}' } });
+  // Antigravity: serverUrl (httpUrl is refused); a variable passed by its own name is inherited, not written.
+  assert.deepEqual(toolConfig(entries, 'antigravity').mcpServers['moki-gh'], { serverUrl: 'https://x.dev/${PATH_PART}', headers: { Authorization: 'Bearer ${GH}' } });
+  const own = clean({ id: 'ado', name: 'ADO', command: 'npx', args: ['ado'], env: { ADO_PAT: '${ADO_PAT}', ORG: 'acme' } });
+  assert.deepEqual(toolConfig([{ key: 'moki-ado', server: own }], 'antigravity').mcpServers['moki-ado'], { command: 'npx', args: ['ado'], env: { ORG: 'acme' } });
   const merged = mergeManaged({ other: 1, mcpServers: { mine: { command: 'x' }, 'moki-old': { command: 'y' }, moki: { command: 'z' } } }, entries, 'cursor');
   assert.deepEqual(Object.keys(merged.mcpServers as object).sort(), ['mine', 'moki-gh', 'moki-jira']);
   assert.equal(merged.other, 1);
@@ -178,14 +182,22 @@ test('Codex started by Moki gets -c overrides for this project and does not writ
   service.launch({ project: 'beta', activity: 'open', tool: 'codex', files: [], note: '', language: 'English' } as never);
   const extra = launched.at(-1)?.extra ?? [];
   const flags = extra.filter((_, i) => extra[i - 1] === '-c');
-  assert.match(flags.join('\n'), /mcp_servers\."moki"\.args=\[.*"--project", "beta"\]/);
+  assert.match(flags.join('\n'), /mcp_servers\.moki\.args=\[.*"--project", "beta"\]/);
   assert.doesNotMatch(flags.join('\n'), /\$\{/);
   assert.equal(existsSync(join(root, '.codex', 'config.toml')), false);
   const sample = codexLaunchArgs(generatedEntries(mokiServer('beta', root, 'server.ts', 'node'), []));
-  assert.equal(sample.filter((_, i) => sample[i - 1] === '-c').some((f) => f.startsWith('mcp_servers."moki".command=')), true);
+  assert.equal(sample.filter((_, i) => sample[i - 1] === '-c').some((f) => f.startsWith('mcp_servers.moki.command=')), true);
 });
 
-test('Gemini and Antigravity started by Moki get this project\'s servers in <root>/.gemini/settings.json', () => {
+test('Codex gets server names it accepts: -c splits the key on dots and keeps quotes in the name', () => {
+  const servers = [{ ...mokiServer('beta', root, 'server.ts', 'node'), id: 'azure-devops-2', name: 'Azure DevOps 2' }];
+  const args = codexLaunchArgs(generatedEntries(mokiServer('beta', root, 'server.ts', 'node'), servers));
+  const names = new Set(args.filter((_, i) => args[i - 1] === '-c').map((f) => /^mcp_servers\.([^.=]+)\./.exec(f)?.[1]));
+  assert.deepEqual([...names], ['moki', 'moki-azure-devops-2']);
+  for (const name of names) assert.match(String(name), CODEX_SERVER_NAME);
+});
+
+test('Gemini started by Moki gets this project\'s servers in <root>/.gemini/settings.json; Antigravity in <root>/.agents/mcp_config.json', () => {
   mkdirSync(join(root, '.gemini'), { recursive: true });
   writeFileSync(join(root, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { mine: { command: 'mine' } }, theme: 'dark' }));
   service.launch({ project: 'beta', activity: 'open', tool: 'gemini', files: [], note: '', language: 'English' } as never);
@@ -194,11 +206,16 @@ test('Gemini and Antigravity started by Moki get this project\'s servers in <roo
   assert.equal(data.mcpServers.mine.command, 'mine');
   assert.deepEqual(data.mcpServers.moki.args?.slice(-2), ['--project', 'beta']);
   assert.equal(Object.hasOwn(data.mcpServers, 'moki-azure-devops'), false);
+  // Antigravity CLI reads only mcp_config.json: its servers go there, and .gemini/settings.json stays as Gemini left it.
+  mkdirSync(join(root, '.agents'), { recursive: true });
+  writeFileSync(join(root, '.agents', 'mcp_config.json'), JSON.stringify({ mcpServers: { mine: { command: 'mine' } } }));
   service.launch({ project: 'acme', activity: 'open', tool: 'antigravity', files: [], note: '', language: 'English' } as never);
-  const again = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { mcpServers: Record<string, { command?: string; args?: string[] }> };
-  assert.equal(again.mcpServers.mine.command, 'mine');
-  assert.deepEqual(again.mcpServers['moki-azure-devops']?.args, ['azure-devops-mcp']);
-  assert.deepEqual(again.mcpServers.moki.args?.slice(-2), ['--project', 'acme']);
+  const ag = JSON.parse(readFileSync(join(root, '.agents', 'mcp_config.json'), 'utf8')) as { mcpServers: Record<string, { command?: string; args?: string[] }> };
+  assert.equal(ag.mcpServers.mine.command, 'mine');
+  assert.deepEqual(ag.mcpServers['moki-azure-devops']?.args, ['azure-devops-mcp']);
+  assert.deepEqual(ag.mcpServers.moki.args?.slice(-2), ['--project', 'acme']);
+  const gemini = JSON.parse(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')) as { mcpServers: Record<string, { args?: string[] }> };
+  assert.deepEqual(gemini.mcpServers.moki.args?.slice(-2), ['--project', 'beta']);
 });
 
 test('Gemini started by Moki gets this project\'s agents in <root>/.gemini/agents and keeps a file the person wrote', () => {

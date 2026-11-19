@@ -4,7 +4,7 @@
 import type { MouseEvent } from 'react';
 import type { ProjectSummary } from '../api';
 import { t } from '../i18n';
-import { IconFolder, IconHome, IconLink, IconMoki, IconNotePlus, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
+import { IconChat, IconFolder, IconHome, IconLink, IconMoki, IconNotePlus, IconPanel, IconPlay, IconRefresh, IconSearch, IconSettings, IconTerminal } from './Icons';
 import { NotificationBell } from './NotificationBell';
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
   project?: ProjectSummary | null;
   onPlay?: () => void;
   onTerminal?: (e: MouseEvent<HTMLElement>) => void;
+  onChat?: () => void;
   onFolder?: () => void;
   onLink?: () => void;
   onRefresh?: () => void;
@@ -26,7 +27,7 @@ interface Props {
   onOpenRoutine?: () => void;
 }
 
-export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch, onOpenRoutine }: Props) {
+export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onChat, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch, onOpenRoutine }: Props) {
   const ready = Boolean(project);
   return (
     <nav className="ribbon" aria-label={t('Actions')}>
@@ -34,6 +35,7 @@ export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, proje
       {onSearch && <button type="button" className={`icon-btn${searchOn ? ' on' : ''}`} onClick={onSearch} aria-pressed={searchOn} title={t('Search (Ctrl+Shift+F)')}><IconSearch size={19} /></button>}
       <button type="button" className="icon-btn accent" disabled={!ready} onClick={onPlay} title={t('Open in your AI tool')}><IconPlay size={19} /></button>
       <button type="button" className="icon-btn" disabled={!ready} onClick={onTerminal} title={t('New terminal')}><IconTerminal size={19} /></button>
+      {onChat && <button type="button" className="icon-btn" disabled={!ready} onClick={onChat} title={t('Chat (Ctrl+L)')} aria-label={t('Chat (Ctrl+L)')}><IconChat size={19} /></button>}
       <button type="button" className="icon-btn" disabled={!ready} onClick={onFolder} title={t('Open the project folder')}><IconFolder size={19} /></button>
       <button type="button" className={`icon-btn${project?.repository ? ' accent' : ''}`} disabled={!ready} onClick={onLink}
         title={project?.repository ? t('Linked folder: {folder} (click to link another)', { folder: project.repository }) : t('Link a folder of this computer to the project')}><IconLink size={19} /></button>

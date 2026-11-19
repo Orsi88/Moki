@@ -5,6 +5,17 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'ele
 
 contextBridge.exposeInMainWorld('qa', {
   call: (method: string, ...args: unknown[]) => ipcRenderer.invoke('qa:call', method, args),
+  onChatShortcut: (callback: (key: 'chat' | 'call') => void) => {
+    const listener = (_e: IpcRendererEvent, key: 'chat' | 'call') => callback(key);
+    ipcRenderer.on('qa:chat-shortcut', listener);
+    return () => ipcRenderer.removeListener('qa:chat-shortcut', listener);
+  },
+  // A live chat conversation changed (text arriving, a tool call, the end of an answer).
+  onChatChanged: (callback: (project: string, id: string) => void) => {
+    const listener = (_e: IpcRendererEvent, project: string, id: string) => callback(project, id);
+    ipcRenderer.on('qa:chat-changed', listener);
+    return () => ipcRenderer.removeListener('qa:chat-changed', listener);
+  },
   // The renderer cannot read a dropped file's path. This returns it, and the service copies the file in.
   filePath: (file: Parameters<typeof webUtils.getPathForFile>[0]) => webUtils.getPathForFile(file),
   watch: (project: string) => ipcRenderer.invoke('qa:watch', project),

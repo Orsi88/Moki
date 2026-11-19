@@ -248,6 +248,16 @@ export function start(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('moki.chooseProject', chooseProject),
     vscode.commands.registerCommand('moki.refresh', () => { resolveProject(); refresh(); }),
+    // <scheme>://orsi88.moki/open?project=<id>: the desktop app's "Moki in your IDE" right after installing. Shows
+    // Moki's view, so its icon is there to use, and picks that project when the active workspace has it.
+    vscode.window.registerUriHandler({
+      handleUri: (uri) => {
+        if (uri.path !== '/open') return;
+        const project = new URLSearchParams(uri.query).get('project');
+        if (project && listProjects(ROOT).includes(project)) pick(project);
+        void vscode.commands.executeCommand('workbench.view.extension.moki');
+      },
+    }),
   );
 
   resolveProject();

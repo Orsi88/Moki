@@ -11,7 +11,7 @@
   "categories": ["Testing", "AI"],
   "type": "module",
   "main": "./dist/extension.cjs",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": ["onStartupFinished", "onUri"],
   "contributes": {
     "mcpServerDefinitionProviders": [{ "id": "moki", "label": "Moki" }],
     "icons": {

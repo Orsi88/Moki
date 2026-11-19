@@ -30,7 +30,7 @@ A skill becomes **stable** only after passing its example's acceptance checklist
 | 2026-10-20 | Claude Code (VS Code extension) | Claude Opus 5.5 | all | Discovery only | All 8 skills were discovered from `.claude/skills/` with their descriptions. |
 | 2026-10-20 | Claude Code (VS Code extension) | Claude Opus 5.5 | failure-analysis | Format checks pass — weak evidence | Outputs written by the same session that authored the skill; `check-output` passed for both cases. Must be repeated in a fresh session and in a second tool. |
 | 2026-10-20 | Claude Code CLI (fresh session, launched by `qa`, non-interactive, no write permission) | default | failure-analysis + project-context | Partial pass | Identified project; listed the 4 mandatory fields and did not analyze without them; used the chat-only fallback when writes were denied; conversation in pt-BR with deliverable defaulting to English; refused to reuse an earlier pre-analysis whose run had no recorded inputs (correct traceability behavior). Full checklist not run. |
-| | Codex | | | not run | |
+| 2026-11-17 | Codex CLI 0.166.0 (Windows 11, `codex exec`, launch args as Moki builds them) | default (GPT) | MCP: Moki's own server | Pass after fix | Before: `-c mcp_servers."moki"...` named the server `"moki"` with its quotes and Codex refused it at startup ("Invalid MCP server name"), so no Moki server reached Codex. After: bare names; asked about the project without naming the server, the model called `moki_get_project` and `moki_get_context`. Check to repeat on a new Codex version: open Codex from Moki and ask for the project's onboarding status. |
 | | Cursor | | | not run | Check whether skills appear twice |
 | | claude.ai | | | not run | |
 | | ChatGPT | | | not run | |

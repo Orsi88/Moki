@@ -2,6 +2,18 @@
 
 The Moki desktop app is a thin visual layer over the framework. It has **no AI of its own**: it shows the project files, lets the QA read and edit them, and opens the AI tool the QA already uses with the request ready. Skills, workflows and project context stay plain files that any AI tool can use without the app.
 
+## Project chat
+
+The single `chat` board key in [Workspace](../app/src/screens/Workspace.tsx) uses [ChatView](../app/src/components/ChatView.tsx). The ribbon and Ctrl+L focus that tab (Ctrl+L is left to a focused terminal); **Call… › In the chat** uses `chatRequest` and the existing `prepareLaunch` validation, then sends it at once in a new conversation (the draft in the message box is kept).
+
+[chat.ts](../desktop/chat.ts) is tool-neutral, with one adapter per AI: Claude Code keeps one process per conversation with newline-delimited JSON on stdin/stdout; Codex (`codex exec --json`, `exec resume <id>`) runs one process per message, reads it from stdin and gets the project context with the first message of a new session, since it has no system-prompt file. Its MCP servers and plugin instructions are the same `-c` overrides its terminal gets. [chat-conversations.ts](../desktop/chat-conversations.ts) owns live processes and tool progress, saves the question as soon as it is sent, and reports every change; [chat-store.ts](../desktop/chat-store.ts) writes transcripts atomically under the active project's `.chats/`. Paths reject escaping symlinks and junctions. The context and MCP launch files of each start are written to the active workspace's `temporary/` (out of the project tree) and deleted once the tool has read them. Changes reach the UI as `qa:chat-changed` notices (batched), with a 2-second safety refresh while an answer runs; a hidden tab does not stop the process. `ELECTRON_RUN_AS_NODE` is never passed to the real tool. Workspace changes and app shutdown close live conversations.
+
+Claude artifact links in an answer ([artifact-links.ts](../scripts/lib/artifact-links.ts), the same rule in the window and the main process) open in [artifact-viewer-host.ts](../desktop/artifact-viewer-host.ts): a separate `WebContentsView` over the chat tab with a persistent claude.ai session, no preload, Node access or Moki IPC, and only clipboard writing allowed. [artifact-viewer.ts](../desktop/artifact-viewer.ts) owns the allowed hosts (claude.ai and its sign-in), HTTPS checks and rectangle validation; other pages open in the browser. `showArtifact` validates the project and the link; the host clamps the view to the main window and hides it when the tab is hidden or a modal covers it. Downloads start in the project's inbox. UI checks use a local page in place of claude.ai and a script in place of Claude; they do not sign in or invoke billable AI services.
+
+## Claude accounts
+
+[claude-profiles.ts](../desktop/claude-profiles.ts) lists the Claude Code profiles of the user folder (`~/.claude` and `~/.claude-<name>`, named by the account e-mail in their `.claude.json`), keeps the chosen one in `<data>/workspaces/claude-profile.json` and sets `CLAUDE_CONFIG_DIR` in the main process (cleared for the default profile). Terminals, the external launcher, the chat and the plan usage inherit the main process's environment, so the choice applies to what starts afterwards; the plan usage cache is kept per account. Without a saved choice, the `CLAUDE_CONFIG_DIR` Moki started with stays. Profile ids are folder names checked against `^\.claude(-name)?$`; a new one is made only from a slug. [ClaudeAccounts](../app/src/components/ClaudeAccounts.tsx) is the list in Settings › My AIs and the quick switch in the status bar's Usage (shown with more than one account).
+
 ## Pieces
 
 | Path | Role |

@@ -24,6 +24,8 @@ AGENTS.override.md
 .claude/settings.local.json
 .claude/worktrees/
 .cursor/
+# Antigravity CLI's MCP servers, written by Moki for the last project started there (local paths)
+/.agents/mcp_config.json
 .vscode/
 .idea/
 
