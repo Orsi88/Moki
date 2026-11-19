@@ -938,17 +938,28 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .choice-title { font-weight: 600; font-size: 0.9rem; }
 .choice-hint { font-size: 0.78rem; color: var(--muted); }
-/* Claude account (ClaudeAccounts): Settings › My AIs and the quick switch in the status bar's Usage. */
-.claude-accounts-section { display: grid; gap: 8px; margin-top: 20px; max-width: 780px; }
-.claude-accounts-section h3 { margin: 0; font-size: 0.95rem; }
-.claude-accounts-section > .btn { justify-self: start; }
-.claude-accounts { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
-.claude-accounts .choice-title, .claude-accounts .choice-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.claude-accounts.compact { grid-template-columns: 1fr; }
-.claude-accounts.compact .choice { padding: 6px 10px; }
-.claude-accounts.compact .choice-title { font-size: 0.8rem; }
-.claude-account-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.claude-account-add input { flex: 1 1 220px; min-width: 0; }
+/* A page header with more than one action keeps them together at its right. */
+.list-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* Accounts of each AI (AiAccounts): Settings › My AIs, full width like the AI grid, and the quick switch in Usage. */
+.ai-accounts-section { display: grid; gap: 10px; margin-top: 24px; }
+.ai-accounts-section h3 { margin: 0; font-size: 0.95rem; }
+.ai-accounts-section > p { margin: 0; }
+.ai-accounts-block { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); }
+.ai-accounts-block h4 { margin: 0; font-size: 0.85rem; }
+.ai-accounts { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.ai-accounts .choice-title, .ai-accounts .choice-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-account { position: relative; min-width: 0; }
+.ai-account .choice { padding-right: 38px; }
+.ai-account.is-hidden .choice { opacity: 0.55; border-style: dashed; }
+.ai-account-hide { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); }
+.ai-accounts-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ai-account-add { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ai-account-add input { flex: 1 1 220px; min-width: 0; }
+.ai-accounts-quick { display: grid; gap: 4px; }
+.ai-accounts-quick + .ai-accounts-quick { margin-top: 6px; }
+.ai-accounts.compact { grid-template-columns: 1fr; }
+.ai-accounts.compact .choice { padding: 6px 10px; }
+.ai-accounts.compact .choice-title { font-size: 0.8rem; }
 .tool-group + .tool-group { margin-top: 12px; }
 .tool-group-title { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.78rem; color: var(--muted); }
 .file-pick { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -2383,8 +2394,10 @@ span.mcp-row-main { cursor: default; }
 .group-menu { display: flex; flex-direction: column; gap: 8px; width: 236px; padding: 10px; }
 .group-name { width: 100%; }
 .group-colors { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
-.group-swatch { width: 20px; height: 20px; padding: 0; border: 2px solid var(--group); border-radius: 50%; background: var(--group-soft); cursor: pointer; }
-.group-swatch.on, .group-swatch:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* Inside .term-menu, whose button rule is more specific than a lone class: these keep each swatch round and colored. */
+.group-menu .group-swatch { display: block; width: 20px; height: 20px; padding: 0; border: 2px solid var(--group); border-radius: 50%; background: var(--group-soft); cursor: pointer; justify-self: center; }
+.group-menu .group-swatch:hover:not(:disabled) { background: var(--group); }
+.group-menu .group-swatch.on, .group-menu .group-swatch:focus-visible { background: var(--group); outline: 2px solid var(--text); outline-offset: 2px; }
 .group-menu-item { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; font-size: 0.85rem; }
 .group-menu-item:hover { background: var(--bg-3); }
 .group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--group, var(--muted)); flex-shrink: 0; }
@@ -2700,7 +2713,7 @@ span.mcp-row-main { cursor: default; }
 .marker-choice:hover:not(:disabled) { border-color: var(--muted); }
 .marker-choice.on { border-color: var(--accent); background: var(--accent-soft); }
 .marker-none { margin-left: 4px; font-size: 0.78rem; }
-.settings-markers { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 980px; height: 100%; padding: var(--settings-page-y) var(--settings-page-x) var(--settings-page-bottom); overflow: auto; }
+.settings-markers { display: flex; flex-direction: column; gap: 14px; width: 100%; height: 100%; padding: var(--settings-page-y) var(--settings-page-x) var(--settings-page-bottom); overflow: auto; }
 .settings-markers h1 { font-size: 1.6rem; margin: 0; }
 .settings-markers > p { margin: 0; }
 .marker-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -2822,3 +2835,30 @@ span.mcp-row-main { cursor: default; }
 /* Ctrl+click picks tree items to move together; the empty part of the tree takes a drop to the project root. */
 .tree-row.selected { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .sidebar-scroll.drop-root { box-shadow: inset 0 0 0 1px var(--accent); border-radius: 8px; }
+
+/* An item's evolution (EvolutionPanel): Mycroft's proposal with its difference, what was taught, the history. */
+.evolution-card { display: grid; gap: 12px; }
+.evolution-card h3 { margin: 0 0 6px; font-size: 0.9rem; }
+.evolution-card > p { margin: 0; }
+.evolution-note { margin: 0; }
+.evolution-proposal { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.evolution-proposal p { margin: 0; }
+.evolution-quotes { margin: 0; padding-left: 18px; color: var(--muted); font-style: italic; }
+.evolution-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.evolution-block { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+.evolution-learnings { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.evolution-learnings li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.evolution-teach { display: flex; gap: 8px; }
+.evolution-teach input { flex: 1; min-width: 0; }
+.evolution-history { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 8px; }
+.evolution-history li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.evolution-history li.in-use { border-color: var(--accent); }
+.evolution-history p { margin: 4px 0; }
+.evolution-entry { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
+.evolution-diff { margin: 0; max-height: 360px; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.evolution-diff .diff-added { display: block; background: color-mix(in srgb, #3fb950 18%, transparent); }
+.evolution-diff .diff-removed { display: block; background: color-mix(in srgb, #f85149 18%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, #f85149 60%, transparent); }
+.evolution-diff .diff-same { display: block; color: var(--muted); }
+.evolution-diff .diff-gap { display: block; color: var(--faint); }
+.note-evolution { padding: 4px 12px 8px; border-bottom: 1px solid var(--border); }
+.note-evolution ul { list-style: none; margin: 4px 0 0; padding: 0; }

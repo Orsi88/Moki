@@ -24,7 +24,7 @@ interface Props {
   sidebarCollapsed?: boolean;
   searchOn?: boolean;
   onSearch?: () => void; // the magnifier: search the workspace
-  onOpenRoutine?: () => void;
+  onOpenRoutine?: (tab?: 'agents' | 'skills' | 'activities') => void; // the routines tab, or the tab of an item Mycroft proposes a change to
 }
 
 export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, project, onPlay, onTerminal, onChat, onFolder, onLink, onRefresh, onPanel, sidebarCollapsed = false, searchOn = false, onSearch, onOpenRoutine }: Props) {
@@ -40,7 +40,7 @@ export function Ribbon({ settingsOn, onHome, onSettings, onNewNote, onIde, proje
       <button type="button" className={`icon-btn${project?.repository ? ' accent' : ''}`} disabled={!ready} onClick={onLink}
         title={project?.repository ? t('Linked folder: {folder} (click to link another)', { folder: project.repository }) : t('Link a folder of this computer to the project')}><IconLink size={19} /></button>
       <button type="button" className={`icon-btn${settingsOn ? ' on' : ''}`} onClick={onSettings} title={t('Settings')}><IconSettings size={19} /></button>
-      {onOpenRoutine && <NotificationBell onOpenRoutine={() => onOpenRoutine()} />}
+      {onOpenRoutine && <NotificationBell onOpenRoutine={() => onOpenRoutine()} onOpenSettings={(tab) => onOpenRoutine(tab)} />}
       <button type="button" className="icon-btn" disabled={!ready} onClick={onRefresh} title={t('Refresh')}><IconRefresh size={19} /></button>
       <span className="ribbon-spacer" />
       <button type="button" className="icon-btn ribbon-ide" onClick={onIde} title={t('Moki in your IDE')} aria-label={t('Moki in your IDE')}><IconMoki size={20} /></button>

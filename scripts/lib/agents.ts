@@ -7,7 +7,8 @@
 // workspace/library/agents/<category>/<name>.md (never versioned here).
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { activeLabel, isItemName, itemHistory } from './evolution.ts';
 import { ROOT, SLUG, readJson, workspaceDir } from './repo.mjs';
 import { parseFrontmatter } from './frontmatter.mjs';
 
@@ -40,8 +41,10 @@ export interface Agent {
   status: string;
   basedOn: string;
   source: 'builtin' | 'custom';
-  path: string; // relative to the framework root, "/" separators
+  path: string; // relative to the framework root, "/" separators (an evolved built-in: its version, under the workspace)
   body: string;
+  evolved?: number; // the version in use, when the person approved one (scripts/lib/evolution.ts)
+  originalPath?: string; // an evolved built-in's own file, which never changes
 }
 
 export interface AgentMcp { name: string; mode: string }
@@ -215,11 +218,23 @@ function readAgents(dir: string, source: Agent['source'], root: string): Agent[]
   return agents;
 }
 
+// An agent with a version approved in this workspace: a built-in one is read from that version (its own file never
+// changes), so every request that says "read <path>" follows it; the person's own agent already holds it in its file.
+function evolvedAgent(agent: Agent, root: string): Agent {
+  if (!isItemName(agent.name)) return agent;
+  const { active } = itemHistory('agent', agent.name, root);
+  if (!active) return agent;
+  const label = agent.source === 'builtin' ? activeLabel({ kind: 'agent', name: agent.name, builtin: true }, root) : null;
+  if (!label) return { ...agent, evolved: active };
+  const version = parseAgent(readFileSync(resolve(root, label), 'utf8'), 'builtin', label).agent;
+  return version && version.name === agent.name ? { ...version, evolved: active, originalPath: agent.path } : agent;
+}
+
 export function listAgents(root = ROOT): Agent[] {
-  const builtin = readAgents(builtinDir(root), 'builtin', root);
+  const builtin = readAgents(builtinDir(root), 'builtin', root).map((a) => evolvedAgent(a, root));
   const names = new Set(builtin.map((a) => a.name));
   // A custom agent can never shadow a built-in one.
-  const custom = readAgents(libraryDir(root), 'custom', root).filter((a) => !names.has(a.name));
+  const custom = readAgents(libraryDir(root), 'custom', root).filter((a) => !names.has(a.name)).map((a) => evolvedAgent(a, root));
   return [...builtin, ...custom];
 }
 
@@ -249,7 +264,7 @@ export function duplicateAgent(name: string, root = ROOT): Agent {
   const taken = new Set(listAgents(root).map((a) => a.name));
   let newName = `${source.name}-custom`;
   for (let i = 2; taken.has(newName); i++) newName = `${source.name}-custom-${i}`;
-  const text = readFileSync(join(root, source.path), 'utf8').replace(/\r\n/g, '\n');
+  const text = readFileSync(resolve(root, source.path), 'utf8').replace(/\r\n/g, '\n');
   const end = text.indexOf('\n---', 4);
   let front = text.slice(0, end).replace(/^name: .*$/m, `name: ${newName}`);
   front = /^ {2}basedOn: .*$/m.test(front) ? front.replace(/^ {2}basedOn: .*$/m, `  basedOn: ${source.name}`)

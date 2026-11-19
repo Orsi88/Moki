@@ -11,9 +11,9 @@ import { api, type AiToolStatus, type ProjectSummary, type TerminalRef, type Too
 import { t } from '../i18n';
 import { defaultTool, setDefaultTool } from '../prefs';
 import { CatIcon } from './CatIcon';
-import { IconCheck, IconDownload, IconExternal, IconMore, IconProgress, IconRefresh, IconStar } from './Icons';
+import { IconCheck, IconCopy, IconDownload, IconExternal, IconMore, IconProgress, IconRefresh, IconStar } from './Icons';
 import { ListHead } from './ListPage';
-import { ClaudeAccounts } from './ClaudeAccounts';
+import { AiAccounts } from './AiAccounts';
 
 interface Props {
   tools: ToolInfo[];
@@ -37,6 +37,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [menu, setMenu] = useState<{ id: string; left: number; top: number } | null>(null);
+  const [headMenu, setHeadMenu] = useState<{ left: number; top: number } | null>(null); // the page's rarely used actions
 
   const check = useCallback(() => {
     setStatus(null);
@@ -70,11 +71,11 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
       .catch((e: Error) => setError(e.message));
   };
 
-  // A new Claude account: Claude opens in a terminal tab, which asks the person to sign in.
-  const signIn = () => {
+  // A new account: that AI opens in a terminal tab, which asks the person to sign in.
+  const signIn = (tool: string) => {
     const bridge = api.term();
-    if (!bridge || !project) { setInfo(t('Open Claude in a terminal of a project to sign in to this account.')); return; }
-    bridge.create('claude')
+    if (!bridge || !project) { setInfo(t('Open the AI in a terminal of a project to sign in to this account.')); return; }
+    bridge.create(tool)
       .then((r) => (r.terminal ? onTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
       .catch((e: Error) => setError(e.message));
   };
@@ -117,10 +118,20 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
   return (
     <div className="list-page ai-tools">
       <ListHead title={t('My AIs')} intro={t('Where each AI is and which one activities start in.')}
-        action={<>
-          <button type="button" className="btn btn-ghost" onClick={copyDiagnostic}>{t('Copy diagnostic')}</button>
+        action={<div className="list-head-actions">
           <button type="button" className="btn btn-ghost" disabled={status === null} onClick={check}><IconRefresh size={15} /> {status === null ? t('Checking…') : t('Check again')}</button>
-        </>} />
+          <button type="button" className="icon-btn" title={t('More options')} aria-label={t('More options')} aria-haspopup="menu" aria-expanded={Boolean(headMenu)}
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setHeadMenu(headMenu ? null : { left: Math.max(8, r.right - MENU_WIDTH), top: r.bottom + 4 }); }}><IconMore size={18} /></button>
+        </div>} />
+      {headMenu && (
+        <div className="menu-backdrop" onMouseDown={() => setHeadMenu(null)}>
+          <ul className="term-menu" role="menu" aria-label={t('More options')} style={{ left: headMenu.left, top: headMenu.top, minWidth: MENU_WIDTH }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setHeadMenu(null); }}>
+            <li><button type="button" role="menuitem" autoFocus title={t('Where Moki looked for each AI on this computer, to paste in a request for help')} onClick={() => { setHeadMenu(null); copyDiagnostic(); }}>
+              <IconCopy size={16} /> {t('Copy the AI detection diagnostic')}
+            </button></li>
+          </ul>
+        </div>
+      )}
       {error && <div className="result warn" role="status"><p className="result-title">{error}</p></div>}
       {info && <div className="result success" role="status"><p className="result-title">{info}</p></div>}
       <ul className="ai-grid">
@@ -165,7 +176,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
         })}
       </ul>
       <p className="muted small">{t('Installing opens a terminal tab with the official command; it runs only after you type y.')}</p>
-      {list.some((x) => x.id === 'claude' && available(x)) && <ClaudeAccounts onSignIn={signIn} />}
+      <AiAccounts installed={list.filter(available).map((x) => x.id)} onSignIn={signIn} />
       {menu && menuTool && (
         <div className="menu-backdrop" onMouseDown={() => setMenu(null)}>
           <ul className="term-menu" role="menu" style={{ left: menu.left, top: menu.top, minWidth: MENU_WIDTH }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setMenu(null); }}>

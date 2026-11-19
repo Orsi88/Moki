@@ -43,3 +43,11 @@ test('a string and a python comment are marked and the text still joins', () => 
   assert.equal(parts.find((part) => part.text.startsWith('"'))?.kind, 'str');
   assert.equal(parts.find((part) => part.text.startsWith('#'))?.kind, 'cmt');
 });
+
+test('the short names written after a fence (js, ts, py, sh, yml) color as their language', () => {
+  const kinds = (code: string, lang: string) => highlightParts(code, lang).filter((p) => p.kind === 'key').map((p) => p.text);
+  assert.deepEqual(kinds('const total = 1', 'js'), ['const']);
+  assert.deepEqual(kinds('def total():', 'py'), kinds('def total():', 'python'));
+  assert.deepEqual(kinds('if true; then echo; fi', 'sh'), kinds('if true; then echo; fi', 'bash'));
+  assert.deepEqual(kinds('const total = 1', 'JS'), ['const']);
+});

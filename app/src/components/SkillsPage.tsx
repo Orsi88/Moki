@@ -7,6 +7,7 @@
 // Without a project only the upload is offered.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EvolutionPanel } from './EvolutionPanel';
 import { api, type ProjectSummary, type TerminalRef, type ToolInfo } from '../api';
 import { skillFace } from '../catalog-copy';
 import { t } from '../i18n';
@@ -174,6 +175,7 @@ export function SkillsPage({ project, projects, tools, onTerminal, startOnAdd = 
           <p>{current.description || '—'}</p>
           {current.native && <p className="muted small">{t('Comes with Moki: always available in every project. The activities of the side panel use it.')}</p>}
         </section>
+        {current.native && <EvolutionPanel key={current.name} kind="skill" name={current.name} />}
 
         {current.plugin ? (
           <section className="agent-card">

@@ -233,7 +233,9 @@ export const DOCUMENT_FONTS = ['Calibri', 'Arial', 'Segoe UI', 'Helvetica', 'Ver
 export interface LaunchRequest { project: string; activity: string; tool: string; files: string[]; note: string; language: string; run?: string; agent?: string; skill?: string; exclude?: string[]; trackingId?: string; context?: string[] }
 export interface LaunchResult { opened: boolean; message?: string; copied?: boolean; prompt: string; upload?: string[]; bundleReady?: boolean; terminal?: TerminalRef }
 export interface TerminalRef { id: string; title: string; tool?: string }
-export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string }
+export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: { name: string; summary: string; ok?: boolean }[]; error?: string; label?: string; attachments?: string[] }
+// A file named in a chat (desktop/chat-files.ts): its path in the project and whether it can be opened.
+export interface ChatFile { ref: string; path: string; name: string; status: 'ok' | 'missing' | 'other-project' | 'outside'; image: boolean }
 export interface ChatRecord { id: string; tool: string; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
 export interface ChatState { record: ChatRecord; busy: boolean; error?: string }
 export interface ArtifactStatus { url: string; loading: boolean; error: string }
@@ -397,20 +399,44 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   return res.value as T;
 }
 
-// A Claude account (desktop/claude-profiles.ts): a Claude Code profile folder; the active one is used by every Claude Moki starts.
-export interface ClaudeProfile { id: string; name: string; email: string; signedIn: boolean; active: boolean }
+// An account of an AI tool (desktop/ai-accounts.ts): a profile folder; the active one is used by everything Moki starts.
+export interface AiAccount { id: string; name: string; email: string; signedIn: boolean; active: boolean; hidden: boolean }
+export interface AiAccounts { tool: string; label: string; accounts: AiAccount[] }
+
+// Evolution (Mycroft, scripts/lib/evolution.ts): an item's versions, the change waiting for the person, what they taught it.
+export type EvolutionKind = 'agent' | 'skill' | 'activity';
+export interface DiffLine { kind: 'same' | 'added' | 'removed'; text: string }
+export interface VersionEntry { version: number; at: string; event: 'version' | 'revert' | 'restore'; reason: string; proposedBy: 'mycroft' | 'person'; learnings: string[]; from?: number }
+export interface Teaching { id: string; at: string; text: string; scope: 'workspace' | 'project'; project?: string; status: string }
+export interface Evolution {
+  kind: EvolutionKind; name: string; builtin: boolean; active: number; entries: VersionEntry[]; originalChanged: boolean;
+  proposal: { id: string; at: string; reason: string; proposedBy: string; learnings: string[]; diff: DiffLine[] } | null;
+  learnings: Teaching[];
+}
 
 // The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
 export const CHAT_TOOLS: string[] = ['claude', 'codex'];
 
 export const api = {
-  claudeProfiles: () => call<ClaudeProfile[]>('claudeProfiles'),
-  useClaudeProfile: (id: string) => call<ClaudeProfile[]>('useClaudeProfile', id),
-  addClaudeProfile: (name: string) => call<ClaudeProfile[]>('addClaudeProfile', name),
+  evolution: (kind: EvolutionKind, name: string, project?: string) => call<Evolution>('evolution', kind, name, project),
+  evolutionDiff: (kind: EvolutionKind, name: string, from: number, to: number) => call<DiffLine[]>('evolutionDiff', kind, name, from, to),
+  evolutionWaiting: () => call<{ id: string; kind: EvolutionKind; name: string; reason: string; at: string }[]>('evolutionWaiting'),
+  approveVersion: (kind: EvolutionKind, name: string, id: string, project?: string) => call<Evolution>('approveVersion', kind, name, id, project),
+  declineVersion: (kind: EvolutionKind, name: string, id: string) => call<Evolution>('declineVersion', kind, name, id),
+  revertVersion: (kind: EvolutionKind, name: string, version: number, project?: string) => call<Evolution>('revertVersion', kind, name, version, project),
+  teach: (kind: EvolutionKind, name: string, text: string, project?: string) => call<Evolution>('teach', kind, name, text, project),
+  dismissTeaching: (kind: EvolutionKind, name: string, id: string, project?: string) => call<Evolution>('dismissTeaching', kind, name, id, project),
+  aiAccounts: () => call<AiAccounts[]>('aiAccounts'),
+  useAiAccount: (tool: string, id: string) => call<AiAccounts[]>('useAiAccount', tool, id),
+  hideAiAccount: (tool: string, id: string, on: boolean) => call<AiAccounts[]>('hideAiAccount', tool, id, on),
+  addAiAccount: (tool: string, name: string) => call<AiAccounts[]>('addAiAccount', tool, name),
   onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
   chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),
   chatState: (project: string, id: string) => call<ChatState>('chatState', project, id),
-  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string) => call<ChatState>('chatSend', project, id, tool, text, language),
+  chatSend: (project: string, id: string | undefined, tool: string, text: string, language: string, label?: string, attachments?: string[]) => call<ChatState>('chatSend', project, id, tool, text, language, label, attachments),
+  chatAnswerFiles: (project: string, text: string) => call<ChatFile[]>('chatAnswerFiles', project, text),
+  chatFiles: (project: string, refs: string[]) => call<ChatFile[]>('chatFiles', project, refs),
+  saveAttachment: (project: string, name: string, data: Uint8Array) => call<string>('saveAttachment', project, name, data),
   chatStop: (project: string, id: string) => call<boolean>('chatStop', project, id),
   removeChat: (project: string, id: string) => call<boolean>('removeChat', project, id),
   chatRequest: (req: LaunchRequest) => call<{ prompt: string }>('chatRequest', req),

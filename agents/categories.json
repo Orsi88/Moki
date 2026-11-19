@@ -26,5 +26,9 @@
   "setup": {
     "label": "Setup",
     "description": "Setting Moki up for your work in your own words: agents, activities, routines, connections, templates, tags and projects (the Configurador)."
+  },
+  "learning": {
+    "label": "Learning",
+    "description": "Moki learning how you work: Mycroft turns what you teach into reviewed new versions of agents, skills and activities."
   }
 }

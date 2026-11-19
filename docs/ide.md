@@ -85,7 +85,7 @@ To link a folder for good, open the project in the desktop app and use the **lin
 
 In **Activities**, **Agents** and **Operations** the panel lists only the starred items (the same stars as in the app) and the 5 most used ones, counted when you start something from the panel. A search box finds the others. With no star or use yet, the first 5 show.
 
-In **Context**, every file of the project is listed by folder: context first, then notes, then the inbox, runs, temporary and any other folder, then files shared by tags. Each has a switch. Off, it stays out of the requests and out of what the AI can read through Moki's MCP server. The star makes it a priority: the AI gets it first, with its text, in the context pack. Files shared by tags with other projects wait for you (off) until you switch them on. The choices are kept per project in `workspace/projects/<id>/companion.json`.
+In **Context**, the project is listed **by folder**, one row each with a checkbox, its number of files and roughly how many tokens it gives the AI, with the total on top: project context, notes, the inbox, your own folders (marked *your folder*), loose files, **Deliveries** (the `outputs/` of each run, titled by the request) and files shared by tags. Checked, a folder goes to the requests and to what the AI can read through Moki's MCP server; unchecked, it stays out of both. Your folders, a new one included, start checked; Deliveries and shared files start unchecked. Open a folder to leave one file out or let one in (the folder shows as partly checked, *2 left out*) and to star a file: the AI gets it first, with its text, in the context pack. Moki's working files never show: `temporary/`, `logs/`, and a run's `state.json`, inputs, logs and `work/`. The choices are kept per project in `workspace/projects/<id>/companion.json`.
 
 ## The panel
 
@@ -93,7 +93,7 @@ In **Context**, every file of the project is listed by folder: context first, th
 |---|---|
 | **Activities** | Pick an activity, inbox files, an agent, a note and the language, then **Open in Claude Code** or **Copy for the chat** |
 | **Agents** | The agents enabled in the project and what each one does; pick one to work with it |
-| **Context** | Switch files on or off for the AI; star the ones it should read first |
+| **Context** | Check the folders the AI gets; open one for a file's exception or to star the files it should read first |
 | **Runs** | Activities to resume, and multi-agent operations to start and follow step by step |
 
 The footer shows how many of the project's MCP servers are on (**MCPs: n on**), **Connect Claude Code** and **Refresh**. The view's title bar has *Choose Project* and *Refresh*; its "…" menu has *Connect Claude Code*, *Sync MCP Servers to Cursor* and *Show What the AI Read*.
@@ -111,6 +111,7 @@ While you code or write tests, ask in plain language: *"which business rules app
 | `moki_search_knowledge` | Matching lines across the files it may read |
 | `moki_list_resources` / `moki_get_resource` | References, and the text of one project file (context first, then the other folders; a PDF as its text), note, shared file, agent or skill |
 | `moki_get_agent` | An agent's instructions (reading them does not run the agent) |
+| `moki_record_learning`, `moki_list_learnings`, `moki_get_evolution`, `moki_propose_version` | What you taught an agent, skill or activity, and Mycroft's proposals ([Mycroft](mycroft.md)). The only tools that write, and only to Moki's evolution registry: a proposal waits for your approval in the app |
 
 ### Start a QA activity
 
@@ -201,7 +202,7 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 
 | File | When |
 |---|---|
-| `workspace/projects/<id>/companion.json` | You switch context files on or off, or star them |
+| `workspace/projects/<id>/companion.json` | You check or uncheck folders, set a file exception or star files |
 | `workspace/projects/<id>/logs/companion.log` | The AI reads something through Moki's server |
 | `<folder>/.mcp.json` and `<folder>/.moki-backup/` | **Connect Claude Code**, after you confirm |
 | `<linked folder>/.cursor/mcp.json` and `.moki-backup/` | **Sync MCP Servers to Cursor**, after you confirm |

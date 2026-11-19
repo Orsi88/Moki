@@ -2,6 +2,7 @@
 // then the text). The language is the fence info, so the file stays Markdown.
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import { copyText } from '../clipboard';
 import { CodeBlock } from '@tiptap/extension-code-block';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -51,8 +52,7 @@ function CodeBlockCardView({ node, updateAttributes }: ReactNodeViewProps) {
   });
   const known = CODE_LANGS.some(([value]) => value === lang);
   const copy = () => {
-    const written = navigator.clipboard?.writeText(node.textContent);
-    void Promise.resolve(written).then(() => {
+    void copyText(node.textContent).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     });

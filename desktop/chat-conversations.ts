@@ -1,6 +1,7 @@
 // Live project conversations: the process survives a hidden tab; only this project's transcript is persisted.
 // `onChange`: called after each change of a live conversation (text arriving, a tool call, the end of an answer), so
 // the window reads it then instead of polling.
+import { join } from 'node:path';
 import { chatTitle, newChat, readChat, removeChat, saveChat, type ChatRecord, type ChatToolCall } from './chat-store.ts';
 import type { ChatEvent, ChatSession, ChatTool } from './chat.ts';
 
@@ -27,8 +28,11 @@ export function createConversations(onChange: (dir: string, id: string) => void 
       if (last?.role === 'assistant' && !last.text && !last.tools?.length && !last.error) last.error = 'stopped';
       return { record, busy: false };
     },
-    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory): ChatState {
-      if (typeof text !== 'string' || !text.trim()) throw new Error('Write a message first.');
+    // label: the message is a request Moki wrote (Call…), shown folded under this name, which also titles the conversation.
+    // attachments: files of the project (paths in it) added to the message; kept apart from its text, and given to the
+    // AI by their full paths after it. A message may be only attachments.
+    send(dir: string, id: string | undefined, tool: ChatTool, text: string, create: Factory, label?: string, attachments: string[] = []): ChatState {
+      if (typeof text !== 'string' || (!text.trim() && !attachments.length)) throw new Error('Write a message first.');
       if (text.length > 1_000_000) throw new Error('This message is too long.');
       let entry = id ? live.get(key(dir, id)) : undefined;
       const created = !id;
@@ -67,9 +71,12 @@ export function createConversations(onChange: (dir: string, id: string) => void 
       if (entry.record.tool !== tool) throw new Error('Start a new conversation to change the AI.');
       if (entry.session.busy()) throw new Error('Wait for the answer, or stop it first.');
       const at = new Date().toISOString();
-      entry.record.messages.push({ role: 'user', text, at }, { role: 'assistant', text: '', at });
-      entry.record.title ||= chatTitle(text);
-      try { entry.session.send(text); }
+      entry.record.messages.push({ role: 'user', text, at, ...(label ? { label } : {}), ...(attachments.length ? { attachments } : {}) }, { role: 'assistant', text: '', at });
+      entry.record.title ||= label ? chatTitle(label) : chatTitle(text.trim() || attachments.map((a) => a.split('/').pop()).join(', '));
+      const forAi = attachments.length
+        ? `${text.trim() ? `${text}\n\n` : ''}Attached files (read them before answering):\n${attachments.map((a) => `- ${join(dir, ...a.split('/'))}`).join('\n')}`
+        : text;
+      try { entry.session.send(forAi); }
       catch (e) {
         entry.record.messages.splice(-2);
         // A conversation made for this message and never started leaves nothing behind (no empty history entry).

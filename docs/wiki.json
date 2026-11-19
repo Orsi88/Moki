@@ -16,6 +16,7 @@
       { "file": "runs.md", "page": "Runs and deliverables", "pt": { "file": "pt-BR/runs.md", "page": "Execuções e entregas" } },
       { "file": "settings.md", "page": "Settings", "pt": { "file": "pt-BR/settings.md", "page": "Configurações" } },
       { "file": "routines.md", "page": "Routines and notifications", "pt": { "file": "pt-BR/routines.md", "page": "Rotinas e notificações" } },
+      { "file": "mycroft.md", "page": "Mycroft", "pt": { "file": "pt-BR/mycroft.md", "page": "Ensinar o Moki com o Mycroft" } },
       { "file": "internal-links.md", "page": "Project links", "pt": { "file": "pt-BR/internal-links.md", "page": "Links do projeto" } }
     ] },
     { "title": "Capabilities and workflows", "titlePt": "Capacidades e fluxos", "pages": [

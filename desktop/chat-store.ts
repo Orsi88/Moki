@@ -14,7 +14,9 @@ const TITLE_LIMIT = 80;
 const TRANSCRIPT_LIMIT = 60_000; // characters of the conversation carried into a new session (the latest kept)
 
 export interface ChatToolCall { name: string; summary: string; ok?: boolean }
-export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: ChatToolCall[]; error?: string }
+// label: a request Moki wrote (Call… › In the chat), named by what was called; the chat shows it folded under the label.
+// attachments: files of the project (paths in it) the person added to the message, shown with it.
+export interface ChatMessage { role: 'user' | 'assistant'; text: string; at: string; tools?: ChatToolCall[]; error?: string; label?: string; attachments?: string[] }
 export interface ChatRecord { id: string; tool: ChatTool; sessionId?: string; title: string; created: string; updated: string; messages: ChatMessage[] }
 export interface ChatSummary { id: string; tool: ChatTool; title: string; updated: string }
 
@@ -52,7 +54,7 @@ function valid(data: unknown, id: string): ChatRecord | null {
   if (!r || typeof r !== 'object' || r.id !== id || !isChatTool(r.tool) || !Array.isArray(r.messages)
     || typeof r.title !== 'string' || typeof r.created !== 'string' || typeof r.updated !== 'string') return null;
   if (!r.messages.every((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && typeof m.at === 'string'
-    && (m.error === undefined || typeof m.error === 'string') && (m.tools === undefined || Array.isArray(m.tools)
+    && (m.error === undefined || typeof m.error === 'string') && (m.label === undefined || typeof m.label === 'string') && (m.attachments === undefined || Array.isArray(m.attachments) && m.attachments.every((a) => typeof a === 'string')) && (m.tools === undefined || Array.isArray(m.tools)
       && m.tools.every((t) => t && typeof t.name === 'string' && typeof t.summary === 'string' && (t.ok === undefined || typeof t.ok === 'boolean'))))) return null;
   const messages = r.messages;
   return { id, tool: r.tool, ...(typeof r.sessionId === 'string' && r.sessionId ? { sessionId: r.sessionId } : {}), title: String(r.title ?? ''),

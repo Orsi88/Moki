@@ -11,14 +11,14 @@ import { conversationLanguage, t } from '../i18n';
 import { remember } from '../prefs';
 import { ACTIVITY_CAT } from '../icons/cats';
 import { CatIcon } from '../components/CatIcon';
-import { IconCopy, IconMcp, IconPlay, IconRefresh, IconStar } from '../components/Icons';
+import { IconChevron, IconCopy, IconMcp, IconPlay, IconRefresh, IconStar } from '../components/Icons';
 import { call, onVisible, setBadge } from './bridge';
 import { OperationRunScreen, OperationStarter, visitText } from './Operations';
 import { useShortlist } from './Shortlist';
 
 type Tab = 'activities' | 'agents' | 'context' | 'operations' | 'runs';
 interface State { project: { id: string; name: string; description: string; repository: string } | null; projects: { id: string; name: string }[]; folder: string | null; mcp: { id: string; name: string; access: string; transport: string }[] }
-interface ContextFile { id: string; path: string; title: string; description: string; kind: string; source: string; included: boolean; priority: boolean }
+interface ContextFile { id: string; path: string; title: string; description: string; kind: string; source: string; included: boolean; priority: boolean; folder: string; size: number }
 interface Launch { activity: string; run?: string; agent?: string; needsFiles?: boolean; key: string }
 type NoticeTone = 'success' | 'warn';
 
@@ -324,22 +324,40 @@ function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launc
   );
 }
 
+// Roughly what a text costs the AI: about four characters per token, shown short ("≈ 1.2K tokens").
+const tokens = (bytes: number): string => new Intl.NumberFormat(document.documentElement.lang || 'en', { notation: 'compact', maximumFractionDigits: 1 }).format(Math.max(1, Math.round(bytes / 4)));
+// Moki's folders by meaning, in this order; the person's own folders come after them by name, then loose files,
+// deliverables and what other projects share by tags.
+const FOLDER_ORDER = ['context', 'notes', 'inbox'];
+const FOLDER_LABEL: Record<string, string> = { context: 'Project context', notes: 'Notes', inbox: 'Inbox', runs: 'Deliveries', '': 'Other files', '\0shared': 'Shared by tags' };
+
+// "What the AI sees": one row per folder with a checkbox (partly checked when some of its files are left out),
+// how many files and roughly how many tokens; the files show only when the folder is opened, each with a quiet
+// "leave out" / "let in" exception and the priority star.
 function ContextTab({ files, included, onChange, onError, onPrepare }: { files: ContextFile[]; included: number; onChange: (f: ContextFile[]) => void; onError: (e: unknown) => void; onPrepare: () => void }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
   const groups = useMemo(() => {
-    const named = (kind: string, label: string) => ({ key: kind, label, items: files.filter((f) => f.kind === kind) });
-    const fixed = [named('context', t('Project context')), named('note', t('Notes'))].filter((g) => g.items.length);
-    const known: Record<string, string> = { inbox: t('Inbox'), runs: t('Runs'), temporary: t('Temporary') };
-    const byFolder = new Map<string, ContextFile[]>();
-    for (const f of files.filter((file) => file.kind === 'file')) {
-      const folder = f.path.includes('/') ? f.path.slice(0, f.path.indexOf('/')) : '';
-      byFolder.set(folder, [...(byFolder.get(folder) ?? []), f]);
-    }
-    const order = ['inbox', 'runs', 'temporary', ...[...byFolder.keys()].filter((k) => k && !(k in known)).sort(), ''];
-    const folders = order.filter((k) => byFolder.has(k)).map((k) => ({ key: k || 'loose', label: k ? known[k] ?? k : t('Other files'), items: byFolder.get(k)! }));
-    const shared = named('shared', t('Shared by tags'));
-    return [...fixed, ...folders, ...(shared.items.length ? [shared] : [])];
+    const by = new Map<string, ContextFile[]>();
+    for (const f of files) { const key = f.kind === 'shared' ? '\0shared' : f.folder; by.set(key, [...(by.get(key) ?? []), f]); }
+    const own = [...by.keys()].filter((k) => k && k !== 'runs' && k !== '\0shared' && !FOLDER_ORDER.includes(k)).sort((a, b) => a.localeCompare(b));
+    return [...FOLDER_ORDER, ...own, '', 'runs', '\0shared'].filter((k) => by.has(k)).map((key) => {
+      const items = by.get(key)!;
+      const on = items.filter((f) => f.included);
+      return { key, label: key in FOLDER_LABEL ? t(FOLDER_LABEL[key]) : key, yours: own.includes(key), items, on: on.length, size: on.reduce((n, f) => n + f.size, 0) };
+    });
   }, [files]);
-  const set = (method: string, id: string, on: boolean) => call<ContextFile[]>(method, id, on).then(onChange).catch(onError);
+  const total = groups.reduce((n, g) => n + g.size, 0);
+  const run = (work: () => Promise<ContextFile[]>) => { setBusy(true); work().then(onChange).catch(onError).finally(() => setBusy(false)); };
+  const set = (method: string, id: string, on: boolean) => run(() => call<ContextFile[]>(method, id, on));
+  // The shared files are not a folder of this project: each one is switched.
+  const setGroup = (g: (typeof groups)[number], on: boolean) => run(async () => {
+    if (g.key !== '\0shared') return call<ContextFile[]>('setFolder', g.key, on);
+    let last = files;
+    for (const f of g.items) if (f.included !== on) last = await call<ContextFile[]>('setIncluded', f.id, on);
+    return last;
+  });
+  const toggleOpen = (key: string) => setOpen((s) => { const n = new Set(s); if (!n.delete(key)) n.add(key); return n; });
   if (!files.length) {
     return (
       <div className="mk-empty mk-empty-inline">
@@ -352,29 +370,48 @@ function ContextTab({ files, included, onChange, onError, onPrepare }: { files: 
   }
   return (
     <div className="mk-list">
-      <p className="mk-summary"><strong>{t('{n} of {total} files go to the AI', { n: included, total: files.length })}</strong></p>
-      <p className="muted small">{t('Switched off, a file stays out of the requests and of what the AI can read. The star gives it to the AI first.')}</p>
-      {groups.map((g) => (
-        <section key={g.key}>
-          <h3 className="mk-section">{g.label}</h3>
-          <ul className="mk-ctx">
-            {g.items.map((f) => (
-              <li key={f.id} className={f.included ? '' : 'off'}>
-                <label className="mk-switch" title={f.included ? t('Goes to the AI') : t('Left out')}>
-                  <input type="checkbox" checked={f.included} onChange={(e) => set('setIncluded', f.id, e.target.checked)} />
-                  <span className="mk-switch-track" />
-                </label>
-                <span className="mk-ctx-text">
-                  <span className="mk-ctx-name" title={f.id}>{g.key === 'shared' ? f.title : f.path}</span>
-                  {f.description && <span className="mk-card-hint">{f.description}</span>}
+      <p className="mk-summary"><strong>{t('{n} of {total} files go to the AI', { n: included, total: files.length })}</strong>
+        {total > 0 && <span className="muted"> · {t('≈ {n} tokens', { n: tokens(total) })}</span>}</p>
+      <p className="muted small">{t('Check a folder to give it to the AI. Open it to leave a file out or to give one to the AI first (star).')}</p>
+      <ul className="mk-folders" aria-busy={busy}>
+        {groups.map((g) => {
+          const all = g.on === g.items.length, none = g.on === 0, expanded = open.has(g.key);
+          return (
+            <li key={g.key} className={`mk-folder${none ? ' off' : ''}`}>
+              <div className="mk-folder-row">
+                <input type="checkbox" checked={all} disabled={busy} aria-label={t('{folder} goes to the AI', { folder: g.label })}
+                  ref={(el) => { if (el) el.indeterminate = !all && !none; }} onChange={() => setGroup(g, !all)} />
+                <button type="button" className="mk-folder-name" aria-expanded={expanded} onClick={() => toggleOpen(g.key)}>
+                  <IconChevron size={12} />
+                  <span className="mk-folder-label">{g.label}</span>
+                  {g.yours && <span className="mk-folder-tag">{t('your folder')}</span>}
+                </button>
+                <span className="mk-folder-meta">
+                  {g.items.length === 1 ? t('1 file') : t('{n} files', { n: g.items.length })}{g.size > 0 && <> · {t('≈ {n} tokens', { n: tokens(g.size) })}</>}
+                  {!all && !none && <> · {t('{n} left out', { n: g.items.length - g.on })}</>}
                 </span>
-                <button type="button" className={`icon-btn${f.priority ? ' accent' : ''}`} onClick={() => set('setPriority', f.id, !f.priority)}
-                  title={f.priority ? t('Priority: the AI reads it first') : t('Make it a priority')} aria-pressed={f.priority}><IconStar size={14} /></button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+              </div>
+              {expanded && (
+                <ul className="mk-folder-files">
+                  {g.items.map((f) => (
+                    <li key={f.id} className={f.included ? '' : 'off'}>
+                      <span className="mk-ctx-text">
+                        <span className="mk-ctx-name" title={f.id}>{g.key === '\0shared' ? f.title : g.key ? f.path.slice(g.key.length + 1) : f.path}</span>
+                        {f.description && <span className="mk-card-hint">{f.description}</span>}
+                      </span>
+                      <button type="button" className="link mk-file-toggle" disabled={busy} onClick={() => set('setIncluded', f.id, !f.included)}>
+                        {f.included ? t('Leave out') : t('Let in')}
+                      </button>
+                      <button type="button" className={`icon-btn${f.priority ? ' accent' : ''}`} disabled={busy} onClick={() => set('setPriority', f.id, !f.priority)}
+                        title={f.priority ? t('Priority: the AI reads it first') : t('Make it a priority')} aria-pressed={f.priority}><IconStar size={14} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

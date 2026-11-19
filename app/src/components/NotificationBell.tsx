@@ -1,6 +1,7 @@
-// Notifications open the exact routine or proposal; opening never approves it.
+// Notifications open the exact routine or proposal; opening never approves it. Changes Mycroft proposes to an agent,
+// skill or activity show apart, and open that item's tab in Settings (where only the person approves them).
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, focusRoutine, type RoutineNote } from '../api';
+import { api, focusRoutine, type EvolutionKind, type RoutineNote } from '../api';
 import { t } from '../i18n';
 import { IconBell, IconX } from './Icons';
 
@@ -10,17 +11,21 @@ const noteMessage = (note: RoutineNote): string => note.changes === undefined ? 
   : note.changes === 1 ? t('1 update. Open the report to see what changed.')
   : t('No updates.');
 
-export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId: string) => void }) {
+const TAB: Record<EvolutionKind, 'agents' | 'skills' | 'activities'> = { agent: 'agents', skill: 'skills', activity: 'activities' };
+
+export function NotificationBell({ onOpenRoutine, onOpenSettings }: { onOpenRoutine: (projectId: string) => void; onOpenSettings?: (tab: 'agents' | 'skills' | 'activities') => void }) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<RoutineNote[]>([]);
+  const [waiting, setWaiting] = useState<Awaited<ReturnType<typeof api.evolutionWaiting>>>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [position, setPosition] = useState({ left: 52, top: 16, maxHeight: 480 });
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
-  const unread = notes.filter((n) => !n.readAt).length;
+  const unread = notes.filter((n) => !n.readAt).length + waiting.length;
   const load = useCallback(() => {
     void api.notifications().then((rows) => { setNotes(rows); setError(''); }).catch((e: Error) => setError(e.message)).finally(() => setLoading(false));
+    void api.evolutionWaiting().then(setWaiting).catch(() => setWaiting([]));
   }, []);
   useEffect(() => {
     load();
@@ -74,7 +79,13 @@ export function NotificationBell({ onOpenRoutine }: { onOpenRoutine: (projectId:
     {open && <aside ref={panel} className="note-panel" role="dialog" aria-label={t('Notifications')} style={position}>
       <header><div><strong>{t('Notifications')}</strong><span className="muted small">{unread ? t('{n} unread', { n: unread }) : t('You are all caught up.')}</span></div><button type="button" className="icon-btn" aria-label={t('Close notifications')} onClick={close}><IconX size={17} /></button></header>
       {error && <p className="result warn" role="alert">{error}<button type="button" className="link" onClick={load}>{t('Try again')}</button></p>}
-      {loading ? <p className="notification-empty" role="status">{t('Loading…')}</p> : notes.length === 0 ? <div className="notification-empty"><IconBell size={28} /><strong>{t('No notifications yet.')}</strong><p className="muted small">{t('Changes and requests for your approval will appear here.')}</p></div> : <ul>{notes.slice(0, 50).map((note) => <li key={note.id} className={`note-row${note.readAt ? '' : ' unread'}`}>
+      {waiting.length > 0 && onOpenSettings && <section className="note-evolution" aria-label={t('Waiting for your approval')}>
+        <p className="muted small">{waiting.length === 1 ? t('Mycroft has 1 improvement waiting for you') : t('Mycroft has {n} improvements waiting for you', { n: waiting.length })}</p>
+        <ul>{waiting.map((w) => <li key={w.id} className="note-row unread"><button type="button" className="note-item" onClick={() => { setOpen(false); onOpenSettings(TAB[w.kind]); }}>
+          <span className="note-item-copy"><strong>{w.name}</strong><span className="muted small">{w.reason}</span><time className="muted small" dateTime={w.at}>{new Date(w.at).toLocaleString()}</time></span><i className="note-unread-dot" aria-hidden="true" />
+        </button></li>)}</ul>
+      </section>}
+      {loading ? <p className="notification-empty" role="status">{t('Loading…')}</p> : notes.length === 0 && waiting.length === 0 ? <div className="notification-empty"><IconBell size={28} /><strong>{t('No notifications yet.')}</strong><p className="muted small">{t('Changes and requests for your approval will appear here.')}</p></div> : <ul>{notes.slice(0, 50).map((note) => <li key={note.id} className={`note-row${note.readAt ? '' : ' unread'}`}>
         <button type="button" className="note-item" onClick={() => openNote(note)}>
           <img src="./notify-cup.png" alt="" width={32} height={32} /><span className="note-item-copy"><strong>{note.title}</strong><span className="muted small">{noteMessage(note)}</span><time className="muted small" dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString()}</time></span>{!note.readAt && <i className="note-unread-dot" aria-hidden="true" />}
         </button>

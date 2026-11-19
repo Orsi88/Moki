@@ -51,6 +51,7 @@ O Moki transforma instruções reutilizáveis em trabalhos que você pode inicia
 - **Agentes** são papéis que combinam instruções e skills.
 - **Operações** encadeiam vários agentes, cada um no próprio terminal, passando o trabalho para a próxima etapa.
 - **Execuções** registram o que aconteceu, onde o trabalho parou e quais arquivos foram entregues.
+- **Mycroft** transforma o que você ensina ("da próxima vez, faça assim") em versões novas de agentes, skills e atividades que você aprova, com histórico e o original sempre a um clique.
 - Etapas importantes esperam sua aprovação em vez de alterar o projeto ou publicar algo silenciosamente.
 
 Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias atividades, skills e agentes.
@@ -115,6 +116,7 @@ A documentação completa está na [wiki](https://github.com/Orsi88/moki/wiki):
 | [Moki na IDE](https://github.com/Orsi88/moki/wiki/Moki-na-IDE) | VS Code, Cursor e IA com contexto do projeto |
 | [Servidores MCP](https://github.com/Orsi88/moki/wiki/Servidores-MCP) | Ferramentas externas disponíveis para cada projeto |
 | [Rotinas e notificações](https://github.com/Orsi88/moki/wiki/Rotinas-e-notificações) | Verificações agendadas, referências e propostas |
+| [Ensinar o Moki com o Mycroft](https://github.com/Orsi88/moki/wiki/Ensinar-o-Moki-com-o-Mycroft) | Aprendizados, versões propostas, histórico e restaurar o original |
 | [Fluxos especializados](https://github.com/Orsi88/moki/wiki/Skills-de-QA-e-agentes) | Fluxos prontos de QA, pesquisa, documentação e engenharia |
 
 ## Privacidade
