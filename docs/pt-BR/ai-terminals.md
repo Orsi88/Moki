@@ -35,6 +35,10 @@ Um terminal **continua rodando** quando você volta para a tela inicial ou vai p
 
 A sua **IA padrão** fica em **Configurações › Minhas IAs**, que também instala uma IA de terminal que falte: uma aba de terminal mostra o comando oficial e só roda depois que você digita `y`. Codex e Gemini CLI se instalam com npm: sem o Node.js, a aba oferece instalá-lo primeiro (winget no Windows, Homebrew onde ele está instalado), com o próprio `y`; nos outros casos mostra nodejs.org. O Moki nunca usa sudo; `npm install -g` com o Node do sistema no Linux pode exigir permissões.
 
+## Contas do Claude
+
+Cada conta do Claude é uma pasta de perfil do Claude Code na sua pasta de usuário: `~/.claude` (a padrão) ou `~/.claude-<nome>`, cada uma com o próprio login. **Configurações › Minhas IAs › Conta do Claude** lista as contas pelo e-mail e define a que o Moki usa; com mais de uma conta, o **Uso** da barra de status também troca. Todo Claude que o Moki abrir depois (abas de terminal, terminal externo, chat do projeto) usa essa conta, e o uso do plano mostra ela; um Claude que já está rodando continua na conta em que começou. **Adicionar conta** cria um perfil vazio, deixa ele ativo e abre o Claude numa aba de terminal para você entrar. As skills e os agentes que você instalou para todos os projetos ficam em `~/.claude`, então outro perfil não vê esses; os do Moki e os do projeto continuam funcionando.
+
 ## Chat do projeto
 
 Use o ícone **Chat** na barra ou **Ctrl+L** (Cmd+L no macOS). Com o foco num terminal, o Ctrl+L continua sendo do terminal (limpar a tela). Existe uma única aba de chat por projeto. Abrir de novo leva à mesma aba; você pode movê-la entre as divisões da tela, como o terminal.

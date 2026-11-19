@@ -13,6 +13,7 @@ import { defaultTool, setDefaultTool } from '../prefs';
 import { CatIcon } from './CatIcon';
 import { IconCheck, IconDownload, IconExternal, IconMore, IconProgress, IconRefresh, IconStar } from './Icons';
 import { ListHead } from './ListPage';
+import { ClaudeAccounts } from './ClaudeAccounts';
 
 interface Props {
   tools: ToolInfo[];
@@ -65,6 +66,15 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
     const bridge = api.term();
     if (!bridge || !project) { setError(t('Installing opens a terminal tab of a project: create a project first.')); return; }
     bridge.create(tool.id)
+      .then((r) => (r.terminal ? onTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
+      .catch((e: Error) => setError(e.message));
+  };
+
+  // A new Claude account: Claude opens in a terminal tab, which asks the person to sign in.
+  const signIn = () => {
+    const bridge = api.term();
+    if (!bridge || !project) { setInfo(t('Open Claude in a terminal of a project to sign in to this account.')); return; }
+    bridge.create('claude')
       .then((r) => (r.terminal ? onTerminal(r.terminal) : setError(r.error ?? t('Could not open the terminal.'))))
       .catch((e: Error) => setError(e.message));
   };
@@ -155,6 +165,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
         })}
       </ul>
       <p className="muted small">{t('Installing opens a terminal tab with the official command; it runs only after you type y.')}</p>
+      {list.some((x) => x.id === 'claude' && available(x)) && <ClaudeAccounts onSignIn={signIn} />}
       {menu && menuTool && (
         <div className="menu-backdrop" onMouseDown={() => setMenu(null)}>
           <ul className="term-menu" role="menu" style={{ left: menu.left, top: menu.top, minWidth: MENU_WIDTH }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setMenu(null); }}>

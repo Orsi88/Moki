@@ -938,6 +938,17 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .choice-title { font-weight: 600; font-size: 0.9rem; }
 .choice-hint { font-size: 0.78rem; color: var(--muted); }
+/* Claude account (ClaudeAccounts): Settings › My AIs and the quick switch in the status bar's Usage. */
+.claude-accounts-section { display: grid; gap: 8px; margin-top: 20px; max-width: 780px; }
+.claude-accounts-section h3 { margin: 0; font-size: 0.95rem; }
+.claude-accounts-section > .btn { justify-self: start; }
+.claude-accounts { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.claude-accounts .choice-title, .claude-accounts .choice-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.claude-accounts.compact { grid-template-columns: 1fr; }
+.claude-accounts.compact .choice { padding: 6px 10px; }
+.claude-accounts.compact .choice-title { font-size: 0.8rem; }
+.claude-account-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.claude-account-add input { flex: 1 1 220px; min-width: 0; }
 .tool-group + .tool-group { margin-top: 12px; }
 .tool-group-title { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.78rem; color: var(--muted); }
 .file-pick { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }

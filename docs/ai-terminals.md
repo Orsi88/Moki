@@ -35,6 +35,10 @@ A terminal **keeps running** when you go back to the start screen or to another 
 
 Your **default AI** is set in **Settings › My AIs**, which also installs a missing terminal AI: a terminal tab shows the official command and runs it only after you type `y`. Codex and Gemini CLI install with npm: without Node.js, the tab offers to install it first (winget on Windows, Homebrew where it is installed), with its own `y`; elsewhere it shows nodejs.org. Moki never uses sudo; `npm install -g` with a system Node on Linux may need permissions.
 
+## Claude accounts
+
+Each Claude account is a Claude Code profile folder in your user folder: `~/.claude` (the default) or `~/.claude-<name>`, each with its own sign-in. **Settings › My AIs › Claude account** lists them by e-mail and sets the one Moki uses; with more than one account, the status bar's **Usage** also switches it. Every Claude that Moki opens afterwards (terminal tabs, the external terminal, the project chat) uses that account, and the plan usage shows it; a Claude already running keeps the account it started with. **Add account** creates an empty profile, makes it active and opens Claude in a terminal tab so you sign in. Skills and agents you installed for all projects live in `~/.claude`, so another profile does not see them; Moki's and the project's own still work.
+
 ## Project chat
 
 Use the **Chat** ribbon icon or **Ctrl+L** (Cmd+L on macOS). When a terminal has the keyboard focus, Ctrl+L stays with the terminal (clear screen). There is one chat tab per project. Open it repeatedly to focus the same tab, move it between split views like a terminal, or close it and reopen it later.

@@ -397,10 +397,16 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   return res.value as T;
 }
 
+// A Claude account (desktop/claude-profiles.ts): a Claude Code profile folder; the active one is used by every Claude Moki starts.
+export interface ClaudeProfile { id: string; name: string; email: string; signedIn: boolean; active: boolean }
+
 // The AI tools with a chat (desktop/chat.ts, CHAT_TOOLS).
 export const CHAT_TOOLS: string[] = ['claude', 'codex'];
 
 export const api = {
+  claudeProfiles: () => call<ClaudeProfile[]>('claudeProfiles'),
+  useClaudeProfile: (id: string) => call<ClaudeProfile[]>('useClaudeProfile', id),
+  addClaudeProfile: (name: string) => call<ClaudeProfile[]>('addClaudeProfile', name),
   onChatShortcut: (callback: (key: 'chat' | 'call') => void) => window.qa?.onChatShortcut?.(callback) ?? (() => {}),
   chats: (project: string) => call<{ id: string; tool: string; title: string; updated: string }[]>('chats', project),
   chatState: (project: string, id: string) => call<ChatState>('chatState', project, id),

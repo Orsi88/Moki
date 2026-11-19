@@ -2480,5 +2480,16 @@
   "Note moved to {name}.": "Nota movida para {name}.",
   "Moved {n} items to {folder}.": "{n} itens movidos para {folder}.",
   "Delete the {n} selected": "Excluir os {n} selecionados",
-  "Delete {n} items? They go to the trash.": "Excluir {n} itens? Eles vão para a lixeira."
+  "Delete {n} items? They go to the trash.": "Excluir {n} itens? Eles vão para a lixeira.",
+  "Claude account": "Conta do Claude",
+  "Add account": "Adicionar conta",
+  "Account name": "Nome da conta",
+  "Account name, e.g. work": "Nome da conta, por exemplo: trabalho",
+  "Create and sign in": "Criar e entrar",
+  "Not signed in yet: open Claude to sign in": "Ainda sem login: abra o Claude para entrar",
+  "Every Claude that Moki opens from now on uses this account. A Claude already running keeps the account it started with.": "Todo Claude que o Moki abrir daqui em diante usa esta conta. Um Claude que já está rodando continua na conta em que começou.",
+  "Open Claude in a terminal of a project to sign in to this account.": "Abra o Claude num terminal de um projeto para entrar nesta conta.",
+  "Unknown Claude account.": "Conta do Claude desconhecida.",
+  "Name the account with letters or numbers.": "Dê um nome com letras ou números à conta.",
+  "There is already an account with this name.": "Já existe uma conta com esse nome."
 }

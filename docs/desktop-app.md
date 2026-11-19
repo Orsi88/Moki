@@ -10,6 +10,10 @@ The single `chat` board key in [Workspace](../app/src/screens/Workspace.tsx) use
 
 Claude artifact links in an answer ([artifact-links.ts](../scripts/lib/artifact-links.ts), the same rule in the window and the main process) open in [artifact-viewer-host.ts](../desktop/artifact-viewer-host.ts): a separate `WebContentsView` over the chat tab with a persistent claude.ai session, no preload, Node access or Moki IPC, and only clipboard writing allowed. [artifact-viewer.ts](../desktop/artifact-viewer.ts) owns the allowed hosts (claude.ai and its sign-in), HTTPS checks and rectangle validation; other pages open in the browser. `showArtifact` validates the project and the link; the host clamps the view to the main window and hides it when the tab is hidden or a modal covers it. Downloads start in the project's inbox. UI checks use a local page in place of claude.ai and a script in place of Claude; they do not sign in or invoke billable AI services.
 
+## Claude accounts
+
+[claude-profiles.ts](../desktop/claude-profiles.ts) lists the Claude Code profiles of the user folder (`~/.claude` and `~/.claude-<name>`, named by the account e-mail in their `.claude.json`), keeps the chosen one in `<data>/workspaces/claude-profile.json` and sets `CLAUDE_CONFIG_DIR` in the main process (cleared for the default profile). Terminals, the external launcher, the chat and the plan usage inherit the main process's environment, so the choice applies to what starts afterwards; the plan usage cache is kept per account. Without a saved choice, the `CLAUDE_CONFIG_DIR` Moki started with stays. Profile ids are folder names checked against `^\.claude(-name)?$`; a new one is made only from a slug. [ClaudeAccounts](../app/src/components/ClaudeAccounts.tsx) is the list in Settings › My AIs and the quick switch in the status bar's Usage (shown with more than one account).
+
 ## Pieces
 
 | Path | Role |

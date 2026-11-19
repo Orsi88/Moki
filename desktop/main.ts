@@ -72,6 +72,8 @@ let openedFolder: string | null = folderArg(process.argv, process.cwd(), Boolean
 const service = createService(ROOT, {
   openedFolder: () => { const folder = openedFolder; openedFolder = null; return folder; },
   artifactViewer: artifacts,
+  // QA_HOME (UI tests only, with QA_FAKE_TOOLS): a user folder with made-up Claude accounts instead of the real one.
+  ...(fakeTools && process.env.QA_HOME ? { home: process.env.QA_HOME } : {}),
   chatChanged,
   // Terminal tools open in a tab of the app; editors, or no node-pty, use the external launcher.
   launch: (tool, prompt, root, plugins = [], extra = []) => (fakeTools ? { opened: true, message: 'fake' }

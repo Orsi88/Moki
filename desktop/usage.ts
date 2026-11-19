@@ -101,9 +101,11 @@ async function fetchPlans(): Promise<PlanUsage[]> {
 
 // The providers limit how often usage is asked; the status bar polls often, so answers are kept a while.
 const PLAN_TTL = 5 * 60_000;
-let plans: { at: number; value: Promise<PlanUsage[]> } | null = null;
+// Kept per Claude account: choosing another one (desktop/claude-profiles.ts) asks again.
+let plans: { at: number; account: string; value: Promise<PlanUsage[]> } | null = null;
 export function planUsage(refresh = false): Promise<PlanUsage[]> {
-  if (!plans || refresh || Date.now() - plans.at > PLAN_TTL) plans = { at: Date.now(), value: fetchPlans() };
+  const account = process.env.CLAUDE_CONFIG_DIR ?? '';
+  if (!plans || refresh || plans.account !== account || Date.now() - plans.at > PLAN_TTL) plans = { at: Date.now(), account, value: fetchPlans() };
   return plans.value;
 }
 
