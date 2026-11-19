@@ -42,7 +42,7 @@ cpSync(join(ROOT, 'app', 'public', 'favicon.svg'), join(out, 'webview', 'favicon
 cpSync(join(ROOT, 'app', 'public', 'icon.png'), join(out, 'icon.png'));
 // The status bar shows only font icons: the cat of the Activity Bar, as a one-glyph font (contributes.icons).
 writeFileSync(join(out, 'moki-icons.woff'), iconFont(readFileSync(join(ext, 'resources', 'moki-activitybar.svg'), 'utf8')));
-// Identifies this build, so an installed extension refreshes its framework files once per build.
+// Identifies this build (the version of Moki's MCP server definition, ide/vscode/host.ts).
 writeFileSync(join(out, 'build-info.json'), JSON.stringify({ buildId: new Date().toISOString() }));
 cpSync(join(ROOT, 'LICENSE'), join(ext, 'LICENSE'));
 mkdirSync(join(ROOT, 'release'), { recursive: true });

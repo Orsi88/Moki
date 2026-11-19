@@ -4,7 +4,6 @@
 
 import * as vscode from 'vscode';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,10 +12,10 @@ import { prepareInstalledFramework } from '../../desktop/framework.ts';
 export function activate(context: vscode.ExtensionContext): void {
   const dist = join(context.extensionPath, 'dist');
   if (context.extensionMode === vscode.ExtensionMode.Production) {
-    let buildId = String(context.extension.packageJSON.version);
-    try { buildId = (JSON.parse(readFileSync(join(dist, 'build-info.json'), 'utf8')) as { buildId: string }).buildId; } catch { /* use the version */ }
     try {
-      prepareInstalledFramework(join(dist, 'framework'), documentsDir(), buildId);
+      // Files in use are not a reason to stop: the extension starts with the ones there and says why some are older.
+      const { warning } = prepareInstalledFramework(join(dist, 'framework'), documentsDir());
+      if (warning) void vscode.window.showWarningMessage(warning);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       void vscode.window.showErrorMessage(`Moki could not prepare its framework files. Check access to the folder and reload VS Code. ${message}`);

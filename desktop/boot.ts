@@ -2,18 +2,15 @@
 // workspace paths before loading the rest of the app. Development uses the checkout.
 
 import { app, dialog } from 'electron';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { prepareInstalledFramework } from './framework.ts';
 import { fixToolPath } from './tool-path.ts';
 
 async function prepareInstalledApp(): Promise<boolean> {
-  const here = dirname(fileURLToPath(import.meta.url));
-  let buildId = app.getVersion();
-  try { buildId = (JSON.parse(readFileSync(join(here, 'build-info.json'), 'utf8')) as { buildId: string }).buildId; } catch { /* use the version */ }
   try {
-    prepareInstalledFramework(join(process.resourcesPath, 'framework'), app.getPath('documents'), buildId);
+    const { warning } = prepareInstalledFramework(join(process.resourcesPath, 'framework'), app.getPath('documents'));
+    // Files in use are not a reason to stop: Moki opens with the ones there and says why some are older.
+    if (warning) void app.whenReady().then(() => dialog.showMessageBox({ type: 'warning', title: 'Moki', message: 'Moki opened with some older files', detail: warning }));
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
