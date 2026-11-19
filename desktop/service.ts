@@ -33,6 +33,7 @@ import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scr
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
 import { createAiAccounts } from './ai-accounts.ts';
+import { chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
 import { readableInputs } from '../scripts/lib/docx.ts';
 import { checkOperation, cleanOperation, formatMessage, listOperations, removeOperation, seedExample, suggestOutput, writeOperation, type OperationAgent } from '../scripts/lib/operations.ts';
 import { advance, answered, approve, canRedo, cancel, createOperationRun, decide, isOperationRun, markStarted, missingOutputs, readRun, reject, resume, retry, runEvents, startFailed, setPaused, stepExited, stepPrompt, type RunRequest } from '../scripts/lib/operation-runs.ts';
@@ -175,6 +176,7 @@ const CONTEXT_FILE = /^context\/[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const PLAN_FOLDER = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 const TEXT_LIMIT = 2 * 1024 * 1024;
+const ATTACHMENT_LIMIT = 25 * 1024 * 1024; // one chat attachment
 const AGENT_TEXT_LIMIT = 8000;
 const MAX_TREE_ENTRIES = 5000;
 const OFFICE_TYPES: Record<string, 'docx' | 'xlsx'> = { '.docx': 'docx', '.docm': 'docx', '.dotx': 'docx', '.dotm': 'docx', '.xlsx': 'xlsx', '.xlsm': 'xlsx', '.xltx': 'xlsx', '.xltm': 'xlsx' };
@@ -2579,6 +2581,31 @@ export function createService(root: string, deps: Deps) {
       writeFileSync(file, bytes);
       return file;
     },
+    // Chat attachments: a file dropped or picked from the computer, or pasted, saved in the project's
+    // temporary/attachments/ from its bytes (never from a path the window sends). Returns the path in the project.
+    saveAttachment: (project: string, name: unknown, data: unknown) => {
+      projectDir(project);
+      const bytes = data instanceof Uint8Array ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (!bytes || !bytes.length) throw new ServiceError('The file is empty.');
+      if (bytes.length > ATTACHMENT_LIMIT) throw new ServiceError('The file is too large to attach (25 MB at most).');
+      const clean = (basename(String(name ?? '')).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/^\.+/, '').trim() || 'file').slice(-120);
+      const folder = projectPath(project, 'temporary/attachments');
+      mkdirSync(folder, { recursive: true });
+      let file = clean;
+      for (let n = 2; existsSync(join(folder, file)); n++) file = clean.replace(/(\.[^.]*)?$/, (ext) => `-${n}${ext}`);
+      writeFileSync(join(folder, file), bytes);
+      return `temporary/attachments/${file}`;
+    },
+    // The files a chat answer names (desktop/chat-files.ts): found in this project, gone, or not reachable.
+    chatAnswerFiles: (project: string, text: unknown): ChatFile[] => {
+      projectDir(project);
+      return chatFileRefs(typeof text === 'string' ? text.slice(0, TEXT_LIMIT) : '').map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
+    },
+    chatFiles: (project: string, refs: unknown): ChatFile[] => {
+      projectDir(project);
+      const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r.length > 0 && r.length < 1000).slice(0, 20) : [];
+      return list.map((ref) => resolveChatFile(projectsDir(root), project, workspaceLabel(root), ref));
+    },
 
     // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
     // operations' own folders and journals are not offered: Moki and the skills need them.
@@ -3140,11 +3167,17 @@ export function createService(root: string, deps: Deps) {
       return failing(() => conversations.state(dir, id));
     },
     // label: the message is a request from Call… (shown folded under that name, which titles the conversation).
-    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown) => {
+    // attachments: files of this project (paths in it) the person added to the message; each must be there.
+    chatSend: async (project: unknown, id: unknown, tool: unknown, text: unknown, language: unknown, label?: unknown, attachments?: unknown) => {
       const dir = projectDir(project);
       if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
       if (id !== undefined && typeof id !== 'string') throw new ServiceError('Unknown conversation.');
       if (typeof text !== 'string') throw new ServiceError('Write a message first.');
+      const files = (Array.isArray(attachments) ? attachments : []).slice(0, 10).map((ref) => {
+        const file = resolveChatFile(projectsDir(root), project as string, workspaceLabel(root), String(ref));
+        if (file.status !== 'ok') throw new ServiceError(`The attached file ${file.name} is not in this project any more.`);
+        return file.path;
+      });
       const name = typeof label === 'string' ? cleanPrompt(label).replace(/\s+/g, ' ').trim().slice(0, 120) : '';
       const workspace = workspaceDir(root);
       await deps.fixPath?.();
@@ -3161,7 +3194,7 @@ export function createService(root: string, deps: Deps) {
         env: { ...process.env, ...(deps.chatCommand ? { ELECTRON_RUN_AS_NODE: '1' } : {}), QA_ROOT: root, QA_WORKSPACE: workspace, CLAUDE_CODE_ARTIFACT_AUTO_OPEN: '0' },
         sessionId: record.sessionId, onEvent, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
         setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
-      }), name || undefined));
+      }), name || undefined, files));
     },
     chatStop: (project: unknown, id: unknown) => {
       const dir = projectDir(project);

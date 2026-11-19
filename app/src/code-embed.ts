@@ -2,6 +2,7 @@
 // Highlight is for reading. Focusing the block flattens it so typing stays one field.
 
 import { highlightParts } from './code-highlight';
+import { copyText } from './clipboard';
 import { t } from './i18n';
 
 export const CODE_LANGS: [string, string][] = [
@@ -69,8 +70,7 @@ export function dressCodeEmbeds(root: HTMLElement, editable: boolean) {
       copy.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const written = navigator.clipboard?.writeText(code.textContent ?? '');
-        void Promise.resolve(written).then(() => { copy.title = t('Copied'); copy.setAttribute('aria-label', t('Copied')); });
+        void copyText(code.textContent ?? '').then(() => { copy.title = t('Copied'); copy.setAttribute('aria-label', t('Copied')); });
       });
       bar.append(select, copy);
       pre.prepend(bar);

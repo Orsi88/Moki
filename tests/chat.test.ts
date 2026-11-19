@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { claudeAdapter, codexAdapter, createChatSession, npmShim, toolSummary, type ChatEvent, type ChatSession } from '../desktop/chat.ts';
 import { createConversations } from '../desktop/chat-conversations.ts';
+import { chatFileRefs, resolveChatFile } from '../desktop/chat-files.ts';
 import { CHATS_DIR, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
 import { isArtifactUrl, isViewerUrl, viewerBounds } from '../desktop/artifact-viewer.ts';
 import { createService } from '../desktop/service.ts';
@@ -285,6 +286,63 @@ test('chat conversations: text after a tool call starts its own paragraph; an an
   for (const event of [{ kind: 'tool', id: 'w1', name: 'Write', summary: 'b.md' }, { kind: 'tool-done', id: 'w1', ok: true }, { kind: 'turn-end', ok: true }] as ChatEvent[]) second.emit(event);
   conversations.close(dir);
   assert.equal(conversations.state(dir, quiet).record.messages[1].error, undefined);
+});
+
+test('chat files: references an answer writes, resolved in the project; gone, other projects and outside are told apart', (t) => {
+  const root = temp(t);
+  const projects = join(root, 'workspace', 'projects');
+  mkdirSync(join(projects, 'demo', 'runs', 'r1', 'outputs'), { recursive: true });
+  mkdirSync(join(projects, 'other', 'context'), { recursive: true });
+  writeFileSync(join(projects, 'demo', 'runs', 'r1', 'outputs', 'vendas.png'), 'png');
+  writeFileSync(join(projects, 'other', 'context', 'secret.md'), '# secret');
+  const answer = `Saved \`runs/r1/outputs/vendas.png\`, also ![chart](runs/r1/outputs/vendas.png) and ${join(projects, 'demo', 'runs', 'r1', 'outputs', 'vendas.png')}.`
+    + ' Old one: runs/r0/outputs/old.png. See workspace/projects/other/context/secret.md and https://example.com/a.png.';
+  const refs = chatFileRefs(answer);
+  assert.ok(!refs.some((r) => r.startsWith('https://')), 'web addresses are not files');
+  const files = refs.map((ref) => resolveChatFile(projects, 'demo', 'workspace', ref));
+  const ok = files.filter((f) => f.status === 'ok');
+  assert.ok(ok.length >= 2 && ok.every((f) => f.path === 'runs/r1/outputs/vendas.png' && f.image && f.name === 'vendas.png'));
+  assert.deepEqual(files.find((f) => f.name === 'old.png')?.status, 'missing');
+  assert.deepEqual(files.find((f) => f.name === 'secret.md')?.status, 'other-project');
+  assert.equal(resolveChatFile(projects, 'demo', 'workspace', join(projects, 'other', 'context', 'secret.md')).status, 'other-project');
+  assert.equal(resolveChatFile(projects, 'demo', 'workspace', '../../outside.txt').status, 'outside');
+  assert.equal(resolveChatFile(projects, 'demo', 'workspace', join(root, 'elsewhere.txt')).status, 'outside');
+});
+
+test('chat attachments: kept apart from the text, given to the AI by full path, and a message may be only attachments', (t) => {
+  const dir = temp(t);
+  const conversations = createConversations();
+  const got: string[] = [];
+  const hand = handSession();
+  const factory = (record: unknown, onEvent: (event: ChatEvent) => void) => {
+    const session = hand.factory(record, onEvent);
+    return { ...session, send: (text: string) => { got.push(text); session.send(text); } };
+  };
+  const id = conversations.send(dir, undefined, 'claude', '', factory, undefined, ['temporary/attachments/print.png']).record.id;
+  const saved = readChat(dir, id);
+  assert.deepEqual([saved.messages[0].text, saved.messages[0].attachments], ['', ['temporary/attachments/print.png']]);
+  assert.equal(saved.title, 'print.png');
+  assert.match(got[0], /^Attached files \(read them before answering\):\n- .*temporary[\\/]attachments[\\/]print\.png$/);
+  assert.throws(() => conversations.send(dir, undefined, 'claude', '  ', handSession().factory), /Write a message first/);
+});
+
+test('chat service: an attachment is saved from its bytes in the project, and only files of the project can be attached', async (t) => {
+  const root = temp(t);
+  for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
+  createProject('alpha', 'Alpha', root, 'blank');
+  createProject('beta', 'Beta', root, 'blank');
+  const service = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {}, chatCommand: () => ({ file: process.execPath, args: ['-e', echo] }) });
+  t.after(() => service.closeChats());
+  const path = service.saveAttachment('alpha', '../../evil name?.xlsx', new Uint8Array([1, 2, 3]));
+  assert.equal(path, 'temporary/attachments/evil name_.xlsx');
+  assert.equal(service.saveAttachment('alpha', 'evil name_.xlsx', new Uint8Array([4])), 'temporary/attachments/evil name_-2.xlsx');
+  assert.throws(() => service.saveAttachment('alpha', 'a.txt', new Uint8Array()), /empty/);
+  assert.deepEqual(service.chatFiles('alpha', [path, 'workspace/projects/beta/project.json', 'gone.pdf']).map((f) => f.status), ['ok', 'other-project', 'missing']);
+  await assert.rejects(service.chatSend('alpha', undefined, 'claude', 'see', 'English', undefined, ['gone.pdf']), /not in this project any more/);
+  const sent = await service.chatSend('alpha', undefined, 'claude', 'see', 'English', undefined, [path]);
+  assert.deepEqual(sent.record.messages[0].attachments, [path]);
+  assert.ok(service.chatAnswerFiles('alpha', `Done: \`${path}\``).some((f) => f.status === 'ok' && f.path === path));
+  service.closeChats(); // before the folder is removed: the stand-in AI must not hold it
 });
 
 test('chat conversations: a request from Call… keeps its full text for the AI, its name titles the conversation', (t) => {

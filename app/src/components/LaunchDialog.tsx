@@ -3,6 +3,7 @@
 // tool the QA already uses, or sends it to the project's chat.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { copyText } from '../clipboard';
 import { api, CHAT_TOOLS, describeRun, type ActivityInfo, type ContextChoice, type AgentInfo, type InboxFile, type Invocation, type LaunchPreset, type LaunchResult, type OpenRun, type Operation, type ProjectSummary, type SkillInfo, type TerminalRef, type ToolInfo, type ToolKind } from '../api';
 import { agentFace } from '../catalog-copy';
 import { conversationLanguage, t } from '../i18n';
@@ -197,7 +198,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
     }
   };
 
-  const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } };
+  const copy = async (text: string) => { try { await copyText(text); setCopied(true); } catch { setCopied(false); } };
 
   const buttonLabel = destination === 'chat' ? t('Send to the chat') : destination === 'current' ? t('Paste into this terminal') : !selectedTool ? t('Open') : selectedTool.kind === 'print' ? t('Prepare the request')
     : selectedTool.kind === 'chat' ? t('Prepare for the web chat') : t('Open in {tool}', { tool: t(selectedTool.label).replace(/ \(.*\)$/, '') });
