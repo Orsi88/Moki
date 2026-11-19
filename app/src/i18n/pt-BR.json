@@ -2564,5 +2564,9 @@
   "A pie chart cannot have negative values.": "Um gráfico de pizza não pode ter valores negativos.",
   "This chart could not be drawn: {reason}": "Não foi possível desenhar este gráfico: {reason}",
   "View data": "Ver dados",
-  "Hide data": "Esconder dados"
+  "Hide data": "Esconder dados",
+  "Approved": "Aprovado",
+  "Declined": "Recusado",
+  "Decline": "Recusar",
+  "Waiting for your approval: {title}": "Aguardando a sua aprovação: {title}"
 }

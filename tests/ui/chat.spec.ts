@@ -165,6 +165,15 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
       form.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
       form.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
     });
+    // The message box is as wide as the conversation's column, at any width of the window.
+    for (const width of [1000, 1400, 1900]) {
+      await app.evaluate(({ BrowserWindow }, next) => BrowserWindow.getAllWindows()[0].setContentSize(next, 900), width);
+      await expect.poll(() => page.evaluate(() => {
+        const thread = document.querySelector('.chat-thread')!.getBoundingClientRect();
+        const compose = document.querySelector('.chat-compose-box')!.getBoundingClientRect();
+        return Math.abs(thread.left - compose.left) + Math.abs(thread.width - compose.width) < 24; // a scroll bar at most
+      })).toBe(true);
+    }
     await expect(page.locator('.chat-attachments li')).toContainText('grafico.png');
     await expect.poll(() => page.locator('.chat-attachments li img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(1); // its miniature
     await expect(box).toHaveValue('');
@@ -226,6 +235,26 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     }
     await page.reload();
     await expect(page.locator('.chat-assistant').last().locator('figure.chat-chart')).toHaveCount(3);
+
+    // Clickable answers: a closed question's options and an approval. A click sends the pick as the next message; the
+    // buttons lock (a second click sends nothing) and keep the pick marked, also after a reload.
+    await box.fill('pick:\n```choices\n{"question":"Which environment?","options":["Staging","Production"]}\n```\n```approval\n{"title":"Update context/rules.md","items":["Add rule R-12"]}\n```');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const asked = page.locator('.chat-assistant').last();
+    await expect(asked.locator('.chat-approval')).toContainText('Waiting for your approval: Update context/rules.md');
+    await expect(asked.locator('.chat-approval li')).toHaveText(['Add rule R-12']);
+    const users = page.locator('.chat-message.chat-user');
+    const before = await users.count();
+    await asked.getByRole('button', { name: 'Production', exact: true }).dblclick();
+    await expect(users).toHaveCount(before + 1);
+    await expect(users.last()).toContainText('Production');
+    await expect(page.locator('.chat-assistant')).toHaveCount(await page.locator('.chat-assistant').count());
+    const answered = page.locator('.chat-assistant').nth(-2);
+    await expect(answered.getByRole('button', { name: 'Production', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(answered.getByRole('button', { name: 'Staging', exact: true })).toBeDisabled();
+    await page.reload();
+    await expect(page.locator('.chat-assistant').nth(-2).getByRole('button', { name: 'Production', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.chat-message.chat-user')).toHaveCount(before + 1);
 
     // Call › In the chat sends the request at once, in a new conversation; the draft in the box stays.
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('my draft');

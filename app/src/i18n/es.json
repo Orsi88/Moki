@@ -2564,5 +2564,9 @@
   "A pie chart cannot have negative values.": "Un gráfico circular no puede tener valores negativos.",
   "This chart could not be drawn: {reason}": "No se pudo dibujar este gráfico: {reason}",
   "View data": "Ver datos",
-  "Hide data": "Ocultar datos"
+  "Hide data": "Ocultar datos",
+  "Approved": "Aprobado",
+  "Declined": "Rechazado",
+  "Decline": "Rechazar",
+  "Waiting for your approval: {title}": "Esperando tu aprobación: {title}"
 }

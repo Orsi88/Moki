@@ -12,6 +12,7 @@ import { conversationLanguage, t } from '../i18n';
 import { recall, remember } from '../prefs';
 import { copyText } from '../clipboard';
 import { dressCharts } from '../chat-charts';
+import { dressActions } from '../chat-actions';
 import { IconArrowDown, IconArrowLeft, IconArrowUp, IconChat, IconCheck, IconCopy, IconEdit, IconExternal, IconFile, IconHistory, IconPaperclip, IconPlus, IconRefresh, IconStop, IconX } from './Icons';
 import { MarkdownBody } from './MarkdownBody';
 import { flattenTree, useFileMention } from './useFileMention';
@@ -338,7 +339,9 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
                 // A request Moki wrote: its name, and the full text only when opened (the AI got all of it).
                 ? <details className="chat-request"><summary>{t('Request from Moki: {name}', { name: message.label })}</summary><p className="chat-user-text">{message.text}</p></details>
                 : message.role === 'user' ? message.text.trim() && <p className="chat-user-text">{message.text}</p>
-                : <ChatMarkdown text={message.text} project={project} live={live} onLink={link} />}
+                : <ChatMarkdown text={message.text} project={project} live={live} onLink={link}
+                answer={state.record.messages[i + 1]?.role === 'user' ? state.record.messages[i + 1].text : undefined}
+                onReply={busy || sending ? undefined : (reply) => { void deliver(reply, state.record.tool, state.record.id); }} />}
               {message.role === 'user' && message.attachments?.length ? <ChatFiles project={project} refs={message.attachments} onOpen={onLink} compact /> : null}
               {message.tools?.length ? <details className="chat-tools"><summary>{t('Tools used')} ({message.tools.length})</summary><ul>{message.tools.map((call, index) => <li key={index}><span aria-hidden="true">{call.ok === false ? '×' : call.ok ? '✓' : '·'}</span> {activity(call)}</li>)}</ul></details> : null}
               {failed.length > 0 && <p className="warn-text small" role="status">{t('{servers} did not answer: this answer was made without its data.', { servers: failed.join(', ') })}</p>}
@@ -432,7 +435,8 @@ function ChatPicture({ project, path, name, onOpen }: { project: string; path: s
 }
 
 // An answer as formatted Markdown. While it is still arriving it is formatted at most every RENDER_EVERY_MS.
-function ChatMarkdown({ text, project, live, onLink }: { text: string; project: string; live: boolean; onLink: (href: string) => void }) {
+// answer: the person's message right after this answer (it answers its choices or approval); onReply: sends a pick.
+function ChatMarkdown({ text, project, live, onLink, answer, onReply }: { text: string; project: string; live: boolean; onLink: (href: string) => void; answer?: string; onReply?: (reply: string) => void }) {
   const [html, setHtml] = useState('');
   const latest = useRef(text);
   latest.current = text;
@@ -454,7 +458,14 @@ function ChatMarkdown({ text, project, live, onLink }: { text: string; project: 
   }, [text, project, live]);
   // Charts (```chart blocks) are drawn once the answer is complete, so a half-written block never flickers as an error.
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!live && box.current) dressCharts(box.current); }, [html, live]);
+  const reply = useRef(onReply);
+  reply.current = onReply;
+  const canReply = Boolean(onReply);
+  useEffect(() => {
+    if (live || !box.current) return;
+    dressCharts(box.current);
+    dressActions(box.current, answer, canReply ? (text) => reply.current?.(text) : null);
+  }, [html, live, answer, canReply]);
   return html ? <div ref={box}><MarkdownBody html={html} className="chat-markdown" onClick={(e) => {
     const anchor = (e.target as Element).closest('a');
     if (anchor) { e.preventDefault(); const href = anchor.getAttribute('href'); if (href) onLink(href); }

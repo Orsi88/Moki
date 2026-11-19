@@ -697,7 +697,9 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
   parts.push(chat
     ? 'This is the chat of the Moki app: answer each of my messages here, in Markdown, loading only what you need of the project context.'
       + ' To show a chart, write a ```chart block holding JSON: {"type":"bar"|"line"|"pie","title":"…","labels":["…"],"series":[{"name":"…","values":[numbers, one per label]}]} (a pie has one series); the chat draws it and shows its data.'
-      + ' Name the files you write or use by their path in the project, so the chat shows them with a preview and a link.'
+      + ' Name the files you write or use by their path in the project, so the chat shows them with a preview and a link; link a source you used with its path, a heading as path#heading and a PDF page as path#page=N.'
+      + ' For a closed question, write a ```choices block: {"question":"…","options":["…","…"]}; I pick one (it comes back as my next message) or answer in my own words.'
+      + ' Before a step that needs my approval, write a ```approval block: {"title":"…","items":["exactly what will change"]} and do not act before my answer comes back as my next message.'
     : 'Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
