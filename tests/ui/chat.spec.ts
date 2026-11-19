@@ -44,8 +44,13 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await page.keyboard.press('Control+l');
     await expect(page.locator('.chat-view')).toHaveCount(1);
     // Claude and Codex installed: the header picks the AI, Claude first; no history before the first conversation.
-    await expect(page.getByRole('combobox', { name: 'Chat AI' })).toHaveValue('claude');
-    await expect(page.getByRole('combobox', { name: 'Chat AI' }).locator('option')).toHaveText(['Claude', 'ChatGPT (Codex)']);
+    // No AI switch inside a conversation: the header names its AI, and a new conversation is where the AI is chosen.
+    await expect(page.getByRole('combobox', { name: 'Chat AI' })).toHaveCount(0);
+    await expect(page.locator('.chat-tool')).toHaveText('Claude');
+    await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+    await expect(page.getByRole('menu', { name: 'New conversation' }).getByRole('menuitem')).toHaveText(['New conversation with Claude', 'New conversation with ChatGPT (Codex)']);
+    await page.getByRole('menuitem', { name: 'New conversation with Claude' }).click();
+    await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(page.getByRole('combobox', { name: 'Conversation history' })).toHaveCount(0);
 
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('See [the deck](https://claude.ai/artifact/deck-123)');
@@ -56,11 +61,17 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await expect(page.getByRole('combobox', { name: 'Conversation history' })).toBeVisible();
 
     // The artifact link opens over the conversation in a view with nothing of Moki.
-    const viewer = () => app!.evaluate(({ BrowserWindow, WebContentsView }) => {
+    const look = () => app!.evaluate(({ BrowserWindow, WebContentsView }) => {
       const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().startsWith('file:'));
       const view = win?.contentView.children.find((v) => v instanceof WebContentsView);
       return view instanceof WebContentsView && view.getVisible() ? { preferences: view.webContents.getLastWebPreferences(), url: view.webContents.getURL() } : null;
     });
+    // Playwright sometimes loses the answer of an evaluate while the window is busy ("promise was garbage collected"): ask again.
+    const viewer = async () => {
+      for (let attempt = 1; ; attempt++) {
+        try { return await look(); } catch (e) { if (attempt === 3 || !String(e).includes('garbage collected')) throw e; }
+      }
+    };
     await answer.getByRole('link', { name: 'the deck' }).click();
     await expect(page.locator('.chat-artifact')).toBeVisible();
     await expect.poll(async () => decodeURIComponent((await viewer())?.url || '')).toContain('https://claude.ai/artifact/deck-123');
@@ -134,6 +145,6 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await app?.close();
     const rel = relative(base, realpathSync(root));
     expect(rel && !rel.startsWith('..') && !isAbsolute(rel)).toBeTruthy();
-    rmSync(root, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Windows may still hold a file of the closed app
   }
 });

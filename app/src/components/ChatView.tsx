@@ -1,7 +1,7 @@
 // The single chat tab of a project: an AI tool with the same access as its terminal (project files, skills, MCP
 // tools), its answers as they arrive, the history and a new conversation in the same tab. A Claude artifact linked
 // in an answer (presentation, spreadsheet, page) opens over the conversation, in an isolated viewer.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { api, CHAT_TOOLS, type ArtifactStatus, type ChatState, type ToolInfo } from '../api';
 import { isArtifactUrl as isArtifactLink } from '../../../scripts/lib/artifact-links.ts';
 import { conversationLanguage, t } from '../i18n';
@@ -33,6 +33,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [artifact, setArtifact] = useState<string | null>(null);
+  const [newMenu, setNewMenu] = useState<{ left: number; top: number } | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const lastPending = useRef<number | null>(null);
@@ -101,27 +102,35 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
     try { const next = await api.chatState(project, chat); setState(next); setChosen(next.record.tool); remember(`${prefix}:id`, chat); setError(''); setArtifact(null); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const fresh = () => { setError(''); setArtifact(null); setState(null); remember(`${prefix}:id`, ''); box.current?.focus(); };
+  // A new conversation, with the AI it is for (a conversation keeps the AI it started with: there is no switch inside it).
+  const fresh = (next?: string) => { if (next) setChosen(next); setNewMenu(null); setError(''); setArtifact(null); setState(null); remember(`${prefix}:id`, ''); box.current?.focus(); };
+  const startNew = (e: MouseEvent<HTMLElement>) => {
+    if (usable.length < 2) { fresh(); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    setNewMenu(newMenu ? null : { left: Math.max(8, r.right - 240), top: r.bottom + 4 });
+  };
   const link = (href: string) => { if (isArtifactLink(href)) setArtifact(href); else onLink(href); };
   const label = (id: string) => CHAT_NAMES[id] ?? id;
-  // A conversation stays with the AI it started with; another AI starts a new one.
-  const pick = (next: string) => { setChosen(next); if (state && state.record.tool !== next) fresh(); };
 
   return <div className="chat-view" hidden={!active}>
     <header className="chat-head">
       <IconChat size={18} />
-      {usable.length > 1
-        ? <select aria-label={t('Chat AI')} value={tool?.id ?? ''} onChange={(e) => pick(e.target.value)}>
-          {usable.map((x) => <option key={x.id} value={x.id}>{label(x.id)}</option>)}
-        </select>
-        : <span className="chat-tool">{tool ? label(tool.id) : t('Chat')}</span>}
+      <span className="chat-tool">{state ? label(state.record.tool) : tool ? label(tool.id) : t('Chat')}</span>
       {(history.length > 0 || state) && <select className="chat-history" aria-label={t('Conversation history')} value={state?.record.id ?? ''} onFocus={() => { void loadHistory().catch((e: Error) => setError(e.message)); }} onChange={(e) => { void selectHistory(e.target.value); }}>
         <option value="">{t('Conversation history')}</option>
         {state && !history.some((c) => c.id === state.record.id) && <option value={state.record.id}>{state.record.title || t('New conversation')}</option>}
         {history.map((c) => <option key={c.id} value={c.id}>{c.title || t('New conversation')}</option>)}
       </select>}
-      <button className="icon-btn" type="button" onClick={fresh} disabled={!tool} title={t('New conversation')} aria-label={t('New conversation')}><IconPlus size={17} /></button>
+      <button className="icon-btn" type="button" onClick={startNew} disabled={!tool} title={t('New conversation')} aria-label={t('New conversation')}
+        aria-haspopup={usable.length > 1 ? 'menu' : undefined} aria-expanded={usable.length > 1 ? Boolean(newMenu) : undefined}><IconPlus size={17} /></button>
     </header>
+    {newMenu && (
+      <div className="menu-backdrop" onMouseDown={() => setNewMenu(null)}>
+        <ul className="term-menu" role="menu" aria-label={t('New conversation')} style={{ left: newMenu.left, top: newMenu.top, minWidth: 240 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setNewMenu(null); }}>
+          {usable.map((x, i) => <li key={x.id}><button type="button" role="menuitem" autoFocus={i === 0} onClick={() => fresh(x.id)}>{t('New conversation with {tool}', { tool: label(x.id) })}</button></li>)}
+        </ul>
+      </div>
+    )}
     {(error || state?.error) && <p className="error chat-notice" role="alert">{t(error || state?.error || '')}</p>}
     {artifact ? <ArtifactPane project={project} url={artifact} active={active} onBack={() => setArtifact(null)} /> : <>
       <div className="chat-messages" role="log" aria-label={t('Conversation')}>
