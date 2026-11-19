@@ -111,3 +111,5 @@
 .chat-chart-toggle { margin-top:8px; }
 .chat-chart-data { margin-top:8px; font-size:12px; }
 .chat-chart-error { margin:4px 0 12px; font-size:12px; color:var(--warn, #b7791f); }
+.chat-compose-box { position:relative; }
+.chat-compose-box .note-mention { left:8px; right:8px; bottom:calc(100% + 6px); top:auto; } /* above the message box */

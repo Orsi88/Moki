@@ -14,6 +14,7 @@ import { copyText } from '../clipboard';
 import { dressCharts } from '../chat-charts';
 import { IconArrowDown, IconArrowLeft, IconArrowUp, IconChat, IconCheck, IconCopy, IconEdit, IconExternal, IconFile, IconHistory, IconPaperclip, IconPlus, IconRefresh, IconStop, IconX } from './Icons';
 import { MarkdownBody } from './MarkdownBody';
+import { flattenTree, useFileMention } from './useFileMention';
 import './chat.css';
 
 // Names in the chat (brand names, not translated): Codex is the ChatGPT of the terminal.
@@ -79,6 +80,10 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   const lastPending = useRef<number | null>(null);
   const attachKey = useRef(0);
   const loadHistory = useCallback(() => api.chats(project).then(setHistory), [project]);
+  // @ in the message box: the project's files, a pick becomes an attachment (the @text goes away).
+  const [projectFiles, setProjectFiles] = useState<string[]>([]);
+  const readFiles = useCallback(() => { api.tree(project).then((nodes) => setProjectFiles(flattenTree(nodes).filter((p) => !p.startsWith('@')))).catch(() => setProjectFiles([])); }, [project]);
+  useEffect(() => { if (active) readFiles(); }, [active, readFiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -228,6 +233,12 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
       }
     }
   };
+  const mention = useFileMention(projectFiles, (file, start) => {
+    const caret = box.current?.selectionStart ?? draft.length;
+    setDraft((current) => `${current.slice(0, start)}${current.slice(caret)}`);
+    addFromTree([file]);
+    box.current?.focus();
+  });
   const remove = (key: number) => setAttachments((list) => {
     const gone = list.find((a) => a.key === key);
     if (gone?.preview?.startsWith('blob:')) URL.revokeObjectURL(gone.preview);
@@ -356,16 +367,18 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
           {attachments.length > 0 && <ul className="chat-attachments" aria-label={t('Attachments')}>
             {attachments.map((a) => <li key={a.key} className={a.error ? 'failed' : !a.path ? 'saving' : ''}>
               {a.preview ? <img src={a.preview} alt="" /> : <span className="chat-attachment-icon"><IconFile size={16} /></span>}
-              <span className="chat-attachment-name" title={a.error || a.name}>{a.name}{a.error && <span className="error small"> · {t(a.error)}</span>}</span>
+              <span className="chat-attachment-name" title={a.error || a.path || a.name}>{attachments.some((b) => b !== a && b.name === a.name) && a.path ? a.path : a.name}{a.error && <span className="error small"> · {t(a.error)}</span>}</span>
               <button type="button" className="icon-btn" title={t('Remove')} aria-label={t('Remove {file}', { file: a.name })} onClick={() => remove(a.key)}><IconX size={13} /></button>
             </li>)}
           </ul>}
+          {mention.list()}
           <div className="chat-compose-row">
             <button type="button" className="icon-btn" title={t('Attach files')} aria-label={t('Attach files')} disabled={!tool} onClick={() => picker.current?.click()}><IconPaperclip size={17} /></button>
             <input ref={picker} type="file" multiple hidden onChange={(e) => { addFiles([...(e.target.files ?? [])]); e.target.value = ''; box.current?.focus(); }} />
             <textarea ref={box} aria-label={t('Message')} placeholder={t('Ask about the project…')} value={draft} rows={1} maxLength={1_000_000} disabled={!tool}
               title={t('Enter sends, Shift+Enter starts a new line. Paste or drop files to attach them.')} onPaste={onPaste}
-              onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
+              onChange={(e) => { setDraft(e.target.value); mention.find(e.target.value, e.target.selectionStart); if (e.target.value[e.target.selectionStart - 1] === '@') readFiles(); /* files made since */ }} onBlur={() => window.setTimeout(mention.close, 150)}
+              onKeyDown={(e) => { if (mention.key(e)) return; if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
             {busy && state
               ? <button type="button" className="chat-send stop" onClick={stop} title={t('Stop the answer')} aria-label={t('Stop the answer')}><IconStop size={15} /></button>
               : <button type="submit" className="chat-send" disabled={!canSend} title={t('Send')} aria-label={t('Send')}><IconArrowUp size={17} /></button>}

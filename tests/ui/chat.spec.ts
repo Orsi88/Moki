@@ -168,6 +168,14 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     await expect(page.locator('.chat-attachments li')).toContainText('grafico.png');
     await expect.poll(() => page.locator('.chat-attachments li img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(1); // its miniature
     await expect(box).toHaveValue('');
+    // @ finds a file of the project; another grafico.png in another folder: both chips name their folder then.
+    mkdirSync(join(project, 'notes'), { recursive: true });
+    writeFileSync(join(project, 'notes', 'grafico.png'), readFileSync(join(project, 'inbox', 'grafico.png')));
+    await box.pressSequentially('compare @notes/graf');
+    await expect(page.getByRole('option', { name: /notes\/grafico\.png/ })).toBeVisible();
+    await box.press('Enter');
+    await expect(box).toHaveValue('compare ');
+    await expect(page.locator('.chat-attachments li')).toHaveText([/inbox\/grafico\.png/, /notes\/grafico\.png/]);
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
@@ -178,7 +186,8 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     }
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.locator('.chat-attachments')).toHaveCount(0);
-    await expect(page.locator('.chat-user').last().locator('.chat-file')).toContainText('grafico.png');
+    await expect(page.locator('.chat-user').last().locator('.chat-file-name')).toHaveText(['grafico.png', 'grafico.png']);
+    await expect(page.locator('.chat-user').last().locator('.chat-file-name').nth(1)).toHaveAttribute('title', 'notes/grafico.png');
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
       if (process.env.QA_CHAT_INSPECTION) {
