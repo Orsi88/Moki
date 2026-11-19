@@ -82,7 +82,9 @@ const service = createService(ROOT, {
     detectTools: () => Object.fromEntries(Object.keys(TOOLS).map((k) => [k, true])) as Record<ToolKey, boolean>,
     which: (command: string) => command,
     runCommand: async (_command: string, args: string[]) => (args[0] === '--version' ? '1.0.0 (fake)' : ''),
-    chatCommand: () => ({ file: which('node') ?? process.execPath, args: ['-e', "const readline=require('node:readline'); const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n'); emit({type:'system',subtype:'init',session_id:'fake-session'}); readline.createInterface({input:process.stdin}).on('line',l=>{const text=JSON.parse(l).message.content;emit({type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta',text:'Answer: '+text}}});emit({type:'result',subtype:'success'});});"] }),
+    chatCommand: (args) => ({ file: which('node') ?? process.execPath, args: ['-e', args.includes('exec')
+      ? "const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n');let text='';process.stdin.setEncoding('utf8');process.stdin.on('data',c=>text+=c);process.stdin.on('end',()=>{emit({type:'thread.started',thread_id:'fake-thread'});emit({type:'item.completed',item:{type:'agent_message',text:'Answer: '+text}});emit({type:'turn.completed'});});"
+      : "const readline=require('node:readline'); const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n'); emit({type:'system',subtype:'init',session_id:'fake-session'}); readline.createInterface({input:process.stdin}).on('line',l=>{const text=JSON.parse(l).message.content;emit({type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta',text:'Answer: '+text}}});emit({type:'result',subtype:'success'});});"] }),
   } : { fixPath: () => fixToolPath() }),
   openFolder,
   openPath: (file) => { void shell.openPath(file); },

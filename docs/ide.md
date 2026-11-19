@@ -170,6 +170,7 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 
 | What you see | Why | What to do |
 |---|---|---|
+| The panel shows a loading error and **Try again** | The extension could not read its initial state or refresh it, or did not answer within 30 seconds | Read the error, address the reported cause and choose **Try again**. A failed initial read replaces *Loading…*; a failed refresh keeps the last loaded project visible |
 | Status bar **Moki: no project**; panel *This folder is not linked to a Moki project* | The open folder is not linked to any project | Choose a project in the panel, or link the folder in the app (**Choose my folder**) |
 | **Moki: choose a project** | The folder is linked to more than one project | Choose one; the choice is kept for this VS Code workspace |
 | *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active when VS Code started | Create a project in the app, or make the right workspace active in the app and **Reload Window** |

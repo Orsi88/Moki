@@ -4,10 +4,14 @@ import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { claudeAdapter, codexAdapter, createChatSession, npmShim, toolSummary, type ChatEvent, type ChatSession } from '../desktop/chat.ts';
 import { createConversations } from '../desktop/chat-conversations.ts';
+import { chatModel, chatModels } from '../desktop/chat-models.ts';
 import { chatFileRefs, resolveChatFile } from '../desktop/chat-files.ts';
-import { CHATS_DIR, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
+import { keepChatImage } from '../desktop/chat-images.ts';
+import { IMAGE_LIMIT } from '../desktop/fs-guard.ts';
+import { CHATS_DIR, chatAssetsDir, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
 import { isArtifactUrl, isViewerUrl, viewerBounds } from '../desktop/artifact-viewer.ts';
 import { createService } from '../desktop/service.ts';
 import { searchWorkspace, searchWorkspaceExpanded } from '../desktop/search.ts';
@@ -326,6 +330,103 @@ test('chat attachments: kept apart from the text, given to the AI by full path, 
   assert.throws(() => conversations.send(dir, undefined, 'claude', '  ', handSession().factory), /Write a message first/);
 });
 
+test('chat images: a generated image belongs to its conversation and survives source cleanup and project relocation', (t) => {
+  const root = temp(t), project = join(root, 'project'), home = join(root, 'home with spaces');
+  const thread = join(home, '.codex', 'generated_images', 'thread-1');
+  mkdirSync(project); mkdirSync(thread, { recursive: true });
+  const source = join(thread, 'orange (1).png');
+  const ref = pathToFileURL(source).href;
+  const record = newChat('codex');
+  record.sessionId = 'thread-1';
+  record.messages = [{ role: 'assistant', at: record.created, text: `Here is [the orange](<${ref}>).` }];
+  saveChat(project, record);
+  writeFileSync(source, 'image bytes');
+  assert.deepEqual(chatFileRefs(record.messages[0].text), [decodeURI(ref)]);
+  const imageRef = chatFileRefs(record.messages[0].text)[0];
+  const kept = keepChatImage(project, record, imageRef, home, {});
+  assert.ok(kept);
+  assert.ok(kept.startsWith(`${CHATS_DIR}/${record.id}/`));
+  assert.equal(readFileSync(join(project, kept), 'utf8'), 'image bytes');
+  assert.equal(keepChatImage(project, record, imageRef, home, {}), kept);
+  rmSync(source);
+  const moved = join(root, 'moved');
+  cpSync(project, moved, { recursive: true });
+  assert.equal(keepChatImage(moved, readChat(moved, record.id), imageRef, '/no-longer-the-active-profile', {}), kept);
+  assert.equal(readFileSync(join(moved, kept), 'utf8'), 'image bytes');
+  removeChat(moved, record.id);
+  assert.ok(!existsSync(chatAssetsDir(moved, record.id)));
+  assert.deepEqual(listChats(moved), []);
+  assert.ok(existsSync(join(project, kept)), 'removing one copy of the project leaves the other alone');
+});
+
+test('chat images: other sessions, arbitrary files, user-only references and oversized outputs are not imported', (t) => {
+  const root = temp(t), project = join(root, 'project'), home = join(root, 'home');
+  const thread = join(home, '.codex', 'generated_images', 'thread-1');
+  const other = join(home, '.codex', 'generated_images', 'thread-2');
+  mkdirSync(project); mkdirSync(thread, { recursive: true }); mkdirSync(other);
+  const record = newChat('codex');
+  record.sessionId = 'thread-1';
+  const own = join(thread, 'orange.png'), foreign = join(other, 'orange.png'), arbitrary = join(root, 'private.png');
+  const big = join(thread, 'too-large.png'), empty = join(thread, 'empty.png'), missing = join(thread, 'missing.png');
+  for (const file of [own, foreign, arbitrary]) writeFileSync(file, 'image');
+  writeFileSync(big, Buffer.alloc(IMAGE_LIMIT + 1)); writeFileSync(empty, '');
+  record.messages = [{ role: 'user', at: record.created, text: `\`${own}\`` },
+    { role: 'assistant', at: record.created, text: [foreign, arbitrary, big, empty, missing].map((f) => `\`${f}\``).join('\n') }];
+  saveChat(project, record);
+  for (const file of [own, foreign, arbitrary, big, empty, missing]) assert.equal(keepChatImage(project, record, file, home, {}), null);
+  record.messages[1].text += `\n\`${own}\``;
+  assert.equal(keepChatImage(project, { ...record, sessionId: '../thread-1' }, own, home, {}), null);
+  assert.equal(keepChatImage(project, { ...record, tool: 'claude' }, own, home, {}), null);
+  assert.ok(!existsSync(chatAssetsDir(project, record.id)));
+});
+
+test('chat images: junctions cannot redirect the source thread or the conversation image folder', (t) => {
+  const root = temp(t), project = join(root, 'project'), profile = join(root, 'profile');
+  const generated = join(profile, 'generated_images'), other = join(generated, 'thread-2');
+  mkdirSync(project); mkdirSync(other, { recursive: true });
+  writeFileSync(join(other, 'image.png'), 'private');
+  symlinkSync(other, join(generated, 'thread-1'), process.platform === 'win32' ? 'junction' : 'dir');
+  const record = newChat('codex'); record.sessionId = 'thread-1';
+  const ref = join(generated, 'thread-1', 'image.png');
+  record.messages = [{ role: 'assistant', at: record.created, text: `\`${ref}\`` }];
+  saveChat(project, record);
+  assert.equal(keepChatImage(project, record, ref, root, { CODEX_HOME: profile }), null);
+  symlinkSync(other, chatAssetsDir(project, record.id), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(keepChatImage(project, record, ref, root, { CODEX_HOME: profile }), null);
+  assert.throws(() => removeChat(project, record.id), /Conversation links/);
+  assert.equal(readFileSync(join(other, 'image.png'), 'utf8'), 'private');
+  assert.ok(existsSync(join(project, CHATS_DIR, `${record.id}.json`)));
+});
+
+test('chat service: Codex image outputs are kept when the answer ends and resolved only in that project conversation', async (t) => {
+  const root = temp(t), home = join(root, 'home'), profile = join(home, 'active-profile');
+  const thread = join(profile, 'generated_images', 'thread-1');
+  mkdirSync(thread, { recursive: true });
+  const oldProfile = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = profile;
+  t.after(() => { if (oldProfile === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = oldProfile; });
+  for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
+  createProject('alpha', 'Alpha', root, 'blank'); createProject('beta', 'Beta', root, 'blank');
+  const dir = join(root, 'workspace', 'projects', 'alpha');
+  const source = join(thread, 'exec-orange.png'); writeFileSync(source, 'image');
+  const answer = `[Open the orange](${source.replace(/\\/g, '/')})`;
+  const service = createService(root, { home, launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {},
+    chatCommand: () => ({ file: process.execPath, args: ['-e', codexEcho] }) });
+  t.after(() => service.closeChats());
+  const sent = await service.chatSend('alpha', undefined, 'codex', answer, 'English');
+  await until(() => !service.chatState('alpha', sent.record.id).busy);
+  assert.equal(readdirSync(chatAssetsDir(dir, sent.record.id)).length, 1, 'copied at turn end before a preview is requested');
+  rmSync(source);
+  service.closeChats(); // resolve the persisted transcript, including conversations made by older app versions
+  const files = service.chatAnswerFiles('alpha', answer, sent.record.id);
+  assert.equal(files.length, 1); assert.equal(files[0].status, 'ok'); assert.ok(files[0].image);
+  assert.equal((await service.readFile('alpha', files[0].path)).kind, 'image');
+  assert.equal(service.chatFiles('alpha', [files[0].ref], sent.record.id)[0].path, files[0].path);
+  assert.equal(service.chatAnswerFiles('alpha', answer)[0].status, 'outside');
+  assert.throws(() => service.chatAnswerFiles('beta', answer, sent.record.id), /Unknown conversation/);
+  assert.equal(service.chatFiles('beta', [join(dir, files[0].path)])[0].status, 'other-project');
+});
+
 test('chat service: an attachment is saved from its bytes in the project, and only files of the project can be attached', async (t) => {
   const root = temp(t);
   for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
@@ -530,6 +631,103 @@ test('chat context always identifies the project, even without defaults, and kee
   assert.match(prompt, /Project: alpha\./);
   assert.match(prompt, /answer each of my messages here/);
   assert.doesNotMatch(prompt, /do not start any work/);
+});
+
+test('chat models: aliases, active-profile catalog, missing catalogs and bounded custom identifiers', (t) => {
+  const home = temp(t);
+  const profile = join(home, 'codex-profile');
+  mkdirSync(profile);
+  assert.deepEqual(chatModels('claude', home, {}).map((m) => m.id), ['opus', 'sonnet', 'haiku']);
+  assert.deepEqual(chatModels('codex', home, {}), []);
+  writeFileSync(join(profile, 'models_cache.json'), JSON.stringify({ models: [
+    { slug: 'example-model', display_name: 'Example model', visibility: 'list' },
+    { slug: 'example-model', visibility: 'list' },
+    { slug: 'hidden-model', visibility: 'hide' },
+    { slug: '--bad', visibility: 'list' },
+    { slug: 'other-model', display_name: 'bad\nlabel', visibility: 'list' },
+    null,
+  ] }));
+  assert.deepEqual(chatModels('codex', home, { CODEX_HOME: profile }), [
+    { id: 'example-model', label: 'Example model' }, { id: 'other-model', label: 'other-model' },
+  ]);
+  writeFileSync(join(profile, 'models_cache.json'), '{broken');
+  assert.deepEqual(chatModels('codex', home, { CODEX_HOME: profile }), []);
+  for (const model of ['', 'sonnet', 'opus[1m]', 'vendor/model-1.2', 'arn:aws:bedrock:example/model']) assert.equal(chatModel(model), model);
+  for (const model of [null, 7, {}, '--model=other', 'two models', 'model\nextra', 'model"', 'm'.repeat(201)]) assert.throws(() => chatModel(model), /Invalid model/);
+});
+
+test('chat model: the previous Claude process exits before resuming its session with another model', async (t) => {
+  const script = `${emit}emit({type:'system',subtype:'init',session_id:String(process.pid)});${reader}${text}${result}});`;
+  const r = rig(t, script, undefined, (args, n) => {
+    if (n > 1) {
+      const previous = Number(args[args.indexOf('--resume') + 1]);
+      assert.ok(previous > 0);
+      assert.throws(() => process.kill(previous, 0), 'the previous process has released the session');
+    }
+    return script;
+  });
+  r.session.send('first', 'sonnet');
+  await until(() => r.turns().length === 1);
+  r.session.send('second', 'opus');
+  await until(() => r.turns().length === 2);
+  assert.equal(r.starts.length, 2);
+  assert.deepEqual(r.events.flatMap((event) => event.kind === 'text' ? [event.delta] : []), ['first', 'second']);
+  assert.ok(r.turns().every((event) => event.kind === 'turn-end' && event.ok));
+  r.session.close();
+});
+
+for (const tool of ['claude', 'codex'] as const) test(`chat model: ${tool} keeps its transcript and session when the next message changes model`, async (t) => {
+  const root = temp(t);
+  for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
+  createProject('alpha', 'Alpha', root, 'blank'); createProject('beta', 'Beta', root, 'blank');
+  const starts: string[][] = [];
+  const service = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {},
+    chatCommand: (args) => { starts.push(args); return { file: process.execPath, args: ['-e', tool === 'claude' ? echo : codexEcho] }; },
+  });
+  t.after(() => service.closeChats());
+  try {
+    const first = await service.chatSend('alpha', undefined, tool, 'First model', 'English', undefined, [], 'example-model');
+    const id = first.record.id;
+    // Settings cannot change a response that is already running, even through IPC.
+    assert.throws(() => service.chatModel('alpha', id, 'other-model'), /Wait for the answer/);
+    await until(() => !service.chatState('alpha', id).busy);
+    const session = service.chat('alpha', id).sessionId;
+    const flag = tool === 'claude' ? '--model' : '-m';
+    assert.equal(starts[0][starts[0].indexOf(flag) + 1], 'example-model');
+    assert.equal(service.chat('alpha', id).model, 'example-model');
+    assert.throws(() => service.chatModel('beta', id, 'other-model'), /Unknown conversation/);
+    assert.throws(() => service.chatModel('alpha', id, '--invalid'), /Invalid model/);
+    service.chatModel('alpha', id, 'other-model');
+    assert.equal(service.chat('alpha', id).model, 'other-model', 'selection is saved before the next message');
+    assert.equal(starts.length, 1, 'changing the selection does not send a message');
+    await service.chatSend('alpha', id, tool, 'Second model', 'English');
+    await until(() => !service.chatState('alpha', id).busy);
+    assert.equal(starts.length, 2);
+    assert.equal(starts[1][starts[1].indexOf(flag) + 1], 'other-model');
+    assert.ok(starts[1].includes(session!), 'the existing session is resumed');
+    if (tool === 'codex') assert.ok(starts[1].indexOf('-m') < starts[1].indexOf('exec'));
+    const saved = service.chat('alpha', id);
+    assert.equal(saved.id, id);
+    assert.equal(saved.sessionId, session);
+    assert.deepEqual(saved.messages.filter((m) => m.role === 'user').map((m) => m.text), ['First model', 'Second model']);
+    assert.ok(saved.messages.every((m) => !m.error));
+    // The same model reuses Claude's process; Codex deliberately starts once per message.
+    await service.chatSend('alpha', id, tool, 'Same model', 'English');
+    await until(() => !service.chatState('alpha', id).busy);
+    assert.equal(starts.length, tool === 'claude' ? 2 : 3);
+    service.chatModel('alpha', id, '');
+    assert.equal(service.chat('alpha', id).model, undefined);
+    await service.chatSend('alpha', id, tool, 'Default model', 'English');
+    await until(() => !service.chatState('alpha', id).busy);
+    assert.ok(!starts.at(-1)!.includes(flag));
+    service.closeChats();
+    assert.equal(service.chatState('alpha', id).record.messages.length, 8, 'history survives closing the process');
+    await service.chatSend('alpha', id, tool, 'After restart', 'English', undefined, [], 'example-model');
+    await until(() => !service.chatState('alpha', id).busy);
+    assert.ok(starts.at(-1)!.includes(session!));
+    assert.equal(service.chat('alpha', id).model, 'example-model');
+    assert.equal(service.chats('alpha').length, 1);
+  } finally { service.closeChats(); }
 });
 
 test('chat service: switching workspaces while finding a tool cannot start a conversation in either project', async (t) => {

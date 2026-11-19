@@ -29,7 +29,7 @@
 
 - ESM with `node:` imports; no runtime dependencies.
 - TypeScript run directly by Node: erasable syntax only (no `enum`, `namespace`, parameter properties), relative imports with the `.ts` extension, `import type` for types. Follow the file's language (`.mjs` or `.ts`); do not convert files as a side effect.
-- Scripts: header comment with purpose and usage; exported functions for tests; CLI behind `if (import.meta.url === pathToFileURL(process.argv[1]).href)`; problems printed and `process.exit(1)`.
+- Scripts: header comment with purpose and usage; exported functions for tests; CLI behind `isMain(import.meta.url, ['<script-name>'])` from `scripts/lib/is-main.mjs`, which also checks the entry name so imported helpers stay inert in bundles; problems printed and `process.exit(1)`.
 - Paths: `ROOT` from `repo.mjs` (honors `QA_ROOT`) and `workspaceDir()` (honors `QA_WORKSPACE`) — never `join(ROOT, 'workspace')`. Build with `join`, store and compare with `/` (`relPosix`, `toPosix`).
 - Processes: arguments as arrays (`spawn`, `execFileSync`); user text never in a shell string.
 - Validate at boundaries: everything the service receives is `unknown` until checked (type, list membership, length limits).

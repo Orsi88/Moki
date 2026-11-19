@@ -1,14 +1,14 @@
-// The + of the tab bar: first the categories (Terminal, AI, File, ArtCraft apps); choosing one
+// The + of the tab bar: first the categories (Terminal, AI, Chats, File, ArtCraft apps); choosing one
 // shows its options in place of the list, with a Back row. Arrows move, → or Enter opens a
 // category, ← or Esc goes back (Esc on the categories closes the menu).
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import type { ToolInfo } from '../api';
+import { CHAT_NAMES, CHAT_TOOLS, type ToolInfo } from '../api';
 import { t } from '../i18n';
 import { FileIcon } from '../icons';
-import { IconAgent, IconArrowLeft, IconBox, IconChevron, IconExternal, IconFile, IconPlay, IconTerminal } from './Icons';
+import { IconAgent, IconArrowLeft, IconBox, IconChat, IconChevron, IconExternal, IconFile, IconPlay, IconTerminal } from './Icons';
 
-type Category = 'terminal' | 'ai' | 'file' | 'craft';
+type Category = 'terminal' | 'ai' | 'chats' | 'file' | 'craft';
 
 // What "File" creates; the service makes the Office ones empty (desktop/service.ts, BLANK_FILES).
 export const NEW_FILE_TYPES = [
@@ -22,6 +22,7 @@ interface Props {
   at: { left: number; top: number };
   tools: ToolInfo[];
   onTerminal: (tool: string, plain?: boolean) => void; // '' = the user's shell; plain: an AI without the project's defaults
+  onChat: (tool: string) => void;
   withDefaults?: boolean; // the project has defaults: the AI list offers to open one without them
   onFile: (ext: string) => void;
   onCraft: () => void;
@@ -36,7 +37,7 @@ const moveFocus = (e: KeyboardEvent<HTMLUListElement>, step: number) => {
   e.preventDefault();
 };
 
-export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, onCraft, onClose }: Props) {
+export function NewMenu({ at, tools, onTerminal, onChat, withDefaults = false, onFile, onCraft, onClose }: Props) {
   const [category, setCategory] = useState<Category | null>(null);
   const [plain, setPlain] = useState(false); // the next AI opens without the project's defaults
   const list = useRef<HTMLUListElement>(null);
@@ -58,6 +59,7 @@ export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, o
   const categories: { id: Category; icon: ReactNode; label: string }[] = [
     { id: 'terminal', icon: <IconTerminal size={15} />, label: t('Terminal') },
     { id: 'ai', icon: <IconAgent size={15} />, label: t('AI') },
+    { id: 'chats', icon: <IconChat size={15} />, label: t('Chats') },
     { id: 'file', icon: <IconFile size={15} />, label: t('File') },
     { id: 'craft', icon: <IconBox size={15} />, label: t('ArtCraft apps') },
   ];
@@ -69,6 +71,9 @@ export function NewMenu({ at, tools, onTerminal, withDefaults = false, onFile, o
 
   const options = (): ReactNode[] => {
     if (category === 'terminal') return [item('shell', <IconTerminal size={15} />, t('Terminal'), () => onTerminal(''), <span className="muted small">{t('your shell')}</span>, false, true)];
+    if (category === 'chats') return tools.filter((ai) => CHAT_TOOLS.includes(ai.id)).map((ai, i) => item(ai.id, <IconChat size={15} />,
+      t('New conversation with {tool}', { tool: CHAT_NAMES[ai.id] ?? ai.label }), () => onChat(ai.id),
+      ai.available ? undefined : <span className="muted small">{t('not installed')}</span>, !ai.available, i === 0));
     if (category === 'ai') {
       const ais = tools.filter((ai) => ai.kind === 'terminal').map((ai, i) => item(ai.id, <IconPlay size={15} />, ai.label, () => onTerminal(ai.id, plain),
         <span className="muted small">{ai.available ? ai.command : ai.installable ? t('not installed · click to install') : t('not installed')}</span>,

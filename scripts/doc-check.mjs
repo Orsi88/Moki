@@ -10,7 +10,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 
 const MERMAID_TYPES = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|journey|gantt|pie|quadrantChart|requirementDiagram|gitGraph|mindmap|timeline|sankey-beta|xychart-beta|block-beta|packet-beta|kanban|architecture-beta|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/;
 const MAX_NODES = 15;
@@ -127,4 +127,4 @@ function main(argv) {
   return problems.some((p) => p.level === 'error') ? 1 : 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url, ['doc-check.mjs'])) process.exitCode = main(process.argv.slice(2));

@@ -2,10 +2,25 @@
 // each view shows one group with its own tabs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { chatTabPrefix, isChatTab } from '../app/src/chat-tabs.ts';
 import {
   GENERAL, addTerminal, arrange, close, colorGroup, dropGroup, emptyBoard, fileKey, focus, focusedKey, freshIn, groupOf,
   moveToGroup, moveToPane, newGroup, open, parseBoard, prune, rename, renameGroup, show, showGroup, tabsOfGroup, tabsOfPane, termKey,
 } from '../app/src/tab-groups.ts';
+
+test('chat tabs keep independent placements through splitting, persistence and closing; legacy preferences remain readable', () => {
+  let board = open(open(emptyBoard(), 'chat'), 'chat:another');
+  assert.deepEqual(board.order.filter(isChatTab), ['chat', 'chat:another']);
+  board = moveToPane(arrange(board, '2'), 'chat:another', 1);
+  board = parseBoard(JSON.stringify(board));
+  assert.deepEqual(tabsOfPane(board, 0), ['chat']);
+  assert.deepEqual(tabsOfPane(board, 1), ['chat:another']);
+  board = close(board, 'chat:another');
+  assert.deepEqual(board.order, ['chat']);
+  assert.equal(chatTabPrefix('workspace', 'project', 'chat'), 'qa-chat:workspace:project');
+  assert.notEqual(chatTabPrefix('workspace', 'project', 'chat'), chatTabPrefix('workspace', 'project', 'chat:another'));
+  assert.notEqual(chatTabPrefix('workspace', 'project', 'chat:another'), chatTabPrefix('other', 'project', 'chat:another'));
+});
 
 test('each terminal opens its own group, with its own color; a file opened by hand joins the focused view\'s group', () => {
   let b = addTerminal(emptyBoard(), 't1-1', 'Claude Code · Triagem');

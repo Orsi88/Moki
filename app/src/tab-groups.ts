@@ -5,7 +5,7 @@
 // or each view can show another group. A tab is in one view at a time. Pure functions on a plain object (a Board):
 // Workspace keeps the files and terminals, this keeps where they show. Saved per project (prefs), without contents.
 
-export type TabKey = string; // 'file:<path>' | 'term:<id>' | 'graph'
+export type TabKey = string; // 'file:<path>' | 'term:<id>' | 'chat:<id>' | 'chat' (legacy) | 'graph'
 export const fileKey = (path: string): TabKey => `file:${path}`;
 export const termKey = (id: string): TabKey => `term:${id}`;
 export const GRAPH: TabKey = 'graph';

@@ -1,14 +1,19 @@
 .chat-view { position:relative; display:flex; flex-direction:column; width:100%; height:100%; min-height:0; color:var(--text); background:var(--bg); }
 .chat-view[hidden] { display:none; }
 .chat-head { display:flex; align-items:center; gap:10px; min-height:50px; padding:8px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
-.chat-head .chat-tool { font-weight:600; }
+.chat-head .chat-tool { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chat-head-space { flex:1; }
-/* The earlier conversations: a menu under the history icon, title and AI · date per line, the open one marked. */
-.chat-history-menu { max-height:min(420px, 60vh); overflow-y:auto; }
-.chat-history-menu button { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
-.chat-history-menu button[aria-current] { background:var(--accent-soft); }
-.chat-history-title { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.chat-history-meta { font-size:11px; color:var(--muted); }
+.chat-model-select { min-width:0; max-width:min(240px, 45%); padding:5px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg-2); color:var(--text); font:inherit; font-size:12px; text-overflow:ellipsis; }
+.chat-model-custom { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--border); }
+.chat-model-custom input { flex:1 1 180px; min-width:0; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg-2); color:var(--text); font:inherit; }
+.chat-model-custom .btn { padding:4px 8px; font-size:12px; }
+/* A full history listing, with title, AI and date; the current conversation stays marked. */
+.chat-history-dialog { height:min(620px, 85vh); }
+.chat-history-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.chat-history-list button { display:flex; flex-direction:column; align-items:flex-start; gap:6px; width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg-2); color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+.chat-history-list button:hover, .chat-history-list button[aria-current] { border-color:var(--accent); background:var(--accent-soft); }
+.chat-history-title { max-width:100%; overflow-wrap:anywhere; font-weight:600; }
+.chat-history-meta { font-size:12px; color:var(--muted); }
 .chat-tool { font-weight:600; }
 /* One column for the conversation and the message box: up to 800 px, centered, the same side margin, so both follow
    the tab's width together. */

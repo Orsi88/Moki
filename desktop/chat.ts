@@ -1,4 +1,4 @@
-// The chat of a project (one tab per project, phase 2 of the chat plan): the person picks an AI tool and talks to it
+// The chat of a project: the person picks an AI tool and talks to it
 // in the app, with the same access a terminal of that tool gets (Moki folder, the project's MCP servers and plugins,
 // the project's start context). This file is the tool-neutral engine: one live process per conversation, fed one
 // message at a time on stdin, its stdout read as events. Each tool has an adapter: Claude Code keeps one process for
@@ -21,7 +21,7 @@ export type ChatEvent =
   | { kind: 'tool-done'; id: string; ok: boolean }
   | { kind: 'turn-end'; ok: boolean; error?: string };
 
-export interface ChatArgs { resume?: string; contextFile: string; extra: string[]; effort?: Effort }
+export interface ChatArgs { resume?: string; contextFile: string; extra: string[]; effort?: Effort; model?: string }
 
 export interface ChatAdapter {
   args(o: ChatArgs): string[]; // never the person's text
@@ -51,10 +51,11 @@ const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 // Claude Code in print mode with stream-json in and out (claude --help, 2.1.x). Events of subagents
 // (parent_tool_use_id set) stay out: the chat shows the main conversation and the subagent's tool call.
 export const claudeAdapter: ChatAdapter = {
-  args: ({ resume, contextFile, extra, effort }) => [
+  args: ({ resume, contextFile, extra, effort, model }) => [
     '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--dangerously-skip-permissions', // the person chose "everything allowed" for the chat (2026-11-18)
     '--append-system-prompt-file', contextFile,
+    ...(model ? ['--model', model] : []),
     ...(effort ? ['--effort', effort] : []),
     ...(resume ? ['--resume', resume] : []),
     ...extra,
@@ -108,8 +109,9 @@ const CODEX_EFFORT: Record<Effort, string> = { low: 'low', medium: 'medium', hig
 export const codexAdapter: ChatAdapter = {
   oneShot: true,
   contextInMessage: true,
-  args: ({ resume, extra, effort }) => [
+  args: ({ resume, extra, effort, model }) => [
     ...extra,
+    ...(model ? ['-m', model] : []),
     ...(effort ? ['-c', `model_reasoning_effort=${CODEX_EFFORT[effort]}`] : []),
     'exec', ...(resume ? ['resume'] : []),
     '--json', '--skip-git-repo-check',
@@ -158,7 +160,7 @@ export interface ChatSessionOptions {
 }
 
 export interface ChatSession {
-  send(text: string): void;
+  send(text: string, model?: string): void;
   stop(): void; // ends the answer in progress; the next message resumes the conversation
   close(): void; // ends the conversation's process for good; no event after it
   busy(): boolean;
@@ -202,6 +204,9 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
   let stopped = false;
   let pending = ''; // the message being answered, sent again when a lost session starts over
   let retried = false;
+  let model: string | undefined;
+  let processModel: string | undefined;
+  let restarting = false;
   let resuming = false; // started with --resume and nothing heard yet: a failure may be a lost session
   let held: ChatEvent | null = null; // the turn-end of such a start, until the exit says whether it was lost
   let context = ''; // contextInMessage: the project context of a start without a session, for its first message
@@ -214,7 +219,7 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
     const clean = () => { for (const file of scratch.splice(0)) rm(file, { force: true }, () => { /* already gone */ }); };
     const resume = lost ? undefined : session;
     try { context = o.adapter.contextInMessage && !resume ? readFileSync(contextFile, 'utf8') : ''; } catch (e) { clean(); throw e; }
-    const args = o.adapter.args({ resume, contextFile, extra, effort });
+    const args = o.adapter.args({ resume, contextFile, extra, effort, model });
     const run = o.command ? o.command(args) : { file: o.file, args };
     const shell = !o.command && process.platform === 'win32' && /\.(cmd|bat)$/i.test(run.file);
     // Expand quoted environment variables once, with delayed expansion off. Paths containing %, ! or & then
@@ -227,12 +232,13 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
       { cwd: o.cwd, env: shell ? { ...o.env, ...Object.fromEntries(names.map((name, i) => [name, values[i]])) } : o.env,
         windowsHide: true, windowsVerbatimArguments: shell, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
     child = proc;
+    processModel = model;
     resuming = Boolean(session) && !lost;
     held = null;
     let buffer = '';
     let stderr = '';
     const consume = (line: string) => {
-      if (!line || child !== proc || stopped || closed) return;
+      if (!line || child !== proc || stopped || closed || restarting) return;
       for (const event of o.adapter.parse(line)) {
         if (event.kind === 'turn-end' && resuming && !event.ok && o.adapter.lost(`${stderr}\n${event.error ?? ''}`)) { held = event; continue; }
         if (event.kind !== 'session') resuming = false;
@@ -267,6 +273,14 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
       const wasResuming = resuming;
       resuming = false;
       if (closed) return;
+      // Resuming a changed model waits for the idle process to exit, so both cannot hold the same session.
+      if (restarting) {
+        restarting = false;
+        if (working && !stopped) {
+          try { deliver(start(false), pending); } catch (e) { finish({ kind: 'turn-end', ok: false, error: e instanceof Error ? e.message : String(e) }); }
+          return;
+        }
+      }
       // The conversation to resume is gone: start a new one carrying it, and send the message again (once).
       if (wasResuming && working && !stopped && !retried && o.adapter.lost(`${stderr}\n${held?.kind === 'turn-end' ? held.error ?? '' : ''}`)) {
         retried = true;
@@ -290,7 +304,7 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
   }
 
   return {
-    send(text) {
+    send(text, nextModel) {
       if (closed) throw new Error('This conversation is closed.');
       if (working) throw new Error('Wait for the answer, or stop it first.');
       if (typeof text !== 'string' || !text.trim()) throw new Error('Write a message first.');
@@ -298,7 +312,9 @@ export function createChatSession(o: ChatSessionOptions): ChatSession {
       working = true;
       stopped = false;
       pending = text;
+      model = nextModel;
       try {
+        if (child && processModel !== model) { restarting = true; terminate(child); return; }
         deliver(child ?? start(false), text);
       } catch (e) {
         working = false;

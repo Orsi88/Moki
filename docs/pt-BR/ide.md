@@ -174,6 +174,7 @@ As mensagens da extensão aparecem em inglês.
 
 | O que aparece | Por quê | O que fazer |
 |---|---|---|
+| O painel mostra um erro de carregamento e **Tentar de novo** | A extensão não conseguiu ler o estado inicial ou atualizá-lo, ou não respondeu em 30 segundos | Leia o erro, resolva a causa informada e use **Tentar de novo**. A falha inicial substitui *Carregando…*; uma falha ao atualizar mantém o último projeto carregado visível |
 | Barra de status **Moki: no project**; painel *Esta pasta não está vinculada a um projeto do Moki* | A pasta aberta não está ligada a nenhum projeto | Escolha um projeto no painel, ou ligue a pasta no app (**Escolher minha pasta**) |
 | **Moki: choose a project** | A pasta está ligada a mais de um projeto | Escolha um; a escolha fica guardada para este workspace do VS Code |
 | *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo quando o VS Code iniciou | Crie um projeto no app, ou deixe o workspace certo ativo no app e rode **Reload Window** |

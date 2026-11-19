@@ -13,3 +13,13 @@ Suggestions **not applied** to the migrated skills. Each needs a team decision b
 | P7 | failure-analysis | Add an optional "Correlation id / request id" field to the input template | Speeds up locating the right log lines |
 | P8 | failure-analysis | Optional output block formatted for the team's defect tracker | Reduces copy/paste into the tracker |
 | P9 | framework | Pin a test-management integration (via MCP) for the planned documentation skill | Needed before the documentation skill can be implemented |
+
+## Reported app bugs
+
+### Adding another chat replaces the open chat
+
+Reported on 2026-11-19 at the user's request:
+
+> eu clico para adicionar mais um chat e ele sobrepoe o que tava aberto
+
+Fixed after the user's approval: each new conversation opens its own tab, preserving the previous conversation and draft. History focuses an already open conversation or opens it in another tab.

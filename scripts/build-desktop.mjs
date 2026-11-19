@@ -29,9 +29,7 @@ await esbuild({
 await esbuild({ ...common, entryPoints: [join(ROOT, 'desktop', 'preload.ts')], outfile: join(out, 'preload.cjs'), format: 'cjs' });
 await esbuild({ ...common, entryPoints: [join(ROOT, 'desktop', 'run-tool.ts')], outfile: join(out, 'run-tool.mjs'), format: 'esm' });
 // The parse worker (worker_threads, desktop/parse-pool.ts): its own self-contained file, unpacked from app.asar like run-tool.
-// In a worker process.argv[1] is the worker file, which would make the CLI guard of the bundled
-// scripts/xlsx.mjs and docx.mjs (import.meta.url === argv[1]) run their command line; the banner empties it first.
-await esbuild({ ...common, entryPoints: [join(ROOT, 'desktop', 'parse-worker.ts')], outfile: join(out, 'parse-worker.mjs'), format: 'esm', banner: { js: "process.argv[1] = '';" } });
+await esbuild({ ...common, entryPoints: [join(ROOT, 'desktop', 'parse-worker.ts')], outfile: join(out, 'parse-worker.mjs'), format: 'esm' });
 // Moki's MCP server for the AI tools the app starts (desktop/service.ts mokiServer).
 await esbuild({ ...common, entryPoints: [join(ROOT, 'ide', 'mcp', 'server.ts')], outfile: join(out, 'mcp.mjs'), format: 'esm' });
 // One picture of each diagram in an exported PDF. The installed framework has no

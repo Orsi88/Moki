@@ -1,25 +1,25 @@
-// The single chat tab of a project: an AI tool with the same access as its terminal (project files, skills, MCP
-// tools), its answers as they arrive, the history and a new conversation in the same tab. A Claude artifact linked
+// A conversation tab of a project: an AI tool with the same access as its terminal (project files, skills, MCP
+// tools), its answers as they arrive, and history opening or focusing another tab. A Claude artifact linked
 // in an answer (presentation, spreadsheet, page) opens over the conversation, in an isolated viewer, by itself when
 // the answer that made it ends. The files an answer names show under it (pictures with a preview), the person's
 // attachments with their message; what the AI is doing shows while it works.
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type MouseEvent } from 'react';
-import { api, CHAT_TOOLS, type ArtifactStatus, type ChatFile, type ChatState, type ToolInfo } from '../api';
+import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
+import { api, CHAT_NAMES, CHAT_TOOLS, type ArtifactStatus, type ChatFile, type ChatState, type ToolInfo } from '../api';
 
 type ChatToolCall = { name: string; summary: string; ok?: boolean };
 import { isArtifactUrl as isArtifactLink } from '../../../scripts/lib/artifact-links.ts';
 import { conversationLanguage, t } from '../i18n';
 import { recall, remember } from '../prefs';
+import { chatTabPrefix } from '../chat-tabs';
 import { copyText } from '../clipboard';
 import { dressCharts } from '../chat-charts';
 import { dressActions } from '../chat-actions';
-import { IconArrowDown, IconArrowLeft, IconArrowUp, IconChat, IconCheck, IconCopy, IconEdit, IconExternal, IconFile, IconHistory, IconPaperclip, IconPlus, IconRefresh, IconStop, IconX } from './Icons';
+import { IconArrowDown, IconArrowLeft, IconArrowUp, IconChat, IconCheck, IconCopy, IconEdit, IconExternal, IconFile, IconHistory, IconPaperclip, IconRefresh, IconStop, IconX } from './Icons';
+import { Modal } from './Modal';
 import { MarkdownBody } from './MarkdownBody';
 import { flattenTree, useFileMention } from './useFileMention';
 import './chat.css';
 
-// Names in the chat (brand names, not translated): Codex is the ChatGPT of the terminal.
-const CHAT_NAMES: Record<string, string> = { claude: 'Claude', codex: 'ChatGPT (Codex)' };
 const SAFETY_POLL_MS = 2000; // while answering, in case a change notice was missed
 const RENDER_EVERY_MS = 300; // an answer arriving is formatted at most this often
 const COMPOSE_MAX_PX = 200; // the message box grows with its text up to this height
@@ -30,9 +30,11 @@ const SUGGESTIONS = ['Summarize what this project already knows and what is miss
 const ARTIFACT = /https:\/\/claude\.ai\/(?:code\/)?artifacts?\/[\w-]+/g;
 
 interface Props {
-  project: string; workspace: string; tools: ToolInfo[]; active: boolean;
+  project: string; workspace: string; tab: string; tools: ToolInfo[]; active: boolean;
   pending?: { text: string; tool: string; label?: string; key: number } | null;
   onPending: () => void;
+  onHistory: (id: string, tool: string) => void;
+  onTitle: (tab: string, title: string) => void;
   onLink: (href: string) => void;
 }
 // An attachment in the message box: its path in the project once saved, a preview for a picture, an error.
@@ -60,20 +62,28 @@ const failedConnection = (call: ChatToolCall): string | null => {
   return mcp ? mcp[1] : null;
 };
 
-export function ChatView({ project, workspace, tools, active, pending, onPending, onLink }: Props) {
-  const prefix = `qa-chat:${workspace}:${project}`;
+export function ChatView({ project, workspace, tab, tools, active, pending, onPending, onHistory, onTitle, onLink }: Props) {
+  const prefix = chatTabPrefix(workspace, project, tab);
   const usable = tools.filter((tool) => CHAT_TOOLS.includes(tool.id) && tool.available);
   const [chosen, setChosen] = useState(() => recall(`${prefix}:tool`) || 'claude');
-  const tool = usable.find((x) => x.id === chosen) ?? usable[0];
   const [history, setHistory] = useState<Awaited<ReturnType<typeof api.chats>>>([]);
   const [state, setState] = useState<ChatState | null>(null);
+  const tool = state ? usable.find((x) => x.id === state.record.tool) : usable.find((x) => x.id === chosen) ?? usable[0];
+  const [restoring, setRestoring] = useState(() => Boolean(recall(`${prefix}:id`)));
+  const [model, setModel] = useState(() => recall(`${prefix}:model`) || '');
+  const [models, setModels] = useState<{ id: string; label: string }[]>([]);
+  const [changingModel, setChangingModel] = useState(false);
+  const [customModel, setCustomModel] = useState(false);
+  const [customDraft, setCustomDraft] = useState('');
   const [draft, setDraft] = useState(() => recall(`${prefix}:draft`) || '');
   const [attachments, setAttachments] = useState<Draft[]>([]);
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [artifact, setArtifact] = useState<string | null>(null);
-  const [newMenu, setNewMenu] = useState<{ left: number; top: number } | null>(null);
-  const [historyMenu, setHistoryMenu] = useState<{ left: number; top: number } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyError, setHistoryError] = useState('');
+  const historyTitle = useId();
   const [copied, setCopied] = useState<number | null>(null);
   const [dropping, setDropping] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -90,11 +100,20 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
     let cancelled = false;
     void loadHistory().catch((e: Error) => { if (!cancelled) setError(e.message); });
     const id = recall(`${prefix}:id`);
-    if (id) void api.chatState(project, id).then((s) => { if (!cancelled) setState(s); }).catch(() => remember(`${prefix}:id`, ''));
+    if (id) void api.chatState(project, id).then((s) => { if (!cancelled) { setState(s); setChosen(s.record.tool); setModel(s.record.model || ''); } })
+      .catch(() => remember(`${prefix}:id`, '')).finally(() => { if (!cancelled) setRestoring(false); });
     return () => { cancelled = true; };
   }, [project, prefix, loadHistory]);
   useEffect(() => { remember(`${prefix}:tool`, chosen); }, [prefix, chosen]);
   useEffect(() => { remember(`${prefix}:draft`, draft); }, [prefix, draft]);
+  useEffect(() => { onTitle(tab, state?.record.title || ''); }, [onTitle, tab, state?.record.title]);
+  useEffect(() => {
+    if (!active || !tool) return;
+    let cancelled = false;
+    setModels([]);
+    void api.chatModels(tool.id).then((next) => { if (!cancelled) setModels(next); }).catch(() => { /* Custom identifiers remain available. */ });
+    return () => { cancelled = true; };
+  }, [active, tool?.id]);
   // The message box grows with what is written, up to COMPOSE_MAX_PX, and shrinks back when it is sent.
   useEffect(() => {
     const el = box.current;
@@ -182,7 +201,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
     setSending(true); setError('');
     stick.current = true; setAway(false);
     try {
-      const next = await api.chatSend(project, chat, toolId, text, conversationLanguage(), label, files);
+      const next = await api.chatSend(project, chat, toolId, text, conversationLanguage(), label, files, model);
       setState(next); remember(`${prefix}:id`, next.record.id);
       return true;
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
@@ -191,7 +210,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   // "Ask again": the last question once more, with its attachments, in this conversation.
   const retry = () => {
     const question = [...(state?.record.messages ?? [])].reverse().find((m) => m.role === 'user');
-    if (!question || !state || sending || busy) return;
+    if (!question || !state || sending || busy || changingModel || restoring) return;
     void deliver(question.text, state.record.tool, state.record.id, question.label, question.attachments);
   };
 
@@ -262,7 +281,7 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
   };
   const ready = attachments.filter((a) => a.path && !a.error);
   const waiting = attachments.some((a) => !a.path && !a.error);
-  const canSend = Boolean(tool) && (draft.trim() !== '' || ready.length > 0) && !waiting && !sending && !busy;
+  const canSend = Boolean(tool) && (draft.trim() !== '' || ready.length > 0) && !waiting && !sending && !busy && !changingModel && !restoring && !customModel;
   const send = async () => {
     if (!tool || !canSend) return;
     const text = draft;
@@ -273,49 +292,61 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
       for (const a of sent) if (a.preview?.startsWith('blob:')) URL.revokeObjectURL(a.preview);
     }
   };
-  const selectHistory = async (chat: string) => {
-    if (!chat) return;
-    try { const next = await api.chatState(project, chat); setState(next); setChosen(next.record.tool); remember(`${prefix}:id`, chat); setError(''); setArtifact(null); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  const link = (href: string) => {
+    if (isArtifactLink(href)) { setArtifact(href); return; }
+    if (/^https?:\/\//i.test(href) || !state) { onLink(href); return; }
+    // A generated image's original link opens the copy owned by this conversation.
+    void api.chatFiles(project, [href], state.record.id).then(([file]) => onLink(file?.status === 'ok' ? file.path : href)).catch(() => onLink(href));
   };
-  // A new conversation, with the AI it is for (a conversation keeps the AI it started with: there is no switch inside it).
-  const fresh = (next?: string) => { if (next) setChosen(next); setNewMenu(null); setError(''); setArtifact(null); setState(null); remember(`${prefix}:id`, ''); box.current?.focus(); };
-  const startNew = (e: MouseEvent<HTMLElement>) => {
-    if (usable.length < 2) { fresh(); return; }
-    const r = e.currentTarget.getBoundingClientRect();
-    setNewMenu(newMenu ? null : { left: Math.max(8, r.right - 240), top: r.bottom + 4 });
-  };
-  const link = (href: string) => { if (isArtifactLink(href)) setArtifact(href); else onLink(href); };
   const label = (key: string) => CHAT_NAMES[key] ?? key;
+  const listed = history.filter((chat) => `${chat.title} ${label(chat.tool)}`.toLocaleLowerCase().includes(historyQuery.trim().toLocaleLowerCase()));
   const stop = () => { if (state) void api.chatStop(project, state.record.id).catch((e: Error) => setError(e.message)); };
+  const chooseModel = async (next: string) => {
+    if (busy || sending || changingModel || restoring) return;
+    setChangingModel(true); setError('');
+    try {
+      if (state) setState(await api.chatModel(project, state.record.id, next));
+      setModel(next); remember(`${prefix}:model`, next); setCustomModel(false);
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setChangingModel(false); }
+  };
 
   return <div className="chat-view" hidden={!active}>
     <header className="chat-head">
       <IconChat size={18} />
       <span className="chat-tool">{state ? label(state.record.tool) : tool ? label(tool.id) : t('Chat')}</span>
       <span className="chat-head-space" />
-      {history.length > 0 && <button className="icon-btn" type="button" title={t('Conversation history')} aria-label={t('Conversation history')} aria-haspopup="menu" aria-expanded={Boolean(historyMenu)}
-        onClick={(e) => { void loadHistory().catch((err: Error) => setError(err.message)); const r = e.currentTarget.getBoundingClientRect(); setHistoryMenu(historyMenu ? null : { left: Math.max(8, r.right - 320), top: r.bottom + 4 }); }}><IconHistory size={17} /></button>}
-      <button className="icon-btn" type="button" onClick={startNew} disabled={!tool} title={t('New conversation')} aria-label={t('New conversation')}
-        aria-haspopup={usable.length > 1 ? 'menu' : undefined} aria-expanded={usable.length > 1 ? Boolean(newMenu) : undefined}><IconPlus size={17} /></button>
+      <select className="chat-model-select" aria-label={t('Chat model')} title={t('Used from the next message.')} value={customModel ? '__custom__' : model} disabled={!tool || busy || sending || changingModel || restoring}
+        onChange={(e) => { if (e.target.value === '__custom__') { setCustomDraft(model); setCustomModel(true); } else void chooseModel(e.target.value); }}>
+        <option value="">{t('AI default')}</option>
+        {models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+        {model && !models.some((m) => m.id === model) && <option value={model}>{model}</option>}
+        <option value="__custom__">{t('Other model…')}</option>
+      </select>
+      {history.length > 0 && <button className="icon-btn" type="button" title={t('Conversation history')} aria-label={t('Conversation history')} aria-haspopup="dialog" aria-expanded={historyOpen}
+        onClick={() => { setHistoryQuery(''); setHistoryError(''); setHistoryOpen(true); void loadHistory().catch((err: Error) => setHistoryError(err.message)); }}><IconHistory size={17} /></button>}
     </header>
-    {historyMenu && (
-      <div className="menu-backdrop" onMouseDown={() => setHistoryMenu(null)}>
-        <ul className="term-menu chat-history-menu" role="menu" aria-label={t('Conversation history')} style={{ left: historyMenu.left, top: historyMenu.top, width: 320 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setHistoryMenu(null); }}>
-          {history.map((c, i) => <li key={c.id}><button type="button" role="menuitem" autoFocus={i === 0} aria-current={c.id === state?.record.id || undefined} onClick={() => { setHistoryMenu(null); void selectHistory(c.id); }}>
+    {customModel && <form className="chat-model-custom" onSubmit={(e) => { e.preventDefault(); if (customDraft.trim()) void chooseModel(customDraft.trim()); }}>
+      <input aria-label={t('Model identifier')} placeholder={t('Model identifier')} value={customDraft} maxLength={200} disabled={changingModel} onChange={(e) => setCustomDraft(e.target.value)} autoFocus />
+      <button type="submit" className="btn btn-ghost" disabled={!customDraft.trim() || changingModel}>{t('Apply')}</button>
+      <button type="button" className="btn btn-ghost" disabled={changingModel} onClick={() => setCustomModel(false)}>{t('Cancel')}</button>
+    </form>}
+    {historyOpen && active && <Modal size="medium" className="chat-history-dialog" labelledBy={historyTitle} onClose={() => setHistoryOpen(false)}>
+      <header className="modal-head"><h2 id={historyTitle}>{t('Conversation history')}</h2>
+        <button type="button" className="icon-btn" aria-label={t('Close')} onClick={() => setHistoryOpen(false)}><IconX size={18} /></button>
+      </header>
+      <div className="modal-body">
+        <input type="search" aria-label={t('Search conversations')} placeholder={t('Search conversations')} value={historyQuery} onChange={(e) => setHistoryQuery(e.target.value)} autoFocus />
+        {historyError && <p className="error" role="alert">{t(historyError)}</p>}
+        <ul className="chat-history-list" aria-label={t('Conversation history')}>
+          {listed.map((c) => <li key={c.id}><button type="button" aria-current={c.id === state?.record.id || undefined} onClick={() => { setHistoryOpen(false); onHistory(c.id, c.tool); }}>
             <span className="chat-history-title">{c.title || t('New conversation')}</span>
-            <span className="chat-history-meta">{label(c.tool)} · {new Date(c.updated).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+            <span className="chat-history-meta">{label(c.tool)} · <time dateTime={c.updated}>{new Date(c.updated).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</time></span>
           </button></li>)}
         </ul>
+        {!listed.length && <p className="muted">{t('No conversations found.')}</p>}
       </div>
-    )}
-    {newMenu && (
-      <div className="menu-backdrop" onMouseDown={() => setNewMenu(null)}>
-        <ul className="term-menu" role="menu" aria-label={t('New conversation')} style={{ left: newMenu.left, top: newMenu.top, minWidth: 240 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') setNewMenu(null); }}>
-          {usable.map((x, i) => <li key={x.id}><button type="button" role="menuitem" autoFocus={i === 0} onClick={() => fresh(x.id)}>{t('New conversation with {tool}', { tool: label(x.id) })}</button></li>)}
-        </ul>
-      </div>
-    )}
+    </Modal>}
     {(error || state?.error) && <p className="error chat-notice" role="alert">{t(error || state?.error || '')}</p>}
     {artifact ? <ArtifactPane project={project} url={artifact} active={active} onBack={() => setArtifact(null)} /> : <>
       <div className="chat-messages" role="log" aria-label={t('Conversation')} ref={scroller} onScroll={followScroll}>
@@ -341,12 +372,12 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
                 : message.role === 'user' ? message.text.trim() && <p className="chat-user-text">{message.text}</p>
                 : <ChatMarkdown text={message.text} project={project} live={live} onLink={link}
                 answer={state.record.messages[i + 1]?.role === 'user' ? state.record.messages[i + 1].text : undefined}
-                onReply={busy || sending ? undefined : (reply) => { void deliver(reply, state.record.tool, state.record.id); }} />}
+                onReply={busy || sending || changingModel || restoring || customModel ? undefined : (reply) => { void deliver(reply, state.record.tool, state.record.id); }} />}
               {message.role === 'user' && message.attachments?.length ? <ChatFiles project={project} refs={message.attachments} onOpen={onLink} compact /> : null}
               {message.tools?.length ? <details className="chat-tools"><summary>{t('Tools used')} ({message.tools.length})</summary><ul>{message.tools.map((call, index) => <li key={index}><span aria-hidden="true">{call.ok === false ? '×' : call.ok ? '✓' : '·'}</span> {activity(call)}</li>)}</ul></details> : null}
               {failed.length > 0 && <p className="warn-text small" role="status">{t('{servers} did not answer: this answer was made without its data.', { servers: failed.join(', ') })}</p>}
               {message.error && <p className="error" role="status">{message.error === 'stopped' ? t('Response stopped.') : message.error}</p>}
-              {message.role === 'assistant' && !live && (message.text.trim() || written) ? <ChatFiles project={project} text={`${message.text}\n${written}`} onOpen={onLink} /> : null}
+              {message.role === 'assistant' && !live && (message.text.trim() || written) ? <ChatFiles project={project} conversation={state.record.id} text={`${message.text}\n${written}`} onOpen={onLink} /> : null}
               {!live && !busy && (message.role === 'assistant' ? message.text.trim() !== '' || Boolean(message.error) : lastUser && !message.label) && (
                 <div className="chat-actions">
                   {message.role === 'assistant' && message.text.trim() && <button type="button" className="icon-btn" title={copied === i ? t('Copied') : t('Copy')} aria-label={t('Copy the answer')}
@@ -394,15 +425,15 @@ export function ChatView({ project, workspace, tools, active, pending, onPending
 
 // The files a message names or carries: a preview for a picture, a card with Open in the project for the others,
 // and why a file cannot be opened (moved or removed, another project, outside the projects).
-function ChatFiles({ project, text, refs, onOpen, compact }: { project: string; text?: string; refs?: string[]; onOpen: (path: string) => void; compact?: boolean }) {
+function ChatFiles({ project, conversation, text, refs, onOpen, compact }: { project: string; conversation?: string; text?: string; refs?: string[]; onOpen: (path: string) => void; compact?: boolean }) {
   const [files, setFiles] = useState<ChatFile[]>([]);
   const key = refs ? refs.join('\n') : text ?? '';
   useEffect(() => {
     let cancelled = false;
-    const ask = refs ? api.chatFiles(project, refs) : api.chatAnswerFiles(project, text ?? '');
+    const ask = refs ? api.chatFiles(project, refs, conversation) : api.chatAnswerFiles(project, text ?? '', conversation);
     ask.then((list) => { if (!cancelled) setFiles(list); }).catch(() => { if (!cancelled) setFiles([]); });
     return () => { cancelled = true; };
-  }, [project, key]);
+  }, [project, conversation, key]);
   if (!files.length) return null;
   return <ul className={`chat-files${compact ? ' compact' : ''}`} aria-label={t('Files')}>
     {files.map((f) => <li key={f.ref} className={`chat-file${f.status === 'ok' ? '' : ' unavailable'}`}>
@@ -425,6 +456,7 @@ function ChatPicture({ project, path, name, onOpen }: { project: string; path: s
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
+    setUrl('');
     api.readFile(project, path).then((content) => { if (!cancelled) { if (content.kind === 'image') setUrl(content.url); else setFailed(true); } }).catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
   }, [project, path]);
@@ -478,11 +510,12 @@ function ArtifactPane({ project, url, active, onBack }: { project: string; url: 
   const area = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<ArtifactStatus | null>(null);
   useEffect(() => {
+    if (!active) return; // A hidden conversation must not hide the viewer of the active one.
     let cancelled = false, frame = 0;
     const update = () => {
       const rect = area.current?.getBoundingClientRect();
       const covered = Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"], .menu-backdrop, .note-host, .drop-veil')).some((el) => el.getClientRects().length > 0);
-      if (!active || covered || !rect || rect.width < 1 || rect.height < 1) { void api.hideArtifact(project).catch(() => {}); return; }
+      if (covered || !rect || rect.width < 1 || rect.height < 1) { void api.hideArtifact(project).catch(() => {}); return; }
       void api.showArtifact(project, url, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }).then((next) => {
         if (!cancelled) setStatus((old) => old?.url === next.url && old.loading === next.loading && old.error === next.error ? old : next);
       }).catch((e: Error) => { if (!cancelled) setStatus({ url, loading: false, error: e.message }); });

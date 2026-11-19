@@ -22,7 +22,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { zip, unzip } from './lib/zip.mjs';
 import { parseArgs } from './lib/repo.mjs';
 import { DEFAULT_STYLE, fillVars, hasFooter, hasHeader, styleFor } from './lib/doc-style.mjs';
@@ -319,7 +319,7 @@ export function inspectDocx(buf) {
   ].join('\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url, ['docx.mjs'])) {
   const args = parseArgs(process.argv.slice(2));
   const [command, input] = args._;
   const fail = (msg) => { console.error(msg); process.exit(1); };

@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { ROOT, parseArgs } from './lib/repo.mjs';
 import { checkValues } from './xlsx.mjs';
 
@@ -105,7 +105,7 @@ export function checkReviewMatrix(data, layout) {
   return problems;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
+if (isMain(import.meta.url, ['check-output.mjs'])) {
   const args = parseArgs(process.argv.slice(2));
   const [kind, file] = args._;
   const fail = (msg) => { console.error(msg); process.exit(1); };

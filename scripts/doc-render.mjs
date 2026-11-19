@@ -15,6 +15,7 @@ import { basename, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync, spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { ROOT, workspaceDir } from './lib/repo.mjs';
 import { projectOf, styleFor } from './lib/doc-style.mjs';
 import { findBrowser, renderHtml } from './pdf.mjs';
@@ -129,4 +130,4 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main(process.argv.slice(2));
+if (isMain(import.meta.url, ['doc-render.mjs'])) process.exitCode = await main(process.argv.slice(2));

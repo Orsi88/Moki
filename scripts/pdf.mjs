@@ -10,6 +10,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -89,7 +90,7 @@ export function findBrowser() {
   return null;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url, ['pdf.mjs'])) {
   const argv = process.argv.slice(2);
   const at = argv.indexOf('--style');
   const styleFile = at === -1 ? undefined : argv[at + 1];

@@ -6,7 +6,7 @@
 //   node scripts/check-artifacts.mjs --all      # all tracked files (CI)
 //   node scripts/check-artifacts.mjs <path...>  # explicit paths
 
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { git } from './lib/repo.mjs';
 
 // Every versioned path must live under one of these. Anything else is
@@ -45,7 +45,7 @@ function listPaths(argv) {
   return git(['diff', '--cached', '--name-only', '--diff-filter=ACMR']).split('\n').filter(Boolean);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { // imported (the app has no argv[1]): not run
+if (isMain(import.meta.url, ['check-artifacts.mjs'])) {
   const violations = findViolations(listPaths(process.argv.slice(2)));
   if (violations.length) {
     console.error('Artifact check failed — these files must not be versioned:');

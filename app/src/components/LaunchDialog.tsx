@@ -370,7 +370,7 @@ export function LaunchDialog({ project, tools, preset, onClose, onTerminal, onPr
             </div>
           )}
           {step === 'destination' && <div className="answer-list">
-            {onChat && tools.some((ai) => CHAT_TOOLS.includes(ai.id) && ai.available) && <Answer title={t('In the chat')} hint={t('Send it now, in a new conversation in the single chat tab of this project.')}
+            {onChat && tools.some((ai) => CHAT_TOOLS.includes(ai.id) && ai.available) && <Answer title={t('In the chat')} hint={t('Send it now, in a new chat tab for this project.')}
               on={destination === 'chat'} onPick={() => { setDestination('chat'); setTool('claude'); setStep('tool'); }} />}
             <Answer title={t('This terminal')} hint={preset?.terminal ? t('Paste into {terminal}. Review it, add context and press Enter when ready.', { terminal: preset.terminal.title }) : t('Open a running AI terminal in this project to use this option.')}
               on={destination === 'current'} disabled={!preset?.terminal} onPick={() => { setDestination('current'); setStep('review'); }} />

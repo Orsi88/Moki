@@ -24,6 +24,7 @@ type NoticeTone = 'success' | 'warn';
 
 export function CompanionApp() {
   const [state, setState] = useState<State | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<Tab>('activities');
   const [activities, setActivities] = useState<ActivityInfo[]>([]);
   const [languages, setLanguages] = useState<string[]>(['English']);
@@ -48,6 +49,7 @@ export function CompanionApp() {
   const fail = (e: unknown) => setNotice({ text: e instanceof Error ? e.message : String(e), tone: 'warn' });
   const notify = useCallback((text: string, warn?: boolean) => setNotice({ text, tone: warn ? 'warn' : undefined }), []);
   const load = useCallback(() => {
+    setLoadError('');
     setTick((n) => n + 1);
     call<State>('state').then((s) => {
       setState(s);
@@ -58,7 +60,7 @@ export function CompanionApp() {
       call<OpenRun[]>('openRuns').then(setRuns).catch(() => setRuns([]));
       call<OperationRun[]>('operationRuns').then(setOperations).catch(() => setOperations([]));
       call<ContextFile[]>('context').then(setFiles).catch(fail);
-    }).catch(fail);
+    }).catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => { load(); return window.qa?.onChanged(() => load()); }, [load]);
 
@@ -96,7 +98,13 @@ export function CompanionApp() {
     setBadge(Object.keys(now).filter((id) => next[id] !== now[id]).length);
   }, [project, operations, runs, visible, tab, openRun]);
 
-  if (!state) return <div className="mk"><p className="mk-empty muted">{t('Loading…')}</p></div>;
+  const loadFailure = loadError && <div className="result warn" role="alert">
+    <p className="result-title">{t(loadError)}</p>
+    <button type="button" className="btn btn-ghost btn-sm" onClick={load}>{t('Try again')}</button>
+  </div>;
+  if (!state) return <div className="mk">{loadFailure
+    ? <div className="mk-empty">{loadFailure}</div>
+    : <p className="mk-empty muted">{t('Loading…')}</p>}</div>;
 
   const header = (
     <header className="mk-head">
@@ -114,6 +122,7 @@ export function CompanionApp() {
     return (
       <div className="mk">
         {header}
+        {loadFailure}
         <div className="mk-empty">
           <CatIcon id="question" size={72} />
           <p><strong>{t('This folder is not linked to a Moki project.')}</strong></p>
@@ -148,6 +157,7 @@ export function CompanionApp() {
       </div>
 
       <main className="mk-body">
+        {loadFailure}
         {notice && <div className={`result${notice.tone ? ` ${notice.tone}` : ''}`} role="status"><p className="result-title">{notice.text}</p></div>}
 
         {tab === 'activities' && (

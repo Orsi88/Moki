@@ -3,7 +3,7 @@
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/is-main.mjs';
 import { ROOT, listSkillDirs, walkFiles, relPosix, readJson, SLUG } from './lib/repo.mjs';
 import { parseFrontmatter } from './lib/frontmatter.mjs';
 import { validateSchema } from './lib/schema.mjs';
@@ -238,8 +238,8 @@ function validateSchemas(root, err) {
   }
 }
 
-// Run as a script only. Imported (the app imports REQUIRED_SECTIONS), argv[1] may be missing: the installed app has none.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Importing REQUIRED_SECTIONS must never run validation, including in a bundle.
+if (isMain(import.meta.url, ['validate.mjs'])) {
   const errors = validate();
   if (errors.length) {
     console.error(`Validation failed with ${errors.length} problem(s):`);
