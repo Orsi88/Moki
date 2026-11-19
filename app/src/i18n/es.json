@@ -2491,5 +2491,6 @@
   "Open Claude in a terminal of a project to sign in to this account.": "Abre Claude en una terminal de un proyecto para iniciar sesión en esta cuenta.",
   "Unknown Claude account.": "Cuenta de Claude desconocida.",
   "Name the account with letters or numbers.": "Pon a la cuenta un nombre con letras o números.",
-  "There is already an account with this name.": "Ya existe una cuenta con este nombre."
+  "There is already an account with this name.": "Ya existe una cuenta con este nombre.",
+  "If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.": "Si {tool} ya estaba abierto, recarga su ventana para que aparezca Moki: Ctrl+Shift+P › Developer: Reload Window."
 }

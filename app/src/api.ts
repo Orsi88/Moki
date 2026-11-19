@@ -472,8 +472,8 @@ export const api = {
   integrations: (fresh = false) => call<ToolInfo[]>('integrations', fresh),
   toolDiagnostic: () => call<string>('toolDiagnostic'),
   aiTools: () => call<AiToolStatus[]>('aiTools'),
-  openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string }>('openMokiInEditor', tool, project),
-  installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string }>('installMokiExtension', tool, project),
+  openMokiInEditor: (tool: string, project?: string) => call<{ version: string; folder: string; installed: boolean }>('openMokiInEditor', tool, project),
+  installMokiExtension: (tool: string, project?: string) => call<{ version: string; folder: string; installed: boolean }>('installMokiExtension', tool, project),
   tree: (project: string) => call<TreeNode[]>('tree', project),
   readFile: (project: string, path: string) => call<FileContent>('readFile', project, path),
   // base: the text the tab started from; the save is refused (CHANGED_OUTSIDE) if the file no longer holds it.

@@ -25,7 +25,7 @@ import { safeName, type OrganizeCandidate } from './hudson.ts';
 import { readConfigPlan, type ConfigSnapshot } from './configurator.ts';
 import { parseOffice, type OfficeParsed } from './parse-office.ts';
 import type { ParseClient } from './parse-pool.ts';
-import { extensionVersion, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
+import { MOKI_RELEASES, extensionVersion, mokiExtensionUrl, installExtension, mokiVsix, runCommand, toolVersion, type RunCommand } from './editor-extension.ts';
 import { LIMITS, readFolder, readMarkdown, readZip, scan, type Scan } from './claude-import.ts';
 import { listUploads, recordUploads } from '../scripts/lib/uploads.ts';
 import { parseFrontmatter } from '../scripts/lib/frontmatter.mjs';
@@ -1195,14 +1195,24 @@ export function createService(root: string, deps: Deps) {
     const linked = typeof project === 'string' && project ? (projectDir(project), projectRepository(project, root)) : null;
     const folder = linked && existsSync(linked) ? linked : root;
     const installed = force ? '' : await extensionVersion(tool, runCmd);
-    if (force || installed !== appVersion()) {
+    const installing = force || installed !== appVersion();
+    if (installing) {
       const vsix = await failingAsync(() => mokiVsix(root, appVersion(), tmpdir(), doFetch));
       await failingAsync(() => installExtension(tool, vsix, runCmd));
       toolsSeen = null;
     }
+    // The editor may answer the install and still not take the package: what it lists is what counts.
+    const version = await extensionVersion(tool, runCmd);
+    if (version !== appVersion()) {
+      throw new ServiceError(`${TOOLS[tool].label} did not take the Moki extension ${appVersion()} (it lists ${version || 'none'}). Close the editor and try again, or install moki-${appVersion()}.vsix from https://github.com/${MOKI_RELEASES.repo}/releases by hand (Extensions › … › Install from VSIX).`);
+    }
     const opened = await runCmd(TOOLS[tool].command!, [folder], 15_000);
     if (opened === null) throw new ServiceError('Could not open the editor.');
-    return { version: await extensionVersion(tool, runCmd), folder };
+    // Then Moki's view in that window (and the project picked): a missed link only means the person clicks the icon.
+    const url = mokiExtensionUrl(tool, typeof project === 'string' ? project : '');
+    if (url) await runCmd(TOOLS[tool].command!, ['--open-url', url], 15_000);
+    // `installed`: installed now. A window of the editor that was already open loads it only after a reload.
+    return { version, folder, installed: installing };
   };
 
   // The body of startOperation, so a routine can start its operation without a dialog.

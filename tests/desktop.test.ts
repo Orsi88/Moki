@@ -3444,7 +3444,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
   const SHA = createHash('sha256').update(BODY).digest('hex');
   const NAME = 'moki-9.9.9.vsix'; // the fixture's package.json is 9.9.9
   const found = { claude: true, codex: false, 'cursor-agent': false, gemini: false, antigravity: false, cursor: false, vscode: true, chat: true, print: true };
-  const mk = (digest: string | null = SHA) => {
+  const mk = (digest: string | null = SHA, takes = true) => { // takes: the editor really keeps what it installs
     const runs: string[][] = [];
     const urls: string[] = [];
     let extension = '';
@@ -3464,7 +3464,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
         if (args[0] === '--list-extensions') return `ms-python.python@2026.1.0\n${extension}`;
         if (args[0] === '--install-extension') {
           if (!readFileSync(args[1]).equals(BODY)) return null;
-          extension = 'orsi88.moki@9.9.9';
+          if (takes) extension = 'orsi88.moki@9.9.9';
           return 'Extension installed.';
         }
         return '';
@@ -3489,7 +3489,7 @@ test('craft apps: the files for each system, recommended first, and exact names 
   test('my AIs: the Moki extension of the app version is downloaded, verified, installed and the editor opens', async () => {
     const { svc, runs, urls } = mk();
     const r = await svc.installMokiExtension('vscode', 'acme');
-    assert.deepEqual(r, { version: '9.9.9', folder: root });
+    assert.deepEqual(r, { version: '9.9.9', folder: root, installed: true });
     assert.ok(urls[0].endsWith('/repos/Orsi88/moki/releases/tags/v9.9.9'));
     assert.ok(urls.includes(`https://github.com/Orsi88/moki/releases/download/v9.9.9/${NAME}`));
     const install = runs.find((a) => a[1] === '--install-extension');
@@ -3497,6 +3497,9 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal(install?.[3], '--force');
     assert.equal(existsSync(install![2]), false); // the download is removed
     assert.ok(runs.some((a) => a[0] === 'code' && a[1] === root));
+    // Then the extension's view in that window, with the project picked: its icon is there without searching.
+    const opened = runs.findIndex((a) => a[0] === 'code' && a[1] === root);
+    assert.deepEqual(runs[opened + 1], ['code', '--open-url', 'vscode://orsi88.moki/open?project=acme']);
     assert.equal((await svc.aiTools()).find((s) => s.id === 'vscode')?.extension, '9.9.9');
   });
 
@@ -3509,6 +3512,13 @@ test('craft apps: the files for each system, recommended first, and exact names 
     assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
     assert.equal(runs.filter((a) => a[0] === 'code' && a[1] === root).length, 2);
     await assert.rejects(svc.openMokiInEditor('../code', 'acme'), /does not take/);
+  });
+
+  test('IDE shortcut: an install the editor does not keep is reported, and the editor is not opened as if ready', async () => {
+    const { svc, runs } = mk(SHA, false);
+    await assert.rejects(svc.openMokiInEditor('vscode', 'acme'), /did not take the Moki extension 9\.9\.9 \(it lists none\)/);
+    assert.equal(runs.filter((a) => a[1] === '--install-extension').length, 1);
+    assert.ok(!runs.some((a) => a[0] === 'code' && a[1] === root));
   });
 
   test('my AIs: only installed editors that take the extension, and only a vsix GitHub vouches for', async () => {

@@ -43,6 +43,16 @@ export async function extensionVersion(tool: ToolKey, run: RunCommand = runComma
   return line ? line.trim().slice(MOKI_EXTENSION_ID.length + 1) : '';
 }
 
+// The editor's own link scheme: <scheme>://orsi88.moki/open?project=<id> makes the Moki extension show its view
+// (ide/vscode/host.ts), so after installing, its icon is there to use without the person looking for it.
+export const EDITOR_URL_SCHEMES: Partial<Record<ToolKey, string>> = { vscode: 'vscode', cursor: 'cursor' };
+export function mokiExtensionUrl(tool: ToolKey, project: string): string | null {
+  const scheme = EDITOR_URL_SCHEMES[tool];
+  if (!scheme) return null;
+  // Project ids are slugs; anything else is left out rather than escaped (cmd.exe would read % on Windows).
+  return `${scheme}://${MOKI_EXTENSION_ID}/open${/^[a-z0-9][a-z0-9-]*$/i.test(project) ? `?project=${project}` : ''}`;
+}
+
 // The .vsix to install and whether it is a temporary download (to remove afterwards).
 export async function mokiVsix(root: string, version: string, tmp: string, doFetch: typeof fetch = fetch): Promise<{ file: string; temporary: boolean }> {
   const name = `moki-${version}.vsix`;
