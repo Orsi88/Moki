@@ -2554,5 +2554,15 @@
   "Outside the project: not available": "Fora do projeto: sem acesso",
   "The picture could not be shown.": "Não foi possível mostrar a imagem.",
   "Open {file} larger": "Abrir {file} maior",
-  "The file is too large to attach (25 MB at most).": "O arquivo é grande demais para anexar (no máximo 25 MB)."
+  "The file is too large to attach (25 MB at most).": "O arquivo é grande demais para anexar (no máximo 25 MB).",
+  "The chart data is not valid JSON.": "Os dados do gráfico não são um JSON válido.",
+  "The chart type must be bar, line or pie.": "O tipo do gráfico deve ser bar, line ou pie.",
+  "The chart needs between 1 and {n} labels.": "O gráfico precisa de 1 a {n} rótulos.",
+  "Series {n}": "Série {n}",
+  "The chart has no series.": "O gráfico não tem séries.",
+  "Each series needs one number per label.": "Cada série precisa de um número por rótulo.",
+  "A pie chart cannot have negative values.": "Um gráfico de pizza não pode ter valores negativos.",
+  "This chart could not be drawn: {reason}": "Não foi possível desenhar este gráfico: {reason}",
+  "View data": "Ver dados",
+  "Hide data": "Esconder dados"
 }

@@ -11,6 +11,7 @@ import { isArtifactUrl as isArtifactLink } from '../../../scripts/lib/artifact-l
 import { conversationLanguage, t } from '../i18n';
 import { recall, remember } from '../prefs';
 import { copyText } from '../clipboard';
+import { dressCharts } from '../chat-charts';
 import { IconArrowDown, IconArrowLeft, IconArrowUp, IconChat, IconCheck, IconCopy, IconEdit, IconExternal, IconFile, IconHistory, IconPaperclip, IconPlus, IconRefresh, IconStop, IconX } from './Icons';
 import { MarkdownBody } from './MarkdownBody';
 import './chat.css';
@@ -438,10 +439,13 @@ function ChatMarkdown({ text, project, live, onLink }: { text: string; project: 
     if (!live) { window.clearTimeout(timer.current); render(); return; }
     if (timer.current === undefined) timer.current = window.setTimeout(render, Math.max(0, RENDER_EVERY_MS - (Date.now() - last.current)));
   }, [text, project, live]);
-  return html ? <MarkdownBody html={html} className="chat-markdown" onClick={(e) => {
+  // Charts (```chart blocks) are drawn once the answer is complete, so a half-written block never flickers as an error.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (!live && box.current) dressCharts(box.current); }, [html, live]);
+  return html ? <div ref={box}><MarkdownBody html={html} className="chat-markdown" onClick={(e) => {
     const anchor = (e.target as Element).closest('a');
     if (anchor) { e.preventDefault(); const href = anchor.getAttribute('href'); if (href) onLink(href); }
-  }} /> : <p className="chat-user-text">{text}</p>;
+  }} /></div> : <p className="chat-user-text">{text}</p>;
 }
 
 // The artifact over the conversation: the main process places an isolated browser view on this area and hides it

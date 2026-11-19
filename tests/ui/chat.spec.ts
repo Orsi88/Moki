@@ -188,6 +188,36 @@ test('one project chat tab, artifacts in an isolated viewer, history and a reque
     }
     await box.fill('');
 
+    // Charts: bar, line and pie drawn in the answer, View data shows the same numbers, an invalid one says why and the
+    // rest of the message stays readable; after a reload the charts are there again.
+    await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'New conversation with Claude' }).click();
+    const chart = (spec: object) => `\n\`\`\`chart\n${JSON.stringify(spec)}\n\`\`\`\n`;
+    await box.fill(`charts:${chart({ type: 'bar', title: 'Bugs per module', labels: ['Cart', 'Login'], series: [{ name: 'Open', values: [3, 4] }] })}`
+      + `${chart({ type: 'line', title: 'Runs', labels: ['Mon', 'Tue', 'Wed'], series: [{ name: 'Passed', values: [5, 7, 6] }] })}`
+      + `${chart({ type: 'pie', title: 'Status', labels: ['Done', 'Open'], series: [{ name: 'Items', values: [6, 2] }] })}`
+      + '\n```chart\n{"type":"bar","labels":["a"],"series":[{"values":["x"]}]}\n```\nThe end of the answer.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const charts = page.locator('.chat-assistant').last().locator('figure.chat-chart');
+    await expect(charts).toHaveCount(3);
+    await expect(charts.nth(0).locator('rect')).toHaveCount(2);
+    await expect(charts.nth(1).locator('polyline')).toHaveCount(1);
+    await expect(charts.nth(2).locator('path, circle')).toHaveCount(2);
+    await expect(charts.nth(0).locator('figcaption')).toHaveText('Bugs per module');
+    await charts.nth(0).getByRole('button', { name: 'View data' }).click();
+    await expect(charts.nth(0).locator('table tbody tr')).toHaveText([/Cart\s*3/, /Login\s*4/]);
+    await expect(page.locator('.chat-assistant').last().locator('.chat-chart-error')).toContainText('This chart could not be drawn: Each series needs one number per label.');
+    await expect(page.locator('.chat-assistant').last()).toContainText('The end of the answer.');
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      if (process.env.QA_CHAT_INSPECTION) {
+        const png = await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().startsWith('file:'))!.webContents.capturePage()).toPNG().toString('base64'));
+        writeFileSync(join(realpathSync(process.env.QA_CHAT_INSPECTION), `chat-charts-${theme}.png`), Buffer.from(png, 'base64'));
+      }
+    }
+    await page.reload();
+    await expect(page.locator('.chat-assistant').last().locator('figure.chat-chart')).toHaveCount(3);
+
     // Call › In the chat sends the request at once, in a new conversation; the draft in the box stays.
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('my draft');
     await page.keyboard.press('Control+Shift+k');

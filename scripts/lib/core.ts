@@ -696,6 +696,8 @@ export function buildStartPrompt({ project, defaults, instructions = '', languag
   if (text) parts.push(`Instructions for this project: ${text.replace(/([^.!?])$/, '$1.')}`);
   parts.push(chat
     ? 'This is the chat of the Moki app: answer each of my messages here, in Markdown, loading only what you need of the project context.'
+      + ' To show a chart, write a ```chart block holding JSON: {"type":"bar"|"line"|"pie","title":"…","labels":["…"],"series":[{"name":"…","values":[numbers, one per label]}]} (a pie has one series); the chat draws it and shows its data.'
+      + ' Name the files you write or use by their path in the project, so the chat shows them with a preview and a link.'
     : 'Load only what you need of the project context. Then say in one or two lines what is set up here and what you need from me to start (for example the files or the log), and wait for it: do not start any work before that.');
   parts.push(`Talk to me in ${language}.`);
   return parts.join(' ');
