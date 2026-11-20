@@ -1,7 +1,7 @@
 {
   "name": "moki",
   "displayName": "Moki",
-  "description": "Moki light: start QA activities, use your project's agents, choose the context and follow the runs of your Moki project, with Claude Code or the chat of VS Code, and Moki's MCP servers.",
+  "description": "Bring your project's context, agents, activities and MCP tools into your IDE, with separate AI conversations and clear connection diagnostics.",
   "version": "0.7.3",
   "publisher": "orsi88",
   "license": "MIT",
@@ -25,12 +25,15 @@
     },
     "commands": [
       { "command": "moki.chooseProject", "title": "Choose Project", "category": "Moki", "icon": "$(project)" },
+      { "command": "moki.createProject", "title": "Create Project", "category": "Moki", "icon": "$(add)" },
+      { "command": "moki.startFromEditor", "title": "Start Activity with This File", "category": "Moki", "icon": "$(play)" },
       { "command": "moki.refresh", "title": "Refresh", "category": "Moki", "icon": "$(refresh)" },
       { "command": "moki.connectClaude", "title": "Connect Claude Code (.mcp.json)", "category": "Moki", "icon": "$(plug)" },
       { "command": "moki.syncCursor", "title": "Sync MCP Servers to Cursor", "category": "Moki" },
       { "command": "moki.showActivity", "title": "Show What the AI Read", "category": "Moki", "icon": "$(history)" }
     ],
     "menus": {
+      "editor/context": [{ "command": "moki.startFromEditor", "when": "resourceScheme == file", "group": "moki@1" }],
       "view/title": [
         { "command": "moki.chooseProject", "when": "view == moki.panel", "group": "navigation@1" },
         { "command": "moki.refresh", "when": "view == moki.panel", "group": "navigation@2" },

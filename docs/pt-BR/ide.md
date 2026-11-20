@@ -28,7 +28,8 @@ Cadastrar uma ferramenta no Moki, em vez de direto na IDE, faz com que os agente
 ## Requisitos
 
 - VS Code 1.101 ou mais novo.
-- Pelo menos um projeto Moki no workspace ativo. Projetos são criados no app desktop.
+- Um projeto Moki no workspace ativo. **Criar projeto**, no painel, cria um projeto em branco e vincula a pasta escolhida no diálogo nativo.
+- O início automático do chat exige VS Code 1.147+ e um comando nativo de nova sessão para a IA escolhida. Instalar uma extensão independente do fornecedor não garante esse comando.
 - Para **Abrir no Claude Code** e para as operações: uma IA que roda no terminal (Claude Code, Codex, Gemini CLI, Antigravity CLI ou Cursor Agent) instalada no computador.
 - Para compilar a extensão: Node.js 22.18 ou mais novo.
 
@@ -71,13 +72,21 @@ A extensão encontra o projeto da pasta aberta no VS Code:
 
 Para ligar uma pasta de vez, abra o projeto no app desktop e use o botão de **vincular** da barra lateral (a corrente): toda janela do VS Code nessa pasta passa a abrir o projeto sozinha. Para escolher um projeto só para este workspace do VS Code, clique na barra de status, no seletor no topo do painel, ou rode **Moki: Choose Project**. A pasta ligada pelo app aparece primeiro, como *Linked to this folder*.
 
-### 2. Conectar a IA aos servidores MCP do Moki
+### 2. Escolher a IA e conferir as conexões
+
+Escolha sua IA abaixo do seletor de projeto; a escolha fica por projeto Moki neste workspace da IDE. **Conexões**, no rodapé, mostra a pasta de destino, o estado da configuração, variáveis ausentes, lembretes de autenticação e **Testar** para cada MCP, incluindo o próprio Moki.
+
+**Conectar MCPs** grava a configuração do cliente escolhido após confirmação: Claude Code usa `.mcp.json`, Cursor `.cursor/mcp.json` e Codex `.codex/config.toml` (somente projetos confiáveis). Suas entradas ficam e o arquivo anterior recebe backup. Trocar o projeto ou a pasta enquanto a confirmação está aberta cancela a gravação. O Copilot recebe as definições automaticamente.
+
+Um teste bem-sucedido comprova inicialização e descoberta de ferramentas pelo ambiente do Moki. Ele não comprova que outro cliente de IA autenticou ou habilitou essas ferramentas. Entre pela IA quando necessário. Configure as variáveis onde a IDE e sua IA executam; nunca cole credenciais no Moki.
+
+Os comandos anteriores continuam disponíveis:
 
 | Como você usa a IA | O que fazer |
 |---|---|
 | **Copilot Chat** | Nada. A extensão registra o **Moki** e os servidores do projeto sozinha (`MCP: List Servers` mostra todos) |
-| **Claude Code aberto pelo painel** (*Abrir no Claude Code*) | Nada. Ele abre com `--mcp-config` do projeto, como no app |
-| **Claude Code aberto por você** (o chat do Claude Code, ou `claude` digitado no terminal) | **Conectar ao Claude Code** uma vez por pasta (rodapé do painel, ou **Moki: Connect Claude Code**) |
+| **Claude Code aberto pelo painel em um terminal** | Nada. Ele abre com `--mcp-config` do projeto, como no app |
+| **Claude Code aberto por você** (o chat do Claude Code, ou `claude` digitado no terminal) | **Conexões › Conectar MCPs** com Claude selecionado, ou **Moki: Connect Claude Code** |
 | **Cursor** aberto na pasta ligada ao projeto | **Moki: Sync MCP Servers to Cursor** |
 | **Só o painel** | Nada. O painel funciona sem MCP |
 
@@ -93,12 +102,13 @@ Em **Contexto**, o projeto aparece **por pasta**, uma linha para cada, com uma c
 
 | Aba | O que você faz |
 |---|---|
-| **Atividades** | Escolhe uma atividade, arquivos da entrada, um agente, uma nota e o idioma, e depois **Abrir no Claude Code** ou **Copiar para o chat** |
+| **Atividades** | Escolhe uma atividade, arquivos da entrada, um agente, uma nota e o idioma, e depois **Iniciar em um novo chat**; terminal e cópia ficam em **Outras formas de iniciar** |
 | **Agentes** | Os agentes habilitados no projeto e o que cada um faz; escolha um para trabalhar com ele |
 | **Contexto** | Marca as pastas que vão para a IA; abre uma para a exceção de um arquivo ou para marcar com estrela os que ela deve ler primeiro |
-| **Execuções** | Atividades para retomar, e operações multiagente para iniciar e acompanhar passo a passo |
+| **Operações** | Inicia uma operação escolhendo a IA de cada passo |
+| **Execuções** | Retoma atividades e acompanha operações passo a passo |
 
-O rodapé mostra quantos servidores MCP do projeto estão ligados (**MCPs: n ligados**), **Conectar ao Claude Code** e **Atualizar**. A barra de título da view tem *Choose Project* e *Refresh*; o menu "…" tem *Connect Claude Code*, *Sync MCP Servers to Cursor* e *Show What the AI Read*.
+O rodapé tem **Conexões** e **Atualizar**. Os detalhes aparecem quando solicitados. O menu do título mantém os comandos de conexão e de histórico de leituras.
 
 ## Caminhos de uso
 
@@ -115,12 +125,16 @@ Enquanto programa ou escreve testes, pergunte em linguagem natural: *"quais regr
 | `moki_get_agent` | As instruções de um agente (ler não executa o agente) |
 | `moki_record_learning`, `moki_list_learnings`, `moki_get_evolution`, `moki_propose_version` | O que você ensinou a um agente, skill ou atividade, e as propostas do Mycroft ([Mycroft](mycroft.md)). As únicas ferramentas que escrevem, e só no registro de evolução do Moki: uma proposta espera a sua aprovação no app |
 
-### Iniciar uma atividade de QA
+### Iniciar uma atividade em um chat separado
 
 Em **Atividades**, escolha uma (*Revisar histórias de usuário*, *Desenhar testes*, *Revisar e depois desenhar testes*, *Pré-análise de falha*, *Montar evidências de teste*, *Contexto do projeto*…), os arquivos da entrada que ela precisa, opcionalmente um agente e uma nota, e o idioma. Depois:
 
-- **Abrir no Claude Code** abre o Claude Code num terminal do VS Code chamado **Moki · Claude Code**, com o pedido e os servidores MCP do projeto. Você continua a conversa lá.
-- **Copiar para o chat** copia o mesmo pedido e põe o cursor no chat do Claude Code, ou abre o Copilot Chat com ele digitado: é só colar e enviar. Use quando preferir o chat ao terminal.
+- **Iniciar em novo chat** pede à integração nativa selecionada para criar uma aba no editor e enviar diretamente à nova sessão. Conversas existentes e rascunhos ficam intactos. A ação é desabilitada quando a integração não oferece um comando compatível. Os agentes Claude/Codex integrados ao VS Code e as extensões independentes dos fornecedores são integrações diferentes.
+- **Outras formas de iniciar** reúne terminal e área de transferência. Copiar preserva o chat ativo; cole onde preferir. O terminal inicia a CLI compatível selecionada ou identifica explicitamente o Claude Code quando não há uma CLI correspondente.
+
+O endereço retornado pelo chat identifica um destino, não a conclusão da tarefa. Acompanhe a execução na aba e confira o chat antes de repetir um envio incerto. Mensagens repetidas do mesmo início compartilham a tentativa original. Nenhuma execução é criada apenas para acompanhar a abertura do chat.
+
+No menu de contexto de um arquivo, **Moki: Start Activity with This File** oferece atividades que dispensam arquivos da entrada. O arquivo passa pela validação existente do contexto; uma seleção informa as linhas de interesse. Salve quando solicitado. Arquivos fora da pasta vinculada são recusados.
 
 O pedido é o mesmo que o app desktop monta: ele cita o projeto, a skill da atividade, os arquivos escolhidos e os arquivos que você desligou em Contexto. As skills param nos pontos de aprovação exatamente como no app.
 
@@ -134,7 +148,7 @@ Em **Agentes**, escolha um agente e comece por ali, ou escolha o agente dentro d
 
 ### Rodar uma operação multiagente
 
-Uma operação vinculada ao projeto no app começa em **Execuções**: escolha a operação, a IA de cada passo, preencha o que os agentes precisam (texto e arquivos da entrada) e o que você quer, e clique em **Iniciar a operação**.
+Uma operação vinculada ao projeto no app começa em **Operações**: escolha a operação, a IA de cada passo, preencha o que os agentes precisam (texto e arquivos da entrada) e o que você quer, e clique em **Iniciar a operação**. Acompanhe em **Execuções**.
 
 - Cada passo abre no próprio terminal do VS Code (**Moki · <IA>**). Um passo termina quando escreve o resumo (`handoff/<passo>.md`) e as entregas; o próximo começa sozinho, mesmo com o painel fechado.
 - Abra a execução para **responder** a pergunta de um passo (digitada no terminal dele quando está aberto; senão o passo reabre com a sua resposta), **aprovar**, **devolver com observações** ou **encerrar** um passo que espera aprovação, **tentar de novo** um passo que falhou, com a mesma IA ou outra, **escolher o caminho** quando nenhuma seta serve para o resultado ou um passo rodaria vezes demais, **pausar**, **cancelar** (o terminal dele fecha) e **ver o terminal**.
@@ -160,7 +174,8 @@ Qualquer ferramenta que fale MCP por stdio pode usar o servidor do Moki: `npm ru
 
 | Tarefa | App | IDE |
 |---|---|---|
-| Criar um projeto, ligar a pasta, preparar o contexto | Sim | Não |
+| Criar um projeto vazio e vincular a pasta escolhida | Sim | Sim |
+| Preparar o contexto com uma atividade | Sim | Sim |
 | Cadastrar servidores MCP e escolher os projetos deles | Sim | Não (a IDE usa) |
 | Criar e editar agentes e operações; vincular operações a um projeto | Sim | Não |
 | Iniciar atividades e agentes | Sim | Sim |
@@ -177,14 +192,15 @@ As mensagens da extensão aparecem em inglês.
 | O painel mostra um erro de carregamento e **Tentar de novo** | A extensão não conseguiu ler o estado inicial ou atualizá-lo, ou não respondeu em 30 segundos | Leia o erro, resolva a causa informada e use **Tentar de novo**. A falha inicial substitui *Carregando…*; uma falha ao atualizar mantém o último projeto carregado visível |
 | Barra de status **Moki: no project**; painel *Esta pasta não está vinculada a um projeto do Moki* | A pasta aberta não está ligada a nenhum projeto | Escolha um projeto no painel, ou ligue a pasta no app (**Escolher minha pasta**) |
 | **Moki: choose a project** | A pasta está ligada a mais de um projeto | Escolha um; a escolha fica guardada para este workspace do VS Code |
-| *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo quando o VS Code iniciou | Crie um projeto no app, ou deixe o workspace certo ativo no app e rode **Reload Window** |
+| *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo quando o VS Code iniciou | Use **Criar projeto** no painel, ou deixe o workspace certo ativo no app e rode **Reload Window** |
 | Os projetos listados são de outro workspace | A extensão abre o workspace ativo no app quando o VS Code inicia | Troque o workspace no app e rode **Reload Window** |
 | *Choose the Moki project of this folder first.* | Um comando foi rodado sem projeto escolhido | Escolha o projeto e rode de novo |
 | *Open a folder in the IDE first.* (Conectar ao Claude Code) | O VS Code não tem pasta aberta, então não há onde gravar o `.mcp.json` | Abra a pasta do sistema |
 | O chat do Claude Code não enxerga o Moki | O `.mcp.json` nunca foi gravado, ou foi gravado antes de os servidores mudarem | **Conectar ao Claude Code** e abrir uma sessão nova do Claude Code |
 | O Copilot não lista um servidor | A `${VARIAVEL}` dele não existe neste computador (ele fica de fora), ou ele está desligado ou não vale para este projeto no app | Defina a variável e reinicie o VS Code; confira o servidor no app |
-| **MCPs: 0 ligados** | Nenhum servidor cadastrado no app vale para este projeto e está ligado | Esperado quando você usa só o servidor do Moki; senão, cadastre ou ligue servidores no app |
-| *This project has no linked folder on this computer* (Sync to Cursor) | A pasta do projeto nunca foi ligada neste computador | Ligue no app (botão de **vincular** da barra lateral) |
+| **Conexão necessária** ou **Atualizar conexão** | As configurações do cliente não existem ou diferem do catálogo atual | Confira a pasta em **Conexões** e use **Conectar MCPs** |
+| **Iniciar em um novo chat** desabilitado | A versão da IDE ou integração da IA não oferece um comando nativo compatível | Leia a explicação; habilite a integração nativa ou use terminal ou cópia |
+| O painel pede a pasta do projeto em uma janela própria | Há várias pastas abertas, ou nenhuma corresponde ao projeto escolhido | Abra essa pasta em uma janela dedicada; o comando nativo não tem um argumento verificado para escolher a pasta |
 | *project.json does not allow writing to …* | O projeto define `writeAllowed: false` para a pasta | Grave o arquivo você mesmo, ou permita a escrita no `project.json` |
 | *… is not installed on this computer (command "…" not found).* | A IA escolhida (para o pedido ou para um passo) não está instalada ou não está no PATH | Instale, ou escolha outra IA (no app desktop, **Configurações › Minhas IAs › Instalar**, ou uma aba de terminal da IA ausente, instala depois que você digita `y`). Um passo que não consegue abrir falha uma vez e espera: **Tentar de novo** oferece as IAs instaladas |
 | *The terminal of this step is not open in VS Code.* | O terminal do passo foi fechado, ou o VS Code foi reiniciado | Responda o passo no painel (ele reabre com a resposta) ou use **Reabrir o passo** |
@@ -210,15 +226,17 @@ As mensagens da extensão aparecem em inglês.
 | `workspace/projects/<id>/companion.json` | Você marca ou desmarca pastas, abre exceções de arquivos ou marca arquivos com estrela |
 | `workspace/projects/<id>/logs/companion.log` | A IA lê algo pelo servidor do Moki |
 | `<pasta>/.mcp.json` e `<pasta>/.moki-backup/` | **Conectar ao Claude Code**, depois que você confirma |
-| `<pasta ligada>/.cursor/mcp.json` e `.moki-backup/` | **Sync MCP Servers to Cursor**, depois que você confirma |
+| `<pasta>/.cursor/mcp.json`, `<pasta>/.codex/config.toml` e `.moki-backup/` | **Conectar MCPs**, depois que você confirma |
+| Estado local do workspace do VS Code | IA e pasta escolhidas por projeto |
 | `workspace/library/usage.json` | Você inicia uma atividade, agente ou operação pelo painel (a contagem das "mais usadas") |
 | `workspace/projects/<id>/runs/…` | Atividades e operações iniciadas pelo painel, como no app |
 | `<Documentos>/Moki` | A cópia do framework, atualizada quando uma versão nova da extensão inicia |
 
 ## Limites
 
-- Um projeto por janela do VS Code de cada vez.
-- Projetos, servidores MCP, agentes e operações são criados e editados no app; a IDE usa.
+- Um projeto por janela do VS Code de cada vez. O início automático exige uma única pasta aberta correspondente; janelas com várias pastas mantêm os caminhos de terminal e cópia.
+- Servidores MCP, agentes e operações são gerenciados no app. Projetos em branco também podem ser criados na IDE.
+- O início automático nativo verifica as capacidades no VS Code 1.147+. Links de prompt do Cursor exigem confirmação manual; extensões independentes sem o comando nativo usam as alternativas explícitas.
 - O workspace é escolhido quando o VS Code inicia (o que está ativo no app).
 - O `.mcp.json` é uma foto: conecte de novo depois de mudar servidores ou projeto.
 - A extensão é feita e testada para o VS Code. Editores baseados nele (Cursor e outros) podem instalá-la, mas isso não foi verificado.

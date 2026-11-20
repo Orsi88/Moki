@@ -1,10 +1,8 @@
-// Moki light: the panel of the VS Code extension. Four tabs over the project the
-// IDE is connected to — start an activity, use one of the project's agents, choose
-// what goes to the AI, and follow the open runs — with the app's look (cats, cards,
-// pills). Starting opens Claude Code in a terminal of the IDE with the request and the
-// project's MCP servers; "Copy for the chat" copies the same request for the IDE's chat.
+// Moki light: activities, agents, context, operations and runs for the connected project.
+// The selected AI starts in a separate native chat; connection details and alternative
+// launch routes are shown on demand, using the same request service as the desktop app.
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { describeRun, statusLabel, type ActivityInfo, type AgentInfo, type InboxFile, type LaunchResult, type OpenRun, type OperationRun } from '../api';
 import { activityFace, agentFace, skillFace } from '../catalog-copy';
 import { conversationLanguage, t } from '../i18n';
@@ -15,6 +13,8 @@ import { IconChevron, IconCopy, IconMcp, IconPlay, IconRefresh, IconStar } from 
 import { call, onVisible, setBadge } from './bridge';
 import { OperationRunScreen, OperationStarter, visitText } from './Operations';
 import { useShortlist } from './Shortlist';
+import { Connections } from './Connections';
+import type { IdeConnections, IdeChatResult } from '../../../ide/companion-types';
 
 type Tab = 'activities' | 'agents' | 'context' | 'operations' | 'runs';
 interface State { project: { id: string; name: string; description: string; repository: string } | null; projects: { id: string; name: string }[]; folder: string | null; mcp: { id: string; name: string; access: string; transport: string }[] }
@@ -35,8 +35,11 @@ export function CompanionApp() {
   const [files, setFiles] = useState<ContextFile[]>([]);
   const [open, setOpen] = useState<string>(''); // the card whose launch options are showing
   const [notice, setNotice] = useState<{ text: string; tone?: NoticeTone } | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [connectMenu, setConnectMenu] = useState(false); // which AI tool gets Moki's MCP servers
+  const [connections, setConnections] = useState<IdeConnections | null>(null);
+  const [showConnections, setShowConnections] = useState(false);
+  const [selectingAi, setSelectingAi] = useState(false);
+  const [switchingProject, setSwitchingProject] = useState(false);
+  const generation = useRef(0);
   const [openRun, setOpenRun] = useState(''); // the operation run whose screen is showing
   const [tick, setTick] = useState(0); // counts reloads, so an open run screen reloads with the rest
   // Run updates not seen yet: each run's last seen state, per project (kept in this webview's storage).
@@ -49,36 +52,38 @@ export function CompanionApp() {
   const fail = (e: unknown) => setNotice({ text: e instanceof Error ? e.message : String(e), tone: 'warn' });
   const notify = useCallback((text: string, warn?: boolean) => setNotice({ text, tone: warn ? 'warn' : undefined }), []);
   const load = useCallback(() => {
+    const current = ++generation.current;
+    const update = <T,>(fn: (value: T) => void) => (value: T) => { if (generation.current === current) fn(value); };
+    const error = update(fail);
     setLoadError('');
     setTick((n) => n + 1);
     call<State>('state').then((s) => {
+      if (generation.current !== current) return;
       setState(s);
-      if (!s.project) return;
-      call<{ activities: ActivityInfo[]; languages: string[] }>('activities').then((a) => { setActivities(a.activities); setLanguages(a.languages); }).catch(fail);
-      call<AgentInfo[]>('agents').then(setAgents).catch(fail);
-      call<InboxFile[]>('inbox').then(setInbox).catch(() => setInbox([]));
-      call<OpenRun[]>('openRuns').then(setRuns).catch(() => setRuns([]));
-      call<OperationRun[]>('operationRuns').then(setOperations).catch(() => setOperations([]));
-      call<ContextFile[]>('context').then(setFiles).catch(fail);
-    }).catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
+      setSwitchingProject(false);
+      if (!s.project) { setConnections(null); return; }
+      call<IdeConnections>('connections').then(update((value) => { if (Array.isArray(value.choices)) setConnections(value); })).catch(error);
+      call<{ activities: ActivityInfo[]; languages: string[] }>('activities').then(update((a) => { setActivities(a.activities); setLanguages(a.languages); })).catch(error);
+      call<AgentInfo[]>('agents').then(update(setAgents)).catch(error);
+      call<InboxFile[]>('inbox').then(update(setInbox)).catch(update(() => setInbox([])));
+      call<OpenRun[]>('openRuns').then(update(setRuns)).catch(update(() => setRuns([])));
+      call<OperationRun[]>('operationRuns').then(update(setOperations)).catch(update(() => setOperations([])));
+      call<ContextFile[]>('context').then(update(setFiles)).catch(error);
+    }).catch(update((e: unknown) => { setLoadError(e instanceof Error ? e.message : String(e)); setSwitchingProject(false); }));
   }, []);
   useEffect(() => { load(); return window.qa?.onChanged(() => load()); }, [load]);
 
-  const choose = (id: string) => { setOpen(''); setOpenRun(''); setNotice(null); call('chooseProject', id).then(load).catch(fail); };
-  // VS Code's own AI gets the servers by itself; the AI tools opened on this folder read them from a file written here.
-  const connect = (tool: 'claude' | 'cursor' | 'codex') => {
-    setConnectMenu(false); setConnecting(true);
-    const label = { claude: 'Claude Code', cursor: 'Cursor', codex: 'Codex' }[tool];
-    call<{ changed: boolean; cancelled: boolean; file: string; skipped?: string[] }>('connectTool', tool)
-      .then((r) => {
-        if (r.cancelled) return;
-        const left = r.skipped?.length ? ` ${t('Left out (a variable Codex cannot read): {list}', { list: r.skipped.join(', ') })}` : '';
-        setNotice({
-          text: (r.changed ? t('{tool} connected: {file}', { tool: label, file: r.file }) : t('{tool} already had Moki\'s servers.', { tool: label })) + left,
-          tone: r.skipped?.length ? 'warn' : r.changed ? 'success' : undefined,
-        });
-      })
-      .catch(fail).finally(() => setConnecting(false));
+  const choose = (id: string) => {
+    ++generation.current; setSwitchingProject(true); setConnections(null); setShowConnections(false); setOpen(''); setOpenRun(''); setNotice(null);
+    setActivities([]); setAgents([]); setInbox([]); setRuns([]); setOperations([]); setFiles([]);
+    call('chooseProject', id).then(load).catch((e: unknown) => { setSwitchingProject(false); fail(e); });
+  };
+  const selectAi = async (id: string) => {
+    const current = generation.current;
+    setSelectingAi(true);
+    try { const value = await call<IdeConnections>('selectAi', id); if (current === generation.current) setConnections(value); }
+    catch (e) { if (current === generation.current) fail(e); }
+    finally { setSelectingAi(false); }
   };
 
   // What is seen: the first time, everything listed; then the Runs list while it is on screen, and the run whose screen is open.
@@ -111,12 +116,14 @@ export function CompanionApp() {
       {/* The view's title already says Moki: here only whether a project is connected, and which. */}
       <span className={`mk-dot${state.project ? ' on' : ''}`} role="img"
         aria-label={state.project ? t('Connected') : t('No project')} title={state.project ? t('Connected') : t('No project')} />
-      <select value={state.project?.id ?? ''} onChange={(e) => choose(e.target.value)} aria-label={t('Project')}>
+      <select value={state.project?.id ?? ''} disabled={switchingProject} onChange={(e) => choose(e.target.value)} aria-label={t('Project')}>
         {!state.project && <option value="">{t('Choose a project')}</option>}
         {state.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
     </header>
   );
+
+  if (switchingProject) return <div className="mk">{header}<p className="mk-empty muted">{t('Loading…')}</p></div>;
 
   if (!state.project) {
     return (
@@ -128,7 +135,8 @@ export function CompanionApp() {
           <p><strong>{t('This folder is not linked to a Moki project.')}</strong></p>
           <p className="muted small">{state.projects.length
             ? t('Choose a project above. To link this folder for good, use the link button of the ribbon in the Moki app.')
-            : t('There are no projects in the active workspace yet. Create one in the Moki app.')}</p>
+            : t('Create a project here to use its context, activities and tools.')}</p>
+          <button type="button" className="btn" onClick={() => { void call('createProject').then(load).catch(fail); }}>{t('Create project')}</button>
         </div>
       </div>
     );
@@ -140,13 +148,20 @@ export function CompanionApp() {
   const openOps = operations.filter((o) => !['completed', 'cancelled'].includes(o.status)).length;
   const toggle = (key: string) => { setOpen((o) => (o === key ? '' : key)); setNotice(null); };
   const launchBox = (l: Launch) => open === l.key && (
-    <LaunchBox launch={l} inbox={inbox} languages={languages} agents={l.agent || l.run ? [] : agents.filter((a) => !l.activity || a.skills.includes(activities.find((x) => x.id === l.activity)?.skill ?? ''))}
+    <LaunchBox key={`${project}:${l.key}:${connections?.ai ?? ''}`} launch={l} connections={connections} inbox={inbox} languages={languages} agents={l.agent || l.run ? [] : agents.filter((a) => !l.activity || a.skills.includes(activities.find((x) => x.id === l.activity)?.skill ?? ''))}
       onDone={(text, tone) => setNotice({ text, tone })} />
   );
 
   return (
     <div className="mk">
       {header}
+      <div className="mk-ai-bar">
+        <label htmlFor="moki-ai">{t('AI')}</label>
+        <select id="moki-ai" value={connections?.ai ?? ''} disabled={selectingAi} onChange={(e) => { void selectAi(e.target.value); }}>
+          <option value="" disabled>{t('Choose your AI')}</option>
+          {(connections?.choices ?? []).map((ai) => <option key={ai.id} value={ai.id}>{ai.label}</option>)}
+        </select>
+      </div>
       <div className="dialog-tabs mk-tabs" role="tablist">
         {([['activities', t('Activities')], ['agents', t('Agents')], ['context', t('Context')], ['operations', t('Operations')], ['runs', t('Runs')]] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={`dialog-tab${tab === id ? ' on' : ''}`} onClick={() => { setTab(id); setOpen(''); }}>
@@ -157,6 +172,7 @@ export function CompanionApp() {
       </div>
 
       <main className="mk-body">
+        {showConnections && connections && <Connections key={`${project}:${connections.ai}:${connections.folder}`} value={connections} onChange={setConnections} onClose={() => setShowConnections(false)} />}
         {loadFailure}
         {notice && <div className={`result${notice.tone ? ` ${notice.tone}` : ''}`} role="status"><p className="result-title">{notice.text}</p></div>}
 
@@ -225,22 +241,7 @@ export function CompanionApp() {
       </main>
 
       <footer className="mk-foot">
-        <span className="mk-mcp" title={state.mcp.map((m) => m.name).join(', ')}><IconMcp size={14} /> {t('MCPs: {n} on', { n: state.mcp.length })}</span>
-        <div className="mk-connect">
-          <button type="button" className="btn btn-ghost btn-sm" disabled={connecting} aria-expanded={connectMenu} onClick={() => setConnectMenu((v) => !v)}
-            title={t('Give Moki\'s MCP servers to an AI tool opened on this folder. VS Code\'s own AI already gets them.')}>{t('Connect to…')}</button>
-          {connectMenu && (
-            <>
-              <div className="mk-menu-backdrop" onMouseDown={() => setConnectMenu(false)} />
-              <ul className="mk-menu" role="menu" aria-label={t('Connect to…')}>
-                {([['claude', 'Claude Code', '.mcp.json'], ['cursor', 'Cursor', '.cursor/mcp.json'], ['codex', 'Codex', '.codex/config.toml']] as const).map(([id, label, file]) => (
-                  <li key={id}><button type="button" role="menuitem" onClick={() => connect(id)}><span>{label}</span><span className="muted small">{file}</span></button></li>
-                ))}
-                <li className="mk-menu-note muted small">{t('VS Code\'s own AI (Copilot) already gets them.')}</li>
-              </ul>
-            </>
-          )}
-        </div>
+        <button type="button" className="mk-mcp link" aria-expanded={showConnections} onClick={() => setShowConnections((v) => !v)}><IconMcp size={14} /> {t('Connections')}</button>
         <button type="button" className="icon-btn" onClick={load} title={t('Refresh')} aria-label={t('Refresh')}><IconRefresh size={14} /></button>
       </footer>
     </div>
@@ -273,28 +274,40 @@ function Card({ star, on, fresh = false, icon, title, hint, pill, chips, onPick,
   );
 }
 
-// What the request needs before it goes: inbox files, an agent, a note and the language; then Claude Code or the chat.
-function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launch; inbox: InboxFile[]; languages: string[]; agents: AgentInfo[]; onDone: (text: string, tone?: NoticeTone) => void }) {
+// What the request needs: inbox files, an agent, a note and the language.
+function LaunchBox({ launch, connections, inbox, languages, agents, onDone }: { launch: Launch; connections: IdeConnections | null; inbox: InboxFile[]; languages: string[]; agents: AgentInfo[]; onDone: (text: string, tone?: NoticeTone) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [agent, setAgent] = useState(launch.agent ?? '');
   const [note, setNote] = useState('');
   const [language, setLanguage] = useState(conversationLanguage);
   const [busy, setBusy] = useState(false);
+  const [started, setStarted] = useState(false);
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const done = (text: string, tone?: NoticeTone) => { if (live.current) onDone(text, tone); };
+  const sending = useRef(false);
+  const attempt = useRef({ signature: '', id: '' });
   const missingFiles = Boolean(launch.needsFiles && !picked.length);
   const input = { activity: launch.activity, run: launch.run, agent: agent || undefined, files: picked, note, language };
 
   const go = async (where: 'terminal' | 'chat') => {
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true);
     remember('qa-language', language);
     try {
       if (where === 'terminal') {
-        const r = await call<LaunchResult>('launch', input);
-        onDone(r.message ?? (r.opened ? t('Claude Code is opening in a terminal.') : t('Claude Code could not open.')), r.opened ? undefined : 'warn');
+        const r = await call<LaunchResult>('launch', { ...input, ai: connections?.ai });
+        done(r.message ?? (r.opened ? t('The AI is opening in a terminal.') : t('The AI could not open.')), r.opened ? undefined : 'warn');
       } else {
-        const r = await call<{ chat: string }>('copyRequest', input);
-        onDone(r.chat ? t('Request copied. Paste it in {chat}.', { chat: r.chat }) : t('Request copied. Paste it in the chat of your AI.'), 'success');
+        const signature = JSON.stringify({ ...input, ai: connections?.ai });
+        if (attempt.current.signature !== signature) attempt.current = { signature, id: crypto.randomUUID().replaceAll('-', '') };
+        const r = await call<IdeChatResult>('startChat', { ...input, ai: connections?.ai, requestId: attempt.current.id });
+        done(t(r.message), r.status === 'blocked' ? 'warn' : undefined);
+        if (r.status === 'blocked' || r.status === 'submitted' || r.session) attempt.current.signature = '';
+        if (live.current && (r.status === 'submitted' || r.session)) setStarted(true);
       }
-    } catch (e) { onDone(e instanceof Error ? e.message : String(e), 'warn'); } finally { setBusy(false); }
+    } catch (e) { done(e instanceof Error ? e.message : String(e), 'warn'); } finally { sending.current = false; if (live.current) setBusy(false); }
   };
 
   return (
@@ -326,8 +339,12 @@ function LaunchBox({ launch, inbox, languages, agents, onDone }: { launch: Launc
         <select value={language} onChange={(e) => setLanguage(e.target.value)}>{languages.map((l) => <option key={l} value={l}>{t(l)}</option>)}</select>
       </label>
       <div className="mk-actions">
-        <button type="button" className="btn" disabled={busy || missingFiles} onClick={() => { void go('terminal'); }}><IconPlay size={14} /> {t('Open in Claude Code')}</button>
-        <button type="button" className="btn btn-ghost" disabled={busy || missingFiles} onClick={() => { void go('chat'); }}><IconCopy size={14} /> {t('Copy for the chat')}</button>
+        <button type="button" className="btn" disabled={busy || missingFiles || !connections?.choices.find((ai) => ai.id === connections.ai)?.automatic} onClick={() => { void go('chat'); }}><IconPlay size={14} /> {busy ? t('Starting…') : started ? t('Start another chat') : t('Start in a new chat')}</button>
+        {connections?.ai && !connections.choices.find((ai) => ai.id === connections.ai)?.automatic && <p className="muted small">{t(connections.choices.find((ai) => ai.id === connections.ai)?.reason ?? '')}</p>}
+        <details className="mk-alternatives"><summary>{t('Other ways to start')}</summary>
+          <button type="button" className="btn btn-ghost" disabled={busy || missingFiles} onClick={() => { void go('terminal'); }}>{t('Open {tool} in a terminal', { tool: connections?.ai === 'codex' ? 'Codex' : connections?.ai === 'cursor' ? 'Cursor Agent' : 'Claude Code' })}</button>
+          <button type="button" className="btn btn-ghost" disabled={busy || missingFiles} onClick={() => { void call('copyRequest', input).then(() => done(t('Request copied. Paste it in the chat of your AI.'), 'success')).catch((e: unknown) => done(e instanceof Error ? e.message : String(e), 'warn')); }}><IconCopy size={14} /> {t('Copy for the chat')}</button>
+        </details>
       </div>
       {missingFiles && <span className="muted small">{t('Choose at least one file.')}</span>}
     </div>

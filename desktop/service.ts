@@ -2231,9 +2231,11 @@ export function createService(root: string, deps: Deps) {
     },
     // Starts (or calls) the server once to list its tools, only when the person asks.
     testMcpServer: async (server: unknown) => {
+      const workspace = workspaceDir(root);
       const found = listServers(root).find((s) => s.id === server);
       if (!found) throw new ServiceError('Unknown MCP server.');
       const result = await (deps.probe ?? probeServer)(found);
+      if (workspaceDir(root) !== workspace) throw new ServiceError('The workspace changed. Test the server again in its workspace.');
       saveStatus({ ...mcpStatus(), [found.id]: result });
       mcpLog({ action: 'test', server: found.id, ok: result.ok, tools: result.tools.length, ms: result.ms, ...(result.error ? { error: result.error } : {}) });
       return result;

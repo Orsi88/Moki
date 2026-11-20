@@ -10,6 +10,7 @@ import { mokiServer, saveServer } from '../scripts/lib/mcp.ts';
 import { createService } from '../desktop/service.ts';
 import { openCompanion, type Companion } from '../desktop/companion.ts';
 import { createCompanionApi } from '../desktop/companion-api.ts';
+import type { IdeChatRequest, IdeChatResult } from '../ide/companion-types.ts';
 
 // Fixture: two projects, the IDE connected to acme, an open folder with its own .mcp.json.
 const root = mkdtempSync(join(tmpdir(), 'qa-companion-api-'));
@@ -20,8 +21,12 @@ const launched: { tool: ToolKey; prompt: string; extra: string[]; terminal: stri
 const terms = new Map<string, { alive: boolean; typed: string[] }>();
 const shown: string[] = [];
 const copied: string[] = [];
+const chatRequests: IdeChatRequest[] = [];
+let capabilitiesWait: Promise<void> = Promise.resolve();
+let startChat: (request: IdeChatRequest) => Promise<IdeChatResult> = async (request) => ({ status: 'submitted', requestId: request.requestId, message: 'Sent' });
 let companion: Companion | null = null;
 let confirmAnswer = true;
+let confirmHook: (() => void) | undefined;
 let api: ReturnType<typeof createCompanionApi>;
 let serviceRef: ReturnType<typeof createService>;
 const call = async (method: string, ...args: unknown[]) => {
@@ -66,13 +71,15 @@ before(() => {
     companion: () => companion,
     choose: (id) => { companion = openCompanion(root, id); },
     copy: (text) => { copied.push(text); },
-    focusChat: async () => 'Claude Code',
-    confirm: async () => confirmAnswer,
+    confirm: async () => { confirmHook?.(); return confirmAnswer; },
     folder: () => folder,
     tracked: () => false,
     mokiServer: (project) => mokiServer(project, root, 'mcp.cjs', 'node'),
     language: () => 'Portuguese (pt-BR)',
     showTerminal: (id) => { shown.push(id); return terms.get(id)?.alive === true; },
+    selectedAi: () => 'copilot',
+    chatCapabilities: async () => { await capabilitiesWait; return [{ id: 'copilot', label: 'Copilot', available: true, automatic: true, reason: '' }]; },
+    startChat: async (request) => { chatRequests.push(request); return startChat(request); },
   });
 });
 
@@ -158,7 +165,7 @@ test('copy for the chat: the same request copied, nothing started', async () => 
   const r = await call('copyRequest', { activity: 'open', agent: 'test-designer', language: 'English' }) as { prompt: string; chat: string };
   assert.equal(launched.length, 0);
   assert.equal(copied.at(-1), r.prompt);
-  assert.equal(r.chat, 'Claude Code');
+  assert.equal(r.chat, '');
   assert.match(r.prompt, /test-designer/);
 });
 
@@ -193,12 +200,79 @@ test('connect Cursor and Codex from the same menu: each in its own file of the f
   await assert.rejects(call('connectTool', 'gemini'), /Unknown AI tool/);
 });
 
+test('connecting cancels a stale confirmation and respects the linked folder write policy', async () => {
+  const before = readFileSync(join(folder, '.mcp.json'), 'utf8');
+  const previous = companion;
+  confirmHook = () => { companion = openCompanion(root, 'beta'); };
+  try { await assert.rejects(call('connectTool', 'claude'), /project or folder changed/); }
+  finally { confirmHook = undefined; companion = previous; }
+  assert.equal(readFileSync(join(folder, '.mcp.json'), 'utf8'), before);
+  const file = join(projects, 'acme', 'project.json');
+  const original = readFileSync(file, 'utf8');
+  try {
+    writeFileSync(file, JSON.stringify({ ...JSON.parse(original), repositories: [{ name: 'system', localPath: folder, linkedFolder: true, writeAllowed: false }] }));
+    await assert.rejects(call('connectTool', 'claude'), /writeAllowed: false/);
+    assert.equal(readFileSync(join(folder, '.mcp.json'), 'utf8'), before);
+  } finally { writeFileSync(file, original); }
+});
+
 test('without a project the panel asks for one', async () => {
   const saved = companion;
   companion = null;
   await assert.rejects(call('agents'), /Choose the Moki project/);
   assert.equal((await call('state') as { project: null }).project, null);
   companion = saved;
+});
+
+test('native launch joins duplicate requests, preserves context and refuses reused ids with another payload', async () => {
+  const input = { activity: 'open', ai: 'copilot', requestId: '1'.repeat(32), note: 'Investigate' };
+  const before = chatRequests.length;
+  const [first, second] = await Promise.all([call('startChat', input), call('startChat', input)]);
+  assert.deepEqual(first, second);
+  assert.equal(chatRequests.length, before + 1);
+  assert.equal(chatRequests.at(-1)?.project, 'acme');
+  assert.match(chatRequests.at(-1)?.prompt ?? '', /acme/);
+  await assert.rejects(call('startChat', { ...input, note: 'Different' }), /already belongs/);
+  await assert.rejects(call('startChat', { ...input, requestId: '../bad' }), /Invalid request identifier/);
+});
+
+test('native launch never retries uncertain delivery, including a repeated webview message', async () => {
+  startChat = async (request) => ({ status: 'unconfirmed', requestId: request.requestId, message: 'Check the chat' });
+  const input = { activity: 'open', ai: 'copilot', requestId: '2'.repeat(32) };
+  const before = chatRequests.length;
+  await call('startChat', input); await call('startChat', input);
+  assert.equal(chatRequests.length, before + 1);
+});
+
+test('native launch aborts when the project changes during preflight; diagnostics remain project-bound', async () => {
+  let release: () => void = () => {};
+  capabilitiesWait = new Promise<void>((resolve) => { release = resolve; });
+  const result = call('startChat', { activity: 'open', ai: 'copilot', requestId: '3'.repeat(32) });
+  const before = chatRequests.length;
+  const previous = companion;
+  companion = openCompanion(root, 'beta');
+  release();
+  const blocked = await result as IdeChatResult;
+  assert.equal(blocked.status, 'blocked');
+  assert.match(blocked.message, /project or folder changed/);
+  assert.equal(chatRequests.length, before);
+  await assert.rejects(call('testMcp', 'not-in-beta'), /not enabled/);
+  companion = previous;
+  capabilitiesWait = Promise.resolve();
+});
+
+test('a rejecting chat host preserves uncertain delivery and never runs the same request again', async () => {
+  const previous = startChat;
+  const before = chatRequests.length;
+  startChat = async () => { throw new Error('private adapter details'); };
+  try {
+    const input = { activity: 'open', ai: 'copilot', requestId: '4'.repeat(32) };
+    const result = await call('startChat', input) as IdeChatResult;
+    assert.equal(result.status, 'unconfirmed');
+    assert.doesNotMatch(result.message, /private adapter/);
+    assert.deepEqual(await call('startChat', input), result);
+    assert.equal(chatRequests.length, before + 1);
+  } finally { startChat = previous; }
 });
 
 test('operations from the panel: started, each step in its own terminal, moved on by the loop', async () => {

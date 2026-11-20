@@ -4,11 +4,11 @@ import { createServer } from 'node:http';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ROOT } from '../scripts/lib/repo.mjs';
+import { ROOT, setWorkspaceDir } from '../scripts/lib/repo.mjs';
 import { createProject, mirrorProjectSkills, TOOLS } from '../scripts/lib/core.ts';
 import {
   appliesTo, clean, CODEX_SERVER_NAME, codexLaunchArgs, enabledServers, generatedEntries, importConfig, listServers, mergeManaged, mokiServer, removeServer,
-  mergeCodex, resolveServer, saveServer, serversForAgent, syncCursorFolder, syncToolFolder, toolConfig, type McpServer,
+  mergeCodex, resolveServer, saveServer, serversForAgent, syncCursorFolder, syncToolFolder, toolConfig, toolConfigState, mcpIssues, type McpServer,
 } from '../scripts/lib/mcp.ts';
 import { createOperationRun } from '../scripts/lib/operation-runs.ts';
 import { probeServer } from '../desktop/mcp-probe.ts';
@@ -285,7 +285,8 @@ test('Codex: Moki writes its own region of .codex/config.toml; the person\'s tab
   assert.match(first.text, /\[mcp_servers\."moki-jira"\]\ncommand = "npx"\nargs = \["-y", "x"\]\nenv = \{ "MODE" = "cloud" \}\nenv_vars = \["JIRA_TOKEN"\]/);
   assert.match(first.text, /\[mcp_servers\."moki-github"\]\nurl = "https:\/\/api.example.com\/mcp"\nbearer_token_env_var = "GH_TOKEN"/);
   assert.doesNotMatch(first.text, /\$\{/);
-  assert.deepEqual(first.skipped, ['moki-jira: OTHER', 'moki-github: header X-Team']);
+  assert.match(first.text, /env_http_headers = \{ "X-Team" = "TEAM" \}/);
+  assert.deepEqual(first.skipped, ['moki-jira: OTHER']);
   // Written again: Moki's region is replaced, not repeated.
   const again = mergeCodex(first.text, entries.slice(0, 1));
   assert.equal(again.text.match(/>>> moki/g)?.length, 1);
@@ -315,6 +316,39 @@ test('service: one catalog with where each server applies, test results kept wit
   assert.ok(service.tree('beta').at(-1)?.children?.some((n) => n.mcp === 'Moki (global)' && n.name === 'Playwright'));
   service.removeMcpServer('local');
   assert.ok(!service.mcpCatalog().servers.some((s) => s.id === 'local'));
+});
+
+test('a probe cannot write another workspace\'s status after a workspace switch', async () => {
+  const other = mkdtempSync(join(tmpdir(), 'moki-probe-workspace-'));
+  const svc = createService(root, {
+    launch: () => ({ opened: false, message: 'Not used by this probe test.' }), openFolder: () => {}, openPath: () => {},
+    probe: async () => { setWorkspaceDir(root, other); return { at: new Date().toISOString(), ok: true, tools: [], ms: 1 }; },
+  });
+  try {
+    await assert.rejects(svc.testMcpServer('playwright-mcp'), /workspace changed/);
+    assert.deepEqual(readdirSync(other), []);
+  } finally { setWorkspaceDir(root, null); rmSync(other, { recursive: true, force: true }); }
+});
+
+test('IDE diagnostics distinguish configuration drift and missing variables without returning values', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'moki-mcp-state-'));
+  try {
+    const server = clean({ id: 'example', name: 'Example', command: 'node', args: ['server.js'], env: { API_TOKEN: '${API_TOKEN}' } });
+    const entries = generatedEntries(mokiServer('acme', root, 'server.cjs', 'node'), [server]);
+    assert.equal(toolConfigState(folder, entries, 'claude'), 'missing');
+    syncToolFolder(folder, entries, 'claude');
+    assert.equal(toolConfigState(folder, entries, 'claude'), 'current');
+    assert.equal(toolConfigState(folder, entries.slice(0, 1), 'claude'), 'outdated');
+    writeFileSync(join(folder, '.mcp.json'), '{bad');
+    assert.equal(toolConfigState(folder, entries, 'claude'), 'invalid');
+    assert.deepEqual(mcpIssues(server, 'copilot', {}), ['Set the environment variables in the IDE: API_TOKEN.']);
+    assert.deepEqual(mcpIssues(server, 'copilot', { API_TOKEN: 'private-value' }), []);
+    assert.ok(!JSON.stringify(mcpIssues(server, 'codex', { API_TOKEN: 'private-value' })).includes('private-value'));
+    const invalid = clean({ id: 'variable', name: 'Variable', command: '${RUNTIME}', args: [] });
+    const block = mergeCodex('', [{ key: 'moki-variable', server: invalid }]);
+    assert.doesNotMatch(block.text, /\$\{/);
+    assert.equal(block.skipped.length, 1);
+  } finally { rmSync(folder, { recursive: true, force: true }); }
 });
 
 test('an operation run keeps the servers it started with', () => {

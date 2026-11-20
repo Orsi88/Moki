@@ -295,15 +295,26 @@ const tq = (v: string): string => JSON.stringify(v); // TOML basic strings take 
 export function codexBlock(entries: GeneratedEntry[]): { text: string; skipped: string[] } {
   const skipped: string[] = [];
   const tables = entries.map(({ key, server: s }) => {
+    if ([s.command, s.url, ...s.args].some((v) => /\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(v))) {
+      skipped.push(`${key}: variables in the command, arguments or URL`);
+      return '';
+    }
     const lines = [`[mcp_servers.${tq(key)}]`];
     if (s.transport === 'http') {
       lines.push(`url = ${tq(s.url)}`);
       if (s.oauth) skipped.push(`${key}: OAuth sign-in`);
+      const headers: string[] = [];
+      const envHeaders: string[] = [];
       for (const [name, value] of Object.entries(s.headers)) {
         const bearer = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(value);
+        const variable = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(value);
         if (name.toLowerCase() === 'authorization' && bearer) lines.push(`bearer_token_env_var = ${tq(bearer[1])}`);
+        else if (variable) envHeaders.push(`${tq(name)} = ${tq(variable[1])}`);
+        else if (!/\$\{/.test(value)) headers.push(`${tq(name)} = ${tq(value)}`);
         else skipped.push(`${key}: header ${name}`);
       }
+      if (headers.length) lines.push(`http_headers = { ${headers.join(', ')} }`);
+      if (envHeaders.length) lines.push(`env_http_headers = { ${envHeaders.join(', ')} }`);
       return lines.join('\n');
     }
     lines.push(`command = ${tq(s.command)}`, `args = [${s.args.map(tq).join(', ')}]`);
@@ -405,3 +416,27 @@ export function syncToolFolder(folder: string, entries: GeneratedEntry[], tool: 
 }
 
 export const syncCursorFolder = (folder: string, entries: GeneratedEntry[]) => syncToolFolder(folder, entries, 'cursor');
+
+// Compare only the configuration Moki owns. No config values or parser excerpts reach the panel.
+export function toolConfigState(folder: string, entries: GeneratedEntry[], tool: McpTool): 'current' | 'missing' | 'outdated' | 'invalid' {
+  const file = toolFile(folder, tool);
+  if (!existsSync(file)) return 'missing';
+  try {
+    const text = readFileSync(file, 'utf8');
+    if (tool === 'codex') return mergeCodex(text, entries).text === text ? 'current' : 'outdated';
+    const data = JSON.parse(text) as { mcpServers?: Record<string, unknown> };
+    const wanted = toolConfig(entries, tool).mcpServers;
+    const actual = Object.fromEntries(Object.entries(data.mcpServers ?? {}).filter(([key]) => isManaged(key)));
+    const normalize = (v: unknown): string => JSON.stringify(v, (_key, value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+    return normalize(actual) === normalize(wanted) ? 'current' : 'outdated';
+  } catch { return 'invalid'; }
+}
+
+export function mcpIssues(server: McpServer, tool: 'copilot' | McpTool, env: NodeJS.ProcessEnv = process.env): string[] {
+  const issues: string[] = [];
+  const missing = variablesOf(server).filter((name) => !env[name]);
+  if (missing.length) issues.push(`Set the environment variables in the IDE: ${missing.join(', ')}.`);
+  if (tool === 'codex') issues.push(...codexBlock([{ key: entryKey(server.id), server }]).skipped);
+  return issues;
+}

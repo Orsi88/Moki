@@ -3,8 +3,8 @@
 // starts activities, uses the project's agents, chooses the context and follows the
 // runs. The page talks only to desktop/companion-api.ts (a closed list of calls, always
 // for the active project). VS Code's AI gets Moki's MCP server (ide/mcp/server.ts) and
-// the servers the project has on in the MCP Manager (scripts/lib/mcp.ts); Claude Code
-// in the IDE gets them through the folder's .mcp.json (Connect Claude Code).
+// the servers the project has on in the MCP Manager (scripts/lib/mcp.ts). File-based
+// clients receive managed settings from Connections, with a backup and confirmation.
 // Multi-agent operations run here as in the app: each step in its own VS Code terminal,
 // with an id the engine keeps on the step, and the loop (companion-api drive) runs on
 // every change of the project's files, so an operation moves on with the panel closed.
@@ -12,27 +12,21 @@
 import * as vscode from 'vscode';
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, join, relative, isAbsolute, resolve } from 'node:path';
 import { ROOT, workspaceDir } from '../../scripts/lib/repo.mjs';
 import { TOOLS, linkedFolder, listProjects, projectSummary, projectsDir, which } from '../../scripts/lib/core.ts';
 import { setWorkspaceEnv } from '../../desktop/workspaces.ts';
-import { createService } from '../../desktop/service.ts';
+import { createService, LINKED } from '../../desktop/service.ts';
 import { launchInTerminal, launchTool, openFolder } from '../../desktop/launcher.ts';
 import type { TermSpec } from '../../desktop/terminals.ts';
 import { openCompanion, projectsForFolder, type Companion } from '../../desktop/companion.ts';
 import { createCompanionApi } from '../../desktop/companion-api.ts';
-import { MCP_FILE, generatedEntries, mokiServer, resolveServer, syncCursorFolder, type McpServer } from '../../scripts/lib/mcp.ts';
+import { MCP_FILE, mokiServer, resolveServer, type McpServer } from '../../scripts/lib/mcp.ts';
+import { createIdeChatIntegration, isIdeAi } from './chat-integrations.ts';
+import type { IdeAi } from '../companion-types.ts';
 
 const PICKED = 'moki.project'; // the project chosen for this VS Code workspace (workspaceState)
-
-// The chat the request goes to: Claude Code's input when its extension is there, else VS Code's chat (Copilot) with the request typed in.
-async function focusChat(prompt: string): Promise<string> {
-  const commands = new Set(await vscode.commands.getCommands(true));
-  if (commands.has('claude-vscode.focus')) { await vscode.commands.executeCommand('claude-vscode.focus'); return 'Claude Code'; }
-  if (commands.has('workbench.action.chat.open')) { await vscode.commands.executeCommand('workbench.action.chat.open', { query: prompt, isPartialQuery: true }); return 'Copilot Chat'; }
-  return '';
-}
 
 export function start(context: vscode.ExtensionContext): void {
   const dist = join(context.extensionPath, 'dist');
@@ -41,6 +35,31 @@ export function start(context: vscode.ExtensionContext): void {
   const buildId = ((): string => { try { return (JSON.parse(readFileSync(join(dist, 'build-info.json'), 'utf8')) as { buildId: string }).buildId; } catch { return '0'; } })();
 
   let companion: Companion | null = null;
+  const preferenceKey = (kind: string) => `moki.${kind}:${workspaceDir(ROOT)}:${companion?.project ?? ''}`;
+  const folders = (): string[] => (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === 'file').map((f) => f.uri.fsPath);
+  const folder = (): string | null => {
+    const all = folders();
+    const chosen = context.workspaceState.get<string>(preferenceKey('folder'));
+    if (chosen && all.includes(chosen)) return chosen;
+    const project = companion?.project;
+    const matching = project ? all.filter((f) => projectsForFolder(ROOT, f).includes(project)) : [];
+    if (matching.length === 1) return matching[0];
+    return project && linkedFolder(project, ROOT) ? null : all.length === 1 ? all[0] : null;
+  };
+  const selectedAi = (): IdeAi | '' => {
+    const value = context.workspaceState.get<unknown>(preferenceKey('ai'));
+    return isIdeAi(value) ? value : '';
+  };
+  const chats = createIdeChatIntegration({
+    version: vscode.version,
+    commands: async () => vscode.commands.getCommands(true),
+    execute: async (command, options) => vscode.commands.executeCommand(command, options),
+    current: (request) => companion?.project === request.project && folder() === request.folder,
+    // This command's verified contract has no working-directory argument. In a multi-root
+    // window the IDE can choose another root, even when Moki has a selected folder.
+    workspaceIssue: () => folders().length === 1 && folder() === folders()[0] ? undefined
+      : 'Open this project\'s folder in its own IDE window to start a separate chat.',
+  });
 
   // The terminals Moki opened, by an id of this session: an operation step keeps it (markStarted), to
   // answer a question in it, close it, or learn that it closed before the step was done.
@@ -71,6 +90,11 @@ export function start(context: vscode.ExtensionContext): void {
     openFolder,
     openPath: (file) => { void vscode.env.openExternal(vscode.Uri.file(file)); },
     copy: (text) => { void vscode.env.clipboard.writeText(text); },
+    pickFolder: async () => {
+      const current = folder();
+      return (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false,
+        defaultUri: current ? vscode.Uri.file(current) : undefined, title: 'Choose the project folder' }))?.[0]?.fsPath ?? null;
+    },
     onWorkspace: (dir) => setWorkspaceEnv(ROOT, dir),
     terminalAlive: (id) => { const t = live(id); return Boolean(t && t.exitStatus === undefined); },
     writeTerminal: (id, data) => { live(id)?.sendText(data, false); }, // the engine ends the answer with a carriage return itself
@@ -84,7 +108,6 @@ export function start(context: vscode.ExtensionContext): void {
   status.command = 'moki.chooseProject';
   status.show();
 
-  const folders = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   const name = (id: string): string => projectSummary(id, ROOT).name;
   const refresh = (): void => { for (const p of panels) void p.webview.postMessage({ event: 'changed', project: companion?.project ?? '' }); };
 
@@ -127,7 +150,7 @@ export function start(context: vscode.ExtensionContext): void {
 
   const chooseProject = async (): Promise<void> => {
     const known = listProjects(ROOT);
-    if (!known.length) { void vscode.window.showInformationMessage('There are no Moki projects in the active workspace. Create one in the Moki desktop app.'); return; }
+    if (!known.length) { void vscode.window.showInformationMessage('There are no Moki projects in the active workspace. Use Create project in the Moki panel.'); return; }
     const order = [...candidates, ...known.filter((p) => !candidates.includes(p))];
     const choice = await vscode.window.showQuickPick(order.map((id) => ({
       label: name(id), description: id, detail: candidates.includes(id) ? 'Linked to this folder' : projectSummary(id, ROOT).description || undefined, id,
@@ -139,13 +162,35 @@ export function start(context: vscode.ExtensionContext): void {
     companion: () => companion,
     choose: pick,
     copy: async (text) => { await vscode.env.clipboard.writeText(text); },
-    focusChat,
     confirm: async (message, detail) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, 'Write')) === 'Write',
-    folder: () => folders()[0] ?? null,
+    folder,
     tracked: (folder, file) => { try { execFileSync('git', ['ls-files', '--error-unmatch', file], { cwd: folder, stdio: 'ignore', windowsHide: true }); return true; } catch { return false; } },
     mokiServer: (project) => mokiServer(project, ROOT, mcpScript, which('node')),
     language: () => (vscode.env.language.toLowerCase().startsWith('pt') ? 'Portuguese (pt-BR)' : 'English'),
     showTerminal: (id) => { const t = live(id); t?.show(); return Boolean(t); },
+    chatCapabilities: () => chats.capabilities(),
+    selectedAi,
+    selectAi: async (ai) => { await context.workspaceState.update(preferenceKey('ai'), ai); },
+    startChat: (request) => chats.start(request),
+    chooseFolder: async () => {
+      const project = companion, workspace = workspaceDir(ROOT);
+      const chosen = await vscode.window.showQuickPick(folders().map((path) => ({ label: basename(path), description: path })), { title: 'Moki workspace folder' });
+      if (companion !== project || workspaceDir(ROOT) !== workspace) throw new Error('The project or folder changed. Try again from its project.');
+      if (chosen) await context.workspaceState.update(preferenceKey('folder'), chosen.description);
+    },
+    createProject: async () => {
+      const workspace = workspaceDir(ROOT);
+      const offer = await service.pickFolder();
+      if (!offer) return null;
+      if (workspaceDir(ROOT) !== workspace) throw new Error('The workspace changed. Choose the folder again.');
+      if (offer.project) { pick(offer.project.id); return offer.project.id; }
+      const name = await vscode.window.showInputBox({ title: 'New Moki project', prompt: 'Project name', value: offer.name, ignoreFocusOut: true });
+      if (!name) return null;
+      if (workspaceDir(ROOT) !== workspace) throw new Error('The workspace changed. Choose the folder again.');
+      const created = service.createProject(name, 'blank', offer.folder);
+      pick(created.id);
+      return created.id;
+    },
   });
   // The operations' loop; a failure here never stops the extension (the run shows it).
   function drive(): void { try { api.drive(); } catch { /* shown in the run */ } }
@@ -211,19 +256,9 @@ export function start(context: vscode.ExtensionContext): void {
     }),
     // Cursor opened on the linked folder reads <folder>/.cursor/mcp.json: Moki's entries go there after the person confirms.
     vscode.commands.registerCommand('moki.syncCursor', async () => {
-      if (!companion) { void vscode.window.showInformationMessage('Choose the Moki project of this folder first.'); return; }
-      const linked = linkedFolder(companion.project, ROOT);
-      if (!linked || !existsSync(linked.path)) { void vscode.window.showWarningMessage('This project has no linked folder on this computer. Link it in the Moki desktop app (Choose my folder).'); return; }
-      if (linked.writeBlocked) { void vscode.window.showWarningMessage(`project.json does not allow writing to ${linked.path} (writeAllowed: false).`); return; }
-      const ok = await vscode.window.showWarningMessage(`Write the MCP servers this project has on to ${linked.path}/.cursor/mcp.json?`, {
-        modal: true, detail: 'Only Moki\'s entries (moki, moki-*) change; yours stay. The current file is backed up to .moki-backup/ first.',
-      }, 'Write');
-      if (ok !== 'Write') return;
-      try {
-        const r = syncCursorFolder(linked.path, generatedEntries(mokiServer(companion.project, ROOT, mcpScript, which('node')), companion.mcpServers()));
-        companion.log('sync-cursor', { changed: r.changed });
-        void vscode.window.showInformationMessage(r.changed ? `Cursor updated: ${r.file}` : 'Cursor already had these servers.');
-      } catch (e) { void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e)); }
+      const r = await api('connectTool', ['cursor']);
+      if (!r.ok) void vscode.window.showErrorMessage(r.error);
+      else if (!(r.value as { cancelled: boolean }).cancelled) void vscode.window.showInformationMessage(`Cursor connected: ${(r.value as { file: string }).file}`);
     }),
     vscode.commands.registerCommand('moki.connectClaude', async () => {
       const r = await api('connectClaude', []);
@@ -248,6 +283,30 @@ export function start(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('moki.chooseProject', chooseProject),
     vscode.commands.registerCommand('moki.refresh', () => { resolveProject(); refresh(); }),
+    vscode.commands.registerCommand('moki.createProject', async () => {
+      const r = await api('createProject', []);
+      if (!r.ok) void vscode.window.showErrorMessage(r.error);
+    }),
+    vscode.commands.registerCommand('moki.startFromEditor', async () => {
+      if (!companion) { void vscode.window.showInformationMessage('Choose a Moki project first.'); return; }
+      const project = companion.project, targetFolder = folder();
+      const editor = vscode.window.activeTextEditor;
+      const linked = linkedFolder(companion.project, ROOT);
+      if (!editor || editor.document.uri.scheme !== 'file' || !linked) { void vscode.window.showInformationMessage('Open a file in this project\'s linked folder first.'); return; }
+      const rel = relative(resolve(linked.path), resolve(editor.document.uri.fsPath));
+      if (!rel || rel.startsWith('..') || isAbsolute(rel)) { void vscode.window.showWarningMessage('This file is outside the project\'s linked folder.'); return; }
+      if (editor.document.isDirty && !(await editor.document.save())) return;
+      const activity = await vscode.window.showQuickPick(service.activities().activities.filter((a) => a.available && !a.needsFiles && a.id !== 'resume').map((a) => ({ label: a.label, description: a.hint, id: a.id })), { title: 'Start a Moki activity with this file' });
+      if (!activity) return;
+      const note = await vscode.window.showInputBox({ title: 'Moki activity', prompt: 'What should the AI do with this file?', ignoreFocusOut: true });
+      if (note === undefined) return;
+      if (companion?.project !== project || folder() !== targetFolder) { void vscode.window.showWarningMessage('The project or folder changed. Start again.'); return; }
+      const line = editor.selection.isEmpty ? '' : `\nFocus on lines ${editor.selection.start.line + 1}-${editor.selection.end.line + 1}.`;
+      const result = await api('startChat', [{ activity: activity.id, ai: selectedAi(), requestId: randomBytes(16).toString('hex'),
+        note: note + line, context: [`${LINKED}/${rel.split('\\').join('/')}`], language: vscode.env.language.startsWith('pt') ? 'Portuguese (pt-BR)' : 'English' }]);
+      if (!result.ok) void vscode.window.showErrorMessage(result.error);
+      else void vscode.window.showInformationMessage((result.value as { message: string }).message);
+    }),
     // <scheme>://orsi88.moki/open?project=<id>: the desktop app's "Moki in your IDE" right after installing. Shows
     // Moki's view, so its icon is there to use, and picks that project when the active workspace has it.
     vscode.window.registerUriHandler({
