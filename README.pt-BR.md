@@ -26,7 +26,9 @@ Ele trabalha com a IA que você já usa: Claude Code, Codex, Gemini, Cursor, Ant
 - Use tags para compartilhar contexto selecionado entre projetos, mantendo o isolamento.
 - Retome o trabalho a partir dos arquivos e do estado registrados em cada execução.
 - Mescle um projeto em outro quando os dois forem um só: nada é sobrescrito, e títulos de notas, links, comentários e tags acompanham.
-- Mova arquivos e pastas na árvore arrastando, ou use Ctrl+clique para mover ou excluir vários de uma vez.
+- Mova arquivos e pastas na árvore arrastando, ou use Ctrl+clique para mover ou excluir vários de uma vez; um arquivo entregue pode sair de Entregas depois que a atividade dele terminou.
+- Abra uma pasta com mais de 20 arquivos como visão de pasta: lista com nome, data, tipo e tamanho, ou grade de miniaturas, com busca; pastas com dezenas de milhares de arquivos abrem na hora.
+- Veja imagens e vídeos em tamanho grande sem abrir uma aba, passando pela pasta com as setas; os vídeos tocam ali, e uma imagem pode ser copiada para colar numa nota ou documento.
 
 ### Notas e assistentes rápidos
 
@@ -60,7 +62,7 @@ Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias ativid
 
 Abra o **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**. Cada conversa tem sua própria aba, com Claude Code ou Codex (ChatGPT), histórico com busca e acesso aos arquivos, às skills e aos MCPs do projeto. **Chamar… › No chat** inicia o pedido em uma conversa nova; **Só chamar** abre a IA com o contexto do projeto, sem atividade.
 
-As respostas permitem seções organizadas, cartões, diagramas, gráficos, escolhas e aprovações clicáveis. Imagens geradas aparecem junto do trecho relacionado, e arquivos e artefatos do Claude abrem a partir da conversa. Anexe material por colar, arrastar ou `@`. Escolha o modelo no topo de cada conversa e gerencie várias contas de IA em **Configurações › Minhas IAs**. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
+As respostas permitem seções organizadas, cartões, diagramas, gráficos, escolhas e aprovações clicáveis. Imagens geradas aparecem junto do trecho relacionado e ficam com a conversa até você salvar uma em Entregas com um clique; arquivos e artefatos do Claude abrem a partir da conversa. Anexe material por colar, arrastar ou `@`. Escolha o modelo no topo de cada conversa e gerencie várias contas de IA em **Configurações › Minhas IAs**. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
 
 ### Documentos, PDFs e diagramas
 

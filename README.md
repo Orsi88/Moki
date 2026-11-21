@@ -26,7 +26,9 @@ Moki works with the AI you already use: Claude Code, Codex, Gemini, Cursor, Anti
 - Use tags to share selected context between projects while keeping projects isolated.
 - Resume work from the files and state recorded by each run.
 - Merge a project into another when two turn out to be one: nothing is overwritten, and note titles, links, comments and tags follow.
-- Move files and folders in the tree by dragging them, or Ctrl+click several to move or delete them together.
+- Move files and folders in the tree by dragging them, or Ctrl+click several to move or delete them together; a delivered file can be moved out of Deliveries once its activity has finished.
+- Open a folder with more than 20 files as a folder view: a list with name, date, type and size, or a grid of thumbnails, with search; folders of tens of thousands of files open at once.
+- See pictures and videos large without opening a tab, going through the folder with the arrows; videos play there, and a picture can be copied to paste into a note or document.
 
 ### Notes and quick assistants
 
@@ -60,7 +62,7 @@ You can use the built-in workflows or create your own activities, skills and age
 
 Open the project's **Chat** with the ribbon icon or **Ctrl+L**. Each conversation has its own tab, with Claude Code or Codex (ChatGPT), searchable history and access to the project's files, skills and MCP tools. **Call… › In the chat** starts the request in a new conversation; **Just call** opens the AI with the project context and no activity.
 
-Answers support organized sections, cards, diagrams, charts, clickable choices and approvals. Generated pictures appear beside the relevant passage, and files and Claude artifacts open from the conversation. Attach material by paste, drop or `@`. Choose each conversation's model at the top, and manage multiple AI accounts in **Settings › My AIs**. See [AI terminals and project chat](docs/ai-terminals.md).
+Answers support organized sections, cards, diagrams, charts, clickable choices and approvals. Generated pictures appear beside the relevant passage and stay with the conversation until you save one to Deliveries with one click; files and Claude artifacts open from the conversation. Attach material by paste, drop or `@`. Choose each conversation's model at the top, and manage multiple AI accounts in **Settings › My AIs**. See [AI terminals and project chat](docs/ai-terminals.md).
 
 ### Documents, PDFs and diagrams
 
