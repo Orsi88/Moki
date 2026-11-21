@@ -2,7 +2,7 @@
   "name": "moki",
   "displayName": "Moki",
   "description": "Bring your project's context, agents, activities and MCP tools into your IDE, with separate AI conversations and clear connection diagnostics.",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "publisher": "orsi88",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/Orsi88/moki" },
