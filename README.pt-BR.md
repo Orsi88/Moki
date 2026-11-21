@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.5/Moki.Setup.0.7.5.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.6/Moki.Setup.0.7.6.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
@@ -100,9 +100,9 @@ O Moki inclui fluxos prontos para qualidade de software, requisitos, pesquisa, d
 
 ## Instalação
 
-1. Baixe o [Moki.Setup.0.7.5.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.5/Moki.Setup.0.7.5.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Baixe o [Moki.Setup.0.7.6.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.6/Moki.Setup.0.7.6.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Instale pelo menos uma ferramenta de IA que você queira usar.
-3. Para o VS Code, baixe o [moki-0.7.5.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.5/moki-0.7.5.vsix) e instale com `code --install-extension moki-0.7.5.vsix`.
+3. Para o VS Code, baixe o [moki-0.7.6.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.6/moki-0.7.6.vsix) e instale com `code --install-extension moki-0.7.6.vsix`.
 
 Por padrão, seus projetos ficam em **Documentos\Moki**. Um instalador mais novo atualiza o app sem mexer nos seus workspaces. Para macOS, Linux e execução a partir do código, veja [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 
