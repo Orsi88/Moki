@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.3/Moki.Setup.0.7.3.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe"><b>⬇️ Baixar o Moki para Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentação</a>
 </p>
@@ -58,7 +58,9 @@ Você pode usar os fluxos que já vêm com o Moki ou criar suas próprias ativid
 
 ### Chat do projeto
 
-Abra o **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**; cada conversa tem a sua aba (**+ › Chats** abre outra, com Claude ou ChatGPT), e o histórico tem busca. O chat usa o Claude Code ou o Codex (ChatGPT) instalado, com acesso direto aos arquivos, às skills e aos MCPs do projeto, e um artefato do Claude que ele indicar (apresentação, planilha ou página) abre dentro da própria aba. **Chamar… › No chat** envia o pedido na hora, numa conversa nova; **Só chamar** abre a IA com o contexto do projeto, sem atividade. As respostas ficam no nível dos apps de IA: imagens e arquivos que a IA criou aparecem na conversa, gráficos com os dados, escolhas e aprovações clicáveis, anexos por colar, arrastar ou `@`. Escolha o modelo de cada conversa no topo do chat. Cada IA pode ter várias contas (Configurações › Minhas IAs), trocadas com um clique. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
+Abra o **Chat** do projeto pelo ícone na barra ou por **Ctrl+L**. Cada conversa tem sua própria aba, com Claude Code ou Codex (ChatGPT), histórico com busca e acesso aos arquivos, às skills e aos MCPs do projeto. **Chamar… › No chat** inicia o pedido em uma conversa nova; **Só chamar** abre a IA com o contexto do projeto, sem atividade.
+
+As respostas permitem seções organizadas, cartões, diagramas, gráficos, escolhas e aprovações clicáveis. Imagens geradas aparecem junto do trecho relacionado, e arquivos e artefatos do Claude abrem a partir da conversa. Anexe material por colar, arrastar ou `@`. Escolha o modelo no topo de cada conversa e gerencie várias contas de IA em **Configurações › Minhas IAs**. Veja [Terminais de IA e chat do projeto](docs/pt-BR/ai-terminals.md).
 
 ### Documentos, PDFs e diagramas
 
@@ -78,6 +80,7 @@ O Moki também é um espaço para ler, editar e revisar o material com que a IA 
 - Veja o que é novo, mudou ou sumiu, com uma referência que só é substituída por uma verificação completa bem-sucedida.
 - Receba o resultado como notificação, compare a versão antiga e a nova num relatório e inicie dali a atividade de atualização quando estiver pronto.
 - Conecte ferramentas do projeto por MCP, incluindo navegadores, trackers e outros serviços externos.
+- Ative o plugin opcional **codegraph** por projeto para entregar à IA um índice local do código da pasta vinculada, com telemetria desligada; ele exige instalação separada. Veja [Configurações](docs/pt-BR/settings.md).
 - Use o mesmo contexto, agentes, skills e servidores MCP pelo [Moki na IDE](docs/pt-BR/ide.md): escolha o que a IA lê, confira as conexões MCP e inicie agentes nativos compatíveis em uma aba de chat separada.
 
 ### Fluxos para vários tipos de trabalho
@@ -94,9 +97,9 @@ O Moki inclui fluxos prontos para qualidade de software, requisitos, pesquisa, d
 
 ## Instalação
 
-1. Baixe o [Moki.Setup.0.7.3.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.3/Moki.Setup.0.7.3.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Baixe o [Moki.Setup.0.7.4.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe) (ou o arquivo mais recente em [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Instale pelo menos uma ferramenta de IA que você queira usar.
-3. Para o VS Code, baixe o [moki-0.7.3.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.3/moki-0.7.3.vsix) e instale com `code --install-extension moki-0.7.3.vsix`.
+3. Para o VS Code, baixe o [moki-0.7.4.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.4/moki-0.7.4.vsix) e instale com `code --install-extension moki-0.7.4.vsix`.
 
 Por padrão, seus projetos ficam em **Documentos\Moki**. Um instalador mais novo atualiza o app sem mexer nos seus workspaces. Para macOS, Linux e execução a partir do código, veja [Primeiros passos](https://github.com/Orsi88/moki/wiki/Primeiros-passos).
 

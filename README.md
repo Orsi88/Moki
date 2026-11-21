@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.3/Moki.Setup.0.7.3.exe"><b>⬇️ Download Moki for Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe"><b>⬇️ Download Moki for Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
@@ -58,7 +58,9 @@ You can use the built-in workflows or create your own activities, skills and age
 
 ### Project chat
 
-Open the project's **Chat** with the ribbon icon or **Ctrl+L**; each conversation has its own tab (**+ › Chats** opens another, with Claude or ChatGPT), and the history is searchable. The chat runs your installed Claude Code or Codex (ChatGPT) with direct access to the project's files, skills and MCP tools, and a Claude artifact it links (a presentation, spreadsheet or page) opens inside the tab. **Call… › In the chat** sends the request at once, in a new conversation; **Just call** opens the AI with the project context and no activity. Answers read like the AI apps: pictures and files the AI made show in the conversation, charts with their data, clickable choices and approvals, attachments by paste, drop or `@`. Choose the model of each conversation at the top of the chat. Each AI can have several accounts (Settings › My AIs), switched in one click. See [AI terminals and project chat](docs/ai-terminals.md).
+Open the project's **Chat** with the ribbon icon or **Ctrl+L**. Each conversation has its own tab, with Claude Code or Codex (ChatGPT), searchable history and access to the project's files, skills and MCP tools. **Call… › In the chat** starts the request in a new conversation; **Just call** opens the AI with the project context and no activity.
+
+Answers support organized sections, cards, diagrams, charts, clickable choices and approvals. Generated pictures appear beside the relevant passage, and files and Claude artifacts open from the conversation. Attach material by paste, drop or `@`. Choose each conversation's model at the top, and manage multiple AI accounts in **Settings › My AIs**. See [AI terminals and project chat](docs/ai-terminals.md).
 
 ### Documents, PDFs and diagrams
 
@@ -78,6 +80,7 @@ Moki is also a workspace for reading, editing and reviewing the material your AI
 - See what is new, changed or gone, with a baseline that is replaced only by a successful complete check.
 - Review the result as a notification, compare the old and new versions in a report and start the update activity from it when you are ready.
 - Connect project tools through MCP, including browsers, trackers and other external services.
+- Enable the optional **codegraph** plugin per project to give the AI a local index of its linked code folder, with telemetry off; it requires a separate installation. See [Settings](docs/settings.md).
 - Use the same project context, agents, skills and MCP servers through [Moki in the IDE](docs/ide.md): choose what the AI reads, check its MCP connections and start supported native agents in a separate chat tab.
 
 ### Workflows for many kinds of work
@@ -94,9 +97,9 @@ Moki includes ready-made workflows for software quality, requirements, research,
 
 ## Install
 
-1. Download [Moki.Setup.0.7.3.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.3/Moki.Setup.0.7.3.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Download [Moki.Setup.0.7.4.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Install at least one AI tool you want to use.
-3. For VS Code, download [moki-0.7.3.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.3/moki-0.7.3.vsix) and install it with `code --install-extension moki-0.7.3.vsix`.
+3. For VS Code, download [moki-0.7.4.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.4/moki-0.7.4.vsix) and install it with `code --install-extension moki-0.7.4.vsix`.
 
 Your projects live in **Documents\Moki** by default. A newer installer refreshes the app without touching your workspaces. For macOS, Linux and running from source, see [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 

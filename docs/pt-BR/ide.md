@@ -37,10 +37,10 @@ Cadastrar uma ferramenta no Moki, em vez de direto na IDE, faz com que os agente
 
 **Pelo app desktop.** O ícone de gato acima de **Nova nota**, na barra fixa, abre **Moki na sua IDE**. Escolha um editor instalado e pressione **Abrir**: o Moki instala ou atualiza a extensão quando necessário confere se o editor realmente lista a extensão, abre a pasta ligada do projeto (ou a pasta do framework) e mostra ali a view do Moki com esse projeto escolhido (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` no Cursor). Uma janela do editor que já estava aberta só carrega uma extensão recém-instalada depois de **Developer: Reload Window**; o diálogo avisa. O X fecha a janela. O mesmo instalador fica em **Configurações › Minhas IAs › Instalar a extensão do Moki e abrir**, no cartão do VS Code, instala a extensão da versão do app (baixada da release e conferida por SHA-256) e abre o VS Code na pasta ligada do projeto. O cartão do Cursor faz o mesmo, marcado como *Não verificado*. O VS Code abre uma pasta em que você ainda não confiou no Modo Restrito, em que a extensão do Moki fica desligada: responda "Sim, confio nos autores" (ou use **Workspaces: Manage Workspace Trust**) e o ícone do Moki aparece na Activity Bar.
 
-**Pela release.** Baixe o [moki-0.7.3.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.3/moki-0.7.3.vsix) e rode:
+**Pela release.** Baixe o [moki-0.7.4.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.4/moki-0.7.4.vsix) e rode:
 
 ```bash
-code --install-extension moki-0.7.3.vsix --force
+code --install-extension moki-0.7.4.vsix --force
 ```
 
 **A partir do código.** Na raiz do repositório:
