@@ -34,7 +34,7 @@ Cadastrar uma ferramenta no Moki, em vez de direto na IDE, faz com que os agente
 
 ## Instalação
 
-**Pelo app desktop.** O ícone de gato acima de **Nova nota**, na barra fixa, abre **Moki na sua IDE**. Escolha um editor instalado e pressione **Abrir**: o Moki instala ou atualiza a extensão quando necessário confere se o editor realmente lista a extensão, abre a pasta ligada do projeto (ou a pasta do framework) e mostra ali a view do Moki com esse projeto escolhido (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` no Cursor). Uma janela do editor que já estava aberta só carrega uma extensão recém-instalada depois de **Developer: Reload Window**; o diálogo avisa. O X fecha a janela. O mesmo instalador fica em **Configurações › Minhas IAs › Instalar a extensão do Moki e abrir**, no cartão do VS Code, instala a extensão da versão do app (baixada da release e conferida por SHA-256) e abre o VS Code na pasta ligada do projeto. O cartão do Cursor faz o mesmo, marcado como *Não verificado*.
+**Pelo app desktop.** O ícone de gato acima de **Nova nota**, na barra fixa, abre **Moki na sua IDE**. Escolha um editor instalado e pressione **Abrir**: o Moki instala ou atualiza a extensão quando necessário confere se o editor realmente lista a extensão, abre a pasta ligada do projeto (ou a pasta do framework) e mostra ali a view do Moki com esse projeto escolhido (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` no Cursor). Uma janela do editor que já estava aberta só carrega uma extensão recém-instalada depois de **Developer: Reload Window**; o diálogo avisa. O X fecha a janela. O mesmo instalador fica em **Configurações › Minhas IAs › Instalar a extensão do Moki e abrir**, no cartão do VS Code, instala a extensão da versão do app (baixada da release e conferida por SHA-256) e abre o VS Code na pasta ligada do projeto. O cartão do Cursor faz o mesmo, marcado como *Não verificado*. O VS Code abre uma pasta em que você ainda não confiou no Modo Restrito, em que a extensão do Moki fica desligada: responda "Sim, confio nos autores" (ou use **Workspaces: Manage Workspace Trust**) e o ícone do Moki aparece na Activity Bar.
 
 **Pela release.** Baixe o [moki-0.7.3.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.3/moki-0.7.3.vsix) e rode:
 
@@ -54,7 +54,7 @@ Depois rode **Developer: Reload Window** no VS Code. Reinstale do mesmo jeito a 
 
 **Sem instalar (desenvolvimento).** `npm run vscode:build` e depois `code --extensionDevelopmentPath="$PWD/ide/vscode"`. Nesse modo a extensão usa o próprio repositório em vez de `<Documentos>/Moki`.
 
-**O que acontece na primeira vez.** A extensão e o app desktop compartilham o framework instalado e os workspaces. O framework normalmente fica em `<Documentos>/Moki` ou na pasta indicada por `QA_ROOT`. Se esse local estiver em um checkout Git, os arquivos do framework instalado vão para o diretório de dados do aplicativo e os workspaces permanecem nos caminhos originais. A extensão abre o workspace que estava **ativo no app** quando o VS Code iniciou. O ícone do Moki (o gato) aparece na barra de atividades e **Moki: …** na barra de status.
+**O que acontece na primeira vez.** A extensão e o app desktop compartilham o framework instalado e os workspaces. O framework normalmente fica em `<Documentos>/Moki` ou na pasta indicada por `QA_ROOT`. Se esse local estiver em um checkout Git, os arquivos do framework instalado vão para o diretório de dados do aplicativo e os workspaces permanecem nos caminhos originais. A extensão abre o workspace que está **ativo no app**; uma janela já aberta o acompanha quando recebe um pedido do app ou em **Refresh**. O ícone do Moki (o gato) aparece na barra de atividades e **Moki: …** na barra de status.
 
 ## Configuração
 
@@ -177,8 +177,8 @@ As mensagens da extensão aparecem em inglês.
 | O painel mostra um erro de carregamento e **Tentar de novo** | A extensão não conseguiu ler o estado inicial ou atualizá-lo, ou não respondeu em 30 segundos | Leia o erro, resolva a causa informada e use **Tentar de novo**. A falha inicial substitui *Carregando…*; uma falha ao atualizar mantém o último projeto carregado visível |
 | Barra de status **Moki: no project**; painel *Esta pasta não está vinculada a um projeto do Moki* | A pasta aberta não está ligada a nenhum projeto | Escolha um projeto no painel, ou ligue a pasta no app (**Escolher minha pasta**) |
 | **Moki: choose a project** | A pasta está ligada a mais de um projeto | Escolha um; a escolha fica guardada para este workspace do VS Code |
-| *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo quando o VS Code iniciou | Crie um projeto no app, ou deixe o workspace certo ativo no app e rode **Reload Window** |
-| Os projetos listados são de outro workspace | A extensão abre o workspace ativo no app quando o VS Code inicia | Troque o workspace no app e rode **Reload Window** |
+| *There are no projects in the active workspace* | O workspace ativo no app não tem projetos, ou outro workspace estava ativo | Crie um projeto no app, ou deixe o workspace certo ativo no app e rode **Refresh** |
+| Os projetos listados são de outro workspace | A janela acompanha o workspace ativo no app quando recebe um pedido ou em **Refresh** | Troque o workspace no app e rode **Refresh** |
 | *Choose the Moki project of this folder first.* | Um comando foi rodado sem projeto escolhido | Escolha o projeto e rode de novo |
 | *Open a folder in the IDE first.* (Conectar ao Claude Code) | O VS Code não tem pasta aberta, então não há onde gravar o `.mcp.json` | Abra a pasta do sistema |
 | O chat do Claude Code não enxerga o Moki | O `.mcp.json` nunca foi gravado, ou foi gravado antes de os servidores mudarem | **Conectar ao Claude Code** e abrir uma sessão nova do Claude Code |
@@ -219,6 +219,6 @@ As mensagens da extensão aparecem em inglês.
 
 - Um projeto por janela do VS Code de cada vez.
 - Projetos, servidores MCP, agentes e operações são criados e editados no app; a IDE usa.
-- O workspace é escolhido quando o VS Code inicia (o que está ativo no app).
+- O workspace é o que está ativo no app; uma janela aberta o acompanha em um pedido do app ou em **Refresh**.
 - O `.mcp.json` é uma foto: conecte de novo depois de mudar servidores ou projeto.
 - A extensão é feita e testada para o VS Code. Editores baseados nele (Cursor e outros) podem instalá-la, mas isso não foi verificado.

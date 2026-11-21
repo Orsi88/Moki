@@ -28,7 +28,7 @@ interface Props {
   tools: ToolInfo[];
   version: string;
   onOpen: (id: string) => void;
-  onCreate: (name: string, starter: Starter, tags?: string[], setup?: boolean, folder?: string) => Promise<void>; // setup: open with "Set up"; folder: link it
+  onCreate: (name: string, starter: Starter, tags?: string[], setup?: boolean, folder?: string, plugins?: string[]) => Promise<void>; // setup: open with "Set up"; folder: link it
   settings: SettingsTab | null;
   onSettings: (tab: SettingsTab | null) => void;
   onBack?: () => void;
@@ -69,6 +69,7 @@ export function Home({ offer, onOffer, newNote = 0, projects, tools, version, on
   const [quick, setQuick] = useState(false); // "Create a new project": its name field, open
   const [name, setName] = useState('');
   const [folder, setFolder] = useState(''); // from "Open a project": the folder the new project links
+  const [codeIndex, setCodeIndex] = useState(false); // with a folder: turn the codegraph plugin on for the new project
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [pins, setPins] = useState<string[]>(pinnedIds);
@@ -217,7 +218,7 @@ export function Home({ offer, onOffer, newNote = 0, projects, tools, version, on
   const submitQuick = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError('');
-    try { await onCreate(name, 'minimal', [], false, folder || undefined); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
+    try { await onCreate(name, 'minimal', [], false, folder || undefined, codeIndex && folder ? ['codegraph'] : []); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
   };
   // A folder with a project opens it; a new folder asks the project's name, the folder's as a suggestion.
   const openFolder = () => {
@@ -233,7 +234,7 @@ export function Home({ offer, onOffer, newNote = 0, projects, tools, version, on
     if ('error' in offer) setError(offer.error); else { setFolder(offer.folder); setName(offer.name); setQuick(true); }
     onOffer?.();
   }, [offer, onOffer]);
-  const closeQuick = () => { setQuick(false); setName(''); setFolder(''); setError(''); };
+  const closeQuick = () => { setQuick(false); setName(''); setFolder(''); setCodeIndex(false); setError(''); };
   const collapsed = (id: HomeSectionId) => sections.collapsed.includes(id);
   const toggleSection = (id: HomeSectionId) => {
     const current = sectionsRef.current;
@@ -514,6 +515,10 @@ ${workspace.path}`}>
                     <span className="label">{t('Folder')}</span>
                     <code className="small quick-project-folder">{folder}</code>
                     <span className="muted small">{t('Its files stay where they are and show in the project. Its AI settings (.claude, AGENTS.md…) are backed up inside it, in .moki-backup/.')}</span>
+                    <label className="check-chip">
+                      <input type="checkbox" checked={codeIndex} disabled={busy} onChange={(e) => setCodeIndex(e.target.checked)} />
+                      <span>{t('Index the code with codegraph (the AI looks up symbols and callers)')}</span>
+                    </label>
                   </div>
                 )}
                 {error && <p className="error small">{error}</p>}

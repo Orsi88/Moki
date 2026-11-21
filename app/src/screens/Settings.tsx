@@ -133,7 +133,7 @@ export function Settings({ tab, onTab, onClose, onBack, backLabel, project, proj
                   <p className="muted">{t('Describe an agent in your own words and choose which installed skills it may use.')}</p>
                   <div className="field">
                     <span className="label">{t('Create for')}</span>
-                    <div className="choice-grid scope-grid">
+                    <div className="choice-grid">
                       {([
                         ['project', target.repository ? t('This repository only') : t('This project only'), target.repository ? `${target.repository}/.claude/agents` : target.name],
                         ['global', t('All projects'), t('your user folder (~/.claude/agents)')],

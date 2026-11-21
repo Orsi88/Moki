@@ -84,7 +84,7 @@ export function AiToolsPage({ tools, project, onTerminal, onToolsChanged }: Prop
     setBusy(tool.id); setError(''); setInfo('');
     try {
       const r = await api.installMokiExtension(tool.id, project?.id);
-      setInfo(`${t('Moki extension {version} installed in {tool}. It opened on {folder}.', { version: r.version || version, tool: toolName(tool), folder: r.folder })} ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: toolName(tool) })}`);
+      setInfo(`${t('Moki extension {version} installed in {tool}. It opened on {folder}.', { version: r.version || version, tool: toolName(tool), folder: r.folder })} ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: toolName(tool) })} ${t('If it asks whether you trust the authors of this folder, choose “Yes, I trust the authors”: the Moki extension does not run in Restricted Mode.')}`);
       check();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   };

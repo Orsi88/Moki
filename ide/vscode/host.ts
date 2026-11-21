@@ -13,10 +13,10 @@ import * as vscode from 'vscode';
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { ROOT, workspaceDir } from '../../scripts/lib/repo.mjs';
 import { TOOLS, linkedFolder, listProjects, projectSummary, projectsDir, which } from '../../scripts/lib/core.ts';
-import { setWorkspaceEnv } from '../../desktop/workspaces.ts';
+import { activeWorkspace, setWorkspaceEnv } from '../../desktop/workspaces.ts';
 import { createService } from '../../desktop/service.ts';
 import { launchInTerminal, launchTool, openFolder } from '../../desktop/launcher.ts';
 import type { TermSpec } from '../../desktop/terminals.ts';
@@ -118,6 +118,9 @@ export function start(context: vscode.ExtensionContext): void {
 
   // A project chosen for this VS Code workspace wins while it exists; otherwise the one linked to the folder.
   const resolveProject = (): void => {
+    // The desktop app may have switched workspaces since this window started.
+    const active = activeWorkspace(ROOT);
+    if (resolve(workspaceDir(ROOT)) !== resolve(active.path)) { service.selectWorkspace(active.id); companion = null; watch(null); }
     candidates = [...new Set(folders().flatMap((f) => projectsForFolder(ROOT, f)))];
     const picked = context.workspaceState.get<string>(PICKED);
     if (picked && listProjects(ROOT).includes(picked)) use(picked);
@@ -253,6 +256,7 @@ export function start(context: vscode.ExtensionContext): void {
     vscode.window.registerUriHandler({
       handleUri: (uri) => {
         if (uri.path !== '/open') return;
+        resolveProject(); // the app may have switched workspaces since this window started
         const project = new URLSearchParams(uri.query).get('project');
         if (project && listProjects(ROOT).includes(project)) pick(project);
         void vscode.commands.executeCommand('workbench.view.extension.moki');

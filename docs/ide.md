@@ -32,7 +32,7 @@ Registering a tool in Moki instead of directly in the IDE means the agents, the 
 
 ## Install
 
-**From the desktop app.** The cat icon above **New note** on the fixed rail opens **Moki in your IDE**. Choose an installed editor and press **Open**: Moki installs or updates its extension only when needed, checks that the editor really lists it, then opens the project’s linked folder (or the framework folder) and shows Moki’s view there with that project chosen (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` in Cursor). A window of the editor that was already open loads a newly installed extension only after **Developer: Reload Window**; the dialog says so. Close with the X. The same installer is available in **Settings › My AIs › Install the Moki extension and open** on the VS Code card installs the extension of the app's version (downloaded from its release and checked by SHA-256) and opens VS Code on the project's linked folder. The Cursor card does the same, marked *Not verified*.
+**From the desktop app.** The cat icon above **New note** on the fixed rail opens **Moki in your IDE**. Choose an installed editor and press **Open**: Moki installs or updates its extension only when needed, checks that the editor really lists it, then opens the project’s linked folder (or the framework folder) and shows Moki’s view there with that project chosen (`vscode://orsi88.moki/open?project=<id>`, `cursor://…` in Cursor). A window of the editor that was already open loads a newly installed extension only after **Developer: Reload Window**; the dialog says so. Close with the X. The same installer is available in **Settings › My AIs › Install the Moki extension and open** on the VS Code card installs the extension of the app's version (downloaded from its release and checked by SHA-256) and opens VS Code on the project's linked folder. The Cursor card does the same, marked *Not verified*. VS Code opens a folder you have not trusted yet in Restricted Mode, where the Moki extension stays off: answer "Yes, I trust the authors" (or run **Workspaces: Manage Workspace Trust**) and the Moki icon appears in the Activity Bar.
 
 **From the release.** Download [moki-0.7.3.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.3/moki-0.7.3.vsix), then:
 
@@ -52,7 +52,7 @@ Then run **Developer: Reload Window** in VS Code. Reinstall the same way after e
 
 **Without installing (development).** `npm run vscode:build`, then `code --extensionDevelopmentPath="$PWD/ide/vscode"`. In this mode the extension uses the repository itself instead of `<Documents>/Moki`.
 
-**What happens on the first start.** The extension and the desktop app share the installed framework and workspaces. The framework normally lives in `<Documents>/Moki` or the `QA_ROOT` override. If that location is in a Git checkout, installed framework files go to the user's application data directory and the workspaces stay at their original paths. The extension opens the workspace that was **active in the app** when VS Code started. A Moki icon (the cat) appears in the activity bar and **Moki: …** in the status bar.
+**What happens on the first start.** The extension and the desktop app share the installed framework and workspaces. The framework normally lives in `<Documents>/Moki` or the `QA_ROOT` override. If that location is in a Git checkout, installed framework files go to the user's application data directory and the workspaces stay at their original paths. The extension opens the workspace that is **active in the app**; a window that is already open follows it when it receives a request from the app or on **Refresh**. A Moki icon (the cat) appears in the activity bar and **Moki: …** in the status bar.
 
 ## Configure
 
@@ -173,8 +173,8 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 | The panel shows a loading error and **Try again** | The extension could not read its initial state or refresh it, or did not answer within 30 seconds | Read the error, address the reported cause and choose **Try again**. A failed initial read replaces *Loading…*; a failed refresh keeps the last loaded project visible |
 | Status bar **Moki: no project**; panel *This folder is not linked to a Moki project* | The open folder is not linked to any project | Choose a project in the panel, or link the folder in the app (**Choose my folder**) |
 | **Moki: choose a project** | The folder is linked to more than one project | Choose one; the choice is kept for this VS Code workspace |
-| *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active when VS Code started | Create a project in the app, or make the right workspace active in the app and **Reload Window** |
-| The projects listed are from another workspace | The extension opens the workspace active in the app when VS Code started | Switch the workspace in the app, then **Reload Window** |
+| *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active | Create a project in the app, or make the right workspace active in the app and run **Refresh** |
+| The projects listed are from another workspace | The window follows the workspace active in the app when it receives a request or on **Refresh** | Switch the workspace in the app, then run **Refresh** |
 | *Choose the Moki project of this folder first.* | A command was run with no project chosen | Choose the project, then run it again |
 | *Open a folder in the IDE first.* (Connect Claude Code) | VS Code has no folder open, so there is no place for `.mcp.json` | Open the system's folder |
 | The Claude Code chat does not see Moki | `.mcp.json` was never written, or was written before the servers changed | **Connect Claude Code**, then start a new Claude Code session |
@@ -215,6 +215,6 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 
 - One project per VS Code window at a time.
 - Projects, MCP servers, agents and operations are created and edited in the app; the IDE uses them.
-- The workspace is chosen when VS Code starts (the one active in the app).
+- The workspace is the one active in the app; an open window follows it on a request from the app or on **Refresh**.
 - `.mcp.json` is a snapshot: connect again after changing servers or project.
 - The extension is built and tested for VS Code. Editors based on VS Code (Cursor and others) may install it, but that has not been verified.

@@ -1,0 +1,12 @@
+{
+  "name": "codegraph",
+  "version": "1.0.0",
+  "description": "CodeGraph MCP server (codegraph_explore) for the project's linked folder. Needs the codegraph CLI installed.",
+  "mcpServers": {
+    "codegraph": {
+      "command": "codegraph",
+      "args": ["serve", "--mcp", "--no-telemetry"],
+      "env": { "CODEGRAPH_TELEMETRY": "0", "DO_NOT_TRACK": "1" }
+    }
+  }
+}

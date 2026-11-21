@@ -137,7 +137,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.01em; }
 p { margin: 0 0 8px; }
 button { font: inherit; color: inherit; }
 code, pre, .editor, .prompt-text { font-family: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; }
-code { font-size: 0.88em; }
+code { font-size: 0.88em; overflow-wrap: break-word; }
 .muted { color: var(--muted); }
 .small { font-size: 0.86rem; }
 .error { color: var(--err); }
@@ -928,7 +928,7 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .step legend { float: left; padding: 0; display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .step-head + * { clear: both; }
 .step-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 0.78rem; font-weight: 700; }
-.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; }
 .choice { position: relative; display: flex; flex-direction: column; gap: 1px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
 .choice:hover { border-color: var(--accent); }
 .choice.on { border-color: var(--accent); background: var(--accent-soft); }
@@ -936,8 +936,8 @@ fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .choice.disabled:hover { border-color: var(--border); }
 .choice input { position: absolute; opacity: 0; pointer-events: none; }
 .choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.choice-title { font-weight: 600; font-size: 0.9rem; }
-.choice-hint { font-size: 0.78rem; color: var(--muted); }
+.choice-title { font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; }
+.choice-hint { font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
 /* A page header with more than one action keeps them together at its right. */
 .list-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 /* Accounts of each AI (AiAccounts): Settings › My AIs, full width like the AI grid, and the quick switch in Usage. */
@@ -1306,11 +1306,11 @@ body.resizing-rows, body.resizing-rows * { cursor: row-resize !important; user-s
 .ops-run.docked { align-self: stretch; width: auto; height: 100%; margin: 0 360px 0 0; padding: 24px 24px 40px; overflow: auto; }
 .ops-run.docked .ops-run-split { grid-template-columns: minmax(0, 1fr); }
 .ops-run.docked .ops-run-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 360px; max-height: none; border: 0; border-left: 1px solid var(--border); border-radius: 0; padding: 18px 18px 32px; background: var(--bg-2); }
-.scope-grid { flex: 1; }
 .skill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .skill-list.loading { opacity: 0.5; }
 .skill-card { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
 .skill-card-head { display: flex; align-items: baseline; gap: 8px; }
+.skill-card-head > code { min-width: 0; overflow-wrap: anywhere; }
 .skill-desc { margin: 4px 0 6px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .skill-card .pill { margin: 0; }
 .pager { display: flex; justify-content: center; align-items: center; gap: 12px; }
@@ -2308,6 +2308,7 @@ span.mcp-row-main { cursor: default; }
 .upload-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 16px; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg-2); color: var(--muted); text-align: center; font-size: 0.86rem; transition: border-color .12s, background .12s; }
 .upload-drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .upload-drop svg { color: var(--accent); }
+.claude-upload > .field { margin-bottom: 12px; }
 .upload-kind { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .upload-kind-head { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .upload-kind-head .btn, .upload-group-head .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }

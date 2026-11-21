@@ -8,7 +8,8 @@
 // the new window (batch files would corrupt accents). macOS/Linux: a small
 // bash script (bash reads UTF-8) opened in the terminal app.
 
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
@@ -49,17 +50,28 @@ export function detached(cmd: string, args: string[], options: { shell?: boolean
   child.unref();
 }
 
+// Whether the person already has the codegraph server in the tool's own config (read-only, only a yes or no).
+function codegraphRegistered(tool: ToolKey, home: string): boolean {
+  try {
+    if (tool === 'claude') return Boolean((JSON.parse(readFileSync(join(home, '.claude.json'), 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers?.codegraph);
+    if (tool === 'codex') return /^\s*\[mcp_servers\.codegraph[\].]/m.test(readFileSync(join(process.env.CODEX_HOME || join(home, '.codex'), 'config.toml'), 'utf8'));
+  } catch { /* no file or not readable: not registered */ }
+  return false;
+}
+
 // Plugins only for the sessions the app opens (adapters/app-plugins/README.md); each is
 // skipped when what it needs is missing. Codex has no per-session plugins, so it gets
 // one line of developer instructions (one line: launcher scripts drop line breaks).
-// `plugins` are the ones the project turned on (project.json plugins: caveman, superpowers).
-export function pluginArgs(tool: ToolKey, root: string, plugins: string[] = []): string[] {
+// `plugins` are the ones the project turned on (project.json plugins: caveman, codegraph, superpowers).
+export function pluginArgs(tool: ToolKey, root: string, plugins: string[] = [], home = homedir()): string[] {
   const node = tool === 'codex' || Boolean(whichFixed('node')); // the Claude hooks run on Node
   const rtk = Boolean(which('rtk'));
+  const codegraph = plugins.includes('codegraph') && Boolean(which('codegraph'));
+  const ownServer = codegraph && !codegraphRegistered(tool, home); // a server the person registered is not loaded twice
   const caveman = node && plugins.includes('caveman');
   const superpowers = plugins.includes('superpowers'); // its hook runs on bash and skips itself without it
   const dir = join(root, 'adapters', 'app-plugins');
-  if (tool === 'claude') return [...(node ? ['ponytail'] : []), ...(rtk ? ['rtk'] : []), ...(caveman ? ['caveman'] : []), ...(superpowers ? ['superpowers'] : [])].flatMap((p) => ['--plugin-dir', join(dir, p)]);
+  if (tool === 'claude') return [...(node ? ['ponytail'] : []), ...(rtk ? ['rtk'] : []), ...(caveman ? ['caveman'] : []), ...(ownServer ? ['codegraph'] : []), ...(superpowers ? ['superpowers'] : [])].flatMap((p) => ['--plugin-dir', join(dir, p)]);
   if (tool !== 'codex') return [];
   // This Codex attaches to a shared daemon that keeps only the servers of the home config.
   // --no-daemon makes this session load the -c servers and instructions itself.
@@ -69,7 +81,10 @@ export function pluginArgs(tool: ToolKey, root: string, plugins: string[] = []):
   if (rtk) lines.push('Run shell commands through rtk to shrink their output (rtk git status, rtk grep, rtk ls...); rtk proxy CMD runs one unfiltered.');
   if (caveman) lines.push(`Caveman mode is active: before every reply, read ${join(dir, 'caveman', 'skills', 'caveman', 'SKILL.md')} and follow it.`);
   if (superpowers) lines.push(`Superpowers skills are active: read ${join(dir, 'superpowers', 'skills', 'using-superpowers', 'SKILL.md')} and follow it; the other skills are in ${join(dir, 'superpowers', 'skills')}.`);
-  return ['--no-daemon', '-c', `developer_instructions=${lines.join(' ')}`];
+  if (codegraph) lines.push('CodeGraph is active: for questions about the code of the linked folder, call codegraph_explore with projectPath set to that folder before reading files.');
+  return ['--no-daemon', '-c', `developer_instructions=${lines.join(' ')}`, ...(ownServer ? [
+    '-c', 'mcp_servers.codegraph.command="codegraph"', '-c', 'mcp_servers.codegraph.args=["serve","--mcp","--no-telemetry"]',
+    '-c', 'mcp_servers.codegraph.env={ CODEGRAPH_TELEMETRY = "0", DO_NOT_TRACK = "1" }'] : [])];
 }
 
 // The command's path. Launching is synchronous, so it cannot wait for the PATH read that runs after the app starts

@@ -425,8 +425,9 @@ if (!app.requestSingleInstanceLock()) {
         return { terminal: { id: terminals.prepare({ file: which('node') ?? process.execPath, args: ['-e', driver], cwd: ROOT, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', QA_FAKE_START: start?.prompt ?? '' }, title: TOOLS[tool].label, tool }), title: TOOLS[tool].label, tool }, ...started };
       }
       const plugins = isProject(project, ROOT) ? projectSummary(project, ROOT).plugins : [];
+      const notice = isProject(project, ROOT) ? service.codegraphPrepare(project) : '';
       const r = launchInTerminal(tool, start?.prompt ?? '', ROOT, terminals.prepare, plugins);
-      return r.terminal ? { terminal: r.terminal, ...started } : { error: r.message };
+      return r.terminal ? { terminal: r.terminal, ...started, ...(notice ? { notice } : {}) } : { error: r.message };
     });
     ipcMain.handle('qa:term-start', (event, id: unknown, cols: unknown, rows: unknown, project: unknown) => {
       if (!trusted(event) || typeof id !== 'string' || !isSize(cols) || !isSize(rows)) return 'Invalid terminal.';

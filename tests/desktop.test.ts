@@ -2750,6 +2750,153 @@ test('app plugins load only in app sessions: Claude by folder, Codex as one line
   }
 });
 
+test('app plugins: codegraph loads only with its command, and not twice when the AI tool already has the server', { skip: process.platform === 'win32' }, () => {
+  const bin = mkdtempSync(join(tmpdir(), 'qa-bin-'));
+  const home = mkdtempSync(join(tmpdir(), 'qa-home-'));
+  const path = process.env.PATH;
+  const codexHome = process.env.CODEX_HOME;
+  process.env.PATH = [bin, ...(path ?? '').split(':').filter((d) => !existsSync(join(d, 'codegraph')))].join(':'); // keeps node; codegraph is the fake one, or none
+  process.env.CODEX_HOME = join(home, '.codex');
+  try {
+    const dir = join('/home/u/qa', 'adapters', 'app-plugins');
+    const plugin = ['--plugin-dir', join(dir, 'codegraph')];
+    const hasPlugin = (args: string[]): boolean => args.some((a, i) => a === plugin[0] && args[i + 1] === plugin[1]);
+    const lines = (args: string[]): string[] => args.filter((a) => a.startsWith('mcp_servers.codegraph.'));
+    // no command: nothing, even when the project turned it on
+    assert.ok(!hasPlugin(pluginArgs('claude', '/home/u/qa', ['codegraph'], home)));
+    assert.doesNotMatch(pluginArgs('codex', '/home/u/qa', ['codegraph'], home)[2], /CodeGraph/);
+    assert.deepEqual(lines(pluginArgs('codex', '/home/u/qa', ['codegraph'], home)), []);
+    // command found, plugin on, nothing registered by the person
+    writeFileSync(join(bin, 'codegraph'), '#!/bin/sh\n', { mode: 0o755 });
+    assert.ok(hasPlugin(pluginArgs('claude', '/home/u/qa', ['codegraph'], home)));
+    assert.ok(!hasPlugin(pluginArgs('claude', '/home/u/qa', [], home)), 'only when the project turned it on');
+    const codex = pluginArgs('codex', '/home/u/qa', ['codegraph'], home);
+    assert.deepEqual(codex.slice(0, 2), ['--no-daemon', '-c']);
+    assert.match(codex[2], /^developer_instructions=.*CodeGraph .*projectPath/);
+    assert.doesNotMatch(codex[2], /["\n%]/);
+    assert.ok(codex.includes('mcp_servers.codegraph.command="codegraph"'));
+    assert.ok(codex.some((a) => a.startsWith('mcp_servers.codegraph.args=') && a.includes('--no-telemetry')));
+    assert.ok(codex.includes('mcp_servers.codegraph.env={ CODEGRAPH_TELEMETRY = "0", DO_NOT_TRACK = "1" }'));
+    assert.deepEqual(pluginArgs('codex', '/home/u/qa', [], home).filter((a) => /codegraph/i.test(a)), []);
+    // the person's own config already has the server: Moki does not load a second one
+    writeFileSync(join(home, '.claude.json'), '{ not json');
+    assert.ok(hasPlugin(pluginArgs('claude', '/home/u/qa', ['codegraph'], home)), 'an unreadable file counts as not registered');
+    writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { other: {} } }));
+    assert.ok(hasPlugin(pluginArgs('claude', '/home/u/qa', ['codegraph'], home)));
+    writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { codegraph: { command: 'codegraph' } } }));
+    assert.ok(!hasPlugin(pluginArgs('claude', '/home/u/qa', ['codegraph'], home)));
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(join(home, '.codex', 'config.toml'), '[mcp_servers.other]\ncommand = "x"\n');
+    assert.ok(lines(pluginArgs('codex', '/home/u/qa', ['codegraph'], home)).length > 0);
+    writeFileSync(join(home, '.codex', 'config.toml'), '[mcp_servers.other]\ncommand = "x"\n\n[mcp_servers.codegraph]\ncommand = "codegraph"\n');
+    const own = pluginArgs('codex', '/home/u/qa', ['codegraph'], home);
+    assert.deepEqual(lines(own), []);
+    assert.match(own[2], /CodeGraph .*projectPath/, 'the instruction stays');
+  } finally {
+    process.env.PATH = path;
+    if (codexHome === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = codexHome;
+    rmSync(bin, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// A project linked to a fresh folder, and a service that records what Moki asks codegraph to do.
+function codegraphFixture(id: string, which: (c: string) => string | null, writeAllowed = true) {
+  createProject(id, id, root);
+  const file = join(root, 'workspace', 'projects', id, 'project.json');
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'qa-repo-')));
+  const link = (allowed = writeAllowed): void => writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), repositories: [{ name: 'app', localPath: repo, writeAllowed: allowed, linkedFolder: true }] }));
+  const calls: { command: string; args: string[]; env?: Record<string, string> }[] = [];
+  const gate = { release: () => {} };
+  const svc = createService(root, {
+    launch: (): LaunchResult => ({ opened: true, message: 'fake' }),
+    openFolder: () => {},
+    openPath: () => {},
+    which,
+    // like `codegraph init`: the index folder appears when it finishes
+    runCommand: async (command, args, _timeout, env) => {
+      calls.push({ command, args, env });
+      await new Promise<void>((done) => { gate.release = done; });
+      mkdirSync(join(repo, '.codegraph'));
+      return '';
+    },
+  });
+  return { svc, repo, link, calls, gate };
+}
+const tick = (): Promise<void> => new Promise((done) => setImmediate(done));
+const messageOf = (r: { opened: boolean }): string | undefined => ('message' in r ? String(r.message) : undefined); // the chat launch has none
+
+test('plugins per project: codegraph needs a linked folder, indexes it once and reaches only that project\'s launches', async () => {
+  const { svc, repo, link, calls, gate } = codegraphFixture('cg1', (c) => (c === 'codegraph' ? '/bin/codegraph' : null));
+  try {
+    assert.throws(() => svc.setProjectPlugins('cg1', ['codegraph']), /link a folder/);
+    link(false);
+    assert.throws(() => svc.setProjectPlugins('cg1', ['codegraph']), /writeAllowed/);
+    assert.deepEqual((await svc.projects()).find((p) => p.id === 'cg1')?.plugins, [], 'nothing saved when refused');
+    link(true);
+    assert.deepEqual(svc.setProjectPlugins('cg1', ['codegraph']).plugins, ['codegraph']);
+    assert.deepEqual(calls, [{ command: 'codegraph', args: ['init', '--local-only', '--yes', repo], env: { CODEGRAPH_TELEMETRY: '0', DO_NOT_TRACK: '1' } }]);
+    svc.setProjectPlugins('cg1', []); // off and on again while the first index is still being built
+    svc.setProjectPlugins('cg1', ['codegraph']);
+    assert.equal(calls.length, 1, 'a folder being indexed is not started twice');
+    gate.release();
+    await tick();
+    assert.ok(existsSync(join(repo, '.codegraph')));
+    assert.match(readFileSync(join(root, 'workspace', 'logs', 'mcp.log'), 'utf8'), /"action":"codegraph-init","project":"cg1","ok":true/);
+    svc.setProjectPlugins('cg1', []);
+    svc.setProjectPlugins('cg1', ['codegraph']);
+    assert.equal(calls.length, 1, 'an existing index is not built again');
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('plugins per project: codegraph without its command is saved, the launch says how to install it, and indexing starts once it is there', async () => {
+  let installed = false;
+  const { svc, repo, link, calls, gate } = codegraphFixture('cg2', (c) => (c === 'codegraph' && installed ? '/bin/codegraph' : null));
+  try {
+    link();
+    assert.deepEqual(svc.setProjectPlugins('cg2', ['codegraph']).plugins, ['codegraph'], 'not installed is not a refusal');
+    assert.equal(calls.length, 0);
+    const open = { project: 'cg2', activity: 'open', tool: 'claude', files: [] as string[], language: 'English', note: '' };
+    const missing = svc.launch(open);
+    assert.equal(missing.opened, true);
+    assert.match(String(messageOf(missing)), /^fake codegraph is not installed, so this session runs without the code index\..*npm i -g @colbymchenry\/codegraph/);
+    assert.equal(calls.length, 0, 'Moki never installs it');
+    installed = true;
+    const found = svc.launch(open);
+    assert.equal(messageOf(found), 'fake');
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].args, ['init', '--local-only', '--yes', repo]);
+    gate.release();
+    await tick();
+    svc.launch(open);
+    assert.equal(calls.length, 1, 'once the index exists the launch does not build it again');
+    svc.setProjectPlugins('cg2', []);
+    installed = false;
+    assert.equal(messageOf(svc.launch(open)), 'fake', 'a project without the plugin gets no notice');
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('plugins per project: codegraphPrepare (the in-app AI terminal) indexes once, returns the install notice when the command is missing, and is silent with the plugin off', async () => {
+  let installed = false;
+  const { svc, repo, link, calls, gate } = codegraphFixture('cg3', (c) => (c === 'codegraph' && installed ? '/bin/codegraph' : null));
+  try {
+    link();
+    assert.equal(svc.codegraphPrepare('cg3'), '', 'plugin off: nothing');
+    svc.setProjectPlugins('cg3', ['codegraph']);
+    assert.match(svc.codegraphPrepare('cg3'), /^codegraph is not installed, so this session runs without the code index\..*npm i -g @colbymchenry\/codegraph/);
+    assert.equal(calls.length, 0, 'Moki never installs it');
+    installed = true;
+    assert.equal(svc.codegraphPrepare('cg3'), '');
+    assert.equal(calls.length, 1);
+    assert.equal(svc.codegraphPrepare('cg3'), '');
+    assert.equal(calls.length, 1, 'a folder being indexed is not started twice');
+    gate.release();
+    await tick();
+    assert.equal(svc.codegraphPrepare('cg3'), '');
+    assert.equal(calls.length, 1, 'an existing index is not built again');
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
 test('launcher keeps user text out of any shell command line', () => {
   const sh = scriptFor('gemini', ['-i', "it's $(rm -rf ~) `x` ação"], '/home/u/qa', 'QA');
   assert.ok(sh.split('\n').includes("cd '/home/u/qa' || exit 1"));
