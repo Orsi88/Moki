@@ -3,6 +3,8 @@ name: framework-checks
 on:
   push:
   pull_request:
+  # Disparo manual ou externo (ex.: pelo painel Nexo), sem precisar de commit.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,4 +31,15 @@ jobs:
       - name: No known secret formats in the repository
         run: node scripts/check-secrets.mjs --all
       - name: Tests
-        run: node --test
+        # Saída legível no log e um relatório JUnit para quem lê os resultados (ex.: o painel Nexo).
+        run: |
+          mkdir -p test-results
+          node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml
+      - name: Publicar relatório dos testes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 30
