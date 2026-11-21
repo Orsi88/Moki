@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, truncateSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFileGrants, parseRange, servable, type Served } from '../desktop/file-protocol.ts';
-import { IMAGE_LIMIT, OFFICE_LIMIT } from '../desktop/fs-guard.ts';
+import { IMAGE_LIMIT, OFFICE_LIMIT, VIDEO_LIMIT } from '../desktop/fs-guard.ts';
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'moki-file-')));
 const proj = join(root, 'ws', 'projects', 'acme');
@@ -145,6 +145,8 @@ test('moki-file refuses to grant what is not a PDF or image, not a file, missing
   for (const name of ['notes.txt', 'run.exe', 'folder.pdf', 'missing.pdf', 'big.pdf', 'big.png']) assert.equal(grant(join(proj, name)), null, name);
   assert.ok(grant(join(proj, 'edge.pdf')), 'exactly at the limit is allowed, as in readFile');
   assert.deepEqual([servable('a.PDF')?.limit, servable('a.svg')?.limit, servable('a.docx')], [OFFICE_LIMIT, IMAGE_LIMIT, null]);
+  // Videos play from disk, read in ranges: their own types and limit; other video formats are not served.
+  assert.deepEqual([servable('clip.MP4'), servable('a.webm')?.type, servable('a.mov')?.type, servable('a.mkv')], [{ type: 'video/mp4', limit: VIDEO_LIMIT }, 'video/webm', 'video/quicktime', null]);
 });
 
 test('every request that names no servable file gets the same 404', async () => {

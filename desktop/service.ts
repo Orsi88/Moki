@@ -9,7 +9,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { changeWord } from '../scripts/lib/office-word.ts';
 import { changeSheet } from '../scripts/lib/office-sheet.ts';
 import { convertLegacy, type ConvertEngine } from './office-convert.ts';
-import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, cpSync, type Dirent, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -58,7 +58,7 @@ import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
 import type { ArtifactViewer } from './artifact-viewer-host.ts';
 import { CHATS_DIR, chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
 import { chatModel, chatModels } from './chat-models.ts';
-import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
+import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, VIDEO_LIMIT, VIDEO_TYPES, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
 import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment, codeNotes, addCodeNote, removeCodeNote, forgetCodeNote } from './html-comments.ts';
@@ -91,7 +91,7 @@ export interface Deps {
   openPath: (file: string) => void;
   reveal?: (path: string) => void; // shows a file or folder selected in the system file manager
   copy?: (text: string) => void; // system clipboard (the window has no clipboard permission)
-  copyImage?: (dataUrl: string) => void; // a verified PNG, never an external image URL
+  copyImage?: (dataUrl: string) => void; // a verified PNG, or a PNG/JPEG of the project; never an external image URL
   appChooser?: AppChooser; // "Open with" for Excel, Word and PDF files (desktop/open-with.ts); tests pass a fake
   pdfcraft?: { available: () => boolean; run: PdfRunner }; // PDF comments (desktop/pdfcraft.ts); tests pass a fake
   pickFolder?: () => Promise<string | null>; // native folder dialog; the UI never sends paths
@@ -128,6 +128,8 @@ export interface TreeNode {
   size?: number;
   mtime?: number; // files: last change (ms); with size, tells the app whether a PDF/image tab must be read again
   children?: TreeNode[];
+  files?: number; // a large folder: how many files it has (not listed in the tree; the app opens it as a folder view)
+  partial?: boolean; // the tree's size limit was reached before this folder's content
   linked?: string; // the linked folder's node (path "@folder"): its full path on this computer
   run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin; // a run folder: its title, the activity it came from and its scenario
   mcp?: string; // MCP server row: where it is configured
@@ -157,6 +159,7 @@ export type FileContent =
   // PDF and image carry no bytes: the UI loads them from `url` (moki-file://<token>, added by desktop/main.ts to a UI call and
   // served by desktop/file-protocol.ts). size and mtime come from one stat, taken before; the app compares them with the tree's.
   | { kind: 'image'; path: string; size: number; mtime: number; url?: string }
+  | { kind: 'video'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'pdf'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
@@ -186,6 +189,10 @@ const TEXT_LIMIT = 2 * 1024 * 1024;
 const ATTACHMENT_LIMIT = 25 * 1024 * 1024; // one chat attachment
 const AGENT_TEXT_LIMIT = 8000;
 const MAX_TREE_ENTRIES = 5000;
+// A folder with more files than this opens as a folder view (FolderView.tsx); the tree keeps its subfolders only.
+export const LARGE_FOLDER_FILES = 20;
+// The most a folder view lists of one folder.
+const MAX_FOLDER_ENTRIES = 100_000;
 const OFFICE_TYPES: Record<string, 'docx' | 'xlsx'> = { '.docx': 'docx', '.docm': 'docx', '.dotx': 'docx', '.dotm': 'docx', '.xlsx': 'xlsx', '.xlsm': 'xlsx', '.xltx': 'xlsx', '.xltm': 'xlsx' };
 const TEXT_TYPES = new Set(['.txt', '.log', '.csv', '.xml', '.yaml', '.yml', '.html', '.htm', '.feature']);
 // Source code: shown read-only with its colors (app/src/components/CodeView.tsx), opened in the IDE to change it.
@@ -779,28 +786,43 @@ export function createService(root: string, deps: Deps) {
       });
     });
     let count = 0;
-    const walk = (dir: string, depth: number, from = base, prefix = ''): TreeNode[] => {
-      const entries = readdirSync(dir, { withFileTypes: true })
-        .filter((e) => !e.name.startsWith('.') && !(prefix && SKIP_LINKED.has(e.name)))
-        .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
-      const nodes: TreeNode[] = [];
-      for (const e of entries) {
-        if (++count > MAX_TREE_ENTRIES) break;
-        const full = join(dir, e.name);
-        const path = prefix + posix(relative(from, full));
-        if (e.isDirectory()) {
-          // runs/ shows as Deliveries: only the files the runs delivered (state.json artifacts), straight under it, newest
-          // run first. The runs' folders are not walked (their run view and the Activities card show them).
-          if (!prefix && depth === 0 && e.name === 'runs') { nodes.push({ name: e.name, path, type: 'dir', children: deliveries() }); continue; }
-          nodes.push({ name: e.name, path, type: 'dir', children: depth < 8 ? walk(full, depth + 1, from, prefix) : [] });
-        } else if (e.isFile()) {
-          const st = statSync(full);
-          nodes.push({ name: e.name, path, type: 'file', size: st.size, mtime: st.mtimeMs });
+    // Level by level (breadth first), so a huge folder deep down never takes the place of what is near the top: the
+    // MAX_TREE_ENTRIES budget goes to the shallow levels first, and a folder it does not reach is marked partial. A
+    // folder with more than LARGE_FOLDER_FILES files keeps only its subfolders here, with the number of its files:
+    // the app opens it as a folder view (folderEntries) instead of pouring the files into the tree.
+    const walk = (start: string, from = base, prefix = ''): TreeNode[] => {
+      const top: TreeNode[] = [];
+      const queue: { dir: string; depth: number; into: TreeNode[]; node?: TreeNode }[] = [{ dir: start, depth: 0, into: top }];
+      while (queue.length) {
+        const { dir, depth, into, node } = queue.shift()!;
+        if (count >= MAX_TREE_ENTRIES) { if (node) node.partial = true; continue; }
+        let entries: Dirent[];
+        try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; } // gone or not readable
+        entries = entries.filter((e) => !e.name.startsWith('.') && !(prefix && SKIP_LINKED.has(e.name)))
+          .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
+        const files = entries.filter((e) => e.isFile()).length;
+        const large = Boolean(node) && files > LARGE_FOLDER_FILES && !(!prefix && /^(runs|notes)(\/|$)/.test(node?.path ?? ''));
+        if (large && node) node.files = files;
+        for (const e of entries) {
+          if (large && !e.isDirectory()) continue;
+          if (++count > MAX_TREE_ENTRIES) { if (node) node.partial = true; break; }
+          const full = join(dir, e.name);
+          const path = prefix + posix(relative(from, full));
+          if (e.isDirectory()) {
+            // runs/ shows as Deliveries: only the files the runs delivered (state.json artifacts), straight under it, newest
+            // run first. The runs' folders are not walked (their run view and the Activities card show them).
+            if (!prefix && depth === 0 && e.name === 'runs') { into.push({ name: e.name, path, type: 'dir', children: deliveries() }); continue; }
+            const child: TreeNode = { name: e.name, path, type: 'dir', children: [] };
+            into.push(child);
+            if (depth < 8) queue.push({ dir: full, depth: depth + 1, into: child.children!, node: child });
+          } else if (e.isFile()) {
+            try { const st = statSync(full); into.push({ name: e.name, path, type: 'file', size: st.size, mtime: st.mtimeMs }); } catch { /* gone meanwhile */ }
+          }
         }
       }
-      return nodes;
+      return top;
     };
-    const top = walk(base, 0);
+    const top = walk(base);
     if (!top.some((n) => n.name === 'notes')) top.push({ name: 'notes', path: 'notes', type: 'dir', children: [] }); // created with the first note
     const rank = (n: TreeNode): number => { const i = TOP_ORDER.indexOf(n.name); return i === -1 ? TOP_ORDER.length : i; };
     top.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
@@ -809,7 +831,7 @@ export function createService(root: string, deps: Deps) {
     // The linked folder, first and live (not copied): its own files, without .git, node_modules and the like.
     const folder = projectRepository(project, root);
     const linked: TreeNode[] = folder && existsSync(folder)
-      ? [{ name: basename(folder), path: LINKED, type: 'dir', linked: folder, children: walk(folder, 0, folder, `${LINKED}/`) }]
+      ? [{ name: basename(folder), path: LINKED, type: 'dir', linked: folder, children: walk(folder, folder, `${LINKED}/`) }]
       : [];
     return [...linked, ...top, { name: 'MCPs', path: '.mcps', type: 'dir', children: [...managed, ...mcpServers(project)] }]; // last; ".mcps" never clashes with a real folder
   }
@@ -1118,6 +1140,10 @@ export function createService(root: string, deps: Deps) {
     if (IMAGE_TYPES[ext]) {
       if (size > IMAGE_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Image too large to preview.' };
       return served({ kind: 'image', path, size, mtime: stat.mtimeMs }, file);
+    }
+    if (VIDEO_TYPES[ext]) {
+      if (size > VIDEO_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Video too large to play here.' };
+      return served({ kind: 'video', path, size, mtime: stat.mtimeMs }, file);
     }
     const language = codeLanguage(basename(file));
     const isText = ext === '.md' || ext === '.json' || TEXT_TYPES.has(ext) || Boolean(language);
@@ -1725,6 +1751,23 @@ export function createService(root: string, deps: Deps) {
     openMokiInEditor: (tool: unknown, project?: unknown) => editorWithExtension(tool, project, false),
 
     tree: (project: string) => tree(project),
+    // What a folder holds, for the folder view (FolderView.tsx): its subfolders and its files with size and date. Hidden
+    // names stay out and, in the linked folder, tool folders (node_modules…), as in the tree. Deliveries has its own list.
+    folderEntries: (project: string, rel: unknown): { entries: TreeNode[]; more: number } => {
+      const r = String(rel ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+      if (!r || r.startsWith('.') || r === 'runs' || r.startsWith('runs/')) throw new ServiceError('Folder not found.');
+      const dir = projectPath(project, r);
+      if (!existsSync(dir) || !statSync(dir).isDirectory()) throw new ServiceError('Folder not found.');
+      const linked = r === LINKED || r.startsWith(`${LINKED}/`);
+      const all = readdirSync(dir, { withFileTypes: true })
+        .filter((e) => !e.name.startsWith('.') && !(linked && SKIP_LINKED.has(e.name)) && (e.isDirectory() || e.isFile()));
+      const entries = all.slice(0, MAX_FOLDER_ENTRIES).flatMap((e): TreeNode[] => {
+        const path = `${r}/${e.name}`;
+        if (e.isDirectory()) return [{ name: e.name, path, type: 'dir' }];
+        try { const st = statSync(join(dir, e.name)); return [{ name: e.name, path, type: 'file', size: st.size, mtime: st.mtimeMs }]; } catch { return []; }
+      });
+      return { entries, more: Math.max(0, all.length - MAX_FOLDER_ENTRIES) };
+    },
 
     readFile: (project: string, rel: string) => readFile(project, rel),
 
@@ -1872,6 +1915,19 @@ export function createService(root: string, deps: Deps) {
         finally { if (existsSync(temporary)) rmSync(temporary); }
       });
       return destination;
+    },
+    // A picture of the project put on the clipboard as an image (the large view's Copy), to paste into a document,
+    // a note or another program. PNG and JPEG: what the system clipboard takes as a picture.
+    copyImageFile: (project: string, rel: unknown) => {
+      const file = projectPath(project, String(rel ?? ''));
+      const type = ({ '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' } as Record<string, string>)[extname(file).toLowerCase()];
+      if (!type) throw new ServiceError('Only PNG and JPEG pictures can be copied.');
+      const stat = statSync(file, { throwIfNoEntry: false });
+      if (!stat?.isFile() || stat.size > IMAGE_LIMIT) throw new ServiceError('This picture is not available any more.');
+      if (!deps.copyImage) throw new ServiceError('Copying an image is not available here.');
+      const data = `data:${type};base64,${readFileSync(file).toString('base64')}`;
+      failing(() => deps.copyImage!(data));
+      return true;
     },
     copyDiagramImage: (project: string, rel: string, data: unknown) => {
       diagramTarget(project, rel);

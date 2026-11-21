@@ -92,7 +92,7 @@ const service = createService(ROOT, {
   copy: (text) => clipboard.writeText(text),
   copyImage: (dataUrl) => {
     const image = nativeImage.createFromDataURL(dataUrl);
-    if (image.isEmpty()) throw new Error('Could not copy the diagram image.');
+    if (image.isEmpty()) throw new Error('Could not copy the image.');
     clipboard.writeImage(image);
   },
   appChooser,

@@ -156,6 +156,63 @@ test('tree lists the project, hides dot files and shows runs only as their deliv
   assert.throws(() => service.tree('../..'), /Unknown project/);
 });
 
+test('tree: a large folder keeps its subfolders and the number of its files, and never hides what comes after it', () => {
+  const project = join(root, 'workspace', 'projects', 'acme');
+  const big = join(project, 'big data'), deep = join(big, 'set'), after = join(project, 'zeta');
+  mkdirSync(deep, { recursive: true }); mkdirSync(after, { recursive: true });
+  try {
+    for (let i = 0; i < 25; i++) writeFileSync(join(big, `paper-${i}.pdf`), 'x');
+    for (let i = 0; i < 6000; i++) writeFileSync(join(deep, `sample-${i}.csv`), 'x'); // more than the tree's whole budget
+    writeFileSync(join(after, 'notes.md'), '# z'); writeFileSync(join(after, 'plan.md'), '# p');
+    const tree = service.tree('acme');
+    const node = tree.find((n) => n.path === 'big data');
+    assert.equal(node?.files, 25);
+    assert.deepEqual(node?.children?.map((c) => c.path), ['big data/set'], 'only its subfolders are in the tree');
+    assert.equal(node?.children?.[0].files, 6000);
+    assert.deepEqual(tree.find((n) => n.path === 'zeta')?.children?.map((c) => c.name), ['notes.md', 'plan.md'], 'a folder after it keeps its files');
+    for (const fixed of ['context', 'inbox', 'runs', 'temporary']) assert.ok(tree.some((n) => n.path === fixed), fixed);
+    // The folder view lists what the tree leaves out.
+    const listed = service.folderEntries('acme', 'big data');
+    assert.equal(listed.entries.length, 26);
+    assert.equal(listed.more, 0);
+    assert.ok(listed.entries.some((e) => e.path === 'big data/set' && e.type === 'dir'));
+    assert.ok(listed.entries.filter((e) => e.type === 'file').every((e) => typeof e.size === 'number' && typeof e.mtime === 'number'));
+    assert.equal(service.folderEntries('acme', 'big data/set').entries.length, 6000);
+    for (const bad of ['', '..', '../other', 'runs', `runs/${RUN}`, '.chats', 'missing']) assert.throws(() => service.folderEntries('acme', bad), Error, bad);
+  } finally {
+    rmSync(big, { recursive: true, force: true }); rmSync(after, { recursive: true, force: true });
+  }
+});
+
+test('tree: a budget spent deep down marks that folder partial and keeps the shallow levels', () => {
+  const project = join(root, 'workspace', 'projects', 'acme');
+  const wide = join(project, 'wide');
+  mkdirSync(wide, { recursive: true });
+  try {
+    // 300 folders of 20 files each (small enough to be listed, 6000 in all): the budget runs out inside them.
+    for (let f = 0; f < 300; f++) { const dir = join(wide, `f${String(f).padStart(3, '0')}`); mkdirSync(dir); for (let i = 0; i < 20; i++) writeFileSync(join(dir, `${i}.txt`), 'x'); }
+    const tree = service.tree('acme');
+    const node = tree.find((n) => n.path === 'wide');
+    assert.equal(node?.children?.length, 300, 'every folder of the level is there');
+    assert.ok(node?.children?.some((c) => c.partial), 'what the budget did not reach says so');
+    assert.ok(tree.some((n) => n.path === 'temporary'));
+  } finally {
+    rmSync(wide, { recursive: true, force: true });
+  }
+});
+
+test('a video reads as a video (played in the app through moki-file); a picture can be copied, other files cannot', () => {
+  const project = join(root, 'workspace', 'projects', 'acme');
+  writeFileSync(join(project, 'inbox', 'clip.mp4'), Buffer.from('00000018667479706d703432', 'hex'));
+  const video = service.readFile('acme', 'inbox/clip.mp4') as Extract<FileContent, { kind: 'video' }>;
+  assert.deepEqual([video.kind, video.path], ['video', 'inbox/clip.mp4']);
+  writeFileSync(join(project, 'inbox', 'shot.png'), Buffer.from('89504e470d0a1a0a', 'hex'));
+  assert.throws(() => service.copyImageFile('acme', 'inbox/clip.mp4'), /Only PNG and JPEG/);
+  assert.throws(() => service.copyImageFile('acme', '../../outside.png'));
+  assert.throws(() => service.copyImageFile('acme', 'inbox/missing.png'), /not available/);
+  rmSync(join(project, 'inbox', 'clip.mp4')); rmSync(join(project, 'inbox', 'shot.png'));
+});
+
 test('readFile renders each kind of file', async () => {
   const md = service.readFile('acme', `runs/${RUN}/outputs/report.md`) as Extract<FileContent, { kind: 'markdown' }>;
   assert.equal(md.kind, 'markdown');

@@ -1,0 +1,22 @@
+/* The picture or video seen large (Lightbox.tsx): a dark veil over the whole window, a quiet bar above, the media as
+   large as it fits, arrows at the sides when the folder has more. */
+.lightbox { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; background:rgb(0 0 0 / .95); color:#f2ede3; animation:lightbox-in .15s ease; }
+.lightbox-bar { display:flex; align-items:center; gap:12px; padding:10px 14px 10px 20px; font-size:13.5px; }
+.lightbox-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.lightbox-count { flex-shrink:0; color:rgb(242 237 227 / .65); }
+.lightbox-space { flex:1; }
+.lightbox-btn { display:inline-flex; align-items:center; gap:6px; flex-shrink:0; height:34px; padding:0 12px; border:0; border-radius:8px; background:rgb(255 255 255 / .1); color:inherit; font:inherit; cursor:pointer; }
+.lightbox-btn:hover { background:rgb(255 255 255 / .18); }
+.lightbox-btn.icon { width:34px; padding:0; justify-content:center; }
+.lightbox-btn:focus-visible, .lightbox-nav:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.lightbox-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px 72px 32px; cursor:zoom-out; }
+.lightbox-stage img, .lightbox-stage video { width:100%; height:100%; object-fit:contain; cursor:default; }
+/* A video keeps its own size inside the stage (no black frame around a small one). */
+.lightbox-stage video { width:auto; height:auto; max-width:100%; max-height:100%; background:#000; border-radius:8px; }
+.lightbox-note { color:rgb(242 237 227 / .7); }
+.lightbox-nav { position:absolute; top:50%; width:44px; height:44px; margin-top:-22px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:50%; background:rgb(255 255 255 / .1); color:inherit; cursor:pointer; }
+.lightbox-nav:hover { background:rgb(255 255 255 / .2); }
+.lightbox-nav.prev { left:16px; transform:rotate(180deg); }
+.lightbox-nav.next { right:16px; }
+@keyframes lightbox-in { from { opacity:0; } to { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .lightbox { animation:none; } }

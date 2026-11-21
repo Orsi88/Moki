@@ -1,0 +1,56 @@
+/* The folder view (FolderView.tsx): a bar with the path, search, list or grid and the file explorer; then the files.
+   Row and cell sizes match ROW_H, CELL_W and CELL_H there. */
+.folder-view { display:flex; flex-direction:column; height:100%; min-height:0; background:var(--bg); color:var(--text); }
+.folder-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); }
+.folder-crumbs { display:flex; align-items:center; flex-wrap:wrap; gap:2px; min-width:0; flex:1; font-size:14px; }
+.folder-crumb { display:inline-flex; align-items:center; gap:2px; min-width:0; }
+.folder-crumb > button.link { color:var(--muted); }
+.folder-crumb > button.link:hover { color:var(--text); }
+.folder-crumb [aria-current] { font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.folder-sep { color:var(--faint); padding:0 4px; }
+.folder-search { display:flex; align-items:center; gap:6px; width:min(260px, 30%); padding:5px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-2); color:var(--muted); }
+.folder-search input { flex:1; min-width:0; border:0; outline:0; background:none; color:var(--text); font:inherit; font-size:13px; }
+.folder-search:focus-within { border-color:var(--accent); }
+.folder-modes { display:flex; gap:2px; padding:2px; border:1px solid var(--border); border-radius:8px; }
+.folder-modes .icon-btn.on { background:var(--bg-3); color:var(--text); }
+
+.folder-body { position:relative; flex:1; min-height:0; overflow:auto; outline:none; }
+.folder-body:focus-visible { box-shadow:inset 0 0 0 2px var(--accent-soft); }
+.folder-space { position:relative; }
+.folder-window { position:absolute; left:0; right:0; top:0; }
+
+/* List: name, date, type, size, as the file explorer's details. */
+.folder-head, .folder-row { display:grid; grid-template-columns:minmax(200px, 1fr) 160px 140px 100px; align-items:center; height:34px; padding:0 16px; }
+.folder-head { position:sticky; top:0; z-index:1; background:var(--bg); border-bottom:1px solid var(--border); }
+.folder-col { padding:0 8px 0 0; border:0; background:none; color:var(--muted); font:inherit; font-size:12.5px; text-align:left; cursor:pointer; }
+.folder-col:hover, .folder-col.sorted { color:var(--text); }
+.folder-col-size { text-align:right; }
+.folder-row { border-radius:6px; font-size:13.5px; cursor:default; user-select:none; }
+.folder-row:hover { background:var(--bg-2); }
+.folder-row.chosen { background:var(--accent-soft); }
+.folder-cell { min-width:0; padding-right:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.folder-cell.folder-col-name { display:flex; align-items:center; gap:8px; }
+.folder-cell.folder-col-size { text-align:right; padding-right:0; }
+.folder-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.folder-dir-icon { display:inline-flex; color:var(--accent); }
+
+/* Grid: a thumbnail (or the type's icon) over the name, as a pictures folder. */
+.folder-body.grid .folder-window { display:flex; flex-wrap:wrap; padding:0 8px; }
+.folder-cell-grid { display:flex; flex-direction:column; align-items:center; gap:6px; width:152px; height:168px; padding:10px 8px; border-radius:10px; cursor:default; user-select:none; }
+.folder-cell-grid:hover { background:var(--bg-2); }
+.folder-cell-grid.chosen { background:var(--accent-soft); }
+.folder-cell-grid .folder-name { width:100%; font-size:12.5px; text-align:center; }
+.folder-thumb { display:flex; align-items:center; justify-content:center; width:132px; height:118px; border-radius:8px; overflow:hidden; background:var(--bg-2); }
+.folder-thumb img { width:100%; height:100%; object-fit:cover; }
+.folder-thumb.icon { position:relative; background:none; color:var(--muted); }
+.folder-play { position:absolute; right:30px; bottom:22px; width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:var(--accent); color:var(--accent-text); }
+
+.folder-note { padding:16px; }
+.folder-foot { padding:6px 16px; border-top:1px solid var(--border); }
+
+@media (max-width: 720px) {
+  .folder-head, .folder-row { grid-template-columns:minmax(140px, 1fr) 100px; }
+  .folder-col-mtime, .folder-col-type { display:none; }
+}
+.pane-folder { height:100%; min-height:0; }
+.pane-folder[hidden] { display:none; }

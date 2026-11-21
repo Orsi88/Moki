@@ -48,4 +48,8 @@ export const openWithType = (file: string): string | undefined => OPEN_WITH_TYPE
 // (desktop/file-protocol.ts) both follow. A PDF is held to OFFICE_LIMIT.
 export const OFFICE_LIMIT = 30 * 1024 * 1024;
 export const IMAGE_LIMIT = 10 * 1024 * 1024;
+// Videos play in the app straight from disk through moki-file:// (read in ranges, so a long one starts at once and is
+// never loaded whole); the limit only keeps out what is not a reasonable project video.
+export const VIDEO_LIMIT = 8 * 1024 * 1024 * 1024;
+export const VIDEO_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime' };
 export const IMAGE_TYPES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };

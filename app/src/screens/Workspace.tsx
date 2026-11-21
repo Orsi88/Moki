@@ -25,6 +25,8 @@ import { SidePanel } from '../components/SidePanel';
 import { SetupDialog } from '../components/SetupDialog';
 import { TerminalView } from '../components/TerminalView';
 import { ChatView } from '../components/ChatView';
+import { FolderView } from '../components/FolderView';
+import { Lightbox, isMedia, type MediaItem } from '../components/Lightbox';
 import { chatTabPrefix, isChatTab } from '../chat-tabs';
 import { UsageStatus } from '../components/UsageStatus';
 import { TagPicker } from '../components/TagPicker';
@@ -156,6 +158,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const chatSequence = useRef(0);
   const [chatTitles, setChatTitles] = useState<Record<string, string>>({});
   const titleChat = useCallback((tab: string, title: string) => setChatTitles((old) => old[tab] === title ? old : { ...old, [tab]: title }), []);
+  // A large folder opened in the middle (FolderView): a tab of its own, named after the folder it shows.
+  const isFolderTab = (key: string | null | undefined): boolean => Boolean(key?.startsWith('folder:'));
+  const [folderTitles, setFolderTitles] = useState<Record<string, string>>({});
+  const titleFolder = useCallback((tab: string, title: string) => setFolderTitles((old) => old[tab] === title ? old : { ...old, [tab]: title }), []);
   const revealChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); }, [onSettings]);
   const openChat = useCallback(() => {
     revealChat();
@@ -204,6 +210,25 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const openGraph = () => apply((b) => boardOpen(b, GRAPH));
   const closeGraph = () => apply((b) => boardClose(b, GRAPH));
   const toggleGraph = () => { if (graphFocus) closeGraph(); else openGraph(); };
+  const openFolderView = (path: string) => apply((b) => boardOpen(b, `folder:${path}`));
+  // A picture or a video clicked in the tree opens large over the screen, with the others of its folder in the tree to
+  // go through; Open in a tab (in the large view) opens it as any file.
+  const [seeing, setSeeing] = useState<{ items: MediaItem[]; start: number } | null>(null);
+  const openFromTree = (path: string) => {
+    if (!isMedia(path)) { openPath(path); return; }
+    const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    const within = (nodes: TreeNode[]): TreeNode[] | null => {
+      for (const n of nodes) {
+        if (n.path === parent) return n.children ?? [];
+        if (n.children && parent.startsWith(`${n.path}/`)) { const found = within(n.children); if (found) return found; }
+      }
+      return null;
+    };
+    const siblings = (parent ? within(tree) : tree) ?? [];
+    const items = siblings.filter((n) => n.type === 'file' && isMedia(n.name)).map((n) => ({ path: n.path, name: n.name }));
+    const start = items.findIndex((i) => i.path === path);
+    setSeeing(start >= 0 ? { items, start } : { items: [{ path, name: path.split('/').pop() ?? path }], start: 0 });
+  };
   const openedTerm = useRef<string | null>(null);
   const [showSetup, setShowSetup] = useState(startSetup && project.starter !== 'blank'); // after creating the project or linking a folder
   const [note, setNote] = useState<{ path: string | null; loose?: boolean } | null>(null); // open note (main area); path null = new note; loose: of no project yet
@@ -546,7 +571,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   // The board keeps only tabs that exist (a saved board, a terminal closed elsewhere) and knows every open one.
   useEffect(() => {
     if (!termsReady || !viewReady) return;
-    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : []), ...Object.keys(board.tabs).filter(isChatTab)]);
+    const alive = new Set<TabKey>([...tabs.map((x) => fileKey(x.path)), ...terms.map((x) => termKey(x.id)), ...(board.tabs[GRAPH] ? [GRAPH] : []), ...Object.keys(board.tabs).filter((k) => isChatTab(k) || isFolderTab(k))]);
     const known = Object.keys(board.tabs);
     if (known.length === alive.size && known.every((k) => alive.has(k))) return;
     apply((b) => [...alive].filter((k) => !b.tabs[k]).reduce((acc, k) => {
@@ -732,12 +757,13 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
     }).catch((err: Error) => setError(t(err.message)));
   };
   const treeProps = {
-    tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openPath, expanded,
+    tagColors: colorsOf, activePath: activeTerm || graphFocus ? null : active, onOpen: openFromTree, expanded,
     onNewNote: () => setNote({ path: null }), onMenu: openItemMenu, favorites, onIde: openIde, noteTitles, onReceive: dropOnFolder,
     renaming, onRenameStart: startRename, onRename: renameItem, onRenameEnd: () => setRenaming(null), focusPath, onFocused: () => setFocusPath(null),
     selected: selection, onClearSelection: () => setSelection(new Set()),
     onSelect: (p: string) => setSelection((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
     onToggle: (p: string) => setExpanded((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; }),
+    onOpenFolder: openFolderView,
   };
   // Where New › File may save: the project's own folders (not the activities), then its root.
   const folders = useMemo(() => [
@@ -1007,12 +1033,13 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
       return { key, term: true, label: title, title: term?.running === false ? t('{title} (finished)', { title }) : title, icon: <IconTerminal size={13} />, exited: term?.running === false };
     }
     if (key === GRAPH) return { key, label: t('Graph view'), title: t('Graph view'), icon: <IconGraph size={14} /> };
+    if (isFolderTab(key)) { const name = folderTitles[key] || key.slice(7).split('/').pop() || key.slice(7); return { key, label: name, title: key.slice(7), icon: <IconFolder size={14} /> }; }
     const path = key.slice(5);
     const doc = tabs.find((x) => x.path === path);
     return { key, label: path.split('/').pop() ?? path, title: path, icon: <FileIcon name={path} size={14} />, dirty: doc ? isDirty(doc) : false, fresh: board.tabs[key]?.fresh };
   };
   const selectTab = (key: TabKey) => { if (key.startsWith('file:')) touchRecentFile(project.id, key.slice(5)); apply((b) => show(b, key)); };
-  const closeTab = (key: TabKey) => { if (isChatTab(key)) apply((b) => boardClose(b, key)); else if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
+  const closeTab = (key: TabKey) => { if (isChatTab(key) || isFolderTab(key)) apply((b) => boardClose(b, key)); else if (key.startsWith('term:')) closeTerm(key.slice(5)); else if (key === GRAPH) closeGraph(); else close(key.slice(5)); };
   const closeGroupFiles = (group: string) => {
     for (const key of tabsOfGroup(board, group)) if (key.startsWith('file:')) close(key.slice(5));
     apply((b) => dropGroup(b, group));
@@ -1205,7 +1232,10 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
                   {terms.filter((x) => keys.includes(termKey(x.id))).map((x) => (
                     <TerminalView key={x.id} id={x.id} project={project.id} tool={x.tool} active={pane.active === termKey(x.id)} resolveLink={(href) => resolveProjectLink('', href)?.found ?? false} onLink={(href) => onLinkFrom('', href)} onExit={() => setTerms((all) => all.map((y) => (y.id === x.id ? { ...y, running: false } : y)))} onDropItem={(target) => pasteItem(target, x.id)} />
                   ))}
-                  {isChatTab(pane.active) ? null : pane.active === GRAPH ? (
+                  {keys.filter(isFolderTab).map((key) => <div key={key} className="pane-folder" hidden={pane.active !== key}>
+                    <FolderView project={project.id} path={key.slice(7)} version={tree} onOpen={(p) => openPath(p)} onTitle={(name) => titleFolder(key, name)} />
+                  </div>)}
+                  {isChatTab(pane.active) || isFolderTab(pane.active) ? null : pane.active === GRAPH ? (
                     <div className="welcome">
                       <h1>{t('Graph view')}</h1>
                       <p className="muted">{t('Under construction.')}</p>
@@ -1228,6 +1258,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         </div>
       </main>
 
+      {seeing && <Lightbox project={project.id} items={seeing.items} start={seeing.start} onClose={() => setSeeing(null)} onOpenTab={(p) => openPath(p)} />}
       <SidePanel project={project} runId={runId} refreshKey={refreshKey} tools={tools} onOpenPath={openPath} onLaunch={openCall} onOperationRun={showOperationRun} onSetup={() => setShowSetup(true)} onInvoke={callItem} collapsed={panelRail || docSide} onToggle={toggleSide} graphOn={graphFocus} onGraph={toggleGraph} onMyAis={() => onSettings('ai')}
         activities={(
           <ActivitiesCard project={project} tick={opsTick} active={activityView} launches={activityLaunches}

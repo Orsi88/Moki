@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement } from 'react';
 import { describeRun, statusLabel, type TreeNode } from '../api';
 import { t } from '../i18n';
-import { IconChevron, IconCode, IconLink, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
+import { IconChevron, IconCode, IconLink, IconList, IconMcp, IconMore, IconPlus, IconStar } from './Icons';
 import { FileIcon, SectionIcon, isSectionIconName } from '../icons';
 import { RenameField, tooLong } from './RenameField';
 
@@ -11,6 +11,7 @@ interface Props {
   onOpen: (path: string) => void;
   expanded: Set<string>;
   onToggle: (path: string) => void;
+  onOpenFolder?: (path: string) => void; // a large folder (TreeNode.files): its files show in the folder view
   onNewNote: () => void;
   tagColors?: (path: string) => string[]; // colors of the file's tags
   onMenu?: (node: TreeNode, at: { left: number; top: number }) => void; // the item's menu: right click or its ⋯ button
@@ -102,7 +103,7 @@ const fileNameProblem = (value: string): string => tooLong(value)
 const canReceive = (path: string) => !path.startsWith('.') && path !== 'runs' && !path.startsWith('runs/') && path !== '@folder' && !path.startsWith('@folder/');
 
 function Node(props: Props & { node: TreeNode; depth: number }) {
-  const { node, depth, activePath, onOpen, expanded, onToggle, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive, renaming, onRenameStart, onRename, onRenameEnd, focusPath, onFocused, selected, onSelect, onClearSelection } = props;
+  const { node, depth, activePath, onOpen, expanded, onToggle, onOpenFolder, onNewNote, tagColors, onMenu, favorites, onIde, noteTitles, onReceive, renaming, onRenameStart, onRename, onRenameEnd, focusPath, onFocused, selected, onSelect, onClearSelection } = props;
   const [hover, setHover] = useState(false);
   const [dropOn, setDropOn] = useState(false);
   const editing = renaming === node.path && Boolean(onRename);
@@ -174,6 +175,8 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         onClick={(e) => {
           if ((e.ctrlKey || e.metaKey) && onSelect) { if (movable) onSelect(node.path); return; }
           if (selected?.size) onClearSelection?.();
+          // A large folder opens in the middle as a folder view, and its subfolders unfold here.
+          if (isDir && node.files && onOpenFolder && !open) onOpenFolder(node.path);
           if (isDir) onToggle(node.path); else onOpen(node.path);
         }}
         onMouseEnter={() => setHover(true)}
@@ -190,7 +193,7 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         )}
         {node.run && <span className={`dot ${statusClass(node.run.status)}`} />}
         {run && !hover && <span className="tree-meta">{run.date}</span>}
-        {isDir && (depth === 0 || node.path === '.mcps') && !node.linked && node.children && <span className="tree-meta">{node.children.length}</span>}
+        {isDir && (depth === 0 || node.path === '.mcps' || node.files) && !node.linked && node.children && <span className="tree-meta">{new Intl.NumberFormat().format(node.children.length + (node.files ?? 0))}</span>}
       </button>
       )}
       {node.linked && onIde && (
@@ -210,10 +213,16 @@ function Node(props: Props & { node: TreeNode; depth: number }) {
         <ul role="group">
           {(node.path === 'notes' && favorites ? [...node.children].sort((a, b) => Number(favorites.has(b.path)) - Number(favorites.has(a.path))) : node.children)
             .map((c) => <Node {...props} key={c.path} node={c} depth={depth + 1} />)}
+          {(node.files || node.partial) && onOpenFolder ? (
+            <li><button type="button" className="tree-row tree-folder-files" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={() => onOpenFolder(node.path)}>
+              <span className="tree-icon"><IconList size={14} /></span>
+              <span className="tree-label">{node.files ? t('{n} files: open folder', { n: new Intl.NumberFormat().format(node.files) }) : t('More items: open folder')}</span>
+            </button></li>
+          ) : null}
           {node.path === 'notes' && (
             <li><button type="button" className="tree-row tree-new" style={{ paddingLeft: 8 + (depth + 1) * INDENT }} onClick={onNewNote}><span className="tree-icon"><IconPlus size={14} /></span><span className="tree-label">{t('New note')}</span></button></li>
           )}
-          {node.children.length === 0 && node.path !== 'notes' && <li className="tree-empty" style={{ paddingLeft: 8 + (depth + 1) * INDENT }}>{t('empty')}</li>}
+          {node.children.length === 0 && !node.files && node.path !== 'notes' && <li className="tree-empty" style={{ paddingLeft: 8 + (depth + 1) * INDENT }}>{t('empty')}</li>}
         </ul>
       )}
     </li>

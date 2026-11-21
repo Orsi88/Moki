@@ -112,6 +112,8 @@ export interface ActivityRun extends OpenRun, RunOrigin { skill: string; workflo
 
 export interface TreeNode {
   name: string; path: string; type: 'dir' | 'file'; size?: number; mtime?: number; children?: TreeNode[];
+  files?: number; // a large folder: how many files it has (opened as a folder view, not listed in the tree)
+  partial?: boolean; // the tree's size limit was reached before this folder's content
   run?: { status: string; skill: string; currentStep: string; title?: string } & RunOrigin;
   mcp?: string; // MCP server row: where it is configured
   linked?: string; // the linked folder (path "@folder", shown live): its full path on this computer
@@ -133,6 +135,7 @@ export type FileContent =
   // No bytes: the view loads `url` (moki-file://<token>/, granted to this window by the main process). size and mtime
   // (last change, ms) come from one stat and are what the tree's are compared with.
   | { kind: 'image'; path: string; url: string; size: number; mtime: number }
+  | { kind: 'video'; path: string; url: string; size: number; mtime: number }
   | { kind: 'pdf'; path: string; url: string; size: number; mtime: number }
   | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
@@ -533,6 +536,7 @@ export const api = {
   exportDiagram: (project: string, path: string, format: 'svg' | 'png', data: string) => call<{ saved: boolean }>('exportDiagram', project, path, format, data),
   exportFile: (project: string, path: string) => call<string | null>('exportFile', project, path),
   copyDiagramImage: (project: string, path: string, data: string) => call<boolean>('copyDiagramImage', project, path, data),
+  copyImageFile: (project: string, path: string) => call<boolean>('copyImageFile', project, path),
   convertOffice: (project: string, path: string) => call<{ path: string; created: boolean }>('convertOffice', project, path),
   renderMarkdown: (text: string, project?: string, path?: string) => call<string>('renderMarkdown', text, project, path),
   userName: () => call<string>('userName'),
@@ -569,6 +573,7 @@ export const api = {
   createEntry: (project: string, parent: string, name: string, kind: 'file' | 'folder') => call<string>('createEntry', project, parent, name, kind),
   deleteEntry: (project: string, path: string) => call<boolean>('deleteEntry', project, path),
   revealPath: (project: string, path: string) => call<boolean>('revealPath', project, path),
+  folderEntries: (project: string, path: string) => call<{ entries: TreeNode[]; more: number }>('folderEntries', project, path),
   copyPath: (project: string, path: string) => call<string>('copyPath', project, path),
   fullPath: (project: string, path: string) => call<string>('fullPath', project, path),
   savePastedImage: (project: string, data: Uint8Array, type: string) => call<string>('savePastedImage', project, data, type),

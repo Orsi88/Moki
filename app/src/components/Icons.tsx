@@ -73,6 +73,9 @@ export const IconBox = ({ size }: IconProps) => (
 export const IconList = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M9 6h12M9 12h12M9 18h12" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></svg>
 );
+export const IconGrid = ({ size }: IconProps) => (
+  <svg {...base(size)}><rect x="4" y="4" width="6.5" height="6.5" rx="1.2" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" /></svg>
+);
 export const IconPlug = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M9 7V3M15 7V3" /><path d="M6 7h12v4a6 6 0 0 1-12 0z" /><path d="M12 17v4" /></svg>
 );
