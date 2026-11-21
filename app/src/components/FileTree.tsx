@@ -77,7 +77,8 @@ export function FileTree(props: Props) {
   ])}</ul>;
 }
 
-const canMove = (path: string) => !path.startsWith('.') && path !== 'project.json' && path !== 'tags.json' && !path.startsWith('runs/') && !path.startsWith('@folder');
+// A file under Deliveries is a run's deliverable (the tree shows nothing else there): it can go to another folder.
+const canMove = (path: string) => !path.startsWith('.') && path !== 'project.json' && path !== 'tags.json' && (!path.startsWith('runs/') || /^runs\/[^/]+\/.+/.test(path)) && !path.startsWith('@folder');
 // Why a tree item keeps its name ('' = it can be renamed). Mirrors the service's renameEntry, which
 // has the last word. The menu still shows Rename for these, disabled, with this reason under it.
 const FIXED_FOLDERS = new Set(['context', 'inbox', 'runs', 'notes', 'temporary']);

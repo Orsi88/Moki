@@ -3042,7 +3042,8 @@ test('markdown relative images are embedded from inside the project only', () =>
   writeFileSync(join(project, 'inbox', 'images.md'), text);
   const md = service.readFile('acme', 'inbox/images.md') as Extract<FileContent, { kind: 'markdown' }>;
   const imgs = md.html.match(/<img [^>]*>/g) ?? [];
-  assert.deepEqual(imgs, [`<img alt="shot" src="data:image/png;base64,${png.toString('base64')}">`]);
+  // data-ref: the path as written (hex), so a viewer can open or save the file behind the picture.
+  assert.deepEqual(imgs, [`<img alt="shot" src="data:image/png;base64,${png.toString('base64')}" data-ref="${Buffer.from('img/shot%20one.png').toString('hex')}">`]);
   // The preview of unsaved edits embeds them the same way, only when told the project and the file.
   assert.match(service.renderMarkdown(`x ${text}`, 'acme', 'inbox/images.md'), /<img alt="shot" src="data:image\/png;base64,/);
   assert.doesNotMatch(service.renderMarkdown(text), /<img/);

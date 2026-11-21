@@ -33,8 +33,8 @@ import { setWorkspaceDir, walkFiles, workspaceDir, workspaceLabel } from '../scr
 import { searchWorkspace, searchWorkspaceExpanded } from './search.ts';
 import { activeWorkspace, addWorkspaceFolder, createWorkspace, forgetWorkspace, listWorkspaces, renameWorkspace, setActiveWorkspace, workspacesHome, type WorkspaceInfo } from './workspaces.ts';
 import { createAiAccounts } from './ai-accounts.ts';
-import { chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
-import { keepChatImage } from './chat-images.ts';
+import { CHAT_IMAGE, chatFileRefs, resolveChatFile, type ChatFile } from './chat-files.ts';
+import { keepChatImage, newChatImages } from './chat-images.ts';
 import { approveProposal, currentText, declineProposal, dismissLearning, itemHistory, learn, listLearnings, originalChanged, pendingProposals, revertTo, versionText } from '../scripts/lib/evolution.ts';
 import { evolutionItem } from '../scripts/lib/evolution-check.ts';
 import { lineDiff } from '../scripts/lib/text-diff.ts';
@@ -56,7 +56,7 @@ import { CHAT_ADAPTERS, createChatSession, isChatTool, npmShim, type ChatSession
 import { createConversations } from './chat-conversations.ts';
 import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
 import type { ArtifactViewer } from './artifact-viewer-host.ts';
-import { chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
+import { CHATS_DIR, chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
 import { chatModel, chatModels } from './chat-models.ts';
 import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
@@ -353,7 +353,8 @@ export function createService(root: string, deps: Deps) {
     const source = String(from ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
     const dest = String(toDir ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
     if (!source || source === 'project.json' || source === 'tags.json') throw new ServiceError('This file stays where it is.');
-    if (runsFolder(source) || runsFolder(dest)) throw new ServiceError('Activities keep their own structure. Create it in another folder.');
+    if (runsFolder(dest)) throw new ServiceError('Activities keep their own structure. Create it in another folder.');
+    if (runsFolder(source)) return moveDelivered(project, source, dest);
     if (sealedFolder(source) || sealedFolder(dest)) throw new ServiceError('This file stays where it is.');
     const fromPath = projectPath(project, source);
     if (!existsSync(fromPath)) throw new ServiceError('File not found.');
@@ -372,6 +373,60 @@ export function createService(root: string, deps: Deps) {
     failing(() => movePdfNotes(projectDir(project), source, destRel));
     failing(() => moveHtmlComments(projectDir(project), source, destRel));
     return destRel;
+  };
+  // A run's state.json, read and written whole (the same shape npm run new-run writes).
+  const runState = (project: string, runId: string) => join(projectDir(project), 'runs', runId, 'state.json');
+  const writeRunState = (file: string, state: Record<string, unknown>) => {
+    const next = `${file}.${randomBytes(3).toString('hex')}.tmp`;
+    writeFileSync(next, `${JSON.stringify(state, null, 2)}\n`);
+    renameSync(next, file);
+  };
+  // A file of Deliveries taken to another folder of the project: the run's state.json follows (its artifacts list
+  // names the new place), so the run still finds what it delivered. Only a deliverable of a run that is over (an
+  // AI may still be writing the state of one under way) and never the run's own files.
+  const moveDelivered = (project: string, source: string, dest: string): string => {
+    const runId = /^runs\/([^/]+)\/.+/.exec(source)?.[1];
+    const run = runId ? listRuns(project, root).find((r) => r.id === runId) : undefined;
+    const listed = run ? deliveredPaths(project, run.artifacts) : [];
+    if (!run || !listed.includes(source)) throw new ServiceError('Activities keep their own structure. Create it in another folder.');
+    if (run.status !== 'completed' && run.status !== 'cancelled') throw new ServiceError('Wait for the activity to finish before moving what it delivered.');
+    if (sealedFolder(dest)) throw new ServiceError('This file stays where it is.');
+    const fromPath = projectPath(project, source);
+    if (!existsSync(fromPath) || !statSync(fromPath).isFile()) throw new ServiceError('File not found.');
+    const folder = projectPath(project, dest);
+    if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ServiceError('Folder not found.');
+    const destRel = uniqueName(folder, dest, basename(source));
+    const file = runState(project, run.id);
+    const state = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    renameSync(fromPath, projectPath(project, destRel));
+    const prefix = `workspace/projects/${project}/`;
+    state.artifacts = (Array.isArray(state.artifacts) ? state.artifacts : []).map((a) => (deliveredPaths(project, [a])[0] === source ? `${prefix}${destRel}` : a));
+    state.updatedAt = new Date().toISOString();
+    writeRunState(file, state);
+    moveFileTags(project, source, destRel, root);
+    failing(() => movePdfNotes(projectDir(project), source, destRel));
+    failing(() => moveHtmlComments(projectDir(project), source, destRel));
+    return destRel;
+  };
+  // The run that holds what one conversation saved to Deliveries: named after the conversation (its date and id),
+  // so every picture of that conversation goes to the same one. Created on the first save, already completed.
+  const chatRun = (project: string, record: ChatRecord): { id: string; file: string; state: Record<string, unknown> } => {
+    const created = new Date(record.created);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = Number.isNaN(created.getTime()) ? '19700101-0000'
+      : `${created.getFullYear()}${pad(created.getMonth() + 1)}${pad(created.getDate())}-${pad(created.getHours())}${pad(created.getMinutes())}`;
+    const tail = createHash('sha256').update(record.id).digest('hex').slice(0, 6);
+    const id = `${stamp}-chat-${tail}`;
+    const file = runState(project, id);
+    if (existsSync(file)) return { id, file, state: JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown> };
+    const now = new Date().toISOString();
+    mkdirSync(join(projectDir(project), 'runs', id, 'outputs'), { recursive: true });
+    const title = `Chat: ${record.title || record.id}`.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const state = { schemaVersion: '1', id, project, title, tool: record.tool, createdAt: now, updatedAt: now, status: 'completed', currentStep: '',
+      completedSteps: [], pending: [], approvals: [], inputs: [], results: [], artifacts: [] as string[] };
+    writeRunState(file, state);
+    failing(() => appendFileSync(join(projectDir(project), 'activity-log.md'), `| ${now.slice(0, 10)} | chat | ${id} | completed |\n`));
+    return { id, file, state };
   };
   const copyInto = (project: string, source: string, dest: string) => {
     const rel = uniqueName(projectPath(project, dest), dest, basename(source));
@@ -2657,6 +2712,35 @@ export function createService(root: string, deps: Deps) {
       });
       return files.filter((f, i) => !files.slice(0, i).some((other) => f.status === 'ok' && other.status === 'ok' && f.path === other.path));
     },
+    // A picture shown in a conversation saved to Deliveries (its save icon): copied - never moved - into the
+    // conversation's run (chatRun), from where it can be moved to any folder. Saved again, it is not copied twice.
+    chatSaveImage: (project: string, id: unknown, ref: unknown): string => {
+      const dir = projectDir(project);
+      if (typeof id !== 'string') throw new ServiceError('Unknown conversation.');
+      const record = conversations.state(dir, id).record;
+      const rel = String(ref ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+      if (!CHAT_IMAGE.has(extname(rel).toLowerCase())) throw new ServiceError('Only pictures are saved from the chat.');
+      const source = projectPath(project, rel);
+      const stat = statSync(source, { throwIfNoEntry: false });
+      if (!stat?.isFile() || stat.size > IMAGE_LIMIT) throw new ServiceError('This picture is not available any more.');
+      const bytes = readFileSync(source);
+      const run = chatRun(project, record);
+      const saved = deliveredPaths(project, run.state.artifacts).find((p) => {
+        try { return readFileSync(projectPath(project, p)).equals(bytes); } catch { return false; }
+      });
+      if (saved) return saved;
+      const outputs = join(dir, 'runs', run.id, 'outputs');
+      mkdirSync(outputs, { recursive: true });
+      // A copy Moki named by a hash (a Codex picture) gets a readable name.
+      const ext = extname(rel).toLowerCase();
+      const name = uniqueName(outputs, '', /^[0-9a-f]{16,}$/i.test(basename(rel, extname(rel))) ? `image${ext}` : basename(rel));
+      writeFileSync(join(outputs, name), bytes, { flag: 'wx' });
+      const out = `runs/${run.id}/outputs/${name}`;
+      run.state.artifacts = [...(Array.isArray(run.state.artifacts) ? run.state.artifacts : []), `workspace/projects/${project}/${out}`];
+      run.state.updatedAt = new Date().toISOString();
+      writeRunState(run.file, run.state);
+      return out;
+    },
 
     // Hudson (desktop/hudson.ts): the files the runs left, for the AI to sort. A run's state, its inputs, the
     // operations' own folders and journals are not offered: Moki and the skills need them.
@@ -3177,7 +3261,8 @@ export function createService(root: string, deps: Deps) {
     // The chat of a project (desktop/chat.ts): what the tool gets at each start of its process, as a terminal of that
     // tool does (the project's MCP servers and app plugins), plus the project's context in a file (never on the
     // command line). `lostChat`: the session to resume is gone, so the context also carries that conversation.
-    chatSetup: (project: unknown, tool: unknown, language: unknown, lostChat?: unknown): { contextFile: string; extra: string[]; scratch: string[] } => {
+    // `conversation`: the conversation's id, so the AI knows the folder of its own (pictures it makes stay there).
+    chatSetup: (project: unknown, tool: unknown, language: unknown, lostChat?: unknown, conversation?: unknown): { contextFile: string; extra: string[]; scratch: string[] } => {
       const dir = projectDir(project);
       const id = project as string;
       if (!isChatTool(tool)) throw new ServiceError('This AI tool has no chat yet.');
@@ -3192,6 +3277,9 @@ export function createService(root: string, deps: Deps) {
         if (last?.role === 'assistant' && !last.text && record.messages.at(-2)?.role === 'user') record.messages.splice(-2);
         const past = chatTranscript(record);
         if (past) context += `\n\nThis conversation started in an earlier session that is no longer available. What was said so far:\n\n${past}`;
+      }
+      if (typeof conversation === 'string' && /^[\w-]{1,80}$/.test(conversation)) {
+        context += `\nThis conversation's own folder: ${join(dir, CHATS_DIR, conversation)} (in Markdown: ${CHATS_DIR}/${conversation}/<file>).`;
       }
       // The active workspace's scratch folder, out of the project's file tree; the chat deletes both files once read.
       const tmp = join(workspaceDir(root), 'temporary');
@@ -3257,11 +3345,15 @@ export function createService(root: string, deps: Deps) {
         sessionId: record.sessionId, onEvent: (event) => {
           if (event.kind === 'turn-end' && record.tool === 'codex') {
             const answer = record.messages.at(-1);
-            if (answer?.role === 'assistant') for (const ref of chatFileRefs(answer.text)) keepChatImage(dir, record, ref, home, imageProfile);
+            if (answer?.role === 'assistant') {
+              for (const ref of chatFileRefs(answer.text)) keepChatImage(dir, record, ref, home, imageProfile);
+              // What Codex generated during this answer shows in it, even when the text names no path.
+              for (const rel of newChatImages(dir, record, Date.parse(answer.at) - 1000, home, imageProfile)) answer.text += `\n\n![](${rel})`;
+            }
           }
           onEvent(event);
         }, command: deps.chatCommand ?? (shim ? (args) => ({ file: shim.node, args: [shim.script, ...args] }) : undefined),
-        setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined),
+        setup: ({ lost }) => service.chatSetup(project, tool, language, lost ? record.id : undefined, record.id),
       }), name || undefined, files, selected));
     },
     chatStop: (project: unknown, id: unknown) => {

@@ -298,6 +298,14 @@ export function ChatView({ project, workspace, tab, tools, active, pending, onPe
     // A generated image's original link opens the copy owned by this conversation.
     void api.chatFiles(project, [href], state.record.id).then(([file]) => onLink(file?.status === 'ok' ? file.path : href)).catch(() => onLink(href));
   };
+  // A picture of the answer saved to Deliveries (its save icon): where it went, or why it could not go.
+  const saveImage = async (path: string): Promise<{ ok: boolean; text: string }> => {
+    if (!state) return { ok: false, text: t('This picture is not available any more.') };
+    try {
+      const saved = await api.chatSaveImage(project, state.record.id, path);
+      return { ok: true, text: t('Saved in Deliveries: {name}', { name: saved.split('/').pop() ?? saved }) };
+    } catch (e) { return { ok: false, text: t(e instanceof Error ? e.message : String(e)) }; }
+  };
   const label = (key: string) => CHAT_NAMES[key] ?? key;
   const listed = history.filter((chat) => `${chat.title} ${label(chat.tool)}`.toLocaleLowerCase().includes(historyQuery.trim().toLocaleLowerCase()));
   const stop = () => { if (state) void api.chatStop(project, state.record.id).catch((e: Error) => setError(e.message)); };
@@ -362,22 +370,25 @@ export function ChatView({ project, workspace, tab, tools, active, pending, onPe
             const live = busy && i === state.record.messages.length - 1;
             const lastUser = message.role === 'user' && !state.record.messages.slice(i + 1).some((m) => m.role === 'user');
             const failed = [...new Set((message.tools ?? []).map(failedConnection).filter((s): s is string => Boolean(s)))];
-            // The files an answer made or names: its text, and what its Write/Edit calls wrote.
-            const written = (message.tools ?? []).filter((c) => /^(Write|Edit|MultiEdit)$/.test(c.name) && c.ok !== false).map((c) => `\`${c.summary}\``).join(' ');
+            // The files an answer made or names: its text, and what its Write/Edit calls wrote. A picture already shown in
+            // the text is not repeated as a card.
+            const inline = inlinePictures(message.text);
+            const written = (message.tools ?? []).filter((c) => /^(Write|Edit|MultiEdit)$/.test(c.name) && c.ok !== false && !shownInline(c.summary, inline))
+              .map((c) => `\`${c.summary}\``).join(' ');
             return <article key={i} className={`chat-message chat-${message.role}`}>
               {message.role === 'assistant' && <span className="chat-author">{label(state.record.tool)}</span>}
               {message.role === 'user' && message.label
                 // A request Moki wrote: its name, and the full text only when opened (the AI got all of it).
                 ? <details className="chat-request"><summary>{t('Request from Moki: {name}', { name: message.label })}</summary><p className="chat-user-text">{message.text}</p></details>
                 : message.role === 'user' ? message.text.trim() && <p className="chat-user-text">{message.text}</p>
-                : <ChatMarkdown text={message.text} project={project} live={live} onLink={link}
+                : <ChatMarkdown text={message.text} project={project} live={live} onLink={link} onSave={saveImage}
                 answer={state.record.messages[i + 1]?.role === 'user' ? state.record.messages[i + 1].text : undefined}
                 onReply={busy || sending || changingModel || restoring || customModel ? undefined : (reply) => { void deliver(reply, state.record.tool, state.record.id); }} />}
               {message.role === 'user' && message.attachments?.length ? <ChatFiles project={project} refs={message.attachments} onOpen={onLink} compact /> : null}
               {message.tools?.length ? <details className="chat-tools"><summary>{t('Tools used')} ({message.tools.length})</summary><ul>{message.tools.map((call, index) => <li key={index}><span aria-hidden="true">{call.ok === false ? '×' : call.ok ? '✓' : '·'}</span> {activity(call)}</li>)}</ul></details> : null}
               {failed.length > 0 && <p className="warn-text small" role="status">{t('{servers} did not answer: this answer was made without its data.', { servers: failed.join(', ') })}</p>}
               {message.error && <p className="error" role="status">{message.error === 'stopped' ? t('Response stopped.') : message.error}</p>}
-              {message.role === 'assistant' && !live && (message.text.trim() || written) ? <ChatFiles project={project} conversation={state.record.id} text={`${message.text}\n${written}`} onOpen={onLink} /> : null}
+              {message.role === 'assistant' && !live && (message.text.trim() || written) ? <ChatFiles project={project} conversation={state.record.id} text={`${withoutPictures(message.text)}\n${written}`} onOpen={onLink} /> : null}
               {!live && !busy && (message.role === 'assistant' ? message.text.trim() !== '' || Boolean(message.error) : lastUser && !message.label) && (
                 <div className="chat-actions">
                   {message.role === 'assistant' && message.text.trim() && <button type="button" className="icon-btn" title={copied === i ? t('Copied') : t('Copy')} aria-label={t('Copy the answer')}
@@ -466,9 +477,99 @@ function ChatPicture({ project, path, name, onOpen }: { project: string; path: s
   </button> : <div className="chat-picture loading" aria-hidden="true" />;
 }
 
+// Pictures written in an answer as ![...](a path in the project): drawn in its text (scripts/lib/markdown.mjs), so
+// they are not repeated as file cards below it. An absolute path cannot be drawn there and keeps its card.
+const PICTURE = /!\[[^\]]*\]\(\s*([^\s):]+)(?:\s+"[^"]*")?\s*\)/g;
+const inlinePictures = (text: string) => new Set([...text.matchAll(PICTURE)].map((m) => m[1].replace(/\\/g, '/').replace(/^\.\//, '')));
+const withoutPictures = (text: string) => text.replace(PICTURE, ' ');
+const shownInline = (path: string, inline: Set<string>) => {
+  const p = path.replace(/\\/g, '/');
+  return [...inline].some((ref) => p === ref || p.endsWith(`/${ref}`));
+};
+const fromHex = (hex: string) => new TextDecoder().decode(new Uint8Array((hex.match(/[0-9a-f]{2}/gi) ?? []).map((b) => parseInt(b, 16))));
+const ICON = (paths: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const ICON_OPEN = ICON('<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/>');
+const ICON_SAVE = ICON('<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/>');
+const ICON_SAVED = ICON('<path d="M5 12l5 5 9-10"/>');
+
+const ICON_CLOSE = ICON('<path d="M6 6l12 12"/><path d="M18 6L6 18"/>');
+
+// The picture larger, over the whole window, without leaving the conversation: Esc, a click outside it or × closes
+// it, and the focus goes back to the icon that opened it.
+function enlarge(img: HTMLImageElement, from: HTMLElement): void {
+  const veil = document.createElement('div');
+  veil.className = 'chat-lightbox';
+  veil.setAttribute('role', 'dialog');
+  veil.setAttribute('aria-modal', 'true');
+  veil.setAttribute('aria-label', img.alt || t('Picture'));
+  const big = document.createElement('img');
+  big.src = img.src;
+  big.alt = img.alt;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'icon-btn chat-lightbox-close';
+  close.title = t('Close');
+  close.setAttribute('aria-label', t('Close'));
+  close.innerHTML = ICON_CLOSE;
+  const done = () => { veil.remove(); document.removeEventListener('keydown', key, true); from.focus(); };
+  const key = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); done(); } };
+  veil.addEventListener('click', (event) => { if (event.target === veil) done(); });
+  close.addEventListener('click', done);
+  veil.append(big, close);
+  document.body.append(veil);
+  document.addEventListener('keydown', key, true);
+  close.focus();
+}
+
+// Each picture of a rendered answer gets two icons over it: see it larger, and save it to Deliveries (then a check,
+// and a note over the picture that says where it went, gone after a few seconds).
+type SaveResult = { ok: boolean; text: string };
+const NOTE_MS = 3500;
+function dressPictures(root: HTMLElement, onSave: ((path: string) => Promise<SaveResult>) | null): void {
+  for (const img of root.querySelectorAll<HTMLImageElement>('img[data-ref]')) {
+    if (img.parentElement?.classList.contains('chat-image')) continue;
+    const written = fromHex(img.dataset.ref ?? '');
+    let path = written;
+    try { path = decodeURIComponent(written); } catch { /* not encoded */ }
+    if (!path) continue;
+    const frame = document.createElement('span');
+    frame.className = 'chat-image';
+    img.replaceWith(frame);
+    const bar = document.createElement('span');
+    bar.className = 'chat-image-actions';
+    const button = (icon: string, title: string, act: (btn: HTMLButtonElement) => void) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'icon-btn';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
+      btn.innerHTML = icon;
+      btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); act(btn); });
+      return btn;
+    };
+    bar.append(button(ICON_OPEN, t('Open larger'), (btn) => enlarge(img, btn)));
+    if (onSave) bar.append(button(ICON_SAVE, t('Save in Deliveries'), (btn) => {
+      btn.disabled = true;
+      void onSave(path).then(({ ok, text }) => {
+        if (ok) { btn.innerHTML = ICON_SAVED; btn.title = t('Saved in Deliveries'); btn.setAttribute('aria-label', t('Saved in Deliveries')); }
+        btn.disabled = ok;
+        frame.querySelector('.chat-image-note')?.remove();
+        const note = document.createElement('span');
+        note.className = `chat-image-note${ok ? '' : ' failed'}`;
+        note.setAttribute('role', 'status');
+        note.textContent = text;
+        frame.append(note);
+        window.setTimeout(() => note.remove(), NOTE_MS);
+      });
+    }));
+    frame.append(img, bar);
+  }
+}
+
 // An answer as formatted Markdown. While it is still arriving it is formatted at most every RENDER_EVERY_MS.
 // answer: the person's message right after this answer (it answers its choices or approval); onReply: sends a pick.
-function ChatMarkdown({ text, project, live, onLink, answer, onReply }: { text: string; project: string; live: boolean; onLink: (href: string) => void; answer?: string; onReply?: (reply: string) => void }) {
+// onSave: saves one of its pictures to Deliveries.
+function ChatMarkdown({ text, project, live, onLink, answer, onReply, onSave }: { text: string; project: string; live: boolean; onLink: (href: string) => void; answer?: string; onReply?: (reply: string) => void; onSave?: (path: string) => Promise<SaveResult> }) {
   const [html, setHtml] = useState('');
   const latest = useRef(text);
   latest.current = text;
@@ -493,10 +594,13 @@ function ChatMarkdown({ text, project, live, onLink, answer, onReply }: { text: 
   const reply = useRef(onReply);
   reply.current = onReply;
   const canReply = Boolean(onReply);
+  const save = useRef(onSave);
+  save.current = onSave;
   useEffect(() => {
     if (live || !box.current) return;
     dressCharts(box.current);
     dressActions(box.current, answer, canReply ? (text) => reply.current?.(text) : null);
+    dressPictures(box.current, save.current ? (path) => save.current?.(path) ?? Promise.resolve({ ok: false, text: '' }) : null);
   }, [html, live, answer, canReply]);
   return html ? <div ref={box}><MarkdownBody html={html} className="chat-markdown" onClick={(e) => {
     const anchor = (e.target as Element).closest('a');

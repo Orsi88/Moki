@@ -31,6 +31,7 @@ Editorial design for documents: the reader sees the structure before reading a w
 
 - Bold for the few words the reader must not miss; not for whole sentences.
 - At most one or two callouts per section (`> **Note:** …`, `> **Warning:** …`).
+- Key figures read at a glance as a ```` ```kpi ```` block (four to six at most); a procedure or use-case flow as a ```` ```steps ```` block, its title before it and exceptions after it. Either one replaces the sentence or table that would say the same, never doubles it.
 - Colour comes from the template; a colour or symbol keeps one meaning in the whole document (e.g. red = blocking) and is always paired with a word or icon, so readers who do not distinguish colours get it too.
 
 ## Figures

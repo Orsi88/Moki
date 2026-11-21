@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mountDiagramJobs } from '../app/src/diagram-mount.ts';
 import { replaceDiagram } from '../app/src/diagram-source.ts';
+import { mermaidTheme } from '../app/src/diagram-theme.ts';
 import { applyDiagramImages, diagramSources } from '../scripts/lib/diagram-images.mjs';
 import { markdownToHtml } from '../scripts/lib/markdown.mjs';
 
@@ -98,4 +99,20 @@ test('a diagram picture replaces only the block that was drawn', () => {
   assert.equal(diagramSources(html)[0].source, 'A-->B');
   assert.match(applyDiagramImages(html, ['data:image/png;base64,QQ==']), /<img class="diagram" alt="Diagram" src="data:image\/png;base64,QQ==">/);
   assert.equal(applyDiagramImages(html, [null]), html);
+});
+
+test('Mermaid diagrams take the app theme colors, and keep the built-in theme when a color is not hex', () => {
+  const dark: Record<string, string> = { '--bg': '#1c1b19', '--bg-2': '#232220', '--bg-3': '#2d2b28', '--text': '#f2ede3', '--muted': '#a8a196', '--border': '#353230', '--accent': '#f1d27c' };
+  const app = mermaidTheme((name) => ` ${dark[name] ?? ''} `, false, 'Inter, sans-serif');
+  assert.equal(app.config.theme, 'base');
+  assert.equal(app.config.themeVariables?.primaryColor, '#2d2b28');
+  assert.equal(app.config.themeVariables?.primaryBorderColor, '#f1d27c');
+  assert.equal(app.config.themeVariables?.darkMode, true); // from the background, not the data-theme guess
+  assert.equal(app.config.themeVariables?.fontFamily, 'Inter, sans-serif');
+  const light = mermaidTheme((name) => ({ ...dark, '--bg': '#fbf8f1' })[name] ?? '', true);
+  assert.equal(light.config.themeVariables?.darkMode, false);
+  assert.notEqual(light.key, app.key); // another palette is another cached drawing
+  const custom = mermaidTheme((name) => ({ ...dark, '--accent': 'rgb(1 2 3)' })[name] ?? '', true);
+  assert.deepEqual(custom, { key: 'dark', config: { theme: 'dark' } });
+  assert.deepEqual(mermaidTheme(() => '', false), { key: 'neutral', config: { theme: 'neutral' } });
 });

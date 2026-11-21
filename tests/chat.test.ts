@@ -1,7 +1,7 @@
 // Chat protocols, process lifecycle and project isolation; scripts stand in for real, billable AI tools.
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,14 +9,16 @@ import { claudeAdapter, codexAdapter, createChatSession, npmShim, toolSummary, t
 import { createConversations } from '../desktop/chat-conversations.ts';
 import { chatModel, chatModels } from '../desktop/chat-models.ts';
 import { chatFileRefs, resolveChatFile } from '../desktop/chat-files.ts';
-import { keepChatImage } from '../desktop/chat-images.ts';
+import { keepChatImage, newChatImages } from '../desktop/chat-images.ts';
 import { IMAGE_LIMIT } from '../desktop/fs-guard.ts';
 import { CHATS_DIR, chatAssetsDir, chatTranscript, isChatId, listChats, newChat, readChat, removeChat, saveChat } from '../desktop/chat-store.ts';
 import { isArtifactUrl, isViewerUrl, viewerBounds } from '../desktop/artifact-viewer.ts';
 import { createService } from '../desktop/service.ts';
 import { searchWorkspace, searchWorkspaceExpanded } from '../desktop/search.ts';
 import { createProject, buildStartPrompt } from '../scripts/lib/core.ts';
-import { ROOT, setWorkspaceDir } from '../scripts/lib/repo.mjs';
+import { CHAT_ANSWER_GUIDE } from '../scripts/lib/chat-guide.ts';
+import { ROOT, readJson, setWorkspaceDir } from '../scripts/lib/repo.mjs';
+import { validateSchema } from '../scripts/lib/schema.mjs';
 
 const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 const emit = "const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n');";
@@ -631,6 +633,12 @@ test('chat context always identifies the project, even without defaults, and kee
   assert.match(prompt, /Project: alpha\./);
   assert.match(prompt, /answer each of my messages here/);
   assert.doesNotMatch(prompt, /do not start any work/);
+  // The answer guide: reading structure and every resource the chat draws, in the chat only.
+  assert.ok(prompt.includes(CHAT_ANSWER_GUIDE));
+  for (const resource of ['Answer first', 'numbered sections', '> **Note:**', '```mermaid', '```chart', '```kpi', '```steps', 'Say each thing once', '"questions"', '```choices', '```approval', 'path#page=N']) assert.ok(prompt.includes(resource), resource);
+  assert.ok(prompt.indexOf(CHAT_ANSWER_GUIDE) < prompt.indexOf('Talk to me in English.'));
+  const terminal = buildStartPrompt({ project: 'alpha', defaults: [], root: ROOT, instructions: 'Use the staging data.' });
+  assert.ok(terminal && !terminal.includes('```chart') && !terminal.includes('Answer first'));
 });
 
 test('chat models: aliases, active-profile catalog, missing catalogs and bounded custom identifiers', (t) => {
@@ -749,4 +757,68 @@ test('chat service: switching workspaces while finding a tool cannot start a con
   assert.equal(launched, false);
   assert.deepEqual(service.chats('alpha'), []);
   assert.equal(existsSync(join(root, 'workspace', 'projects', 'alpha', CHATS_DIR)), false);
+});
+
+test('chat images: what Codex generated during an answer joins it, once, without other threads or older pictures', (t) => {
+  const root = temp(t), project = join(root, 'project'), home = join(root, 'home');
+  const thread = join(home, '.codex', 'generated_images', 'thread-2');
+  mkdirSync(project); mkdirSync(thread, { recursive: true }); mkdirSync(join(home, '.codex', 'generated_images', 'other'), { recursive: true });
+  const record = newChat('codex');
+  record.sessionId = 'thread-2';
+  const linked = join(thread, 'linked.png');
+  record.messages = [{ role: 'assistant', at: record.created, text: `See ${linked.replace(/\\/g, '/')}` }];
+  saveChat(project, record);
+  writeFileSync(join(thread, 'old.png'), 'old');
+  const past = new Date(Date.now() - 3_600_000);
+  utimesSync(join(thread, 'old.png'), past, past); // made before this answer
+  const before = Date.now() - 1000;
+  writeFileSync(join(thread, 'new.png'), 'new picture'); writeFileSync(linked, 'linked'); writeFileSync(join(thread, 'notes.txt'), 'text');
+  writeFileSync(join(home, '.codex', 'generated_images', 'other', 'theirs.png'), 'theirs');
+  const found = newChatImages(project, record, before, home, {});
+  // Only new.png: old.png is older than the answer, linked.png is already in its text, notes.txt is not a picture
+  // and theirs.png belongs to another thread.
+  assert.equal(found.length, 1);
+  assert.ok(found[0].startsWith(`${CHATS_DIR}/${record.id}/`));
+  assert.equal(readFileSync(join(project, found[0]), 'utf8'), 'new picture');
+  assert.deepEqual(newChatImages(project, { ...record, tool: 'claude' }, before, home, {}), []);
+});
+
+test('chat service: a picture saved to Deliveries lands in the conversation\'s run, and a deliverable moves out with its run following', (t) => {
+  const root = temp(t);
+  for (const folder of ['templates', 'agents']) cpSync(join(ROOT, folder), join(root, folder), { recursive: true });
+  createProject('alpha', 'Alpha', root, 'blank');
+  const dir = join(root, 'workspace', 'projects', 'alpha');
+  mkdirSync(join(dir, 'inbox'), { recursive: true });
+  const record = newChat('codex');
+  record.title = 'Logo ideas';
+  saveChat(dir, record);
+  mkdirSync(chatAssetsDir(dir, record.id), { recursive: true });
+  writeFileSync(join(chatAssetsDir(dir, record.id), 'logo.png'), 'png bytes');
+  const service = createService(root, { launch: () => ({ opened: true, message: '' }), openFolder: () => {}, openPath: () => {} });
+  // The AI is told the conversation's own folder.
+  assert.match(readFileSync(service.chatSetup('alpha', 'codex', 'English', undefined, record.id).contextFile, 'utf8'), new RegExp(`\\(in Markdown: \\.chats/${record.id}/<file>\\)`));
+  const saved = service.chatSaveImage('alpha', record.id, `.chats/${record.id}/logo.png`);
+  assert.match(saved, /^runs\/\d{8}-\d{4}-chat-[0-9a-f]{6}\/outputs\/logo\.png$/);
+  assert.equal(readFileSync(join(dir, saved), 'utf8'), 'png bytes');
+  assert.ok(existsSync(join(chatAssetsDir(dir, record.id), 'logo.png')), 'saving copies; the conversation keeps its picture');
+  assert.equal(service.chatSaveImage('alpha', record.id, `.chats/${record.id}/logo.png`), saved, 'saved again: not copied twice');
+  const runId = saved.split('/')[1];
+  const state = JSON.parse(readFileSync(join(dir, 'runs', runId, 'state.json'), 'utf8'));
+  assert.deepEqual(validateSchema(readJson(join(ROOT, 'schemas', 'execution-state.schema.json')), state), []);
+  assert.deepEqual([state.status, state.title, state.artifacts], ['completed', 'Chat: Logo ideas', [`workspace/projects/alpha/${saved}`]]);
+  assert.throws(() => service.chatSaveImage('alpha', record.id, 'project.json'), /Only pictures/);
+  assert.throws(() => service.chatSaveImage('alpha', record.id, '../../outside.png'));
+  // Out of Deliveries: the file goes, the run's list follows; into Deliveries, or the run's own files, never.
+  const moved = service.moveEntry('alpha', saved, 'inbox');
+  assert.equal(moved, 'inbox/logo.png');
+  assert.ok(existsSync(join(dir, moved)) && !existsSync(join(dir, saved)));
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'runs', runId, 'state.json'), 'utf8')).artifacts, ['workspace/projects/alpha/inbox/logo.png']);
+  assert.throws(() => service.moveEntry('alpha', moved, `runs/${runId}`), /Activities keep their own structure/);
+  assert.throws(() => service.moveEntry('alpha', `runs/${runId}/state.json`, 'inbox'), /Activities keep their own structure/);
+  // A run still under way keeps what it delivered where it is.
+  const busy = '20261120-1000-test-design-busy';
+  mkdirSync(join(dir, 'runs', busy, 'outputs'), { recursive: true });
+  writeFileSync(join(dir, 'runs', busy, 'outputs', 'cases.md'), '# Cases');
+  writeFileSync(join(dir, 'runs', busy, 'state.json'), JSON.stringify({ ...state, id: busy, status: 'in-progress', artifacts: [`workspace/projects/alpha/runs/${busy}/outputs/cases.md`] }));
+  assert.throws(() => service.moveEntry('alpha', `runs/${busy}/outputs/cases.md`, 'inbox'), /Wait for the activity to finish/);
 });

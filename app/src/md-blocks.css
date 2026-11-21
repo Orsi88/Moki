@@ -1,0 +1,33 @@
+/* The cards of ```kpi and ```steps blocks (scripts/lib/md-blocks.mjs), the same in a chat answer, a document and the
+   formatted editor (CardFence.tsx). Scoped to those so their own list and paragraph rules never reach inside a card.
+   The PDF export has its print version in scripts/pdf.mjs. */
+
+/* Indicators: a row of cards that wraps on a narrow column; the value carries the weight, label and note stay quiet. */
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap:10px; margin:0 0 1.2em; }
+/* Balanced rows: four cards as two by two, five or six as rows of three (never a lone card under a full row). */
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpis:has(> :nth-child(4):last-child) { grid-template-columns:repeat(auto-fit, minmax(min(100%, max(200px, calc((100% - 10px) / 2))), 1fr)); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpis:has(> :nth-child(5)):not(:has(> :nth-child(7))) { grid-template-columns:repeat(auto-fit, minmax(min(100%, max(160px, calc((100% - 20px) / 3))), 1fr)); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi { display:flex; flex-direction:column; gap:3px; min-width:0; padding:12px 16px 13px; border:1px solid var(--border); border-radius:12px; background:var(--bg-2); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-label { font-size:.82em; line-height:1.4; color:var(--muted); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-value { font-size:1.6em; font-weight:650; line-height:1.2; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-note { font-size:.82em; line-height:1.4; color:var(--muted); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-good .md-kpi-value { color:var(--ok); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-bad .md-kpi-value { color:var(--err); }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-kpi-warn .md-kpi-value { color:var(--warn); }
+
+/* A flow of steps: one card, the numbers in a column joined by a thin line, the text beside them. */
+:is(.markdown, .chat-markdown, .card-fence-card) .md-steps { list-style:none; counter-reset:md-step; margin:0 0 1.2em; padding:14px 18px; border:1px solid var(--border); border-radius:12px; }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-steps > li { counter-increment:md-step; position:relative; margin:0; padding-left:2.4em; }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-steps > li + li { margin-top:.7em; }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-steps > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:1.6em; text-align:center; color:var(--muted); font-variant-numeric:tabular-nums; }
+:is(.markdown, .chat-markdown, .card-fence-card) .md-steps > li:not(:last-child)::after { content:''; position:absolute; left:.8em; top:1.55em; bottom:-.6em; border-left:1px solid var(--border); }
+
+/* In the formatted editor: the card with a quiet bar naming it and an Edit button; Edit shows its lines as text. */
+.card-fence { position:relative; margin:0 0 1.2em; }
+.card-fence-bar { position:absolute; top:6px; right:6px; z-index:1; display:flex; align-items:center; gap:6px; opacity:0; transition:opacity .15s; }
+.card-fence:hover .card-fence-bar, .card-fence.on .card-fence-bar, .card-fence.editing .card-fence-bar, .card-fence-bar:focus-within { opacity:1; }
+.card-fence-kind { font-size:12px; color:var(--muted); }
+.card-fence.editing .card-fence-bar { position:static; justify-content:space-between; margin-bottom:6px; }
+.card-fence.on .card-fence-card > * { outline:2px solid var(--accent-soft); outline-offset:2px; }
+.card-fence-card > :last-child { margin-bottom:0; }
+.card-fence-source { display:block; width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg-2); color:var(--text); font-family:"Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; font-size:13px; line-height:1.6; resize:vertical; }

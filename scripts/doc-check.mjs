@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { isMain } from './lib/is-main.mjs';
+import { parseKpis, parseSteps } from './lib/md-blocks.mjs';
 
 const MERMAID_TYPES = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|journey|gantt|pie|quadrantChart|requirementDiagram|gitGraph|mindmap|timeline|sankey-beta|xychart-beta|block-beta|packet-beta|kanban|architecture-beta|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/;
 const MAX_NODES = 15;
@@ -96,6 +97,12 @@ export function checkMarkdown(text, { file = '', exists = existsSync } = {}) {
         }
         if (ids.size > MAX_NODES) add(at, 'warning', 'mermaid-size', `About ${ids.size} nodes: more than ${MAX_NODES}; split into complementary views.`);
       }
+    }
+    if (b.lang === 'kpi' || b.lang === 'steps') {
+      const { problems, ...found } = b.lang === 'kpi' ? parseKpis(b.body.join('\n')) : parseSteps(b.body.join('\n'));
+      const empty = !(b.lang === 'kpi' ? found.items : found.steps).length;
+      if (empty) add(at, 'error', b.lang, b.lang === 'kpi' ? 'A kpi block shows nothing: write one indicator per line, label | value | note | tone.' : 'A steps block shows nothing: write one step per line.');
+      else for (const p of problems) add(at + 1 + p.line, 'warning', b.lang, p.message);
     }
     if (b.lang === 'excalidraw') {
       try {

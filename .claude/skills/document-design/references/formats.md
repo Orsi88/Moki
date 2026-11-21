@@ -11,10 +11,11 @@ Moki's viewer and its PDF export use a small renderer (`scripts/lib/markdown.mjs
 | Headings `#`…`######`, paragraphs, **bold**, *italic*, `code`, ~~strike~~ | Raw HTML (it is escaped and shows as text), `<br>` |
 | Tables with a header row | Cells spanning rows or columns; very wide tables |
 | Bullet, numbered and nested lists; task lists `- [ ]` | GitHub callouts `> [!NOTE]` (shown as text): use `> **Note:** …` |
-| Block quotes (one paragraph each) | Multi-paragraph quotes: split into several `>` blocks |
+| Block quotes with paragraphs and lists inside (`> **Note:** …` callouts); list items continued on indented lines | Long quotes: a callout is one or two short paragraphs |
 | Links to web pages and to files (text in brackets, address in parentheses; or an address between angle brackets) | Links to headings (an address starting with #): headings have no anchors — refer to numbered sections instead |
 | Images: relative paths inside the project or embedded PNG/JPEG | Remote images |
 | ```` ```mermaid ```` and ```` ```excalidraw ```` blocks (drawn by Moki) | Mermaid with HTML labels, `click` or links (strict mode) |
+| ```` ```kpi ```` indicator cards, one per line: `label | value | note | tone` (tone `good`, `bad`, `warn` or left out); ```` ```steps ```` a numbered flow in a card, one step per line (also in the PDF export) | More than about six indicators in one block; prose that repeats what the block shows |
 
 ## Word (.docx)
 

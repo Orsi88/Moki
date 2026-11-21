@@ -438,6 +438,7 @@ export const api = {
   chatModels: (tool: string) => call<{ id: string; label: string }[]>('chatModels', tool),
   chatModel: (project: string, id: string, model: string) => call<ChatState>('chatModel', project, id, model),
   chatAnswerFiles: (project: string, text: string, id?: string) => call<ChatFile[]>('chatAnswerFiles', project, text, id),
+  chatSaveImage: (project: string, id: string, path: string) => call<string>('chatSaveImage', project, id, path),
   chatFiles: (project: string, refs: string[], id?: string) => call<ChatFile[]>('chatFiles', project, refs, id),
   saveAttachment: (project: string, name: string, data: Uint8Array) => call<string>('saveAttachment', project, name, data),
   chatStop: (project: string, id: string) => call<boolean>('chatStop', project, id),

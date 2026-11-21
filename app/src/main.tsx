@@ -6,6 +6,7 @@ import { installModalLayers } from './modal-layer';
 import { DialogHost } from './components/DialogHost';
 import './styles.css';
 import './dialogs.css';
+import './md-blocks.css';
 
 installTheme();
 installModalLayers();

@@ -3,6 +3,7 @@
 // from the document. No dependencies.
 
 import { headingSlugger } from './heading-anchors.ts';
+import { renderBlock } from './md-blocks.mjs';
 
 export const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -16,17 +17,20 @@ let resolveImage = null;
 function inline(text) {
   return unhide(escHtml(hide(text))
     // Relative images become data: URIs through the caller's resolver; the line below still accepts only raster data: URIs.
+    // The path it came from rides along in hex (no Markdown character can touch it) and becomes data-ref, so the
+    // app can open or save the file behind the picture.
     .replace(/!\[([^\]]*)\]\(([^)\s:]+)(?: &quot;((?:w=\d+(?: center| right)?)|center|right)&quot;)?\)/g, (m, alt, src, title) => {
-      const uri = resolveImage?.(src.replace(/&amp;/g, '&'));
+      const path = src.replace(/&amp;/g, '&');
+      const uri = resolveImage?.(path);
       if (!uri) return m;
-      return title ? `![${alt}](${uri} "${title}")` : `![${alt}](${uri})`;
+      return `![${alt}](${uri}${title ? ` &quot;${title}&quot;` : ''}${Buffer.from(path, 'utf8').toString('hex')})`;
     })
     // Only embedded raster images (Word previews); no remote or file images.
     // A title is only the editor's size and alignment (w=400, center, right), never free text.
-    .replace(/!\[([^\]]*)\]\((data:image\/(?:png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+)(?: &quot;((?:w=\d+(?: center| right)?)|center|right)&quot;)?\)/g, (_m, alt, src, title) => {
+    .replace(/!\[([^\]]*)\]\((data:image\/(?:png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+)(?: &quot;((?:w=\d+(?: center| right)?)|center|right)&quot;)?(?:([0-9a-f]+))?\)/g, (_m, alt, src, title, ref) => {
       const width = title?.match(/w=(\d+)/)?.[1];
       const align = title?.match(/(center|right)/)?.[1];
-      return `<img alt="${alt}" src="${src}"${width ? ` width="${width}"` : ''}${align ? ` data-align="${align}"` : ''}>`;
+      return `<img alt="${alt}" src="${src}"${width ? ` width="${width}"` : ''}${align ? ` data-align="${align}"` : ''}${ref ? ` data-ref="${ref}"` : ''}>`;
     })
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -70,6 +74,8 @@ export function markdownToHtml(md, { image = null, comments = false } = {}) {
   } finally { resolveImage = null; }
 }
 
+const LIST_ITEM = /^\s*([-*]|\d+\.)\s+/;
+
 function render(md) {
   const lines = md.replace(/\r\n/g, '\n').split('\n');
   const out = [];
@@ -85,17 +91,22 @@ function render(md) {
   const cells = (l) => l.trim().replace(/^\||(?<!\\)\|$/g, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
   while (i < lines.length) {
     const line = lines[i];
-    if (/^```/.test(line)) {
+    if (/^\s*```/.test(line)) {
       // Only these two languages become diagrams. Anything else stays a code block, and the
-      // language is a fixed token so it cannot become an attribute.
-      const info = line.slice(3).trim();
+      // language is a fixed token so it cannot become an attribute. A fence may be indented (a code block inside a
+      // list item): its lines lose that indentation, as the fence finder of the app (diagram-source.ts) reads them.
+      const pad = line.match(/^\s*/)[0].length;
+      const info = line.trim().slice(3).trim();
       const lang = info.split(/\s+/)[0].toLowerCase();
       const height = Number(/(?:^|\s)height=(\d{2,4})\b/.exec(info)?.[1]);
       const heightAttr = height >= 120 && height <= 1200 ? ` data-height="${height}"` : '';
       const buf = [];
       i++;
-      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++].replace(new RegExp(`^ {0,${pad}}`), ''));
       i++;
+      // Indicator cards and a flow of steps (md-blocks.mjs).
+      const card = renderBlock(lang, buf.join('\n'), inline);
+      if (card) { out.push(card); continue; }
       const code = escHtml(buf.join('\n'));
       const diagram = lang === 'mermaid' || lang === 'excalidraw' ? lang : '';
       // A language is kept only as a fixed token, so it cannot become markup.
@@ -119,24 +130,46 @@ function render(md) {
     } else if (/^>\s?/.test(line)) {
       const buf = [];
       while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''));
-      out.push(`<blockquote>${inline(buf.join(' '))}</blockquote>`);
-    } else if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+      // Paragraphs, lists and bold labels inside a quote ("> **Note:** …" callouts of several lines).
+      out.push(`<blockquote>${render(buf.join('\n'))}</blockquote>`);
+    } else if (LIST_ITEM.test(line)) {
       const html = [];
       const stack = []; // open lists: { tag, indent }
-      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+      const indentOf = (l) => l.match(/^\s*/)[0].replace(/\t/g, '    ').length;
+      // The next line that is not blank, so a blank line between items keeps one list (numbering goes on) and an
+      // indented paragraph after a blank line stays in its item.
+      const nextFilled = (from) => { let j = from; while (j < lines.length && !lines[j].trim()) j++; return j; };
+      const continues = (j) => j < lines.length && !/^\s*```/.test(lines[j]) && indentOf(lines[j]) >= stack.at(-1).indent + 2 && !LIST_ITEM.test(lines[j]);
+      while (i < lines.length && LIST_ITEM.test(lines[i])) {
         const m = lines[i].match(/^(\s*)([-*]|\d+\.)\s+(.*)$/);
         const indent = m[1].replace(/\t/g, '    ').length;
         const tag = /\d/.test(m[2]) ? 'ol' : 'ul';
+        // A numbered list keeps the number it starts at ("3. …" after a paragraph shows 3).
+        const open = () => `<${tag}${tag === 'ol' && parseInt(m[2], 10) !== 1 ? ` start="${parseInt(m[2], 10)}"` : ''}><li>`;
         // Deeper by 2+ spaces opens a nested list; less indented closes lists back to that level.
         while (stack.length > 1 && indent < stack.at(-1).indent) html.push(`</li></${stack.pop().tag}>`);
         const top = stack.at(-1);
-        if (!top || indent >= top.indent + 2) { html.push(`<${tag}><li>`); stack.push({ tag, indent }); }
-        else if (top.tag !== tag) { html.push(`</li></${stack.pop().tag}><${tag}><li>`); stack.push({ tag, indent }); }
+        if (!top || indent >= top.indent + 2) { html.push(open()); stack.push({ tag, indent }); }
+        else if (top.tag !== tag) { html.push(`</li></${stack.pop().tag}>${open()}`); stack.push({ tag, indent }); }
         else html.push('</li><li>');
-        // "- [ ] item" / "- [x] item": a checklist item (the box is drawn, not editable here).
-        const task = m[3].match(/^\[([ xX])\]\s+(.*)$/);
-        html.push(task ? `<input type="checkbox" class="task" disabled${task[1] === ' ' ? '' : ' checked'}> ${inline(task[2])}` : inline(m[3]));
         i++;
+        // The item's text goes on in indented lines below it; after a blank line, as a new paragraph of the item.
+        const parts = [[m[3]]];
+        while (i < lines.length) {
+          const j = nextFilled(i);
+          if (!continues(j)) break;
+          if (j > i) parts.push([]);
+          parts.at(-1).push(lines[j].trim());
+          i = j + 1;
+        }
+        // "- [ ] item" / "- [x] item": a checklist item (the box is drawn, not editable here).
+        const task = parts[0][0].match(/^\[([ xX])\]\s+(.*)$/);
+        if (task) parts[0][0] = task[2];
+        const text = parts.map((p) => inline(p.join(' '))).join('<br><br>');
+        html.push(task ? `<input type="checkbox" class="task" disabled${task[1] === ' ' ? '' : ' checked'}> ${text}` : text);
+        // A blank line between two items of the list does not end it.
+        const j = nextFilled(i);
+        if (j > i && j < lines.length && LIST_ITEM.test(lines[j])) i = j;
       }
       while (stack.length) html.push(`</li></${stack.pop().tag}>`);
       out.push(html.join(''));
@@ -145,7 +178,7 @@ function render(md) {
     } else {
       const buf = [];
       let level = 0;
-      while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|>|\s*([-*]|\d+\.)\s+)/.test(lines[i])) {
+      while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|>|\s*([-*]|\d+\.)\s+)/.test(lines[i])) {
         // Setext heading: text underlined with === (level 1) or --- (level 2). A lone --- is a rule (handled above).
         if (buf.length && /^ {0,3}(=+|-+)\s*$/.test(lines[i])) { level = lines[i].trim()[0] === '=' ? 1 : 2; i++; break; }
         buf.push(lines[i++]);

@@ -41,7 +41,26 @@
 .chat-suggestion { padding:8px 14px; border:1px solid var(--border); border-radius:999px; background:var(--bg-2); color:var(--text); font:inherit; font-size:13px; cursor:pointer; text-align:left; }
 .chat-suggestion:hover { border-color:var(--accent); }
 .chat-user-text { white-space:pre-wrap; line-height:1.65; margin:0; }
-.chat-markdown { line-height:1.65; }
+/* Reading typography of an answer: close to a document's (.markdown in styles.css), sized for a conversation. Sections
+   breathe (space above headings, a thin line between them), paragraphs and list items keep a steady rhythm. */
+.chat-markdown { font-size:15px; line-height:1.7; }
+.chat-markdown :is(h1, h2, h3, h4, h5, h6) { line-height:1.3; font-weight:650; }
+.chat-markdown h1 { font-size:1.45em; margin:1.6em 0 .6em; }
+.chat-markdown h2 { font-size:1.25em; margin:1.8em 0 .6em; }
+.chat-markdown h3 { font-size:1.08em; margin:1.4em 0 .4em; }
+.chat-markdown :is(h4, h5, h6) { font-size:1em; margin:1.2em 0 .3em; }
+.chat-markdown hr + :is(h1, h2, h3, h4) { margin-top:0; }
+.chat-markdown p { margin:0 0 1em; }
+.chat-markdown :is(ul, ol) { margin:0 0 1em; padding-left:1.5em; }
+.chat-markdown li + li { margin-top:.35em; }
+.chat-markdown li > :is(ul, ol) { margin:.35em 0 0; }
+.chat-markdown li::marker { color:var(--muted); }
+.chat-markdown strong { font-weight:650; }
+.chat-markdown hr { border:0; border-top:1px solid var(--border); margin:2em 0; }
+.chat-markdown :not(pre) > code { padding:1px 6px; border-radius:5px; background:var(--bg-3); font-size:.88em; }
+/* A note or warning ("> **Note:** …"): a soft panel with the accent at its side. */
+.chat-markdown blockquote { margin:0 0 1em; padding:10px 14px; border-left:3px solid var(--accent); border-radius:0 8px 8px 0; background:var(--bg-2); }
+.chat-markdown blockquote > :last-child { margin-bottom:0; }
 .chat-markdown > :first-child { margin-top:0; }
 .chat-markdown > :last-child { margin-bottom:0; }
 .chat-markdown pre { overflow:auto; padding:14px; border-radius:8px; background:var(--bg-2); }
@@ -53,9 +72,38 @@
 .chat-code-copy:hover { background:var(--bg); color:var(--text); }
 .chat-markdown { --hl-keyword:#0000ff; --hl-control:#af00db; --hl-string:#a31515; --hl-number:#098658; --hl-comment:#008000; --hl-function:#795e26; --hl-type:#267f99; --hl-property:#0451a5; --hl-variable:#001080; --hl-tag:#800000; --hl-attr-name:#e50000; --hl-regexp:#811f3f; --hl-meta:#0000ff; }
 :root[data-theme="dark"] .chat-markdown { --hl-keyword:#569cd6; --hl-control:#c586c0; --hl-string:#ce9178; --hl-number:#b5cea8; --hl-comment:#6a9955; --hl-function:#dcdcaa; --hl-type:#4ec9b0; --hl-property:#9cdcfe; --hl-variable:#9cdcfe; --hl-tag:#569cd6; --hl-attr-name:#9cdcfe; --hl-regexp:#d16969; --hl-meta:#569cd6; }
-.chat-markdown table { border-collapse:collapse; max-width:100%; }
-.chat-markdown th, .chat-markdown td { padding:6px 10px; border:1px solid var(--border); }
+/* Tables: a line between rows only, the header in bold, a scroll of its own when wider than the column. */
+.chat-markdown table { display:block; overflow-x:auto; max-width:100%; border-collapse:collapse; margin:0 0 1.2em; }
+.chat-markdown th, .chat-markdown td { padding:9px 18px 9px 0; border:0; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+.chat-markdown :is(th, td):last-child { padding-right:0; }
+.chat-markdown th { font-weight:650; }
+/* The header row's line is a little firmer; a row label (th in the body) keeps the rows' own line. */
+.chat-markdown thead th { border-bottom-color:color-mix(in srgb, var(--text) 22%, transparent); }
+.chat-markdown tbody tr:last-child > * { border-bottom:0; }
+/* A table shown on demand (a chart's View data) stays hidden until asked: display:block above must not show it. */
+.chat-markdown table[hidden] { display:none; }
 .chat-markdown img { max-width:100%; }
+/* A picture of an answer: shown in the text, two quiet icons over its corner (open larger, save to Deliveries). */
+.chat-image { position:relative; display:inline-block; max-width:100%; margin:4px 0 8px; line-height:0; vertical-align:top; }
+.chat-image img { display:block; max-width:100%; max-height:520px; border:1px solid var(--border); border-radius:12px; }
+.chat-image-actions { position:absolute; top:8px; right:8px; display:flex; gap:4px; opacity:0; transition:opacity .15s; line-height:1; }
+.chat-image:hover .chat-image-actions, .chat-image-actions:focus-within { opacity:1; }
+.chat-image-actions .icon-btn { width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:color-mix(in srgb, var(--bg) 82%, transparent); color:var(--text); box-shadow:0 1px 3px rgb(0 0 0 / .25); }
+.chat-image-actions .icon-btn:disabled { opacity:1; color:var(--ok); cursor:default; }
+.chat-image-note { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); max-width:calc(100% - 24px); padding:6px 12px; border-radius:999px; background:color-mix(in srgb, var(--bg) 88%, transparent); box-shadow:0 1px 4px rgb(0 0 0 / .3); color:var(--text); font-size:13px; line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; animation:chat-note 3.5s ease forwards; }
+.chat-image-note::before { content:'✓ '; color:var(--ok); }
+.chat-image-note.failed::before { content:''; }
+.chat-image-note.failed { color:var(--err); }
+@keyframes chat-note { 0% { opacity:0; transform:translate(-50%, 4px); } 8%, 85% { opacity:1; transform:translate(-50%, 0); } 100% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { .chat-image-note { animation:none; } }
+/* A picture seen larger: over the whole window, the picture as large as it fits, × in the corner. */
+.chat-lightbox { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:48px; background:rgb(0 0 0 / .88); cursor:zoom-out; animation:chat-lightbox .15s ease; }
+/* As large as the window allows, small pictures too, keeping their proportions. */
+.chat-lightbox img { width:100%; height:100%; object-fit:contain; cursor:default; }
+.chat-lightbox-close { position:absolute; top:14px; right:14px; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:color-mix(in srgb, var(--bg) 85%, transparent); color:var(--text); }
+.chat-lightbox-close:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@keyframes chat-lightbox { from { opacity:0; } to { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .chat-lightbox { animation:none; } }
 /* A request Moki wrote (Call…): one line with its name; the full text when opened. */
 .chat-request summary { cursor:pointer; font-weight:600; color:var(--muted); }
 .chat-request[open] summary { margin-bottom:8px; }
@@ -107,9 +155,11 @@
 
 /* Charts of an answer (chat-charts.ts): a categorical palette that reads in both themes. */
 .chat-view { --chart-1:#4e79a7; --chart-2:#f28e2b; --chart-3:#59a14f; --chart-4:#e15759; --chart-5:#76b7b2; --chart-6:#edc948; --chart-7:#b07aa1; --chart-8:#ff9da7; }
-.chat-chart { margin:12px 0; padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--bg-2); max-width:680px; }
+/* Every block of an answer (text, tables, cards, charts, questions) spans the same column, edge to edge, with the
+   same rhythm below it and the same corners. */
+.chat-chart { margin:0 0 1.2em; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--bg-2); }
 .chat-chart figcaption { font-weight:650; margin-bottom:8px; }
-.chat-chart-svg { display:block; width:100%; height:auto; max-height:320px; }
+.chat-chart-svg { display:block; width:100%; height:auto; }
 .chat-chart-svg.pie { max-width:260px; margin:0 auto; }
 .chat-chart-grid { stroke:var(--border); stroke-width:1; }
 .chat-chart-tick { fill:var(--muted); font-size:11px; }
@@ -124,7 +174,7 @@
 .chat-compose-box .note-mention { left:8px; right:8px; bottom:calc(100% + 6px); top:auto; } /* above the message box */
 
 /* Clickable answers (chat-actions.ts): the options of a closed question, an approval with what it covers. */
-.chat-choice, .chat-approval { margin:12px 0; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg-2); max-width:680px; }
+.chat-choice, .chat-approval { margin:0 0 1.2em; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--bg-2); }
 .chat-choice p, .chat-approval p { margin:0 0 10px; }
 .chat-approval-title { font-weight:650; }
 .chat-approval ul { margin:0 0 12px; padding-left:20px; }
@@ -135,3 +185,15 @@
 .chat-choice-button.chosen { opacity:1; border-color:var(--accent); background:var(--accent-soft); font-weight:600; }
 .chat-choice-button.approve:not(:disabled) { background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
 .chat-choice-button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Several questions answered together: each with its options, a thin line between them, one button at the end. */
+.chat-choice-title { font-weight:650; }
+.chat-choice-question { min-width:0; margin:0; padding:10px 0; border:0; }
+.chat-choice-question + .chat-choice-question { border-top:1px solid var(--border); }
+.chat-choice-question legend { float:left; width:100%; padding:0; margin:0 0 4px; font-size:13px; color:var(--muted); } /* inside the box, under the line */
+.chat-choice-radio { clear:left; display:flex; align-items:center; gap:10px; padding:4px 0; cursor:pointer; }
+.chat-choice-radio input { flex-shrink:0; width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:inherit; }
+.chat-choice-question:disabled .chat-choice-radio { cursor:default; }
+.chat-choice-question:disabled .chat-choice-radio:not(:has(input:checked)) { opacity:.55; }
+.chat-choice-submit { width:100%; margin-top:8px; padding:9px 14px; border:0; border-radius:999px; background:var(--accent); color:var(--accent-text); font:inherit; font-weight:600; cursor:pointer; }
+.chat-choice-submit:disabled { cursor:default; opacity:.45; }
+.chat-choice-submit:focus-visible, .chat-choice-radio input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }

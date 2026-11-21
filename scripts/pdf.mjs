@@ -56,6 +56,15 @@ tr { page-break-inside: avoid; }
 code { background: #f2f2f2; padding: 0 3px; }
 blockquote { border-left: 3px solid ${s.accent}; margin: 6pt 0; padding: 2pt 8pt; color: #333; }
 img.diagram { display: block; max-width: 100%; height: auto; margin: 8pt 0; }
+.md-kpis { display: flex; flex-wrap: wrap; gap: 6pt; margin: 6pt 0 8pt; page-break-inside: avoid; }
+.md-kpi { flex: 1 1 110pt; display: flex; flex-direction: column; padding: 5pt 8pt; border: 1px solid ${s.table.border}; border-radius: 5pt; }
+.md-kpi-label, .md-kpi-note { font-size: 0.82em; color: #555; }
+.md-kpi-value { font-size: 1.5em; font-weight: 700; }
+.md-kpi-good .md-kpi-value { color: #2e7d32; } .md-kpi-bad .md-kpi-value { color: #c62828; } .md-kpi-warn .md-kpi-value { color: #b45309; }
+.md-steps { list-style: none; counter-reset: md-step; margin: 6pt 0 8pt; padding: 5pt 8pt; border: 1px solid ${s.table.border}; border-radius: 5pt; }
+.md-steps > li { counter-increment: md-step; position: relative; padding-left: 20pt; page-break-inside: avoid; }
+.md-steps > li + li { margin-top: 3pt; }
+.md-steps > li::before { content: counter(md-step); position: absolute; left: 0; width: 12pt; text-align: center; color: ${s.accent}; font-weight: 700; }
 .watermark { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 10; }
 .watermark span { transform: rotate(-35deg); font: 700 80pt ${font}; color: ${s.watermark.color}; opacity: ${s.watermark.opacity}; white-space: nowrap; }
 `;

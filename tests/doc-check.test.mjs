@@ -55,3 +55,10 @@ test('doc-check: cited sources need a bibliography row; local links and images m
   const links = '# D\n![print](shot.png)\n[missing](other.md)\n[web](https://example.com)\n![remote](https://example.com/a.png)';
   assert.deepEqual(rules(links, { file: '/p/runs/r/outputs/doc.md', exists }), ['error:missing-file@3', 'warning:remote-image@5']);
 });
+
+test('doc-check: kpi and steps blocks show something, and each kpi line is label | value | note | tone', () => {
+  const rules = (md) => checkMarkdown(md).map((p) => `${p.line}:${p.level}:${p.rule}`);
+  assert.deepEqual(rules('# T\n\n```kpi\nRuns | 128 | All projects\nPass rate | 94% | | good\n```\n\n```steps\n1. Open\n2. Run\n```\n'), []);
+  assert.deepEqual(rules('# T\n\n```kpi\nRuns | 128 | x | great\nonly a label\n```\n'), ['4:warning:kpi', '5:warning:kpi']);
+  assert.deepEqual(rules('# T\n\n```kpi\nnothing\n```\n\n```steps\n\n```\n'), ['3:error:kpi', '7:error:steps']);
+});

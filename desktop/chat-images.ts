@@ -1,8 +1,8 @@
-// Codex saves generated images in CODEX_HOME/generated_images/<thread-id>/, outside the project. Only an image
-// linked by an assistant in this conversation, in this thread's folder, can be copied into its local history.
+// Codex saves generated images in CODEX_HOME/generated_images/<thread-id>/, outside the project. Only an image of this
+// thread's folder - linked by an answer of this conversation, or made during one - is copied into its local history.
 // The original reference deterministically names the copy, so history still works after Codex clears its cache.
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { chatFileRefs, chatLocalPath, CHAT_IMAGE } from './chat-files.ts';
 import { chatAssetsDir, type ChatRecord } from './chat-store.ts';
@@ -11,8 +11,37 @@ import { IMAGE_LIMIT, resolveInside } from './fs-guard.ts';
 const same = (a: string, b: string) => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 
 export function keepChatImage(projectDir: string, record: ChatRecord, ref: string, home: string, env: NodeJS.ProcessEnv = process.env): string | null {
-  if (record.tool !== 'codex' || !record.sessionId || !/^[a-zA-Z0-9_-]{1,128}$/.test(record.sessionId)
-    || !record.messages.some((m) => m.role === 'assistant' && chatFileRefs(m.text).includes(ref))) return null;
+  if (!record.messages.some((m) => m.role === 'assistant' && chatFileRefs(m.text).includes(ref))) return null;
+  return copyCodexImage(projectDir, record, ref, home, env);
+}
+
+const codexThread = (record: ChatRecord) => record.tool === 'codex' && Boolean(record.sessionId) && /^[a-zA-Z0-9_-]{1,128}$/.test(record.sessionId ?? '');
+
+// The images Codex generated in this conversation's thread folder since `since` (the answer's start, ms), copied into
+// the conversation's own folder: an answer shows what it made even when its text names no path. Paths relative to the
+// project, oldest first; the ones the answer already links are left out.
+export function newChatImages(projectDir: string, record: ChatRecord, since: number, home: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (!codexThread(record)) return [];
+  let thread: string;
+  try { thread = join(realpathSync(env.CODEX_HOME || join(home, '.codex')), 'generated_images', record.sessionId as string); } catch { return []; }
+  let names: string[];
+  try { names = readdirSync(thread); } catch { return []; }
+  const key = (p: string) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p));
+  const linked = new Set(record.messages.flatMap((m) => (m.role === 'assistant' ? chatFileRefs(m.text) : [])).flatMap((r) => { try { return [key(chatLocalPath(r))]; } catch { return []; } }));
+  return names
+    .map((name) => join(thread, name))
+    .filter((file) => CHAT_IMAGE.has(extname(file).toLowerCase()) && !linked.has(key(file)))
+    .map((file) => { try { const st = lstatSync(file); return st.isFile() && st.mtimeMs >= since ? { file, at: st.mtimeMs } : null; } catch { return null; } })
+    .filter((f): f is { file: string; at: number } => Boolean(f))
+    .sort((a, b) => a.at - b.at)
+    .map(({ file }) => copyCodexImage(projectDir, record, file, home, env))
+    .filter((rel): rel is string => Boolean(rel));
+}
+
+// One image of this conversation's Codex thread folder, copied once into the conversation's own folder (named by its
+// original path); null when it is not such an image or cannot be read safely.
+function copyCodexImage(projectDir: string, record: ChatRecord, ref: string, home: string, env: NodeJS.ProcessEnv): string | null {
+  if (!codexThread(record)) return null;
   try {
     const raw = chatLocalPath(ref);
     if (!isAbsolute(raw)) return null;
@@ -32,7 +61,7 @@ export function keepChatImage(projectDir: string, record: ChatRecord, ref: strin
     }
     const profile = realpathSync(env.CODEX_HOME || join(home, '.codex'));
     const generated = join(profile, 'generated_images');
-    const thread = join(generated, record.sessionId);
+    const thread = join(generated, record.sessionId as string); // checked by codexThread
     // No junction or symlink may turn the thread directory into a different session's outputs.
     if (lstatSync(generated).isSymbolicLink() || lstatSync(thread).isSymbolicLink()) return null;
     if (!same(realpathSync(thread), thread) || !same(resolve(source, '..'), thread)) return null;

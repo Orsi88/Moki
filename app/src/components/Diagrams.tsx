@@ -8,6 +8,7 @@ import { t } from '../i18n';
 import { mountDiagramJobs, type DiagramJob, type MermaidDrawer } from '../diagram-mount';
 import { cachedMermaid, diagramCache, diagramKey } from '../diagram-cache';
 import { readFenceHeight, type DiagramLang } from '../diagram-source';
+import { mermaidTheme } from '../diagram-theme';
 import { useModalLayer } from '../modal-layer';
 import { IconCheck } from './Icons';
 
@@ -16,17 +17,19 @@ import { IconCheck } from './Icons';
 let ex: Promise<typeof import('./DrawingEditor')> | undefined;
 const loadEditor = () => (ex ??= import('./DrawingEditor').catch((error) => { ex = undefined; throw error; }));
 
-// Mermaid is imported on the first drawing that is not in the cache. The theme is
-// read once per mount, so every diagram of that mount uses the same one.
-function mermaidDrawer(): MermaidDrawer {
-  const theme = document.documentElement.dataset.theme !== 'light' ? 'dark' : 'neutral';
+// Mermaid is imported on the first drawing that is not in the cache. The theme (diagram-theme.ts) is the colors
+// where the diagram is drawn - a document has its own light or dark palette, apart from the app's - read once per
+// mount, so every diagram of that mount uses the same one.
+function mermaidDrawer(scope: Element): MermaidDrawer {
+  const style = getComputedStyle(scope);
+  const { key, config } = mermaidTheme((name) => style.getPropertyValue(name), document.documentElement.dataset.theme !== 'light', style.fontFamily);
   return cachedMermaid({
     render: async (id, source) => {
       const mermaid = (await import('mermaid')).default;
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, theme });
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, ...config });
       return (await mermaid.render(id, source)).svg;
     },
-  }, theme);
+  }, key);
 }
 
 const show = (host: HTMLElement, svg: string) => {
@@ -39,7 +42,7 @@ export async function paintDiagram(host: HTMLElement, lang: DiagramLang, source:
     await drawExcalidraw(host, source);
     return;
   }
-  show(host, await mermaidDrawer().render(`moki${Math.random().toString(36).slice(2, 10)}`, source));
+  show(host, await mermaidDrawer(host).render(`moki${Math.random().toString(36).slice(2, 10)}`, source));
 }
 
 // The drawing does not depend on the app theme, so its key has none. The key is the
@@ -73,8 +76,25 @@ function scaleMermaid(host: HTMLElement, zoom: number) {
   svg.style.height = `${box.height * zoom}px`;
 }
 
-// Ctrl + scroll over the card. The same range as the +/- buttons. A passive
+// The zoom range of a diagram card, for the +/- buttons and Ctrl + scroll alike.
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3;
+const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
+
+// Ctrl + scroll over the card: one step in or out, through read and write. A passive
 // listener cannot cancel the browser's own zoom, so this one is not passive.
+function wheelZoom(host: HTMLElement, read: () => number, write: (zoom: number) => void): () => void {
+  const onWheel = (event: WheelEvent) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const next = clampZoom(read() + (event.deltaY > 0 ? -0.15 : 0.15));
+    if (next !== read()) write(next);
+  };
+  host.addEventListener('wheel', onWheel, { passive: false });
+  return () => host.removeEventListener('wheel', onWheel);
+}
+
+// The formatted editor's card: Ctrl + scroll only (its bar has no zoom buttons).
 export function bindDiagramZoom(host: HTMLElement): () => void {
   let zoom = 1;
   const apply = () => {
@@ -82,19 +102,11 @@ export function bindDiagramZoom(host: HTMLElement): () => void {
     scaleMermaid(host, zoom);
   };
   apply();
-  const onWheel = (event: WheelEvent) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    const next = Math.min(3, Math.max(0.25, Math.round((zoom + (event.deltaY > 0 ? -0.15 : 0.15)) * 100) / 100));
-    if (next === zoom) return;
-    zoom = next;
-    apply();
-  };
-  host.addEventListener('wheel', onWheel, { passive: false });
+  const unbind = wheelZoom(host, () => zoom, (next) => { zoom = next; apply(); });
   const picture = host.querySelector('.diagram-picture') ?? host;
   const seen = new MutationObserver(() => apply());
   seen.observe(picture, { childList: true, subtree: true });
-  return () => { seen.disconnect(); host.removeEventListener('wheel', onWheel); };
+  return () => { seen.disconnect(); unbind(); };
 }
 
 export async function openDrawing(source: string, onSave: (body: string) => void) {
@@ -185,7 +197,8 @@ function resizeHandle(picture: HTMLElement, current: number, onCommit?: (height:
   return handle;
 }
 
-// The same zoom as a PDF: the picture starts fitted to the card, then grows or shrinks inside it.
+// The same zoom as a PDF: the picture starts fitted to the card, then grows or shrinks inside it, with the
+// buttons or Ctrl + scroll over the picture (as in the formatted editor).
 function zoomControl(picture: HTMLElement) {
   let zoom = 1;
   const bar = document.createElement('div');
@@ -208,15 +221,17 @@ function zoomControl(picture: HTMLElement) {
     picture.style.setProperty('--diagram-zoom', String(zoom));
     scaleMermaid(picture, zoom);
     label.textContent = `${Math.round(zoom * 100)}%`;
-    out.disabled = zoom <= 0.5;
-    inn.disabled = zoom >= 3;
+    out.disabled = zoom <= ZOOM_MIN;
+    inn.disabled = zoom >= ZOOM_MAX;
   };
   const step = (by: number) => (event: Event) => {
     event.preventDefault();
     event.stopPropagation();
-    zoom = Math.min(3, Math.max(0.5, Math.round((zoom + by) * 100) / 100));
+    zoom = clampZoom(zoom + by);
     apply();
   };
+  wheelZoom(picture, () => zoom, (next) => { zoom = next; apply(); });
+  picture.title = t('Hold Ctrl and scroll to zoom');
   out.addEventListener('click', step(-0.25));
   inn.addEventListener('click', step(0.25));
   bar.append(out, label, inn);
@@ -308,7 +323,7 @@ export async function mountDiagrams(root: HTMLElement, onSave?: (index: number, 
       return picture;
     },
     draw: (picture, source) => drawExcalidraw(picture, source),
-    loadMermaid: async () => mermaidDrawer(),
+    loadMermaid: async () => mermaidDrawer(root),
     show,
     fail: failed,
   });

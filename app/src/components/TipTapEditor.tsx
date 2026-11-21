@@ -20,6 +20,7 @@ import { RawMarkdown, rawWords, shieldFrontMatter, shieldLosses } from '../md-ra
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { createDebouncer, onFlushEdits } from '../debounce';
 import { DiagramFence } from './DiagramFence';
+import { CardFence } from './CardFence';
 import { MokiCodeBlock } from './CodeBlockCard';
 import { IconTrash } from './Icons';
 
@@ -476,6 +477,7 @@ export const TipTapEditor = forwardRef<TipTapHandle, Props>(function TipTapEdito
       TaskList,
       TaskItem.configure({ nested: true, HTMLAttributes: { class: 'task-item' } }),
       DiagramFence,
+      CardFence,
       MdCommentMark,
       ...RawMarkdown,
       Markdown,

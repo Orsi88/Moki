@@ -294,10 +294,41 @@ test('markdown: deep lists, setext headings, rules and autolinks', () => {
   assert.doesNotMatch(markdownToHtml('<javascript:alert(1)> <ftp://x> <https://x" onclick="y>'), /<a |onclick="/);
   // Without a resolver a relative image is not embedded.
   assert.doesNotMatch(markdownToHtml('![a](img.png)'), /<img/);
-  assert.match(markdownToHtml('![a](img.png)', { image: () => 'data:image/png;base64,AA==' }), /<img alt="a" src="data:image\/png;base64,AA==">/);
+  // The picture keeps the path it came from (hex), so the app can open or save that file.
+  assert.match(markdownToHtml('![a](img.png)', { image: () => 'data:image/png;base64,AA==' }), /<img alt="a" src="data:image\/png;base64,AA==" data-ref="696d672e706e67">/);
+  assert.match(markdownToHtml('![a](my_pic_1.png "w=320 center")', { image: () => 'data:image/png;base64,AA==' }), /<img alt="a" src="data:image\/png;base64,AA==" width="320" data-align="center" data-ref="[0-9a-f]+">/);
   assert.doesNotMatch(markdownToHtml('![a](img.png)', { image: () => 'data:image/svg+xml;base64,AA==' }), /<img/);
   assert.match(markdownToHtml('![a](data:image/png;base64,AA== "w=320 center")'), /<img alt="a" src="data:image\/png;base64,AA==" width="320" data-align="center">/);
   assert.doesNotMatch(markdownToHtml('![a](data:image/png;base64,AA== "onerror=x")'), /<img/);
+});
+
+test('markdown: list items go on in indented lines and across blank lines, and keep their numbering', () => {
+  assert.equal(markdownToHtml('1. one\n\n2. two\n\n3. three'), '<ol><li>one</li><li>two</li><li>three</li></ol>');
+  assert.equal(markdownToHtml('- item\n  goes on\n- two'), '<ul><li>item goes on</li><li>two</li></ul>');
+  assert.equal(markdownToHtml('1. step\n\n   its detail\n2. next'), '<ol><li>step<br><br>its detail</li><li>next</li></ol>');
+  assert.equal(markdownToHtml('3. three\n4. four'), '<ol start="3"><li>three</li><li>four</li></ol>');
+  assert.equal(markdownToHtml('- [x] done\n  with **more**'), '<ul><li><input type="checkbox" class="task" disabled checked> done with <strong>more</strong></li></ul>');
+  assert.equal(markdownToHtml('- a\n  - b\n    b goes on\n- c'), '<ul><li>a<ul><li>b b goes on</li></ul></li><li>c</li></ul>');
+  // A paragraph that is not indented still ends the list, and an indented code fence is not taken into the item.
+  assert.equal(markdownToHtml('text\n\n- a\n\nafter'), '<p>text</p>\n<ul><li>a</li></ul>\n<p>after</p>');
+  assert.match(markdownToHtml('- a\n  ```\n  x\n  ```'), /^<ul><li>a<\/li><\/ul>\n<pre/);
+});
+
+test('markdown: kpi and steps blocks become cards, escaped, and stay code when nothing in them is valid', () => {
+  assert.equal(markdownToHtml('```kpi\nRuns | 128 | All projects\nPass rate | 94,2% | | good\nFailed | <b>17</b> | last runs | bad\n```'),
+    '<div class="md-kpis"><div class="md-kpi"><span class="md-kpi-label">Runs</span><span class="md-kpi-value">128</span><span class="md-kpi-note">All projects</span></div>'
+    + '<div class="md-kpi md-kpi-good"><span class="md-kpi-label">Pass rate</span><span class="md-kpi-value">94,2%</span></div>'
+    + '<div class="md-kpi md-kpi-bad"><span class="md-kpi-label">Failed</span><span class="md-kpi-value">&lt;b&gt;17&lt;/b&gt;</span><span class="md-kpi-note">last runs</span></div></div>');
+  assert.equal(markdownToHtml('```steps\n1. Pick the `pipeline`.\n- Confirm\n\nRun\n```'), '<ol class="md-steps"><li>Pick the <code>pipeline</code>.</li><li>Confirm</li><li>Run</li></ol>');
+  assert.equal(markdownToHtml('```kpi\nonly a label\n```'), '<pre data-lang="kpi"><code>only a label</code></pre>');
+  assert.equal(markdownToHtml('```steps\n```'), '<pre data-lang="steps"><code></code></pre>');
+});
+
+test('markdown: a quote keeps its paragraphs, lists and bold label, and stays escaped', () => {
+  assert.equal(markdownToHtml('> **Note:** line one\n> line two\n>\n> - a\n> - b'),
+    '<blockquote><p><strong>Note:</strong> line one line two</p>\n<ul><li>a</li><li>b</li></ul></blockquote>');
+  assert.equal(markdownToHtml('> one\n>\n> two'), '<blockquote><p>one</p>\n<p>two</p></blockquote>');
+  assert.equal(markdownToHtml('> a <b onclick="x">tag</b>'), '<blockquote><p>a &lt;b onclick=&quot;x&quot;&gt;tag&lt;/b&gt;</p></blockquote>');
 });
 
 test('markdown diagrams stay escaped until the app draws them', () => {
