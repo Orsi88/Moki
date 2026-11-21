@@ -2,7 +2,7 @@
    narrow sidebar — a fixed header, tabs and footer, and one scrolling column of cards. */
 
 /* padding 0: VS Code gives every webview body 20px on each side, so the header, tabs and footer would stop short of the panel's edges. */
-body { font-size: 13px; background: var(--bg); padding: 0; }
+body { font-family: var(--vscode-font-family, system-ui, sans-serif); font-size: var(--vscode-font-size, 13px); background: var(--bg); padding: 0; }
 .mk { height: 100vh; display: flex; flex-direction: column; min-width: 0; }
 
 .mk-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 10px; flex-shrink: 0; }
@@ -12,7 +12,7 @@ body { font-size: 13px; background: var(--bg); padding: 0; }
 
 .mk-tabs { display: flex; flex-wrap: wrap; column-gap: 12px; padding: 0 12px; flex-shrink: 0; overflow: hidden; }
 .mk-tabs .dialog-tab { padding: 7px 0; font-size: 0.82rem; white-space: nowrap; }
-.mk-tabs .dialog-tab:focus-visible { outline: none; color: var(--text); }
+.mk-tabs .dialog-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; color: var(--text); }
 .mk-count { display: inline-block; margin-left: 5px; min-width: 16px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 0.7rem; font-weight: 700; line-height: 16px; text-align: center; }
 
 .mk-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 16px; scrollbar-gutter: stable; }
@@ -123,14 +123,23 @@ html, html * { scrollbar-color: auto; scrollbar-width: auto; }
 .mk-card.fresh { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .mk-card.fresh .mk-card-title::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 2px; }
 
-/* The footer's "Connect to…": the AI tools that read Moki's MCP servers from this folder. */
-.mk-connect { position: relative; }
-.mk-menu-backdrop { position: fixed; inset: 0; z-index: 20; }
-.mk-menu { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 21; min-width: 220px; margin: 0; padding: 4px; list-style: none;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
-.mk-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: left; cursor: pointer; }
-.mk-menu button:hover { background: var(--bg-3); }
-.mk-menu-note { padding: 6px 8px 4px; border-top: 1px solid var(--border); margin-top: 4px; }
+.mk-ai-bar { display: flex; align-items: center; gap: 8px; padding: 0 18px 10px 12px; }
+.mk-ai-bar label { font-size: 0.8rem; color: var(--muted); }
+.mk-ai-bar select { flex: 1; min-width: 0; font-size: 0.85rem; }
+.mk-connections { margin-bottom: 16px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); }
+.mk-connections > p { margin: 8px 0; overflow-wrap: anywhere; }
+.mk-connection-head, .mk-server-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mk-connection-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk-server-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.mk-server-list li { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
+.mk-server-list li:last-child { padding-bottom: 0; }
+.mk-server-list p { margin: 0; overflow-wrap: anywhere; }
+.mk-issue { color: var(--err); }
+.mk-alternatives { margin-top: 2px; font-size: 0.8rem; color: var(--muted); }
+.mk-alternatives summary { cursor: pointer; padding: 4px 0; }
+.mk-alternatives .btn { margin-top: 6px; }
+.mk :is(button, select, summary):focus-visible { outline: 2px solid var(--vscode-focusBorder, var(--accent)); outline-offset: 2px; }
+body.vscode-high-contrast .mk-card, body.vscode-high-contrast-light .mk-card { border-color: var(--vscode-contrastBorder, var(--border)); }
 .mk-star { position: absolute; top: 6px; right: 6px; }
 .mk-card-head { padding-right: 36px; }
 .mk-search { width: 100%; box-sizing: border-box; }

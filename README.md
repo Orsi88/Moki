@@ -78,7 +78,7 @@ Moki is also a workspace for reading, editing and reviewing the material your AI
 - See what is new, changed or gone, with a baseline that is replaced only by a successful complete check.
 - Review the result as a notification, compare the old and new versions in a report and start the update activity from it when you are ready.
 - Connect project tools through MCP, including browsers, trackers and other external services.
-- Use the same project context, agents, skills and MCP servers in VS Code or Cursor through Moki in the IDE, and choose folder by folder what the IDE's AI sees.
+- Use the same project context, agents, skills and MCP servers through [Moki in the IDE](docs/ide.md): choose what the AI reads, check its MCP connections and start supported native agents in a separate chat tab.
 
 ### Workflows for many kinds of work
 

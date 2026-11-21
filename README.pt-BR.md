@@ -78,7 +78,7 @@ O Moki também é um espaço para ler, editar e revisar o material com que a IA 
 - Veja o que é novo, mudou ou sumiu, com uma referência que só é substituída por uma verificação completa bem-sucedida.
 - Receba o resultado como notificação, compare a versão antiga e a nova num relatório e inicie dali a atividade de atualização quando estiver pronto.
 - Conecte ferramentas do projeto por MCP, incluindo navegadores, trackers e outros serviços externos.
-- Use o mesmo contexto, agentes, skills e servidores MCP no VS Code ou no Cursor pelo Moki na IDE, e escolha pasta por pasta o que a IA da IDE vê.
+- Use o mesmo contexto, agentes, skills e servidores MCP pelo [Moki na IDE](docs/pt-BR/ide.md): escolha o que a IA lê, confira as conexões MCP e inicie agentes nativos compatíveis em uma aba de chat separada.
 
 ### Fluxos para vários tipos de trabalho
 

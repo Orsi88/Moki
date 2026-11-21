@@ -10,7 +10,7 @@ Three separate pieces arrive in the IDE. Knowing which is which explains most of
 
 | Piece | What it is | What it is for |
 |---|---|---|
-| **The Moki panel** | A side bar with the app's look: Activities, Agents, Context, Runs | Start an activity or an operation, choose what the AI reads, follow runs |
+| **The Moki panel** | A side bar with the app's look: Activities, Agents, Context, Operations, Runs | Start an activity or an operation, choose what the AI reads, follow runs |
 | **Moki's MCP server** | A read-only server bound to one project ([ide/mcp/server.ts](../ide/mcp/server.ts)) | The IDE's AI reads the project's confirmed context, notes, shared context, agents and skills while you work |
 | **The project's MCP servers** | The servers registered in the app's MCP Manager (Playwright, Azure DevOps, Jira…) that apply to the project and are on | The IDE's AI uses the same external tools as the app and the operations, configured once |
 
@@ -26,8 +26,9 @@ Registering a tool in Moki instead of directly in the IDE means the agents, the 
 ## Requirements
 
 - VS Code 1.101 or newer.
-- At least one Moki project in the active workspace. Projects are created in the desktop app.
-- For **Open in Claude Code** and for operations: an AI tool that runs in a terminal (Claude Code, Codex, Gemini CLI, Antigravity CLI or Cursor Agent) installed on the computer.
+- A Moki project in the active workspace. **Create project** in the panel creates a blank project and links the folder chosen in the native dialog.
+- Automatic chat launch requires VS Code 1.147+ and an available native new-session command for the selected AI. Installing a standalone vendor extension does not guarantee this command is available.
+- For the terminal alternative and operations: an AI tool that runs in a terminal (Claude Code, Codex, Gemini CLI, Antigravity CLI or Cursor Agent) installed on the computer.
 - To build the extension yourself: Node.js 22.18 or newer.
 
 ## Install
@@ -69,13 +70,21 @@ The extension finds the project of the folder open in VS Code:
 
 To link a folder for good, open the project in the desktop app and use the **link** button of the ribbon (the chain): every VS Code window on that folder then opens the project by itself. To pick a project for this VS Code workspace only, click the status bar item, the project selector at the top of the panel, or run **Moki: Choose Project**. A folder linked from the app is listed first, as *Linked to this folder*.
 
-### 2. Connect the AI to Moki's MCP servers
+### 2. Choose the AI and check its connections
+
+Choose your AI under the project selector; the choice is kept per Moki project in this IDE workspace. **Connections** in the footer shows the target folder, configuration state, missing environment variables, authentication reminders and **Test** for each MCP, including Moki's own server.
+
+**Connect MCPs** writes the chosen client's settings after confirmation: Claude Code uses `.mcp.json`, Cursor `.cursor/mcp.json`, and Codex `.codex/config.toml` (trusted projects only). Your entries stay and the previous file is backed up. A project or folder change while confirmation is open cancels the write. Copilot receives definitions automatically.
+
+A successful test means initialization and tool discovery worked from Moki's environment. It does not prove that another AI client authenticated or enabled those tools. Sign in through that AI when needed. Configure environment variables where the IDE and its AI run; never paste credentials into Moki.
+
+The existing commands remain available:
 
 | How you use the AI | What to do |
 |---|---|
 | **Copilot Chat** | Nothing. The extension registers **Moki** and the project's servers by itself (`MCP: List Servers` shows them) |
-| **Claude Code opened from the panel** (*Open in Claude Code*) | Nothing. It starts with `--mcp-config` for the project, as in the app |
-| **Claude Code opened by you** (the Claude Code chat, or `claude` typed in a terminal) | **Connect Claude Code** once per folder (panel footer, or **Moki: Connect Claude Code**) |
+| **Claude Code opened from the panel in a terminal** | Nothing. It starts with `--mcp-config` for the project, as in the app |
+| **Claude Code opened by you** (the Claude Code chat, or `claude` typed in a terminal) | **Connections › Connect MCPs** with Claude selected, or **Moki: Connect Claude Code** |
 | **Cursor** opened on the project's linked folder | **Moki: Sync MCP Servers to Cursor** |
 | **Only the panel** | Nothing. The panel works without MCP |
 
@@ -91,12 +100,13 @@ In **Context**, the project is listed **by folder**, one row each with a checkbo
 
 | Tab | What you do |
 |---|---|
-| **Activities** | Pick an activity, inbox files, an agent, a note and the language, then **Open in Claude Code** or **Copy for the chat** |
+| **Activities** | Pick an activity, inbox files, an agent, a note and the language, then **Start in a new chat**; terminal and copy are under **Other ways to start** |
 | **Agents** | The agents enabled in the project and what each one does; pick one to work with it |
 | **Context** | Check the folders the AI gets; open one for a file's exception or to star the files it should read first |
-| **Runs** | Activities to resume, and multi-agent operations to start and follow step by step |
+| **Operations** | Start an operation with an AI selected for each step |
+| **Runs** | Resume activities and follow operations step by step |
 
-The footer shows how many of the project's MCP servers are on (**MCPs: n on**), **Connect Claude Code** and **Refresh**. The view's title bar has *Choose Project* and *Refresh*; its "…" menu has *Connect Claude Code*, *Sync MCP Servers to Cursor* and *Show What the AI Read*.
+The footer has **Connections** and **Refresh**. Connection details open on demand. The title menu keeps the connection and read-history commands.
 
 ## Ways to use it
 
@@ -113,12 +123,16 @@ While you code or write tests, ask in plain language: *"which business rules app
 | `moki_get_agent` | An agent's instructions (reading them does not run the agent) |
 | `moki_record_learning`, `moki_list_learnings`, `moki_get_evolution`, `moki_propose_version` | What you taught an agent, skill or activity, and Mycroft's proposals ([Mycroft](mycroft.md)). The only tools that write, and only to Moki's evolution registry: a proposal waits for your approval in the app |
 
-### Start a QA activity
+### Start an activity in a separate chat
 
 In **Activities**, choose one (*Review user stories*, *Design tests*, *Review, then design tests*, *Failure pre-analysis*, *Build test evidence*, *Project context*…), the inbox files it needs, optionally an agent and a note, and the language. Then:
 
-- **Open in Claude Code** opens Claude Code in a VS Code terminal named **Moki · Claude Code**, with the request and the project's MCP servers. You continue the conversation there.
-- **Copy for the chat** copies the same request and puts the cursor in the Claude Code chat, or opens Copilot Chat with it typed in: paste and send. Use it when you prefer the chat to a terminal.
+- **Start in a new chat** asks the selected native integration to create an editor tab and send directly to its new session. Existing conversations and drafts stay intact. The action is disabled when that integration has no supported command. VS Code's integrated Claude/Codex agents and standalone vendor extensions are different integrations.
+- **Other ways to start** contains the terminal and clipboard routes. Copying never focuses or fills another chat. A terminal starts the selected supported CLI, or explicitly names Claude Code when no matching CLI is selected.
+
+A chat URI identifies a destination, not task completion. Follow execution in its tab; inspect the chat before retrying uncertain delivery. Repeated launch messages join the original attempt. No run is created solely to track a chat launch.
+
+From a file's context menu, **Moki: Start Activity with This File** offers activities that need no inbox files. The linked-folder file passes through the existing context validation; a selection supplies line numbers. Save when prompted. Files outside the linked folder are refused.
 
 The request is the one the desktop app builds: it names the project, the activity's skill, the files you chose and the files you switched off in Context. The skills stop at their approval points exactly as in the app.
 
@@ -132,7 +146,7 @@ In **Agents**, pick an agent and start from there, or choose it in an activity. 
 
 ### Run a multi-agent operation
 
-An operation linked to the project in the app starts from **Runs**: pick it, choose the AI of each step, fill what the agents need (text and inbox files) and what you want, then **Start the operation**.
+An operation linked to the project in the app starts from **Operations**: pick it, choose the AI of each step, fill what the agents need (text and inbox files) and what you want, then **Start the operation**. Follow it in **Runs**.
 
 - Each step opens in its own VS Code terminal (**Moki · <AI>**). A step is done when it writes its summary (`handoff/<slot>.md`) and its outputs; the next one starts by itself, even with the panel closed.
 - Open the run to **answer** a step's question (typed into its terminal when it is open, otherwise the step reopens with your answer), **approve**, **send back with notes** or **end** a step waiting for approval, **try again** a failed step with the same or another AI, **choose the path** when no arrow fits a result or a step would run too many times, **pause**, **cancel** (its terminal closes) and **show its terminal**.
@@ -158,7 +172,8 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 
 | Task | App | IDE |
 |---|---|---|
-| Create a project, link its folder, prepare its context | Yes | No |
+| Create a blank project and link a chosen folder | Yes | Yes |
+| Prepare project context with an activity | Yes | Yes |
 | Register MCP servers and choose their projects | Yes | No (the IDE uses them) |
 | Create and edit agents and operations; link operations to a project | Yes | No |
 | Start activities and agents | Yes | Yes |
@@ -173,13 +188,15 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 | The panel shows a loading error and **Try again** | The extension could not read its initial state or refresh it, or did not answer within 30 seconds | Read the error, address the reported cause and choose **Try again**. A failed initial read replaces *Loading…*; a failed refresh keeps the last loaded project visible |
 | Status bar **Moki: no project**; panel *This folder is not linked to a Moki project* | The open folder is not linked to any project | Choose a project in the panel, or link the folder in the app (**Choose my folder**) |
 | **Moki: choose a project** | The folder is linked to more than one project | Choose one; the choice is kept for this VS Code workspace |
-| *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active | Create a project in the app, or make the right workspace active in the app and run **Refresh** |
+| *There are no projects in the active workspace* | The workspace active in the app has no projects, or another workspace was active | Use **Create project** in the panel, or make the right workspace active in the app and run **Refresh** |
 | The projects listed are from another workspace | The window follows the workspace active in the app when it receives a request or on **Refresh** | Switch the workspace in the app, then run **Refresh** |
 | *Choose the Moki project of this folder first.* | A command was run with no project chosen | Choose the project, then run it again |
 | *Open a folder in the IDE first.* (Connect Claude Code) | VS Code has no folder open, so there is no place for `.mcp.json` | Open the system's folder |
 | The Claude Code chat does not see Moki | `.mcp.json` was never written, or was written before the servers changed | **Connect Claude Code**, then start a new Claude Code session |
 | Copilot does not list a server | Its `${VARIABLE}` is not set on this computer (it is left out), or it is off or not for this project in the app | Set the variable and restart VS Code; check the server in the app |
-| **MCPs: 0 on** | No server registered in the app applies to this project and is on | Expected when you use only Moki's server; otherwise register or enable servers in the app |
+| **Connection needed** or **Update connection** | Client settings are missing or differ from the current catalog | Check the folder in **Connections**, then **Connect MCPs** |
+| **Start in a new chat** is disabled | The IDE version or AI integration has no supported native command | Read its explanation; enable the native agent integration or use a terminal/clipboard route |
+| The panel asks for the project's folder in its own window | Multiple roots are open, or the selected project has no matching open folder | Open that folder in a dedicated IDE window; native session creation has no verified root-targeting argument |
 | *This project has no linked folder on this computer* (Sync to Cursor) | The project's folder was never linked on this computer | Link it in the app (the **link** button of the ribbon) |
 | *project.json does not allow writing to …* | The project sets `writeAllowed: false` for its folder | Write the file yourself, or allow writing in `project.json` |
 | *… is not installed on this computer (command "…" not found).* | The AI tool chosen (for the request or for a step) is not installed or not on the PATH | Install it, or choose another AI (in the desktop app, **Settings › My AIs › Install**, or a terminal tab of the missing AI, installs it after you type `y`). A step that cannot start fails once and waits: **Try again** offers the installed AIs |
@@ -206,15 +223,18 @@ Any tool that speaks MCP over stdio can use Moki's server: `npm run mcp -- --pro
 | `workspace/projects/<id>/companion.json` | You check or uncheck folders, set a file exception or star files |
 | `workspace/projects/<id>/logs/companion.log` | The AI reads something through Moki's server |
 | `<folder>/.mcp.json` and `<folder>/.moki-backup/` | **Connect Claude Code**, after you confirm |
-| `<linked folder>/.cursor/mcp.json` and `.moki-backup/` | **Sync MCP Servers to Cursor**, after you confirm |
+| `<folder>/.cursor/mcp.json` and `.moki-backup/` | **Connect MCPs** for Cursor or the palette command, after confirmation |
+| `<folder>/.codex/config.toml` and `.moki-backup/` | **Connect MCPs** for Codex, after confirmation; variables stay references |
+| VS Code workspace state | Chosen AI and folder, scoped to the Moki project |
 | `workspace/library/usage.json` | You start an activity, agent or operation from the panel (the count behind "most used") |
 | `workspace/projects/<id>/runs/…` | Activities and operations started from the panel, as in the app |
 | `<Documents>/Moki` | The framework copy, refreshed when a new version of the extension starts |
 
 ## Limits
 
-- One project per VS Code window at a time.
-- Projects, MCP servers, agents and operations are created and edited in the app; the IDE uses them.
+- One project per VS Code window at a time. Automatic chat launch needs a single matching open folder; multi-root windows keep the terminal and copy routes.
+- MCP servers, agents and operations are created and edited in the app; the IDE uses them. Blank projects can also be created in the IDE.
+- Native automatic chat launch is capability-checked on VS Code 1.147+. Cursor prompt links require manual confirmation; standalone vendor extensions without the native command use the explicit alternatives.
 - The workspace is the one active in the app; an open window follows it on a request from the app or on **Refresh**.
 - `.mcp.json` is a snapshot: connect again after changing servers or project.
 - The extension is built and tested for VS Code. Editors based on VS Code (Cursor and others) may install it, but that has not been verified.
