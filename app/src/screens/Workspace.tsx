@@ -102,6 +102,11 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const apply = useCallback((fn: (b: Board) => Board) => setBoard((b) => fn(b)), []);
   useEffect(() => { remember(boardKey, JSON.stringify(board)); }, [boardKey, board]);
   const focusKey = focusedKey(board);
+  const lastChatKey = `${boardKey}:last-chat`;
+  const lastChat = useRef(recall(lastChatKey));
+  useEffect(() => {
+    if (isChatTab(focusKey)) { lastChat.current = focusKey; remember(lastChatKey, focusKey); }
+  }, [focusKey, lastChatKey]);
   const active = focusKey?.startsWith('file:') ? focusKey.slice(5) : null;
   const [groupMenu, setGroupMenu] = useState<{ id: string; left: number; top: number } | null>(null);
   const [tabMenu, setTabMenu] = useState<{ key: TabKey; left: number; top: number } | null>(null);
@@ -165,7 +170,8 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
   const revealChat = useCallback(() => { setNote(null); setActivityView(null); setOpView(null); onSettings(null); }, [onSettings]);
   const openChat = useCallback(() => {
     revealChat();
-    apply((b) => boardOpen(b, [focusedKey(b), ...b.order].find(isChatTab) ?? 'chat'));
+    // Return to the conversation that opened a file, even with several other chats open.
+    apply((b) => boardOpen(b, [focusedKey(b), lastChat.current, ...b.order].find((key): key is TabKey => isChatTab(key) && b.order.includes(key)) ?? 'chat'));
   }, [apply, revealChat]);
   const newChat = (tool: string, id?: string): string => {
     const existing = id ? board.order.find((key) => isChatTab(key) && recall(`${chatTabPrefix(workspaceId, project.id, key)}:id`) === id) : undefined;

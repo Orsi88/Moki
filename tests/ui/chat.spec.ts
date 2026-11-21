@@ -47,6 +47,7 @@ test('generated Codex images appear in the conversation and history, and open at
     await expect(page.locator('.image-view img')).toBeVisible();
     await expect.poll(() => page.locator('.image-view img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(1);
     await page.getByRole('button', { name: 'Chat (Ctrl+L)', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Generate an orange Close Generate an orange', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(preview).toBeVisible();
     // A new answer is handled through the same Codex JSON stream as a real CLI session.
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill(`Show [the second image](${next.replace(/\\/g, '/')})`);
