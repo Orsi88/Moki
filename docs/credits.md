@@ -34,6 +34,7 @@ The foundations Moki is built on.
 | [marked](https://marked.js.org) *(through TipTap)* | Reads Markdown so the editor can draw it. | MIT |
 | [PDF.js](https://mozilla.github.io/pdf.js/) (Mozilla) | Shows PDFs inside Moki with selectable text, so you can highlight, comment and create notes from a page. | Apache-2.0 |
 | [pdf-lib](https://pdf-lib.js.org) | Writes into PDFs: highlights and comments every viewer shows, replies, page edits (rotate, move, insert, delete) and title and author — without needing PdfCraft. | MIT |
+| [pptxtojson](https://github.com/pipipi-pikachu/pptxtojson) | Reads PowerPoint presentations (`.pptx`) into slides, shapes, text, pictures, tables and charts, which Moki draws as the slide viewer. | MIT |
 
 ### Diagrams and drawings
 

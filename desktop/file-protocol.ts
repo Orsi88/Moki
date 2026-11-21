@@ -8,7 +8,7 @@
 // file its project/workspace allows, and it dies with that window (revokeScope), with the project (revokeOutside) or
 // with the workspace (checked on every request). A window cannot use a token it was not given because it cannot guess it.
 //
-// Pure of Electron (main.ts wires it): GET/HEAD only, PDF, the image and the video types only, within the size limits readFile
+// Pure of Electron (main.ts wires it): GET/HEAD only, PDF, the image, video and presentation types only, within the size limits readFile
 // has (desktop/fs-guard.ts), no directory listing, the real path re-resolved on every request, and one 404 for every way
 // a request can fail to name a servable file.
 
@@ -17,7 +17,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { extname, relative } from 'node:path';
 import type { Readable } from 'node:stream';
-import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, VIDEO_LIMIT, VIDEO_TYPES, resolveInside } from './fs-guard.ts';
+import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, SLIDES_LIMIT, SLIDE_TYPES, VIDEO_LIMIT, VIDEO_TYPES, resolveInside } from './fs-guard.ts';
 
 export const FILE_SCHEME = 'moki-file';
 const TOKEN = /^[0-9a-f]{48}$/; // hex only: a standard scheme lowercases the host
@@ -34,6 +34,7 @@ export function servable(file: string): { type: string; limit: number } | null {
   const ext = extname(file).toLowerCase();
   if (ext === '.pdf') return { type: 'application/pdf', limit: OFFICE_LIMIT };
   if (VIDEO_TYPES[ext]) return { type: VIDEO_TYPES[ext], limit: VIDEO_LIMIT };
+  if (SLIDE_TYPES[ext]) return { type: SLIDE_TYPES[ext], limit: SLIDES_LIMIT };
   return IMAGE_TYPES[ext] ? { type: IMAGE_TYPES[ext], limit: IMAGE_LIMIT } : null;
 }
 

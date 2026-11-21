@@ -9,7 +9,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { changeWord } from '../scripts/lib/office-word.ts';
 import { changeSheet } from '../scripts/lib/office-sheet.ts';
 import { convertLegacy, type ConvertEngine } from './office-convert.ts';
-import { appendFileSync, copyFileSync, cpSync, type Dirent, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, copyFileSync, cpSync, type Dirent, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -58,7 +58,7 @@ import { isArtifactUrl, viewerBounds } from './artifact-viewer.ts';
 import type { ArtifactViewer } from './artifact-viewer-host.ts';
 import { CHATS_DIR, chatTranscript, listChats, readChat, removeChat, type ChatRecord, type ChatSummary } from './chat-store.ts';
 import { chatModel, chatModels } from './chat-models.ts';
-import { IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, VIDEO_LIMIT, VIDEO_TYPES, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
+import { HTML_LIMIT, IMAGE_LIMIT, IMAGE_TYPES, OFFICE_LIMIT, SLIDES_LIMIT, SLIDE_TYPES, VIDEO_LIMIT, VIDEO_TYPES, isEditable, isOpenable, openWithType, PathError, resolveInside } from './fs-guard.ts';
 import type { AppChooser } from './open-with.ts';
 import { isPageEdit, parsePdfChange, pdfScript, toComments, type PdfRunner } from './pdfcraft.ts';
 import { htmlComments, addHtmlComment, changeHtmlComment, removeHtmlComment, moveHtmlComments, diagramComments, addDiagramComment, changeDiagramComment, removeDiagramComment, readDiagramView, saveDiagramView, codeComments, addCodeComment, changeCodeComment, removeCodeComment, codeNotes, addCodeNote, removeCodeNote, forgetCodeNote } from './html-comments.ts';
@@ -153,7 +153,7 @@ export type FileContent =
   | { kind: 'text'; path: string; text: string; editable: boolean }
   | { kind: 'code'; path: string; text: string; language: string } // read-only, with its colors
   | { kind: 'json'; path: string; text: string }
-  | { kind: 'html'; path: string; text: string; url?: string } // shown rendered, read-only
+  | { kind: 'html'; path: string; text: string; url?: string } // shown rendered from `url`, read-only; text only when small (fallback)
   | { kind: 'docx'; path: string; html: string; version?: string; document?: WordDocument }
   | { kind: 'xlsx'; path: string; version?: string; workbook?: WorkbookInfo; sheets: Sheet[] }
   // PDF and image carry no bytes: the UI loads them from `url` (moki-file://<token>, added by desktop/main.ts to a UI call and
@@ -161,6 +161,8 @@ export type FileContent =
   | { kind: 'image'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'video'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'pdf'; path: string; size: number; mtime: number; url?: string }
+  // A presentation, read and drawn slide by slide by the app (app/src/components/SlidesView.tsx) from `url`; never converted.
+  | { kind: 'slides'; path: string; size: number; mtime: number; url?: string }
   | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
 export interface LaunchRequest {
@@ -1141,6 +1143,20 @@ export function createService(root: string, deps: Deps) {
       if (size > IMAGE_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Image too large to preview.' };
       return served({ kind: 'image', path, size, mtime: stat.mtimeMs }, file);
     }
+    if (SLIDE_TYPES[ext]) {
+      if (size > SLIDES_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Presentation too large to preview.' };
+      // Password-protected presentations are not zip packages.
+      const head = Buffer.alloc(4);
+      const fd = openSync(file, 'r');
+      try { readSync(fd, head, 0, 4, 0); } finally { closeSync(fd); }
+      if (head.toString('hex') === 'd0cf11e0') return { kind: 'binary', path, size, openable: true, reason: 'Password-protected presentation: open it in your program.' };
+      return served({ kind: 'slides', path, size, mtime: stat.mtimeMs }, file);
+    }
+    // A local page (prototype, exported deck): shown from disk through its URL, so the text limit does not apply.
+    if (ext === '.html' || ext === '.htm') {
+      if (size > HTML_LIMIT) return { kind: 'binary', path, size, openable: isOpenable(file), reason: 'Page too large to preview.' };
+      return served({ kind: 'html', path, text: size > TEXT_LIMIT ? '' : readFileSync(file, 'utf8') }, file);
+    }
     if (VIDEO_TYPES[ext]) {
       if (size > VIDEO_LIMIT) return { kind: 'binary', path, size, openable: true, reason: 'Video too large to play here.' };
       return served({ kind: 'video', path, size, mtime: stat.mtimeMs }, file);
@@ -1151,7 +1167,6 @@ export function createService(root: string, deps: Deps) {
     if (size > TEXT_LIMIT) return { kind: 'binary', path, size, openable: isOpenable(file), reason: 'File too large to preview.' };
     const text = readFileSync(file, 'utf8');
     if (ext === '.md') return { kind: 'markdown', path, text, html: markdownToHtml(text, { image: imageResolver(project, path), comments: true }), editable: true };
-    if (ext === '.html' || ext === '.htm') return served({ kind: 'html', path, text }, file);
     if (language) return { kind: 'code', path, text, language };
     // JSON shows as code, with its colors and as written (comments included, as in tsconfig).
     if (ext === '.json') return { kind: 'code', path, text, language: 'json' };

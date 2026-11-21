@@ -52,4 +52,16 @@ export const IMAGE_LIMIT = 10 * 1024 * 1024;
 // never loaded whole); the limit only keeps out what is not a reasonable project video.
 export const VIDEO_LIMIT = 8 * 1024 * 1024 * 1024;
 export const VIDEO_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime' };
+// A local HTML page (a prototype, an exported deck) is shown from disk by moki-preview:// (desktop/html-preview.ts),
+// never held in a text field, so it is held to this limit and not to the text one.
+export const HTML_LIMIT = 30 * 1024 * 1024;
+// Presentations are read by the app itself (app/src/slides.ts) from moki-file://, slide by slide; nothing is converted.
+export const SLIDES_LIMIT = 200 * 1024 * 1024;
+export const SLIDE_TYPES: Record<string, string> = {
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.pptm': 'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
+  '.ppsx': 'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  '.ppsm': 'application/vnd.ms-powerpoint.slideshow.macroEnabled.12',
+  '.potx': 'application/vnd.openxmlformats-officedocument.presentationml.template',
+};
 export const IMAGE_TYPES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };

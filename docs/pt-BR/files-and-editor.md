@@ -53,9 +53,18 @@ Um arquivo da entrada, e qualquer edição de página, é salvo como uma cópia 
 - O programa de planilhas recalcula as fórmulas ao abrir o arquivo salvo; o Moki não faz esse cálculo. Planilhas protegidas, arquivos assinados, modelos e formatos com macros ficam somente para leitura. Campos complexos e fórmulas compartilhadas ou matriciais precisam do programa original.
 - **Arquivos antigos** (`.doc`, `.xls`): ao abrir, o Moki converte com o Microsoft Word/Excel ou o LibreOffice instalado para um `.docx`/`.xlsx` e avisa. O original permanece intacto. Se essa cópia já existe, o Moki a abre em vez de criar outra.
 
+## Apresentações
+
+O **PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) abre como slides, lido pelo próprio Moki: nada é convertido, o arquivo nunca é alterado e não é preciso ter o Office instalado.
+
+- Miniaturas à esquerda, o slide atual grande no meio e as **anotações do orador** embaixo (o ícone de anotações mostra ou esconde). Navegue com as setas, Page Up/Down, Home/End ou as setas abaixo do slide.
+- **Apresentar** (ou **F5**) mostra os slides em tela cheia; as setas, o espaço ou um clique avançam, e **Esc** encerra.
+- Textos, formas, imagens, tabelas e gráficos comuns (colunas, barras, linhas, áreas, pizza) mantêm lugar e tamanho. Fontes que o computador não tem são trocadas por parecidas; animações, transições, vídeo e áudio não são reproduzidos, e SmartArt ou efeitos especiais podem sair mais simples. Para esses, use **Abrir com o programa padrão**.
+- Arquivos `.ppt` antigos e apresentações protegidas por senha abrem no seu programa de apresentações.
+
 ## Páginas HTML
 
-O **HTML** executa JavaScript local, módulos e arquivos web relativos numa prévia isolada, sem acesso ao Moki nem a recursos externos de rede. A barra única do arquivo reúne o seletor de largura (painel, tablet ou celular), comentários, recarregar e abrir no navegador.
+O **HTML** executa JavaScript local, módulos e arquivos web relativos numa prévia isolada (páginas de até 30 MB, então protótipos exportados com tudo dentro também abrem), sem acesso ao Moki nem a recursos externos de rede. A barra única do arquivo reúne o seletor de largura (painel, tablet ou celular), comentários, recarregar e abrir no navegador.
 
 Para comentar, **selecione um trecho na prévia** e clique no botão flutuante **Comentar**. A caixa e os cartões são os mesmos do Markdown: escolha uma cor, escreva, responda, edite ou exclua. Os cartões acompanham os trechos visíveis durante a rolagem da prévia; clicar num deles leva até o trecho. O ícone de balão mostra a contagem total e abre ou fecha a coluna; com ela fechada, os marcadores reabrem os comentários. Os comentários ficam no projeto, separados do código HTML; copie o projeto para levá-los junto. Se a página mudar e o trecho não for mais encontrado, o comentário continua com um aviso.
 

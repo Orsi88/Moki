@@ -137,6 +137,7 @@ export type FileContent =
   | { kind: 'image'; path: string; url: string; size: number; mtime: number }
   | { kind: 'video'; path: string; url: string; size: number; mtime: number }
   | { kind: 'pdf'; path: string; url: string; size: number; mtime: number }
+  | { kind: 'slides'; path: string; url: string; size: number; mtime: number } // drawn slide by slide by SlidesView
   | { kind: 'binary'; path: string; size: number; openable: boolean; reason?: string; legacy?: 'doc' | 'xls' };
 
 export interface RunState {

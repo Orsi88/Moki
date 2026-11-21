@@ -5,7 +5,7 @@
 <p align="center"><img src="app/public/hero.png" alt="Moki" width="280" /></p>
 
 <p align="center">
-  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe"><b>⬇️ Download Moki for Windows</b></a>
+  <a href="https://github.com/Orsi88/Moki/releases/download/v0.7.5/Moki.Setup.0.7.5.exe"><b>⬇️ Download Moki for Windows</b></a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/Moki/releases">releases</a>
   &nbsp;·&nbsp; <a href="https://github.com/Orsi88/moki/wiki">documentation</a>
 </p>
@@ -68,7 +68,8 @@ Answers support organized sections, cards, diagrams, charts, clickable choices a
 
 Moki is also a workspace for reading, editing and reviewing the material your AI works with:
 
-- Open and edit Markdown and text files, preview HTML, and work with Word, Excel, PDF and image files.
+- Open and edit Markdown and text files, preview HTML (exported prototypes included), and work with Word, Excel, PDF and image files.
+- View PowerPoint presentations as slides, with thumbnails, speaker notes and full-screen **Present**, read by Moki itself (no conversion, no Office needed).
 - Read PDFs, select passages, create notes, add comments and make page edits through PdfCraft.
 - Comment on Markdown, HTML, Word, Excel, PDFs and diagrams, with comments anchored to the relevant passage or region.
 - Open, inspect, zoom, pan, export and comment on Mermaid, PlantUML, D2 and Graphviz diagrams.
@@ -99,9 +100,9 @@ Moki includes ready-made workflows for software quality, requirements, research,
 
 ## Install
 
-1. Download [Moki.Setup.0.7.4.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.4/Moki.Setup.0.7.4.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
+1. Download [Moki.Setup.0.7.5.exe](https://github.com/Orsi88/Moki/releases/download/v0.7.5/Moki.Setup.0.7.5.exe) (or the latest file on [Releases](https://github.com/Orsi88/Moki/releases)).
 2. Install at least one AI tool you want to use.
-3. For VS Code, download [moki-0.7.4.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.4/moki-0.7.4.vsix) and install it with `code --install-extension moki-0.7.4.vsix`.
+3. For VS Code, download [moki-0.7.5.vsix](https://github.com/Orsi88/Moki/releases/download/v0.7.5/moki-0.7.5.vsix) and install it with `code --install-extension moki-0.7.5.vsix`.
 
 Your projects live in **Documents\Moki** by default. A newer installer refreshes the app without touching your workspaces. For macOS, Linux and running from source, see [Getting started](https://github.com/Orsi88/moki/wiki/Getting-started).
 

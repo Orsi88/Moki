@@ -76,6 +76,7 @@ Moki stands on the shoulders of free and open-source projects. **Thank you** to 
 | [node-pty](https://github.com/microsoft/node-pty) | A real shell process behind each terminal | MIT |
 | [PDF.js](https://mozilla.github.io/pdf.js/) | Showing PDFs with selectable text | Apache-2.0 |
 | [pdf-lib](https://pdf-lib.js.org) | Writing highlights, comments and page edits into PDFs | MIT |
+| [pptxtojson](https://github.com/pipipi-pikachu/pptxtojson) | Reading PowerPoint presentations for the slide viewer | MIT |
 | [Mermaid](https://mermaid.js.org) | Diagrams drawn inside documents | MIT |
 | [Excalidraw](https://excalidraw.com) | Hand-drawn style drawings you can edit | MIT |
 | [marked](https://marked.js.org) | Reading Markdown for the editor | MIT |

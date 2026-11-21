@@ -5,11 +5,10 @@ import { randomBytes } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, relative, sep } from 'node:path';
-import { resolveInside } from './fs-guard.ts';
+import { HTML_LIMIT as LIMIT, resolveInside } from './fs-guard.ts';
 import type { FileGrantDeps } from './file-protocol.ts';
 
 export const PREVIEW_SCHEME = 'moki-preview';
-const LIMIT = 30 * 1024 * 1024;
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json',

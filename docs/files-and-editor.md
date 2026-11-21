@@ -53,9 +53,18 @@ A file from the inbox, and any page edit, is saved as an `-edited.pdf` copy, so 
 - Spreadsheet programs recalculate formulas when they open the saved file; Moki does not calculate them. Protected sheets, signed files, templates and macro-enabled formats remain read only. Complex fields and shared/array formulas need the original program.
 - **Older files** (`.doc`, `.xls`): opening one converts it with installed Microsoft Word/Excel or LibreOffice into a new `.docx`/`.xlsx` and says so. The original stays untouched. If that copy already exists, Moki opens it instead of making another.
 
+## Presentations
+
+**PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) opens as slides, read by Moki itself: nothing is converted and the file is never changed, and no Office installation is needed.
+
+- Thumbnails on the left, the current slide large in the middle and its **speaker notes** below (the notes icon hides or shows them). Move with the arrow keys, Page Up/Down, Home/End or the arrows under the slide.
+- **Present** (or **F5**) shows the slides full screen; the arrows, space or a click move on, and **Esc** ends.
+- Text, shapes, pictures, tables and common charts (columns, bars, lines, areas, pies) keep their place and sizes. Fonts the computer lacks are replaced by similar ones; animations, transitions, video and audio are not played, and SmartArt or special effects can look simpler. For those, **Open with the default program**.
+- Old `.ppt` files and password-protected presentations open in your presentation program.
+
 ## HTML pages
 
-**HTML** runs local JavaScript, modules and relative web assets in an isolated preview, without access to Moki or external network resources. The single file bar includes the width selector (fit, tablet or phone), comments, reload and open in browser.
+**HTML** runs local JavaScript, modules and relative web assets in an isolated preview (pages up to 30 MB, so exported prototypes with everything inside open too), without access to Moki or external network resources. The single file bar includes the width selector (fit, tablet or phone), comments, reload and open in browser.
 
 To comment, **select a passage in the preview** and click the floating **Comment** button. The composer and cards are the same as in Markdown: choose a color, write, reply, edit or delete. Cards follow visible passages as you scroll the preview; clicking one brings its passage into view. The speech-bubble icon shows the total count and toggles the column; with it closed, markers reopen the comments. Comments are stored with the project, separately from the HTML source; copy the project to take them with you. If the page changes and a passage no longer matches, its comment stays with a notice.
 

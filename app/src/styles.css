@@ -2866,3 +2866,47 @@ span.mcp-row-main { cursor: default; }
 .evolution-diff .diff-gap { display: block; color: var(--faint); }
 .note-evolution { padding: 4px 12px 8px; border-bottom: 1px solid var(--border); }
 .note-evolution ul { list-style: none; margin: 4px 0 0; padding: 0; }
+
+/* Presentations (.pptx): thumbnails, the current slide, notes, Present (SlidesView.tsx). Slides are laid out in points
+   at their real size and scaled, so the text of the file keeps its sizes. */
+.doc-body:has(> .slides-view) { padding: 0; overflow: hidden; }
+.slides-view { flex: 1; min-height: 0; display: flex; outline: none; background: var(--bg-2); }
+.slides-message { align-items: flex-start; justify-content: center; padding: 32px 24px; }
+.slides-message .doc-notice { max-width: 560px; }
+.slides-rail { width: 184px; flex-shrink: 0; overflow-y: auto; padding: 12px 10px 24px 6px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--border); }
+.slides-thumb { display: flex; align-items: flex-start; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--muted); content-visibility: auto; contain-intrinsic-size: 160px 90px; }
+.slides-thumb-n { width: 16px; text-align: right; font-size: 11px; padding-top: 2px; flex-shrink: 0; }
+.slides-thumb .slide-canvas { outline: 1px solid var(--border); border-radius: 2px; pointer-events: none; }
+.slides-thumb:hover .slide-canvas { outline-color: var(--muted); }
+.slides-thumb.on { color: var(--accent); }
+.slides-thumb.on .slide-canvas { outline: 2px solid var(--accent); }
+.slides-thumb:focus-visible { outline: none; }
+.slides-thumb:focus-visible .slide-canvas { outline: 2px solid var(--accent); outline-offset: 2px; }
+.slides-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.slides-stage { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.slides-current .slide-canvas { box-shadow: 0 2px 14px rgb(0 0 0 / 0.28); }
+.slides-notes { max-height: 28%; overflow-y: auto; padding: 10px 18px; border-top: 1px solid var(--border); white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--bg); }
+.slides-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg); }
+.slides-bar-gap { flex: 1; }
+.slides-count { font-size: 12px; color: var(--muted); min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
+.slides-prev { display: inline-flex; transform: rotate(180deg); }
+.slides-next { display: inline-flex; }
+.slides-show { display: none; }
+.slides-show:fullscreen { display: grid; place-items: center; background: #000; cursor: none; outline: none; }
+.slides-show:fullscreen:hover { cursor: default; }
+
+/* One slide: the page is drawn in points and scaled from its top-left corner into the canvas box. */
+.slide-canvas { position: relative; overflow: hidden; flex-shrink: 0; }
+.slide-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; color: #000; font-family: Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: 18pt; line-height: 1.2; }
+.slide-el { position: absolute; box-sizing: border-box; }
+.slide-fill { position: absolute; inset: 0; box-sizing: border-box; }
+.slide-shape { position: absolute; inset: 0; }
+.slide-image { overflow: hidden; }
+.slide-text { position: absolute; inset: 0; display: flex; flex-direction: column; box-sizing: border-box; overflow: visible; word-wrap: break-word; }
+.slide-text p, .slide-table p { margin: 0; }
+.slide-text ul, .slide-text ol { margin: 0; padding-left: 1.2em; }
+.slide-bullet { display: inline-block; text-indent: 0; }
+.slide-link { text-decoration: underline; cursor: pointer; }
+.slide-table { border-collapse: collapse; table-layout: fixed; font-size: 14pt; }
+.slide-table td { padding: 3.6pt 7.2pt; overflow: hidden; }
+.slide-placeholder { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 6pt; border: 1pt dashed #999; color: #666; font-size: 12pt; background: rgb(0 0 0 / 0.03); }

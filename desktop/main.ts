@@ -348,7 +348,9 @@ if (!app.requestSingleInstanceLock()) {
   Menu.setApplicationMenu(null);
 
   app.whenReady().then(() => {
-    session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
+    // Nothing is granted, except full screen for the app's own page in the main window (a presentation's Present);
+    // HTML previews and served files are other frames and still get nothing.
+    session.defaultSession.setPermissionRequestHandler((wc, perm, done, details) => done(perm === 'fullscreen' && wc === win?.webContents && details.isMainFrame && String(details.requestingUrl ?? '').startsWith('file://')));
     // No terminal runs yet: the workspace's scratch files left by an earlier session are no longer of use.
     try { service.cleanWorkspaceScratch(); } catch { /* next time */ }
 

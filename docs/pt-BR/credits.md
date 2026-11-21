@@ -34,6 +34,7 @@ As bases sobre as quais o Moki é construído.
 | [marked](https://marked.js.org) *(por meio do TipTap)* | Lê o Markdown para o editor poder desenhá-lo. | MIT |
 | [PDF.js](https://mozilla.github.io/pdf.js/) (Mozilla) | Mostra PDFs dentro do Moki com texto selecionável, para destacar, comentar e criar notas a partir de uma página. | Apache-2.0 |
 | [pdf-lib](https://pdf-lib.js.org) | Grava nos PDFs: destaques e comentários que qualquer leitor mostra, respostas, edição de páginas (girar, mover, inserir, apagar) e título e autor — sem precisar do PdfCraft. | MIT |
+| [pptxtojson](https://github.com/pipipi-pikachu/pptxtojson) | Lê apresentações do PowerPoint (`.pptx`) em slides, formas, textos, imagens, tabelas e gráficos, que o Moki desenha no visualizador de slides. | MIT |
 
 ### Diagramas e desenhos
 

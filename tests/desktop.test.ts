@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { PDFDocument } from 'pdf-lib';
 import { spawn, spawnSync } from 'node:child_process';
+import { pptx, SAMPLE_DECK } from './pptx-fixture.ts';
 import { CHANGED_OUTSIDE, callService, createService, ServiceError, servedFile, type FileContent, type TreeNode } from '../desktop/service.ts';
 import { PathError, resolveInside, isEditable, isOpenable } from '../desktop/fs-guard.ts';
 import { launchInTerminal, pluginArgs, scriptFor, windowsStartArgs, type LaunchResult } from '../desktop/launcher.ts';
@@ -244,6 +245,24 @@ test('readFile renders each kind of file', async () => {
     assert.equal(node?.mtime, img.mtime);
   } finally { rmSync(pixel, { force: true }); }
   assert.deepEqual(service.readFile('acme', 'inbox/page.html'), { kind: 'html', path: 'inbox/page.html', text: '<h1>Page</h1>' });
+  const inbox = join(root, 'workspace', 'projects', 'acme', 'inbox');
+  // An exported prototype carries its fonts, pictures and scripts inside: past the text limit it still opens, from its URL.
+  writeFileSync(join(inbox, 'export.html'), `<h1>Export</h1><script>/*${'x'.repeat(3 * 1024 * 1024)}*/</script>`);
+  writeFileSync(join(inbox, 'huge.html'), Buffer.alloc(31 * 1024 * 1024, 32));
+  writeFileSync(join(inbox, 'deck.pptx'), pptx(SAMPLE_DECK));
+  writeFileSync(join(inbox, 'locked.pptx'), Buffer.concat([Buffer.from('d0cf11e0a1b11ae1', 'hex'), Buffer.alloc(512)]));
+  try {
+    const big = service.readFile('acme', 'inbox/export.html') as Extract<FileContent, { kind: 'html' }>;
+    assert.deepEqual({ ...big }, { kind: 'html', path: 'inbox/export.html', text: '' });
+    assert.equal(servedFile(big), realpathSync(join(inbox, 'export.html')));
+    const huge = service.readFile('acme', 'inbox/huge.html') as Extract<FileContent, { kind: 'binary' }>;
+    assert.deepEqual([huge.kind, huge.reason], ['binary', 'Page too large to preview.']);
+    const deck = service.readFile('acme', 'inbox/deck.pptx') as Extract<FileContent, { kind: 'slides' }>;
+    assert.deepEqual({ ...deck }, { kind: 'slides', path: 'inbox/deck.pptx', size: pptx(SAMPLE_DECK).length, mtime: deck.mtime });
+    assert.equal(servedFile(deck), realpathSync(join(inbox, 'deck.pptx')), 'the presentation itself is served: nothing is converted');
+    const locked = service.readFile('acme', 'inbox/locked.pptx') as Extract<FileContent, { kind: 'binary' }>;
+    assert.deepEqual([locked.kind, locked.openable, locked.reason], ['binary', true, 'Password-protected presentation: open it in your program.']);
+  } finally { for (const name of ['export.html', 'huge.html', 'deck.pptx', 'locked.pptx']) rmSync(join(inbox, name), { force: true }); }
   const exe = service.readFile('acme', 'inbox/tool.exe') as Extract<FileContent, { kind: 'binary' }>;
   assert.equal(exe.kind, 'binary');
   assert.equal(exe.openable, false);
