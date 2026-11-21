@@ -69,7 +69,7 @@ As respostas permitem seções organizadas, cartões, diagramas, gráficos, esco
 O Moki também é um espaço para ler, editar e revisar o material com que a IA trabalha:
 
 - Abra e edite Markdown e texto, visualize HTML (inclusive protótipos exportados) e trabalhe com Word, Excel, PDF e imagens.
-- Veja apresentações do PowerPoint como slides, com miniaturas, anotações do orador e **Apresentar** em tela cheia, lidas pelo próprio Moki (sem conversão e sem precisar do Office).
+- Veja apresentações do PowerPoint como slides, com miniaturas, **Apresentar** em tela cheia, anotações do orador escritas ali mesmo e comentários numa área do slide ou no slide inteiro, salvos na apresentação no formato do PowerPoint (sem conversão e sem precisar do Office).
 - Leia PDFs, selecione trechos, crie notas, faça comentários e edições de página com o PdfCraft.
 - Comente Markdown, HTML, Word, Excel, PDFs e diagramas, com comentários presos ao trecho ou à região relevante.
 - Abra, examine, amplie, mova, exporte e comente diagramas Mermaid, PlantUML, D2 e Graphviz.

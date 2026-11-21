@@ -69,7 +69,7 @@ Answers support organized sections, cards, diagrams, charts, clickable choices a
 Moki is also a workspace for reading, editing and reviewing the material your AI works with:
 
 - Open and edit Markdown and text files, preview HTML (exported prototypes included), and work with Word, Excel, PDF and image files.
-- View PowerPoint presentations as slides, with thumbnails, speaker notes and full-screen **Present**, read by Moki itself (no conversion, no Office needed).
+- View PowerPoint presentations as slides, with thumbnails, full-screen **Present**, speaker notes you write in place and comments on an area of a slide or the whole slide, saved in the presentation in PowerPoint's format (no conversion, no Office needed).
 - Read PDFs, select passages, create notes, add comments and make page edits through PdfCraft.
 - Comment on Markdown, HTML, Word, Excel, PDFs and diagrams, with comments anchored to the relevant passage or region.
 - Open, inspect, zoom, pan, export and comment on Mermaid, PlantUML, D2 and Graphviz diagrams.

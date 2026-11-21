@@ -1,15 +1,22 @@
-// Color and replies for a Word comment or an Excel note. The comment text stays a native Office comment;
-// this part keeps what Office has no field for, so the cards match Markdown and PDF.
+// Color and replies for a Word comment, an Excel note or a PowerPoint comment (with the area of the slide it marks).
+// The comment text stays a native Office comment; this part keeps what Office has no field for, so the cards match
+// Markdown and PDF.
 import { appendXmlChild, attribute as attr, descendants, parseXml, patchXml } from './office-xml.ts';
 
 export const OFFICE_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'red', 'purple'] as const;
 export type OfficeColor = typeof OFFICE_COLORS[number];
 export interface OfficeReply { author: string; at: string; text: string }
-export interface OfficeNote { color?: OfficeColor; at?: string; replies: OfficeReply[] }
+// area: the marked rectangle of a slide, in fractions of its width and height (the whole slide is 0, 0, 1, 1).
+export interface OfficeArea { x: number; y: number; w: number; h: number }
+export interface OfficeNote { color?: OfficeColor; at?: string; replies: OfficeReply[]; area?: OfficeArea }
 
 const PART = 'moki/comments.json';
 const isReply = (value: unknown): value is OfficeReply => Boolean(value) && typeof value === 'object'
   && typeof (value as OfficeReply).author === 'string' && typeof (value as OfficeReply).at === 'string' && typeof (value as OfficeReply).text === 'string';
+const fraction = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+export const isOfficeArea = (value: unknown): value is OfficeArea => Boolean(value) && typeof value === 'object'
+  && ['x', 'y', 'w', 'h'].every((key) => fraction((value as Record<string, unknown>)[key]))
+  && (value as OfficeArea).x + (value as OfficeArea).w <= 1.0001 && (value as OfficeArea).y + (value as OfficeArea).h <= 1.0001;
 export const isOfficeColor = (value: unknown): value is OfficeColor => typeof value === 'string' && OFFICE_COLORS.some((color) => color === value);
 
 export function applyOfficeNote<T extends { date: string; color?: string; replies?: OfficeReply[] }>(comment: T, note: OfficeNote | undefined): T {
@@ -26,18 +33,19 @@ export function officeNotes(files: Map<string, Buffer>): Record<string, OfficeNo
   const notes: Record<string, OfficeNote> = {};
   for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
     if (!value || typeof value !== 'object') continue;
-    const note = value as { color?: unknown; at?: unknown; replies?: unknown };
+    const note = value as { color?: unknown; at?: unknown; replies?: unknown; area?: unknown };
     const color = isOfficeColor(note.color) ? note.color : undefined;
     const at = typeof note.at === 'string' ? note.at : undefined;
     const replies = (Array.isArray(note.replies) ? note.replies.filter(isReply) : []).slice(0, 50);
-    if (color || at || replies.length) notes[key] = { ...(color ? { color } : {}), ...(at ? { at } : {}), replies };
+    const area = isOfficeArea(note.area) ? note.area : undefined;
+    if (color || at || replies.length || area) notes[key] = { ...(color ? { color } : {}), ...(at ? { at } : {}), replies, ...(area ? { area } : {}) };
   }
   return notes;
 }
 
 export function saveOfficeNote(files: Map<string, Buffer>, key: string, note: OfficeNote | null): void {
   const notes = officeNotes(files);
-  if (!note || (!note.color && !note.at && note.replies.length === 0)) delete notes[key];
+  if (!note || (!note.color && !note.at && note.replies.length === 0 && !note.area)) delete notes[key];
   else notes[key] = note;
   if (!Object.keys(notes).length) {
     files.delete(PART);

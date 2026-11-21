@@ -2875,7 +2875,8 @@ span.mcp-row-main { cursor: default; }
 .slides-message .doc-notice { max-width: 560px; }
 .slides-rail { width: 184px; flex-shrink: 0; overflow-y: auto; padding: 12px 10px 24px 6px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--border); }
 .slides-thumb { display: flex; align-items: flex-start; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--muted); content-visibility: auto; contain-intrinsic-size: 160px 90px; }
-.slides-thumb-n { width: 16px; text-align: right; font-size: 11px; padding-top: 2px; flex-shrink: 0; }
+.slides-thumb-n { width: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 11px; padding-top: 2px; flex-shrink: 0; }
+.slides-thumb-comments { display: inline-flex; color: var(--accent); }
 .slides-thumb .slide-canvas { outline: 1px solid var(--border); border-radius: 2px; pointer-events: none; }
 .slides-thumb:hover .slide-canvas { outline-color: var(--muted); }
 .slides-thumb.on { color: var(--accent); }
@@ -2883,11 +2884,30 @@ span.mcp-row-main { cursor: default; }
 .slides-thumb:focus-visible { outline: none; }
 .slides-thumb:focus-visible .slide-canvas { outline: 2px solid var(--accent); outline-offset: 2px; }
 .slides-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.slides-stage { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.slides-work { flex: 1; min-height: 0; display: flex; position: relative; }
+.slides-work > .md-rail { flex: none; max-height: calc(100% - 16px); overflow: auto; margin: 16px 12px 0 0; }
+.slides-stage { flex: 1; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.slides-current { position: relative; }
 .slides-current .slide-canvas { box-shadow: 0 2px 14px rgb(0 0 0 / 0.28); }
-.slides-notes { max-height: 28%; overflow-y: auto; padding: 10px 18px; border-top: 1px solid var(--border); white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--bg); }
+/* What a comment marks on the slide: an area (its color), or the point of a comment made in PowerPoint. */
+.slide-mark { position: absolute; z-index: 1; padding: 0; border: 2px solid var(--mark); border-radius: 4px; background: color-mix(in srgb, var(--mark) 12%, transparent); cursor: pointer; }
+.slide-mark:hover, .slide-mark.on { background: color-mix(in srgb, var(--mark) 24%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 35%, transparent); }
+.slide-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.slide-mark-icon { position: absolute; left: -12px; top: -12px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; background: var(--bg-2); box-shadow: 0 1px 4px rgb(0 0 0 / 0.3); }
+.slide-pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50% 50% 50% 4px; transform: translate(-4px, -20px); background: var(--mark); color: #1c1c1c; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); }
+.slide-pin.on, .slide-pin:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 40%, transparent); }
+.slides-draw { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; }
+.slides-draw-box { position: absolute; border: 2px dashed var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.slides-notes { display: flex; flex-direction: column; height: 128px; max-height: 32%; flex: none; border-top: 1px solid var(--border); background: var(--bg); }
+.slides-notes-input, .slides-notes-text { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; margin: 0; padding: 10px 18px; border: 0; overflow-y: auto; white-space: pre-wrap; font: inherit; font-size: 13px; line-height: 1.5; color: var(--text); background: transparent; resize: none; }
+.slides-notes-input::placeholder { color: var(--muted); }
+.slides-notes-input:focus { outline: none; box-shadow: inset 0 2px 0 var(--accent); }
+.slides-notes-hint { margin: 0; padding: 0 18px 6px; }
+.slides-error { margin: 0; padding: 6px 18px; border-top: 1px solid var(--border); background: var(--bg); }
 .slides-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg); }
 .slides-bar-gap { flex: 1; }
+.slides-bar-sep { width: 1px; height: 18px; margin: 0 2px; background: var(--border); }
+.slides-bar .slides-comments-toggle { box-sizing: border-box; height: 32px; min-width: 32px; justify-content: center; }
 .slides-count { font-size: 12px; color: var(--muted); min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
 .slides-prev { display: inline-flex; transform: rotate(180deg); }
 .slides-next { display: inline-flex; }

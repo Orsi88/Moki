@@ -60,6 +60,74 @@ export function zip(entries) {
   return Buffer.concat([...locals, ...centrals, end]);
 }
 
+// A new archive from `buf` with `changes` applied (Map<name, Buffer | null>: written, or removed when null; names not
+// in `buf` are added at the end). Unchanged entries keep their compressed bytes as they are, so a small edit to a
+// large package (a presentation full of pictures) neither inflates nor compresses its media again.
+export function rezip(buf, changes) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd === -1) throw new Error('not a ZIP file (end of central directory not found)');
+  const count = buf.readUInt16LE(eocd + 10);
+  let ptr = buf.readUInt32LE(eocd + 16);
+  const kept = [];
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(ptr) !== 0x02014b50) throw new Error('corrupt ZIP central directory');
+    const flags = buf.readUInt16LE(ptr + 8), method = buf.readUInt16LE(ptr + 10), crc = buf.readUInt32LE(ptr + 16);
+    const compSize = buf.readUInt32LE(ptr + 20), size = buf.readUInt32LE(ptr + 24);
+    const nameLen = buf.readUInt16LE(ptr + 28), extraLen = buf.readUInt16LE(ptr + 30), commentLen = buf.readUInt16LE(ptr + 32);
+    const localOffset = buf.readUInt32LE(ptr + 42);
+    const name = buf.toString('utf8', ptr + 46, ptr + 46 + nameLen);
+    ptr += 46 + nameLen + extraLen + commentLen;
+    if (changes.has(name)) continue;
+    if (flags & 0x0001) throw new Error(`encrypted ZIP entry: ${name}`);
+    if (method !== 0 && method !== 8) throw new Error(`unsupported ZIP compression method ${method} for ${name}`);
+    const start = localOffset + 30 + buf.readUInt16LE(localOffset + 26) + buf.readUInt16LE(localOffset + 28);
+    kept.push({ name, method, crc, size, raw: buf.subarray(start, start + compSize) });
+  }
+  const written = [...changes].filter(([, content]) => content !== null && content !== undefined).map(([name, content]) => {
+    const data = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    return { name, method: 8, crc: crc32(data), size: data.length, raw: deflateRawSync(data) };
+  });
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const entry of [...kept, ...written]) {
+    const nameBuf = Buffer.from(entry.name);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(entry.method, 8);
+    local.writeUInt32LE(entry.crc, 14);
+    local.writeUInt32LE(entry.raw.length, 18);
+    local.writeUInt32LE(entry.size, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    locals.push(local, nameBuf, entry.raw);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(entry.method, 10);
+    central.writeUInt32LE(entry.crc, 16);
+    central.writeUInt32LE(entry.raw.length, 20);
+    central.writeUInt32LE(entry.size, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centrals.push(central, nameBuf);
+    offset += 30 + nameBuf.length + entry.raw.length;
+  }
+  const centralSize = centrals.reduce((n, b) => n + b.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(kept.length + written.length, 8);
+  end.writeUInt16LE(kept.length + written.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, ...centrals, end]);
+}
+
 // Returns Map<name, Buffer>. Reads sizes from the central directory, so it
 // also handles archives written with data descriptors (Excel, LibreOffice).
 // `limits` is for archives the user did not make (an uploaded .claude): { maxFiles, maxFileBytes, maxTotalBytes }
@@ -88,6 +156,8 @@ export function unzip(buf, limits) {
     const commentLen = buf.readUInt16LE(ptr + 32);
     const localOffset = buf.readUInt32LE(ptr + 42);
     const name = buf.toString('utf8', ptr + 46, ptr + 46 + nameLen);
+    // limits.only: read just the entries a caller needs (the XML of a package, not its media).
+    if (limits?.only && !limits.only(name)) { ptr += 46 + nameLen + extraLen + commentLen; continue; }
     if (limits) {
       if (name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[a-zA-Z]:/.test(name) || name.split('/').includes('..')) throw new Error(`unsafe path in the ZIP: ${name}`);
       if ((unixMode & 0xf000) === 0xa000) { limits.skipped?.push(name); ptr += 46 + nameLen + extraLen + commentLen; continue; }

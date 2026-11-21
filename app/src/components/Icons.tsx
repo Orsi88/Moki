@@ -91,6 +91,10 @@ export const IconDot = ({ size }: IconProps) => (
 export const IconPlay = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M7 4.5v15l12-7.5z" /></svg>
 );
+// A presentation screen on its stand (Present).
+export const IconPresent = ({ size }: IconProps) => (
+  <svg {...base(size)}><path d="M3 4h18M4 4v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V4" /><path d="M12 15v3M8.5 21l3.5-3 3.5 3" /><path d="M10 7.5v4l3.5-2z" /></svg>
+);
 export const IconPause = ({ size }: IconProps) => (
   <svg {...base(size)}><path d="M8 5v14M16 5v14" /></svg>
 );

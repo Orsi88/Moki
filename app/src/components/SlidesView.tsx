@@ -1,14 +1,22 @@
-// A presentation (.pptx) shown as slides: thumbnails, the current slide, its notes, and Present (full screen).
-// The file is read from its moki-file:// URL and parsed here by pptxtojson; nothing is converted or written, and the
-// text of the file goes through sanitizeSlideHtml (app/src/slide-html.ts) before it is drawn.
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+// A presentation (.pptx) shown as slides: thumbnails, the current slide, its speaker notes (edited in place), the
+// comments beside the slide (an area marked on it, or the whole slide), and Present (full screen).
+// The slides are read from the file's moki-file:// URL and drawn here by pptxtojson; the text of the file goes through
+// sanitizeSlideHtml (app/src/slide-html.ts) before it is drawn. Notes and comments are read and written by the service
+// in the file itself (scripts/lib/office-slides.ts), in PowerPoint's own format.
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import type { Chart, CommonChart, Element as SlideElement, Slide, Table } from 'pptxtojson';
-import { api } from '../api';
+import { api, type DeckNotes, type Marker, type SlideChange } from '../api';
+import type { SlideComment } from '../../../scripts/lib/office-types';
+import { createDebouncer, onFlushEdits } from '../debounce';
 import { t } from '../i18n';
+import { isCommentColor, SWATCH, type CommentColor, type MdComment } from '../md-comments';
+import { markerColor, markerLabel, markerOnly, splitMarker, useMarkers } from '../markers';
 import { recall, remember } from '../prefs';
 import { borderCss, byOrder, cropBox, fillCss, notesText, safeColor, safeImage, shadowCss, transformCss, vAlignCss } from '../slides';
 import { sanitizeSlideHtml } from '../slide-html';
-import { IconChevron, IconExternal, IconNotes, IconPlay } from './Icons';
+import { CommentColumn, CommentComposer, useCommentPlacement, type CommentActions } from './CommentColumn';
+import { IconChat, IconChevron, IconExternal, IconFitScreen, IconNotes, IconPresent } from './Icons';
+import { MarkerContextMenu, MarkerMenu } from './Markers';
 import { Notice } from './Notice';
 
 interface Deck { slides: Slide[]; width: number; height: number }
@@ -199,23 +207,88 @@ const SlideCanvas = memo(function SlideCanvas({ slide, deck, width }: { slide: S
 // The largest width at which the deck's slides fit `w` x `h`.
 const fitWidth = (deck: Deck, w: number, h: number) => Math.max(40, Math.min(w, h * (deck.width / deck.height)));
 
-export function SlidesView({ url, title, onOpenExternal }: { url: string; title: string; onOpenExternal: () => void }) {
+type Info = DeckNotes & { version: string };
+type Area = SlideComment['area'] & {};
+const WHOLE = (a: Area | undefined) => !a || (a.x <= 0.001 && a.y <= 0.001 && a.w >= 0.999 && a.h >= 0.999);
+const changeKey = (change: SlideChange) => (change.op === 'notes' ? `notes:${change.slide}` : `${change.op}:${Date.now()}:${Math.random()}`);
+
+// Notes and comment changes, saved one after the other against the version the last save returned (the service
+// refuses a change made against another version). A notes edit waits for a pause in the typing; the rest goes at once.
+function useSlideEdits(project: string | undefined, path: string, info: Info | null, onSaved: (next: Info) => void) {
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const pending = useRef(new Map<string, SlideChange>()), working = useRef(false), version = useRef('');
+  if (info && !working.current) version.current = info.version;
+  const saved = useRef(onSaved); saved.current = onSaved;
+  const drain = useRef<() => void>(() => {});
+  drain.current = () => {
+    if (!project || working.current || !pending.current.size) return;
+    working.current = true; setBusy(true);
+    void (async () => {
+      while (pending.current.size) {
+        const [key, change] = pending.current.entries().next().value as [string, SlideChange];
+        pending.current.delete(key);
+        try {
+          const next = await api.editSlides(project, path, version.current, change);
+          version.current = next.version; saved.current(next); setError('');
+        } catch (e) {
+          if (!pending.current.has(key)) pending.current.set(key, change);
+          setError((e as Error).message); break;
+        }
+      }
+    })().finally(() => { working.current = false; setBusy(false); });
+  };
+  const debounce = useMemo(() => createDebouncer(() => drain.current(), 700), []);
+  useEffect(() => {
+    const off = onFlushEdits(() => { debounce.flush(); drain.current(); });
+    return () => { off(); debounce.flush(); drain.current(); };
+  }, [debounce]);
+  const edit = (change: SlideChange) => {
+    pending.current.set(changeKey(change), change);
+    if (change.op === 'notes') debounce.call(); else { debounce.flush(); drain.current(); }
+  };
+  const flush = () => { debounce.flush(); drain.current(); };
+  const draft = (slide: number) => { const c = pending.current.get(`notes:${slide}`); return c?.op === 'notes' ? c.text : undefined; };
+  return { busy, error, edit, flush, draft };
+}
+
+export function SlidesView({ url, title, project, onOpenExternal }: { url: string; title: string; project?: string; onOpenExternal: () => void }) {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [error, setError] = useState('');
   const [index, setIndex] = useState(0);
   const [notesOn, setNotesOn] = useState(() => recall('qa-slide-notes') !== 'closed');
+  const [commentsOn, setCommentsOn] = useState(() => recall('qa-slide-comments') !== 'closed');
   const [presenting, setPresenting] = useState(false);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   const [screen, setScreen] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [info, setInfo] = useState<Info | null>(null);
+  const [noteText, setNoteText] = useState<Record<number, string>>({});
+  const [active, setActive] = useState('');
+  const [areaMode, setAreaMode] = useState(false);
+  const [drawing, setDrawing] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [marking, setMarking] = useState<{ area: Area; left: number; top: number } | null>(null);
+  const [composer, setComposer] = useState<{ area: Area; x: number; y: number } | null>(null);
+  const [markerMenu, setMarkerMenu] = useState<string | null>(null);
+  const [color, setColor] = useState<CommentColor>('yellow');
   const stage = useRef<HTMLDivElement>(null);
+  const work = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
+  const commentRail = useRef<HTMLDivElement>(null);
   const show = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
+  const deckRef = useRef<Deck | null>(null); deckRef.current = deck;
+  const own = useRef(''); // the version this view saved last: a reread caused by that save draws nothing again
+  const markers = useMarkers();
+  const edits = useSlideEdits(project, title, info, (next) => { own.current = next.version; setInfo(next); });
 
   useEffect(() => {
     let live = true;
-    setDeck(null); setError(''); setIndex(0);
+    if (!deckRef.current) { setError(''); setIndex(0); }
     (async () => {
+      const notes = project ? await api.slideNotes(project, title).catch(() => null) : null;
+      if (!live) return;
+      if (notes) setInfo(notes);
+      if (deckRef.current && notes && notes.version === own.current) return;
       const response = await fetch(url);
       if (!response.ok) throw new Error(t('Could not read this presentation.'));
       const data = await response.arrayBuffer();
@@ -224,9 +297,10 @@ export function SlidesView({ url, title, onOpenExternal }: { url: string; title:
       if (!live) return;
       if (!result.slides.length) throw new Error(t('This presentation has no slides.'));
       setDeck({ slides: prepare(result.slides), width: result.size.width || 960, height: result.size.height || 540 });
-    })().catch(() => { if (live) setError(t('Could not read this presentation.')); });
+      setIndex((i) => Math.min(i, result.slides.length - 1));
+    })().catch(() => { if (live && !deckRef.current) setError(t('Could not read this presentation.')); });
     return () => { live = false; };
-  }, [url]);
+  }, [url, project, title]);
 
   useLayoutEffect(() => {
     const el = stage.current;
@@ -252,12 +326,13 @@ export function SlidesView({ url, title, onOpenExternal }: { url: string; title:
   }, []);
 
   const count = deck?.slides.length ?? 0;
-  const go = useCallback((to: number) => setIndex(Math.max(0, Math.min(count - 1, to))), [count]);
+  const go = useCallback((to: number) => { setIndex(Math.max(0, Math.min(count - 1, to))); setComposer(null); setMarking(null); setDrawing(null); setMarkerMenu(null); }, [count]);
   useEffect(() => { rail.current?.querySelector<HTMLElement>(`[data-slide="${index}"]`)?.scrollIntoView({ block: 'nearest' }); }, [index]);
 
-  const present = () => { void show.current?.requestFullscreen().catch(() => {}); };
+  const present = () => { edits.flush(); void show.current?.requestFullscreen().catch(() => {}); };
   const keys = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if ((e.target as HTMLElement).closest('textarea, input, [contenteditable="true"], [role="menu"], [role="dialog"]')) return; // typing notes or a comment
     const next = ['ArrowRight', 'ArrowDown', 'PageDown', ...(presenting ? [' ', 'Enter'] : [])], back = ['ArrowLeft', 'ArrowUp', 'PageUp', ...(presenting ? ['Backspace'] : [])];
     if (next.includes(e.key)) { e.preventDefault(); go(index + 1); }
     else if (back.includes(e.key)) { e.preventDefault(); go(index - 1); }
@@ -272,9 +347,92 @@ export function SlidesView({ url, title, onOpenExternal }: { url: string; title:
     return false;
   };
   const toggleNotes = () => { setNotesOn((on) => { remember('qa-slide-notes', on ? 'closed' : 'open'); return !on; }); };
+  const showComments = (on: boolean) => { setCommentsOn(on); remember('qa-slide-comments', on ? 'open' : 'closed'); };
 
   const current = deck?.slides[index];
+  const notes = info?.slides[index];
+  const editable = Boolean(project && info && !info.readOnly);
+  const comments = useMemo(() => notes?.comments ?? [], [notes]);
+  const total = info?.slides.reduce((n, s) => n + s.comments.length, 0) ?? 0;
+  const cards = useMemo<MdComment[]>(() => comments.map((c) => ({
+    id: c.id, author: c.author, at: c.date, text: c.text, replies: c.replies ?? [], ...(isCommentColor(c.color) ? { color: c.color } : {}),
+  })), [comments]);
+  // Where a comment points on the slide: its area (a point for a comment made in PowerPoint); the whole slide has none.
+  const markOf = useCallback((body: HTMLElement, id: string) => {
+    const c = comments.find((x) => x.id === id);
+    const spot = c?.area && !WHOLE(c.area) ? c.area : c?.pin && !c.area ? { ...c.pin, w: 0, h: 0 } : null;
+    if (!spot) return null;
+    return { getBoundingClientRect: () => { const r = body.getBoundingClientRect(); return DOMRect.fromRect({ x: r.left + spot.x * r.width, y: r.top + spot.y * r.height, width: spot.w * r.width, height: spot.h * r.height }); } };
+  }, [comments]);
+  const ready = Boolean(project && info);
+  const commentsShown = ready && commentsOn;
+  const placed = useCommentPlacement(work, canvas, commentRail, cards, markOf);
+  // The comments take the place of the project panel on the right (Workspace listens), as for a PDF.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('moki:doc-side', { detail: commentsShown }));
+    return () => { window.dispatchEvent(new CustomEvent('moki:doc-side', { detail: false })); };
+  }, [commentsShown]);
+  useEffect(() => {
+    const close = () => { setCommentsOn(false); remember('qa-slide-comments', 'closed'); };
+    window.addEventListener('moki:doc-side-close', close);
+    return () => window.removeEventListener('moki:doc-side-close', close);
+  }, []);
   const stageWidth = useMemo(() => (deck && stageSize.w ? fitWidth(deck, stageSize.w - 48, stageSize.h - 48) : 0), [deck, stageSize]);
+
+  const readOnlyIds = new Set(comments.filter((c) => c.readOnly).map((c) => c.id));
+  const send = (id: string, change: SlideChange) => { if (!readOnlyIds.has(id)) edits.edit(change); };
+  const actions: CommentActions = {
+    reply: (id, text) => send(id, { op: 'reply', slide: index, id, text, author: '' }),
+    edit: (id, text) => send(id, { op: 'edit-comment', slide: index, id, text }),
+    color: (id, value) => send(id, { op: 'color', slide: index, id, color: value }),
+    remove: (id) => { send(id, { op: 'delete-comment', slide: index, id }); if (id === active) setActive(''); },
+  };
+  const add = (area: Area, text: string, value: string) => { edits.edit({ op: 'comment', slide: index, text, author: '', color: value, area }); showComments(true); };
+
+  // Mark an area: a rectangle dragged over the slide, in fractions of it; then the markers menu (with Comment…).
+  const point = (e: { clientX: number; clientY: number }) => {
+    const r = canvas.current!.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
+  const startDraw = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !canvas.current) return;
+    e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId);
+    const p = point(e); setDrawing({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }); setComposer(null); setMarking(null);
+  };
+  const moveDraw = (e: PointerEvent<HTMLDivElement>) => { if (drawing && canvas.current) { const p = point(e); setDrawing({ ...drawing, x1: p.x, y1: p.y }); } };
+  const endDraw = (e: PointerEvent<HTMLDivElement>) => {
+    if (!drawing || !canvas.current) return;
+    const r = canvas.current.getBoundingClientRect();
+    const area = { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) };
+    setDrawing(null);
+    if (area.w * r.width < 8 || area.h * r.height < 8) return; // a click, not an area
+    setAreaMode(false);
+    setMarking({ area, left: e.clientX, top: e.clientY });
+  };
+  // Right-click on the slide: comment on (or mark) the whole slide.
+  const contextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    if (!editable || presenting) return;
+    e.preventDefault();
+    setMarking({ area: { x: 0, y: 0, w: 1, h: 1 }, left: e.clientX, top: e.clientY });
+  };
+  const openComposer = (area: Area) => {
+    const box = work.current?.getBoundingClientRect(), slide = canvas.current?.getBoundingClientRect();
+    if (!box || !slide) return;
+    const whole = WHOLE(area);
+    const x = whole ? slide.left - box.left + 16 : slide.left - box.left + (area.x + area.w) * slide.width + 8;
+    const y = whole ? slide.top - box.top + 16 : slide.top - box.top + area.y * slide.height;
+    setComposer({ area, x: Math.max(8, Math.min(x, box.width - 296)), y: Math.max(8, Math.min(y, box.height - 230)) });
+  };
+  useEffect(() => {
+    if (!composer && !areaMode) return;
+    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') { setComposer(null); setAreaMode(false); setDrawing(null); } };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [composer, areaMode]);
+
+  // Without the service's reading (no project), the notes read with the slides are shown, not edited.
+  const noteValue = noteText[index] ?? edits.draft(index) ?? notes?.notes ?? current?.note ?? '';
+  const writeNote = (text: string) => { setNoteText((all) => ({ ...all, [index]: text })); edits.edit({ op: 'notes', slide: index, text }); };
 
   if (error) {
     return (
@@ -287,29 +445,101 @@ export function SlidesView({ url, title, onOpenExternal }: { url: string; title:
   }
   if (!deck || !current) return <div className="slides-view slides-message muted" role="status">{t('Opening the presentation…')}</div>;
 
+  const shownNote = notesOn && (editable || Boolean(noteValue));
+  const drawn = drawing && { x: Math.min(drawing.x0, drawing.x1), y: Math.min(drawing.y0, drawing.y1), w: Math.abs(drawing.x1 - drawing.x0), h: Math.abs(drawing.y1 - drawing.y0) };
+  const menuOf = markerMenu ? comments.find((c) => c.id === markerMenu) : undefined;
   return (
     <div className="slides-view" ref={root} tabIndex={0} onKeyDown={keys} aria-label={title}>
       <div className="slides-rail" ref={rail} aria-label={t('Slides')}>
-        {deck.slides.map((slide, i) => (
-          <button key={i} type="button" data-slide={i} className={`slides-thumb${i === index ? ' on' : ''}`} aria-current={i === index ? 'true' : undefined}
-            aria-label={t('Slide {n}', { n: i + 1 })} onClick={() => go(i)}>
-            <span className="slides-thumb-n">{i + 1}</span>
-            <SlideCanvas slide={slide} deck={deck} width={148} />
-          </button>
-        ))}
+        {deck.slides.map((slide, i) => {
+          const n = info?.slides[i]?.comments.length ?? 0;
+          return (
+            <button key={i} type="button" data-slide={i} className={`slides-thumb${i === index ? ' on' : ''}`} aria-current={i === index ? 'true' : undefined}
+              aria-label={t('Slide {n}', { n: i + 1 })} title={n ? `${t('Comments')}: ${n}` : undefined} onClick={() => go(i)}>
+              <span className="slides-thumb-n">{i + 1}{n > 0 && <span className="slides-thumb-comments" aria-hidden="true"><IconChat size={11} /></span>}</span>
+              <SlideCanvas slide={slide} deck={deck} width={148} />
+            </button>
+          );
+        })}
       </div>
       <div className="slides-main">
-        <div className="slides-stage" ref={stage} onClick={link}>
-          {stageWidth > 0 && <div className="slides-current"><SlideCanvas slide={current} deck={deck} width={stageWidth} /></div>}
+        <div ref={work} className={`slides-work${commentsShown ? ' with-rail' : ''}`}>
+          <div className="slides-stage" ref={stage} onClick={link}>
+            {stageWidth > 0 && (
+              <div className="slides-current" ref={canvas} onContextMenu={contextMenu}>
+                <SlideCanvas slide={current} deck={deck} width={stageWidth} />
+                {ready && comments.map((c) => {
+                  const { marker, body } = splitMarker(c.text, markers);
+                  const tone = isCommentColor(c.color) ? SWATCH[c.color] : SWATCH.yellow;
+                  const open = () => { if (marker && markerOnly(c.text, markers)) setMarkerMenu(markerMenu === c.id ? null : c.id); else { showComments(true); setActive(c.id); } };
+                  const style = (extra: CSSProperties) => ({ ...extra, ['--mark' as string]: tone }) as CSSProperties;
+                  if (c.area && !WHOLE(c.area)) return (
+                    <button key={c.id} type="button" className={`slide-mark${active === c.id ? ' on' : ''}`} data-comment={c.id}
+                      style={style({ left: `${c.area.x * 100}%`, top: `${c.area.y * 100}%`, width: `${c.area.w * 100}%`, height: `${c.area.h * 100}%` })}
+                      title={body || marker?.name || ''} aria-label={t('Open the comment: {text}', { text: body || marker?.name || '' })}
+                      onMouseEnter={() => setActive(c.id)} onMouseLeave={() => setActive('')} onClick={(e) => { e.stopPropagation(); open(); }}>
+                      {marker && <span className="slide-mark-icon" aria-hidden="true">{marker.icon}</span>}
+                    </button>
+                  );
+                  if (c.pin && !c.area) return (
+                    <button key={c.id} type="button" className={`slide-pin${active === c.id ? ' on' : ''}`} data-comment={c.id} style={style({ left: `${c.pin.x * 100}%`, top: `${c.pin.y * 100}%` })}
+                      title={c.text} aria-label={t('Open the comment: {text}', { text: c.text })}
+                      onMouseEnter={() => setActive(c.id)} onMouseLeave={() => setActive('')} onClick={(e) => { e.stopPropagation(); open(); }}><IconChat size={12} /></button>
+                  );
+                  return null;
+                })}
+                {areaMode && (
+                  <div className="slides-draw" onPointerDown={startDraw} onPointerMove={moveDraw} onPointerUp={endDraw} onPointerCancel={() => setDrawing(null)} aria-hidden="true">
+                    {drawn && <div className="slides-draw-box" style={{ left: `${drawn.x * 100}%`, top: `${drawn.y * 100}%`, width: `${drawn.w * 100}%`, height: `${drawn.h * 100}%` }} />}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {ready && (
+            <CommentColumn comments={cards} placed={placed} rail={commentRail} shown={commentsShown} hidden={!commentsShown} onShow={() => showComments(true)}
+              active={active} onActive={setActive} saving={edits.busy} actions={actions} readOnly={!editable}
+              describe={(id) => {
+                const c = comments.find((x) => x.id === id);
+                if (c?.readOnly) return <p className="muted small">{t('Made in a newer PowerPoint: reply or change it there.')}</p>;
+                return c && WHOLE(c.area) && !(c.pin && !c.area) ? <span className="office-comment-where">{t('The whole slide')}</span> : null;
+              }}
+              empty={<p className="muted small pdf-rail-empty">{editable ? t('Mark an area of the slide to comment on it, or right-click the slide to comment on all of it.') : t('No comments yet.')}</p>} />
+          )}
+          {menuOf?.area && canvas.current && work.current && (() => {
+            const box = work.current.getBoundingClientRect(), slide = canvas.current.getBoundingClientRect(), a = menuOf.area;
+            return <MarkerMenu markers={markers} text={menuOf.text} left={slide.left - box.left + a.x * slide.width} top={slide.top - box.top + (a.y + a.h) * slide.height + 4} disabled={edits.busy || !editable}
+              onText={(next) => { actions.edit(menuOf.id, next); if (!markerOnly(next, markers)) showComments(true); }} onRemove={() => actions.remove(menuOf.id)} onClose={() => setMarkerMenu(null)} />;
+          })()}
+          {marking && <MarkerContextMenu markers={markers} left={marking.left} top={marking.top} onClose={() => setMarking(null)}
+            onComment={() => openComposer(marking.area)}
+            onPick={(m: Marker) => add(marking.area, markerLabel(m), markerColor(m))} />}
+          {composer && <CommentComposer x={composer.x} y={composer.y} saving={edits.busy} color={color} onColor={setColor}
+            onAdd={(text) => { add(composer.area, text, color); setComposer(null); }} onCancel={() => setComposer(null)} />}
         </div>
-        {notesOn && current.note && <div className="slides-notes" aria-label={t('Speaker notes')}>{current.note}</div>}
+        {shownNote && (
+          <div className="slides-notes">
+            {editable
+              ? <textarea className="slides-notes-input" value={noteValue} maxLength={20000} placeholder={t('Click to add speaker notes')} aria-label={t('Speaker notes')}
+                  onChange={(e) => writeNote(e.target.value)} onBlur={edits.flush} />
+              : <div className="slides-notes-text" aria-label={t('Speaker notes')}>{noteValue}</div>}
+            {editable && notes?.formatted && noteText[index] === undefined && <p className="slides-notes-hint muted small">{t('Bold and lists in these notes are removed when you edit them here.')}</p>}
+          </div>
+        )}
+        {edits.error && <p role="alert" className="warn-text slides-error">{t(edits.error)}</p>}
         <div className="slides-bar">
           <button type="button" className="icon-btn" onClick={() => go(index - 1)} disabled={index === 0} title={t('Previous slide')} aria-label={t('Previous slide')}><span className="slides-prev"><IconChevron size={16} /></span></button>
           <span className="slides-count" role="status">{t('Slide {n} of {total}', { n: index + 1, total: count })}</span>
           <button type="button" className="icon-btn" onClick={() => go(index + 1)} disabled={index === count - 1} title={t('Next slide')} aria-label={t('Next slide')}><span className="slides-next"><IconChevron size={16} /></span></button>
           <span className="slides-bar-gap" />
+          {editable && <button type="button" className={`icon-btn${areaMode ? ' on' : ''}`} aria-pressed={areaMode} title={t('Drag a rectangle on the slide to mark or comment on that area')} aria-label={t('Mark an area')}
+            onClick={() => { setAreaMode(!areaMode); setComposer(null); setMarking(null); }}><IconFitScreen size={16} /></button>}
+          {ready && <button type="button" className={`btn btn-ghost btn-sm pdf-rail-toggle slides-comments-toggle${commentsOn ? ' on' : ''}`} aria-pressed={commentsOn}
+            title={commentsOn ? t('Hide the comments: the slide gets the room') : t('Show the comments beside the slide')} aria-label={`${t('Comments')} (${total})`}
+            onClick={() => showComments(!commentsOn)}><IconChat size={16} />{total > 0 && <span className="pdf-rail-count">{total}</span>}</button>}
+          {ready && <span className="slides-bar-sep" aria-hidden="true" />}
           <button type="button" className={`icon-btn${notesOn ? ' on' : ''}`} aria-pressed={notesOn} onClick={toggleNotes} title={notesOn ? t('Hide the speaker notes') : t('Show the speaker notes')} aria-label={t('Speaker notes')}><IconNotes size={16} /></button>
-          <button type="button" className="btn btn-sm" onClick={present} title={t('Present (F5)')}><IconPlay size={14} />{t('Present')}</button>
+          <button type="button" className="icon-btn" onClick={present} title={t('Present (F5)')} aria-label={t('Present')}><IconPresent size={16} /></button>
         </div>
       </div>
       <div ref={show} className="slides-show" onClick={(e) => { if (!link(e)) go(index + (e.clientX < screen.w / 4 ? -1 : 1)); }} tabIndex={-1}>

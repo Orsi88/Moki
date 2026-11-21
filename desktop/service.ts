@@ -8,6 +8,7 @@ import type { WorkbookInfo, SheetChange } from '../scripts/lib/office-sheet.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { changeWord } from '../scripts/lib/office-word.ts';
 import { changeSheet } from '../scripts/lib/office-sheet.ts';
+import { changeSlides, deckNotes, isSlideChange, type DeckNotes, type SlideChange } from '../scripts/lib/office-slides.ts';
 import { convertLegacy, type ConvertEngine } from './office-convert.ts';
 import { appendFileSync, closeSync, copyFileSync, cpSync, type Dirent, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
@@ -343,6 +344,12 @@ export function createService(root: string, deps: Deps) {
     if (!diagram || !existsSync(file) || !statSync(file).isFile()) throw new ServiceError('Choose a diagram file.');
     if (statSync(file).size > DIAGRAM_SOURCE_LIMIT) throw new ServiceError('Diagram source is empty or too large.');
     return { file, diagram, path: posix(String(rel)) };
+  };
+  // A presentation Moki reads itself (zip based, not password protected), for its notes and comments.
+  const slideFile = (project: string, rel: unknown) => {
+    const file = projectPath(project, rel), stat = statSync(file, { throwIfNoEntry: false });
+    if (!SLIDE_TYPES[extname(file).toLowerCase()] || !stat?.isFile() || stat.size > SLIDES_LIMIT) throw new ServiceError('Choose a PowerPoint presentation.');
+    return file;
   };
   // Execution files belong to the app. The linked folder is the repository, shown live, not a drop target.
   const runsFolder = (rel: string) => rel === 'runs' || rel.startsWith('runs/');
@@ -1980,6 +1987,30 @@ export function createService(root: string, deps: Deps) {
       try { writeFileSync(temporary, result, { flag: 'wx' }); renameSync(temporary, file); }
       finally { if (existsSync(temporary)) rmSync(temporary); }
       return readFile(project, rel);
+    },
+
+    // A presentation's speaker notes and comments (the slides themselves are drawn by the app from the file's URL).
+    // `version` is the file's hash: a change made against another version is refused, as for Word and Excel.
+    slideNotes: (project: string, rel: string): DeckNotes & { version: string } => {
+      const file = slideFile(project, rel), bytes = readFileSync(file);
+      return { ...failing(() => deckNotes(bytes)), version: createHash('sha256').update(bytes).digest('hex') };
+    },
+    editSlides: (project: string, rel: string, version: unknown, raw: unknown): DeckNotes & { version: string } => {
+      const file = slideFile(project, rel);
+      if (typeof version !== 'string' || !/^[a-f0-9]{64}$/.test(version) || !raw || typeof raw !== 'object') throw new ServiceError('Invalid presentation change.');
+      const input = raw as Record<string, unknown>;
+      const change = { ...input, ...(input.op === 'comment' || input.op === 'reply' ? { author: userInfo().username } : {}) };
+      if (!isSlideChange(change)) throw new ServiceError('Invalid presentation change.');
+      const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+      const before = readFileSync(file);
+      if (hash(before) !== version) throw new ServiceError(CHANGED_OUTSIDE);
+      const result = failing(() => changeSlides(before, change as SlideChange));
+      if (hash(readFileSync(file)) !== version) throw new ServiceError(CHANGED_OUTSIDE);
+      const temporary = join(dirname(file), '.moki-slides-' + randomBytes(8).toString('hex') + '.tmp');
+      try { writeFileSync(temporary, result, { flag: 'wx' }); renameSync(temporary, file); }
+      catch (error) { throw (error as NodeJS.ErrnoException).code === 'EBUSY' || (error as NodeJS.ErrnoException).code === 'EPERM' ? new ServiceError('The presentation is open in another program: close it there to save.') : error; }
+      finally { if (existsSync(temporary)) rmSync(temporary); }
+      return { ...failing(() => deckNotes(result)), version: hash(result) };
     },
 
     // Preview of unsaved Markdown (the note popup, a .md tab with edits); same renderer as readFile.

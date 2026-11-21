@@ -55,10 +55,13 @@ Um arquivo da entrada, e qualquer edição de página, é salvo como uma cópia 
 
 ## Apresentações
 
-O **PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) abre como slides, lido pelo próprio Moki: nada é convertido, o arquivo nunca é alterado e não é preciso ter o Office instalado.
+O **PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) abre como slides, lido pelo próprio Moki: nada é convertido e não é preciso ter o Office instalado. Só as suas anotações do orador e os comentários são gravados, na própria apresentação, no formato do PowerPoint.
 
 - Miniaturas à esquerda, o slide atual grande no meio e as **anotações do orador** embaixo (o ícone de anotações mostra ou esconde). Navegue com as setas, Page Up/Down, Home/End ou as setas abaixo do slide.
-- **Apresentar** (ou **F5**) mostra os slides em tela cheia; as setas, o espaço ou um clique avançam, e **Esc** encerra.
+- As **anotações do orador** são escritas ali mesmo: clique na caixa abaixo do slide ("Clique para adicionar anotações do orador") e digite. Elas são salvas após uma pausa, inclusive num slide que não tinha nenhuma, e o PowerPoint as mostra. São texto simples: negrito e listas de uma anotação são removidos quando você a edita aqui (o Moki avisa antes).
+- **Comentários**, como nos PDFs e documentos do Word: o ícone de área abaixo do slide permite arrastar um retângulo sobre a parte que você quer, e então escolher **Comentar…** ou um marcador; clicar com o botão direito no slide comenta o slide inteiro. Os comentários ficam ao lado do slide, com responder, editar, cor e excluir, as áreas marcadas aparecem desenhadas nele e as miniaturas mostram quais slides têm comentários. No PowerPoint eles aparecem como comentários no canto da área. Comentários feitos num PowerPoint recente (em conversa) são mostrados e respondidos por lá.
+- Se a apresentação estiver aberta no PowerPoint, feche-a lá para o Moki salvar. Uma apresentação assinada é só lida.
+- **Apresentar** (o ícone de tela, ou **F5**) mostra os slides em tela cheia; as setas, o espaço ou um clique avançam, e **Esc** encerra.
 - Textos, formas, imagens, tabelas e gráficos comuns (colunas, barras, linhas, áreas, pizza) mantêm lugar e tamanho. Fontes que o computador não tem são trocadas por parecidas; animações, transições, vídeo e áudio não são reproduzidos, e SmartArt ou efeitos especiais podem sair mais simples. Para esses, use **Abrir com o programa padrão**.
 - Arquivos `.ppt` antigos e apresentações protegidas por senha abrem no seu programa de apresentações.
 

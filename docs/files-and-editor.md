@@ -55,10 +55,13 @@ A file from the inbox, and any page edit, is saved as an `-edited.pdf` copy, so 
 
 ## Presentations
 
-**PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) opens as slides, read by Moki itself: nothing is converted and the file is never changed, and no Office installation is needed.
+**PowerPoint** (`.pptx`, `.ppsx`, `.pptm`, `.potx`) opens as slides, read by Moki itself: nothing is converted and no Office installation is needed. Only your speaker notes and comments are written, into the presentation itself, in PowerPoint's own format.
 
 - Thumbnails on the left, the current slide large in the middle and its **speaker notes** below (the notes icon hides or shows them). Move with the arrow keys, Page Up/Down, Home/End or the arrows under the slide.
-- **Present** (or **F5**) shows the slides full screen; the arrows, space or a click move on, and **Esc** ends.
+- **Speaker notes** are written right there: click the box under the slide ("Click to add speaker notes") and type. They are saved after a pause, also on a slide that had none, and PowerPoint shows them. They are plain text: bold and lists in a note are removed when you edit it here (Moki says so before).
+- **Comments**, as in PDFs and Word documents: the area icon under the slide lets you drag a rectangle over the part you mean, then choose **Comment…** or a marker; a right-click on the slide comments on the whole slide. The comments sit beside the slide with reply, edit, color and delete, the marked areas are drawn on it, and the thumbnails show which slides have comments. In PowerPoint they appear as comments at the corner of the area. Comments made in a recent PowerPoint (threaded) are shown, and replied to there.
+- If the presentation is open in PowerPoint, close it there for Moki to save. A signed presentation is only read.
+- **Present** (the screen icon, or **F5**) shows the slides full screen; the arrows, space or a click move on, and **Esc** ends.
 - Text, shapes, pictures, tables and common charts (columns, bars, lines, areas, pies) keep their place and sizes. Fonts the computer lacks are replaced by similar ones; animations, transitions, video and audio are not played, and SmartArt or special effects can look simpler. For those, **Open with the default program**.
 - Old `.ppt` files and password-protected presentations open in your presentation program.
 

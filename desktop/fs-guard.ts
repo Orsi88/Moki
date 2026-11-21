@@ -56,6 +56,7 @@ export const VIDEO_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v'
 // never held in a text field, so it is held to this limit and not to the text one.
 export const HTML_LIMIT = 30 * 1024 * 1024;
 // Presentations are read by the app itself (app/src/slides.ts) from moki-file://, slide by slide; nothing is converted.
+// Speaker notes and comments are written into the file by the service (scripts/lib/office-slides.ts).
 export const SLIDES_LIMIT = 200 * 1024 * 1024;
 export const SLIDE_TYPES: Record<string, string> = {
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

@@ -3,7 +3,7 @@ import type { CodeAnchor, CodeComment, CodeCommentChange, CodeNote } from '../..
 export type { CodeAnchor, CodeComment, CodeCommentChange, CodeNote } from '../../scripts/lib/code-comment-types.ts';
 import type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
 export type { DiagramKind, DiagramSettings, DiagramRenderResult, DiagramAnchor, DiagramComment, DiagramCommentChange, DiagramViewState } from '../../scripts/lib/diagram-types.ts';
-import type { WordDocument, WordChange, WorkbookInfo, SheetChange } from '../../scripts/lib/office-types.ts';
+import type { WordDocument, WordChange, WorkbookInfo, SheetChange, DeckNotes, SlideChange } from '../../scripts/lib/office-types.ts';
 import type { Marker } from '../../scripts/lib/marker-labels.ts';
 export type { Marker } from '../../scripts/lib/marker-labels.ts';
 // Client for the desktop app's main process (see desktop/preload.ts and
@@ -514,6 +514,9 @@ export const api = {
   writeFile: (project: string, path: string, text: string, base?: string) => call<FileContent>('writeFile', project, path, text, base),
   saveDrawing: (project: string, path: string, text: string) => call<FileContent>('saveDrawing', project, path, text),
   editOffice: (project: string, path: string, version: string, change: WordChange | SheetChange) => call<FileContent>('editOffice', project, path, version, change),
+  // A presentation's speaker notes and comments; version: the file's hash, a change against another one is refused.
+  slideNotes: (project: string, path: string) => call<DeckNotes & { version: string }>('slideNotes', project, path),
+  editSlides: (project: string, path: string, version: string, change: SlideChange) => call<DeckNotes & { version: string }>('editSlides', project, path, version, change),
   htmlComments: (project: string, path: string) => call<HtmlComment[]>('htmlComments', project, path),
   codeComments: (project: string, path: string) => call<CodeComment[]>('codeComments', project, path),
   addCodeComment: (project: string, path: string, anchor: CodeAnchor, text: string, color?: string) => call<CodeComment[]>('addCodeComment', project, path, anchor, text, color),
@@ -712,4 +715,4 @@ export const statusLabel = (status: string): string => ({
   blocked: t('Blocked'), paused: t('Paused'), completed: t('Completed'), cancelled: t('Cancelled'), unreadable: t('Unreadable'),
 } as Record<string, string>)[status] ?? status;
 
-export type { WordDocument, WordChange, WorkbookInfo, SheetChange };
+export type { WordDocument, WordChange, WorkbookInfo, SheetChange, DeckNotes, SlideChange };

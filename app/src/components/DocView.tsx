@@ -379,7 +379,7 @@ export function DocView({ content, project, mode, initialScrollTop = 0, onScroll
         {content.kind === 'diagram' && <DiagramView key={content.path} project={project} path={content.path} source={content.text} kind={content.diagram} onReload={onReload} onExternal={onOpenExternal} />}
         {content.kind === 'drawing' && <Suspense fallback={<p role="status" className="diagram-notice">{t('Drawing diagram…')}</p>}><DrawingFile key={content.path} source={content.text} editing={drawingEdit} onSave={(text) => { if (project) return api.saveDrawing(project, content.path, text).then(() => undefined); }} /></Suspense>}
         {content.kind === 'image' && <ImageView url={content.url} alt={content.path} />}
-        {content.kind === 'slides' && <Suspense fallback={<div className="slides-view slides-message muted" role="status">{t('Opening the presentation…')}</div>}><SlidesView key={content.path} url={content.url} title={content.path} onOpenExternal={onOpenExternal} /></Suspense>}
+        {content.kind === 'slides' && <Suspense fallback={<div className="slides-view slides-message muted" role="status">{t('Opening the presentation…')}</div>}><SlidesView key={content.path} url={content.url} title={content.path} project={project} onOpenExternal={onOpenExternal} /></Suspense>}
         {content.kind === 'video' && <div className="image-view video-view"><video src={content.url} controls preload="metadata" aria-label={content.path} /></div>}
         {content.kind === 'binary' && (
           <div className="binary-view">
