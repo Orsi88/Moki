@@ -115,10 +115,13 @@ export function App() {
   const home = () => { setSettings(null); setProjectId(null); setCreated(null); remember(null); void loadProjects(); };
   // New project: Enter on the name (setup false) opens it as is; "Create and customize" opens it with "Set up".
   // With a folder (from "Open a project"), the project is linked to it and says what linking did.
-  const create = async (name: string, starter: Starter, tags: string[] = [], setup = true, folder?: string) => {
+  const create = async (name: string, starter: Starter, tags: string[] = [], setup = true, folder?: string, plugins: string[] = []) => {
     const project = await api.createProject(name, starter, folder, tags);
+    // The project exists even when a plugin cannot be turned on: the reason goes in the notice.
+    let note = '';
+    if (plugins.length) { try { await api.setProjectPlugins(project.id, plugins); } catch (e) { note = e instanceof Error ? e.message : String(e); } }
     // Resolved before open(), so the new project never mounts without its setup/notice.
-    const notice = folder ? (await import('./screens/Workspace')).linkedNotice(project) : '';
+    const notice = [folder ? (await import('./screens/Workspace')).linkedNotice(project) : '', note].filter(Boolean).join(' ');
     await loadProjects();
     open(project.id);
     setCreated({ id: project.id, setup, notice });

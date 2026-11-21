@@ -336,7 +336,7 @@ export interface Bridge {
   onOpenFolder?(callback: () => void): () => void;
   term?: { // absent in VS Code, where the AI tools open in VS Code's own terminals
     // tool '' = the user's shell; a project brings its plugins and, unless plain, its defaults (start: what the tab names).
-    create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean } }>;
+    create(tool: string, project?: string, options?: { plain?: boolean; language?: string; invoke?: InvokeTarget }): Promise<{ terminal?: TerminalRef; error?: string; start?: { label: string; several: boolean }; notice?: string }>;
     start(id: string, cols: number, rows: number, project: string): Promise<string>;
     input(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;

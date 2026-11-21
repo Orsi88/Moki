@@ -111,7 +111,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
             </form>
           ) : (
             <div key={w.id} className="workspace-manage-row">
-              <div className="workspace-manage-info"><strong>{w.name}</strong><span className="muted small">{w.path}</span></div>
+              <div className="workspace-manage-info"><strong>{w.name}</strong><span className="muted small" title={w.path}>{w.path}</span></div>
               <span className="workspace-manage-actions">
                 <button type="button" className={`icon-btn workspace-action-star${favorites.includes(w.id) ? ' is-favorite' : ''}`} aria-pressed={favorites.includes(w.id)} aria-label={favorites.includes(w.id) ? t('Remove {name} from favorites', { name: w.name }) : t('Add {name} to favorites', { name: w.name })} onClick={() => setFavorites(setWorkspaceFavorite(w.id, !favorites.includes(w.id)))}><IconStar size={16} /></button>
                 <button type="button" className="icon-btn workspace-action-edit" title={t('Rename')} aria-label={t('Rename {name}', { name: w.name })} onClick={() => setRenaming({ id: w.id, name: w.name })}><IconEdit size={16} /></button>
@@ -214,7 +214,7 @@ export function WorkspacePicker({ version, onOpen }: Props) {
               <div className="modal-body workspace-manager-list">
                 <input className="workspace-search" type="search" autoFocus aria-label={t('Search')} placeholder={t('Search')} value={workspaceSearch} onChange={(e) => setWorkspaceSearch(e.target.value)} />
                 {allVisible.map((w) => (
-                  <button key={w.id} type="button" className="workspace-list-card" disabled={busy || w.missing} onClick={() => { closeAll(); void run(() => api.selectWorkspace(w.id)); }}>
+                  <button key={w.id} type="button" className="workspace-list-card" title={w.path} disabled={busy || w.missing} onClick={() => { closeAll(); void run(() => api.selectWorkspace(w.id)); }}>
                     <strong>{w.name}</strong>
                     <span className="muted small">{w.path}</span>
                     <span className="muted small">{w.projects} {w.projects === 1 ? t('project') : t('projects')}</span>

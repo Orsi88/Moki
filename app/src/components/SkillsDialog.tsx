@@ -47,6 +47,7 @@ export const pluginList = (): { name: string; text: string; optional: boolean }[
   { name: 'ponytail', text: t('Simplest code that works: YAGNI, standard library first, no unrequested abstractions.'), optional: false },
   { name: 'rtk', text: t('Runs shell commands through rtk to shrink their output. Needs the rtk command installed.'), optional: false },
   { name: 'caveman', text: t('Terse replies: answer first, no filler, every technical fact kept. Fewer tokens per answer.'), optional: true },
+  { name: 'codegraph', text: t('Code index of the linked folder: the AI looks up symbols, callers and call paths instead of reading files. Needs the codegraph command; telemetry off.'), optional: true },
   { name: 'superpowers', text: t('Development workflow skills: brainstorming, plans, test-driven development, systematic debugging, code review.'), optional: true },
 ];
 
@@ -191,9 +192,9 @@ export function SkillsDialog({ project, initialQuery = '', onClose, tools, onTer
         <div className="modal-body" role="tabpanel">
           {embedded && <p className="muted small skills-intro">{current.intro}</p>}
           {scope === 'global' && embedded && (tab === 'add' || tab === 'library') && <p className="muted small">{t('Installed for every project, in your user folder: every AI tool finds it.')}</p>}
-          {tab === 'add' && <div className="field inline">
+          {tab === 'add' && <div className="field">
             <span className="label">{t('Install for')}</span>
-            <div className="choice-grid scope-grid">
+            <div className="choice-grid">
               {([
                 ['project', project.repository ? t('This repository only') : t('This project only'), project.repository ? `${project.repository}/.claude/skills` : project.name],
                 ['global', t('All projects'), t('your user folder, every AI tool')],

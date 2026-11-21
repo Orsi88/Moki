@@ -119,9 +119,9 @@ export function ClaudeUpload({ project, scopes, onInstalled, onBusyChange }: Pro
       <p className="muted small">{t('Upload a .claude folder, a project that contains one, a skills, agents or activities folder, a single skill, agent or activity, or the same in a .zip. Nothing is installed until you choose the items and confirm.')}</p>
 
       {scopes.length > 1 && (
-        <div className="field inline">
+        <div className="field">
           <span className="label">{t('Install for')}</span>
-          <div className="choice-grid scope-grid">
+          <div className="choice-grid">
             {scopes.map((s) => (
               <label key={s} className={`choice${scope === s ? ' on' : ''}`}>
                 <input type="radio" name="upload-scope" checked={scope === s} disabled={Boolean(busy)} onChange={() => { void changeScope(s); }} />

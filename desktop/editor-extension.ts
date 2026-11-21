@@ -16,14 +16,14 @@ const VERSION_TIMEOUT_MS = 5000;
 const INSTALL_TIMEOUT_MS = 120_000;
 
 // Runs a command and resolves its output (null when it fails or times out). Tests pass a fake.
-export type RunCommand = (command: string, args: string[], timeout: number) => Promise<string | null>;
+export type RunCommand = (command: string, args: string[], timeout: number, env?: Record<string, string>) => Promise<string | null>;
 
 // Windows: the tools are .cmd shims or extensionless scripts, which only the shell starts; the
 // command is a fixed name and each argument is quoted (paths Moki made, never containing ").
-export const runCommand: RunCommand = (command, args, timeout) => new Promise((done) => {
+export const runCommand: RunCommand = (command, args, timeout, env) => new Promise((done) => {
   const win = process.platform === 'win32';
   const file = win ? [command, ...args.map((a) => `"${a}"`)].join(' ') : command;
-  execFile(file, win ? [] : args, { timeout, windowsHide: true, shell: win, encoding: 'utf8' }, (error, stdout) => done(error ? null : stdout));
+  execFile(file, win ? [] : args, { timeout, windowsHide: true, shell: win, encoding: 'utf8', ...(env ? { env: { ...process.env, ...env } } : {}) }, (error, stdout) => done(error ? null : stdout));
 });
 
 // First line of `<tool> --version`, '' when the tool does not say.

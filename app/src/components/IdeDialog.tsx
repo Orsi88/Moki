@@ -24,7 +24,7 @@ export function IdeDialog({ project, tools, onClose, onMyAis }: Props) {
       const result = await api.openMokiInEditor(tool.id, project);
       // The row shows what the editor now lists, not what was read when the dialog opened.
       setStatus((list) => (list ?? []).map((entry) => (entry.id === tool.id ? { ...entry, available: true, extension: result.version } : entry)));
-      setInfo(`${t('Moki is ready in {tool}. The editor opened on {folder}.', { tool: tool.label, folder: result.folder })}${result.installed ? ` ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: tool.label })}` : ''}`);
+      setInfo(`${t('Moki is ready in {tool}. The editor opened on {folder}.', { tool: tool.label, folder: result.folder })}${result.installed ? ` ${t('If {tool} was already open, reload its window to show Moki: Ctrl+Shift+P › Developer: Reload Window.', { tool: tool.label })}` : ''} ${t('If it asks whether you trust the authors of this folder, choose “Yes, I trust the authors”: the Moki extension does not run in Restricted Mode.')}`);
     } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
   };
   return (

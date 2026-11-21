@@ -599,6 +599,7 @@ export function Workspace({ workspaceId, project, tools, onHome, onNewLooseNote,
         if (!r.terminal) { setError(r.error ?? t('Could not open the terminal.')); return; }
         const mode = r.start ? (r.start.several ? t('project defaults') : t(r.start.label)) : '';
         addTerminal(mode ? { ...r.terminal, title: `${r.terminal.title} · ${mode}` } : r.terminal);
+        if (r.notice) flash(r.notice);
       })
       .catch((e: Error) => setError(e.message));
   };

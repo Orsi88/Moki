@@ -12,6 +12,9 @@
   "type": "module",
   "main": "./dist/extension.cjs",
   "activationEvents": ["onStartupFinished", "onUri"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": false, "description": "Moki starts AI tools, terminals and MCP servers in this folder. Trust the folder to use Moki." }
+  },
   "contributes": {
     "mcpServerDefinitionProviders": [{ "id": "moki", "label": "Moki" }],
     "icons": {

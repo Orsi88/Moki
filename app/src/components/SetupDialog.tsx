@@ -330,7 +330,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
               <span className="label">{t('Folders the AI will create')}</span>
               <ul className="file-pick">{plan?.folders.map((f) => <li key={f.path}>
                 <label><input type="checkbox" checked={folders.includes(f.path)} onChange={() => setFolders((s) => flip(s, f.path))} />
-                  <span className="file-name">{f.path}</span>{f.contains && <span className="muted small">{f.contains}</span>}
+                  <span className="file-name" title={f.path}>{f.path}</span>{f.contains && <span className="muted small">{f.contains}</span>}
                 </label>
               </li>)}</ul>
             </div>
@@ -343,7 +343,7 @@ export function SetupDialog({ project, onClose, onSaved }: Props) {
                   <li key={f.path}>
                     <label className={files.includes(f.path) ? 'on' : ''}>
                       <input type="checkbox" checked={files.includes(f.path)} onChange={() => setFiles((s) => flip(s, f.path))} />
-                      <span className="file-name">{f.path}</span>
+                      <span className="file-name" title={f.path}>{f.path}</span>
                       {f.contains && <span className="muted small">{f.contains}</span>}
                     </label>
                   </li>

@@ -22,7 +22,7 @@ export type ActivityKey = string;
 export type Starter = 'qa' | 'blank' | 'minimal';
 export const STARTERS: Starter[] = ['qa', 'blank', 'minimal'];
 // App plugins a project turns on itself (adapters/app-plugins/README.md); ponytail and rtk are always on.
-export const PROJECT_PLUGINS = ['caveman', 'superpowers'];
+export const PROJECT_PLUGINS = ['caveman', 'codegraph', 'superpowers']; // codegraph indexes the project's linked folder
 export type ToolKey = 'claude' | 'codex' | 'cursor-agent' | 'gemini' | 'antigravity' | 'cursor' | 'vscode' | 'chat' | 'print';
 
 

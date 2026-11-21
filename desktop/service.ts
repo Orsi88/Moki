@@ -78,6 +78,8 @@ import { ensureMarkers, saveMarkers } from '../scripts/lib/markers.ts';
 import { AGENT_AIS, GEMINI_AGENT_MARK, cleanContract, duplicateAgent, geminiAgent, isUsableAgent, libraryAgentText, libraryDir, listAgents, listCategories, parseAgent, syncGeminiAgents, validateAgent, validateContract, withContract, withProfile, withSkills, type Agent, type AgentContract } from '../scripts/lib/agents.ts';
 
 export class ServiceError extends Error {}
+// Shown after a launch when a project has the codegraph plugin on and the command is not installed.
+const CODEGRAPH_MISSING = 'codegraph is not installed, so this session runs without the code index. To install it yourself: npm i -g @colbymchenry/codegraph (https://github.com/colbymchenry/codegraph).';
 // writeFile with a base the file no longer holds (the app offers to see the new version or keep its own).
 export const CHANGED_OUTSIDE = 'This file changed outside Moki.';
 
@@ -893,6 +895,32 @@ export function createService(root: string, deps: Deps) {
       appendFileSync(join(workspaceDir(root), 'logs', 'mcp.log'), `${JSON.stringify({ at: new Date().toISOString(), ...line })}\n`);
     } catch { /* the log never stops the action */ }
   };
+  // The code index of the "codegraph" plugin: built by Moki in the linked folder, once, in the background (never blocks a launch).
+  // Without the command or without a writable linked folder it does nothing; a folder being indexed is not started twice.
+  const indexing = new Set<string>();
+  const ensureCodegraphIndex = (project: string): void => {
+    const linked = linkedFolder(project, root);
+    if (!linked || linked.writeBlocked || !(deps.which ?? which)('codegraph') || !existsSync(linked.path) || existsSync(join(linked.path, '.codegraph')) || indexing.has(linked.path)) return;
+    indexing.add(linked.path);
+    // 10 minutes: a big repository; telemetry off in the environment as well as in the server's arguments.
+    Promise.resolve(runCmd('codegraph', ['init', '--local-only', '--yes', linked.path], 600_000, { CODEGRAPH_TELEMETRY: '0', DO_NOT_TRACK: '1' }))
+      .then((out) => mcpLog({ action: 'codegraph-init', project, ok: out !== null }), () => mcpLog({ action: 'codegraph-init', project, ok: false }))
+      .finally(() => indexing.delete(linked.path));
+  };
+  // Before an AI session of a project: with codegraph on, the linked folder is indexed when the command is there (returns ''),
+  // and when it is not the session still opens and the returned notice says how to install it (Moki never installs it).
+  const codegraphPrepare = (project: string): string => {
+    if (!projectSummary(project, root).plugins.includes('codegraph')) return '';
+    if (!(deps.which ?? which)('codegraph')) return CODEGRAPH_MISSING;
+    ensureCodegraphIndex(project);
+    return '';
+  };
+  // Starts the AI with the project's own app plugins and the codegraph preparation above.
+  const launchWithPlugins = (tool: ToolKey, prompt: string, project: string, extra?: string[]): LaunchResult => {
+    const notice = codegraphPrepare(project);
+    const result = deps.launch(tool, prompt, root, projectSummary(project, root).plugins, extra);
+    return notice && result.opened ? { ...result, message: `${result.message} ${notice}` } : result;
+  };
   // The projects a server is given to, for the list and the delete confirmation.
   const usersOf = (s: McpServer): string[] => (s.enabled ? listProjects(root).filter((p) => appliesTo(s, p)) : []);
 
@@ -1492,6 +1520,8 @@ export function createService(root: string, deps: Deps) {
       projectsScan = null;
       return projectSummary(project, root);
     },
+    // The in-app AI terminal's counterpart of launchWithPlugins: indexes the code (codegraph) and returns the install notice, or ''.
+    codegraphPrepare,
     // Turns the optional app plugins on or off for this project only.
     setProjectPlugins: (project: string, names: unknown) => {
       const file = join(projectDir(project), 'project.json');
@@ -1499,8 +1529,15 @@ export function createService(root: string, deps: Deps) {
       const unknown = list.filter((n) => !PROJECT_PLUGINS.includes(n));
       if (unknown.length) throw new ServiceError(`Unknown plugin: ${unknown.join(', ')}`);
       const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+      const turningOn = list.includes('codegraph') && !(Array.isArray(data.plugins) && data.plugins.includes('codegraph'));
+      if (turningOn) {
+        const linked = linkedFolder(project, root);
+        if (!linked) throw new ServiceError('codegraph indexes the code of the linked folder: link a folder to this project first.');
+        if (linked.writeBlocked) throw new ServiceError(`project.json does not allow writing to the linked folder ${linked.path} (writeAllowed: false), where codegraph keeps its index.`);
+      }
       writeFileSync(file, `${JSON.stringify({ ...data, plugins: list.sort() }, null, 2)}\n`);
       projectsScan = null;
+      if (turningOn) ensureCodegraphIndex(project);
       return projectSummary(project, root);
     },
     fileTags: (project: string) => { projectDir(project); return fileTags(project, root); },
@@ -2105,7 +2142,7 @@ export function createService(root: string, deps: Deps) {
       const servers = step?.servers ?? [];
       const current = new Map(enabledServers(project, root).map((s) => [s.id, JSON.stringify(s)]));
       const mcpChanged = servers.some((s) => current.get(s.id) !== JSON.stringify(s));
-      const result = deps.launch(tool, windowsSafePrompt(prompt, project, root), root, projectSummary(project, root).plugins, mcpLaunch(tool, project, servers)); // the project's app plugins, as for any request
+      const result = launchWithPlugins(tool, windowsSafePrompt(prompt, project, root), project, mcpLaunch(tool, project, servers)); // the project's app plugins, as for any request
       if (result.opened) failing(() => markStarted(dir, v.slot, result.terminal?.id));
       else failing(() => startFailed(dir, v.slot, result.message || 'Could not open the tool.'));
       return { ...result, prompt, mcpChanged };
@@ -2815,7 +2852,7 @@ export function createService(root: string, deps: Deps) {
         'Do not invent project rules or data: what my description does not say becomes an open question in the proposal.',
         `When done, summarize the proposal and ask what to adjust. Talk to me in ${language}.`,
       ].join(' ');
-      return { ...deps.launch(tool, TOOLS[tool].clipboard ? sent : windowsSafePrompt(sent, project, root), root, projectSummary(project, root).plugins), prompt: sent };
+      return { ...launchWithPlugins(tool, TOOLS[tool].clipboard ? sent : windowsSafePrompt(sent, project, root), project), prompt: sent };
     },
 
     skillProposals: (project: string) => {
@@ -3471,7 +3508,7 @@ export function createService(root: string, deps: Deps) {
       }
       const sent = t.clipboard ? prompt : windowsSafePrompt(prompt, project, root);
       const effort = def.effort && t.effort ? t.effort(def.effort) : []; // the activity's effort, in this tool's own flag
-      return { ...deps.launch(tool, sent, root, projectSummary(project, root).plugins, [...mcpLaunch(tool, project), ...effort]), prompt };
+      return { ...launchWithPlugins(tool, sent, project, [...mcpLaunch(tool, project), ...effort]), prompt };
     },
 
     // The Configurador (desktop/configurator.ts): what the workspace has now, for the AI to reuse names and ids.

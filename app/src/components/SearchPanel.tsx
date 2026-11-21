@@ -104,7 +104,7 @@ export function SearchPanel({ onOpenProject, onOpenFile, onClose }: Props) {
         {!searching && recent.length > 0 && <>
           <div className="home-list-head">{t('Recent files')}</div>
           <ul>{recent.map((file) => <li key={`${file.project}/${file.path}`}>
-            <button type="button" className="search-hit" onClick={() => onOpenFile(file.project, file.path)}>
+            <button type="button" className="search-hit" title={`${file.projectName} · ${file.path}`} onClick={() => onOpenFile(file.project, file.path)}>
               <span className="search-hit-head"><FileIcon name={file.path} size={14} /><span className="search-hit-name">{file.path.split('/').pop()}</span></span>
               <span className="search-hit-where">{file.projectName} · {file.path}</span>
             </button>
